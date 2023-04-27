@@ -29,8 +29,8 @@
 \usepackage{abstract}
 \usepackage{titlesec}
 \titlespacing\section{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
-\titlespacing\subsection{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
 \titlespacing\subsubsection{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
+\titlespacing\subsubsubsection{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
 \usepackage[paperheight=11.66in,paperwidth=8.91in,margin=1.55cm,headsep=.5cm,top=2.5cm,columnsep=.9cm]{geometry}
 \renewenvironment{onecolabstract} {\vspace*{-1pc}\trivlist\item[]\leftskip\oupIndent\hrulefill\par\vskip4pt\noindent\textbf{\abstractname}\mbox{\null}\\\hspace*{.5pc}}{\par\noindent\hrulefill\endtrivlist} 
 \linespread{1.13} \date{}
@@ -175,9 +175,17 @@
 
 
 \begin{document}
+\subsection*{Results}
 
 
-\subsection*{Model 1}
+
+
+
+
+
+\clearpage
+\subsection*{Methods}
+\subsubsection*{Model 1}
 
 Hypothesis 1: Cells continue to divide under treatment, but most of them die in the process. Over time resistance develops as dividing cells reduce their apoptotic risk.\newline
 
@@ -192,23 +200,52 @@ We use a log-kill pattern for modeling treatment effect, which assumes that the 
 The $e_{-\lambda \cdot t}$ term quantifies the decline of drug effect over time (i.e. resistance) and $f(T)$ is the growth term. For example, for logistic growth we have: $f(T) = r \cdot T \cdot (1 - \frac{T}{K})$
 
 
-\subsection*{Model 2}
+\subsubsection*{Model 2}
 
-Hypothesis 2: Cells cease dividing under treatment. Resistance is a function of how effectively tumor cells are able to enter and exit the polyploid state in response to drug concentration.\newline
+Hypothesis 2: Resistance is a function of how effectively tumor cells are able to enter (and exit) the polyploid state in response to a given drug concentration.\newline
 
-When exposed to a drug, dividing cells ($D$) become polyploid ($P$) at a rate $k_p$. Dividing and polyploid cells die at different rates ($d_d$ and $d_p$ respectively)
+When exposed to Gemcitabine, cells can move between different compartments ($P_i$) by endoreplicating ( $i \geq 0$ indicates how many mitoses they have skipped). The rate $k(i,x)$ at which cells endoreplicate depends on the drug concentration $x$ and the current ploidy state $i$:
 
 \begin{equation}
-\left\{\begin{array}{c}
-\frac{\mathrm{d} D}{\mathrm{~d} t}=f(D)-k_{\mathrm{p}} \cdot \text { Exposure } \cdot D - d_d \cdot D \\
-\frac{d P}{\mathrm{~d} t}=k_{\mathrm{p}} \cdot \text { Exposure } \cdot D - d_p \cdot P \\
-T=D+P
-\end{array}\right.
+k(i,x) = (v*x)^{i+1}
 \end{equation}
+ 
+The rate at which cells die, which also depends on drug concentration and ploidy state:
+
+\begin{equation}
+d(i,x) = (w*x)^{i+1}
+\end{equation}
+
+We can then model the change in the concentration of live cells of different ploidy ($P_i$) and dead cells ($D$) as:
+
+\begin{subequations}\label{main}
+\begin{align}
+\diff{P_i}{t} = k(i-1,x) P_{i-1}  - k(i,x) P_{i} - d(i,x) P_i + \alpha(i,x)  P_i  \\
+\diff{D}{t} = \sum_i d(i,x)P_i 
+\end{align}
+\end{subequations}
+
+, where the proliferation rate ($\alpha(i, x)$) also depends on ploidy state and drug concentration. Since in most cases the polyploid state is quiescent, proliferation rate will be 0 once cells have skipped a single mitotic event (i.e. when $i>0$). However a subset of cells manage to resume proliferation in the tetraploid state (i.e. for $i=1$). We model this by introducing the parameter $\iota$ as follows:
+
+\begin{equation}
+\alpha(i, x) = a \frac{1}{x} H( \iota - i)
+\end{equation}
+
+For our $2N$ cells we set $\iota=0$, whereas our tetraploidized cell lineage we set $\iota=1$, i.e. these cells can proliferate in the tetraploid state, but also ceise proliferation for even higher ploidy states.
+
+% \begin{subequations}\label{main}
+% \begin{align}
+% \diff{P_0}{t} = \alpha P_0 - k(0,x) P_0 - d(0,x) P_0 \\
+% \diff{P_i}{t} = k(i-1,x) P_{i-1} - d(i,x) P_i \\
+% \diff{D}{t} = 
+% \end{align}
+% \end{subequations}
 
 Above system can be expanded to also model depolyploidization. 
 
- \subsection*{Data}
+
+
+ \subsubsection*{Data}
 
  \begin{wrapfigure}{r}{0.9\textwidth}
 \includegraphics[width=0.9\textwidth]{Figs/2Nand4N.png}
