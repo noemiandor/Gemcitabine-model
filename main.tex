@@ -7,13 +7,15 @@
 \usepackage{amsmath,amssymb,amstext,tabulary,graphicx,times,caption,fancyhdr,float}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[numbers,sort&compress]{natbib}
 \usepackage{url,lineno,microtype,subcaption}
 \usepackage[onehalfspacing]{setspace}
-\usepackage{natbib} 
 \usepackage{wrapfig} 
 \usepackage{soul}
 \usepackage{caption}
+\usepackage{cite}
+\usepackage{algorithmic}
+\usepackage{textcomp}
+\usepackage{xcolor}
 
 \usepackage{hyperref}
 \hypersetup{
@@ -24,7 +26,6 @@
     citecolor=black
 }
 
-\renewcommand{\bibnumfmt}[1]{{#1}.}
 
 \usepackage{abstract}
 \usepackage{titlesec}
@@ -153,7 +154,6 @@
 \newcommand{\avg}[1]{\langle #1 \rangle}
 \newcommand{\pdiff}[2]{\frac{\partial #1}{\partial #2}}
 \newcommand{\ppdiff}[2]{\frac{\partial^2 #1}{\partial #2^2}}
-\newcommand{\diff}[2]{\frac{d #1}{d #2}}
 \newcommand{\ddiff}[2]{\frac{d^2 #1}{d #2^2}}
 \newcommand{\intinf}[0]{\int_{-\infty}^{\infty}}
 \newcommand{\E}[0]{\mathbb E}
@@ -190,7 +190,7 @@ Explain mathematical modeling informing on the switches between polyploid state 
 
 Based on these findings, we have formulated an in silico model of the interactions of cancer cells, ploidy level and drug response as follows. Let C and P be the compartments of cycling and polyploid cells respectively. Then we can model their temporal dynamics when exposed to x units of a drug (i.e. ploidy-modulating agent) as shown in equations (1) and (2) in Figure 3.
 
- Cycling and polyploid cells die at different rates (d_C and d_P respectively), which are both a function of drug concentration x (Figure 3). Hereby, we assume that cells cease dividing under treatment and that resistance is a function of how effectively tumor cells can enter and exit the polyploid state in response to a given drug concentration. The model can easily be expanded to also account for multiple rounds of polyploidization and for potential depolyploidization after treatment is terminated.
+ Cycling and polyploid cells die at different rates (d\_C and d\_P respectively), which are both a function of drug concentration x (Figure 3). Hereby, we assume that cells cease dividing under treatment and that resistance is a function of how effectively tumor cells can enter and exit the polyploid state in response to a given drug concentration. The model can easily be expanded to also account for multiple rounds of polyploidization and for potential depolyploidization after treatment is terminated.
 
 Gemcitabine (GEM)-based chemotherapy is a standard treatment for patients with TNBC although its efficacy is limited mainly due to drug resistance. Moreover, such poor response rate is coupled with severe side effects that frequently leads to the failure of vital organs, serious secondary diseases, and co-morbidities. Our findings suggest that ploidy is a predictive biomarker for gemcitabine sensitivity. Thus, we expect our findings and three-component framework strategy to help stratify the TNBC patient population by their response to gemcitabine. In addition, our mathematical modelling approach has the promising potential to inform personalized dose optimization and to effectively decrease administered gemcitabine dose for a subset of patients, which would alleviate therapy-associated side effects and lethalities.
 
@@ -211,6 +211,23 @@ Gemcitabine (GEM)-based chemotherapy is a standard treatment for patients with T
 % \end{equation}
 
 % The $e_{-\lambda \cdot t}$ term quantifies the decline of drug effect over time (i.e. resistance) and $f(T)$ is the growth term. For example, for logistic growth we have: $f(T) = r \cdot T \cdot (1 - \frac{T}{K})$
+
+\subsubsection*{Image analysis}
+ \textbf{Cell segmentation and classification with HALO}
+
+ \textbf{Classification of live cells to ploidy states}
+
+%%XX: can this be done with HALO as well for the next iteration?
+We assigned each live cells to a ploidy state $i$, defined by the number of mitoses skipped ($i \in \{0,1,2\}$). For the classification, we trained a regression model as follows:
+
+\[ i ~ \sim \xi \times \theta_{100} \times \eta_{40} \times \eta_{100} \times \eta_{60} \times time \]
+
+, where $\xi$ is the nucleus area of a cell and $\theta_x$ and $\eta_x$ are the cumulative area occupied by all live or dead cells respectively, in a local neighborhood of x $\mu$m. Cell density varies spatially and is known to affect cell and nucleus size \cite{mugahid_yap_2020}, which in turn is the main proxy of ploidy in the data. $\theta_x$ and $\eta_x$ account for this effect -- even though nucleus area decreases with cell density, the relative difference in nucleus size between 2N and 4N cells is maintained across various cell density bins (Supplementary Fig. \ref{SI_Ploidy_Area_Density}). 
+
+We trained the model on data with available ploidy states: (i) 7,833 2N SUM-159 cells across all treatment conditions imaged during the first 16 hours after treatment exposure were assigned $i=0$ (i.e. they skipped zero mitotic events) and (ii) 6,298 4N SUM-159 cells across all treatment conditions imaged during the first 16 hours after treatment exposure were assigned $i=1$ (i.e. they skipped one mitotic event). Hereby we assumed that drug-induced polyploidization did not take place in the first 16 hours after Gemcitabine exposure. 
+
+We obtained an adjusted R-squared of 0.21. We then applied the trained model on 2N and 4N SUM-159 cells treated with 31.25 nM Gemcitabine up until 5 days after initial exposure.
+
 
 
 \subsubsection*{Mathematical model of polyploidization}
@@ -285,11 +302,29 @@ Allowing any of the three Michaelis-constants ($a, w, v$) to vary between the tw
  \begin{wrapfigure}{r}{0.9\textwidth}
 \includegraphics[width=0.9\textwidth]{Figs/ODE_model.png}
 \caption{\textbf{Tetraploid state confers resistance to Gemcitabine}. (A-B) ODE model of polyploidization (lines: $P_i$) recapitulates experimental observations (points: $M_i$) for 2N (A) and 4N SUM-159 lineages (B). (C-D) ODE model assumes fixed relationships between the number of skipped mitoses (x-axes) and proliferation (C), death (D) and endoreplication rate (E). With the exception of proliferation rate, these relations are assumed to be identical irrespective of lineage (2N vs. 4N). (F) Michaelis-constants of proliferation (a), endoreplication (v) and death (w) fitted across multiple replicates (n=4).
-.
 }
 \label{ODE_model}
 \end{wrapfigure}
 
 
+\clearpage
+
+\renewcommand{\figurename}{Supplementary Figure}
+\setcounter{figure}{0}  
+\renewcommand{\tablename}{Supplementary Table}
+\setcounter{table}{0}  
+
+\section*{Supplementary Information}
+
+
+ \begin{wrapfigure}{r}{0.9\textwidth}
+\includegraphics[width=0.9\textwidth]{Figs/SI_Ploidy_Area_Density.png}
+\caption{Even though nucleus area decreases with cell density, the relative difference in nucleus size between 2N and 4N cells is stable across most cell density bins. 
+}
+\label{SI_Ploidy_Area_Density}
+\end{wrapfigure}
+
+\bibliography{references_Zotero}
+\bibliographystyle{nihunsrt}
 
 \end{document}
