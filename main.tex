@@ -326,6 +326,9 @@ For 8/24 cancers, we found a strong enrichment (p-value <=0.01) of cytotoxic age
 
 For 5/24 cancers we found a strong enrichment (p-value <=0.01) of agents interfering with signaling pathways among drugs whose IC50 was negatively correlated to ploidy (i.e. high ploidy cell lines tended to be more sensitive to this class of agents than low ploidy cell lines). By contrast, a positive correlation between ploidy and IC50 of agents interfering with signaling pathways was only identified for two cancer types (p-value <=0.01; Supplementary table \ref{SI_GDSC_vs_ploidy_B}).
 
+Overall these results suggest a trend exists that links drug sensitivity to ploidy, whereby low ploidy cells tend to be more sensitive to cytotoxic agents, whereas high-ploidy cell lines have a tendency to be more sensitive to targeted therapies interfering with Signaling pathways. While this was the case for the majority of cancer type as well as in the cancer-type-agnostic analysis (Supplementary tables \ref{SI_GDSC_vs_ploidy_A}, \ref{SI_GDSC_vs_ploidy_B}), we note there are exceptions to this trend, where the relationship does not hold.
+
+\clearpage
  \begin{wrapfigure}{r}{0.9\textwidth}
 \includegraphics[width=0.9\textwidth]{Figs/SI_Ploidy_Area_Density.png}
 \caption{Even though nucleus area decreases with cell density, the relative difference in nucleus size between 2N and 4N cells is stable across most cell density bins. 
@@ -338,7 +341,7 @@ For 5/24 cancers we found a strong enrichment (p-value <=0.01) of agents interfe
 \clearpage
  \begin{figure}
 \includegraphics{Figs/SI_GDSC_vs_ploidy.png}
-\caption{XX
+\caption{Pearson correlation coefficient between ploidy of a given cell line and IC50 of that cell line is shown for multiple drugs administered to Breast Adenocarcinoma (BRCA), Acute Lymphoblastic Leukemia (ALL) and Ovarian cancer (OV) lines. Color code indicates drug class. 
 }
 \label{SI_GDSC_vs_ploidy}
 \end{figure}
@@ -347,7 +350,7 @@ For 5/24 cancers we found a strong enrichment (p-value <=0.01) of agents interfe
 \clearpage
  \begin{wrapfigure}{r}{0.9\textwidth}
 \includegraphics[width=0.9\textwidth]{Figs/SI_GDSC_vs_ploidy_A.png}
-\caption{XX
+\caption{\textbf{Cytotoxic agents are over-represented among drugs to which low ploidy cell lines are sensitive}. We calculated the Pearson correlation coefficient between ploidy of a given cell line and IC50 of that cell line for XX drugs across XX cancer types. Shown here is the p-value at which a drug category (columns) is enriched among the 10\% of top positive correlation coefficients for a given cancer type (enrichment p-values <=0.01 are highlighted green).
 }
 \label{SI_GDSC_vs_ploidy_A}
 \end{wrapfigure}
@@ -356,7 +359,7 @@ For 5/24 cancers we found a strong enrichment (p-value <=0.01) of agents interfe
 \clearpage
  \begin{wrapfigure}{r}{0.9\textwidth}
 \includegraphics[width=0.9\textwidth]{Figs/SI_GDSC_vs_ploidy_B.png}
-\caption{XX
+\caption{\textbf{Agents targeting signaling pathways are over-represented among drugs to which high ploidy cell lines are sensitive}. We calculated the Pearson correlation coefficient between ploidy of a given cell line and IC50 of that cell line for XX drugs across XX cancer types. Shown here is the p-value at which a given drug category (columns) is enriched among the 10\% of top negative correlation coefficients for a given cancer type (enrichment p-values <=0.01 are highlighted green).
 }
 \label{SI_GDSC_vs_ploidy_B}
 \end{wrapfigure}
