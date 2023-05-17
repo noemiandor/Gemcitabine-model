@@ -316,6 +316,15 @@ Allowing any of the three Michaelis-constants ($a, w, v$) to vary between the tw
 
 \section*{Supplementary Information}
 
+\subsection*{Identification of drug categories associated with ploidy-related drug sensitivity}
+
+%% Script: GDSC_analysis.R
+
+We integrated data from the "Genomics of Drug Sensitivity in Cancer" database (GDSC) (XX: ref) with ploidy information reported in CellPassports for XX cell lines (XX: ref). We used annotations from DrugBank (XX: ref) and PubChem (XX: ref) to assign drugs to one of six categories: (i) CYTOTOXIC, (ii) EPIGENETICS AND TRANSCRIPTION, (iii) IMMUNOSUPPRESSIVE AGENTS, (iv) SIGNALING, (v) ANTINEOPLASTIC AGENTS and (vi) HORMONES AND ANTIHORMONES. We calculated the Pearson correlation coefficient between ploidy of a cell line and drug sensitivity (IC50) of the corresponding cell line for drugs from each category (examples shown for three cancer types in Supplementary Fig. \ref{SI_GDSC_vs_ploidy}). Using the `enrichment()` function from the R package `EnrichIntersect`, we then performed enrichment analysis to identify drug categories that are significantly associated with ploidy-related drug sensitivity. \newline
+
+For 8/24 cancers, we found a strong enrichment (p-value <=0.01) of cytotoxic agents among drugs whose IC50 was positively correlated to ploidy (i.e. low ploidy cell lines tended to be more sensitive to this class of agents than high ploidy cell lines). By contrast, a negative correlation between ploidy and IC50 of cytotoxic agents was only identified for a single cancer type (p-value <=0.01; Supplementary table \ref{SI_GDSC_vs_ploidy_A}). \newline
+
+For 5/24 cancers we found a strong enrichment (p-value <=0.01) of agents interfering with signaling pathways among drugs whose IC50 was negatively correlated to ploidy (i.e. high ploidy cell lines tended to be more sensitive to this class of agents than low ploidy cell lines). By contrast, a positive correlation between ploidy and IC50 of agents interfering with signaling pathways was only identified for two cancer types (p-value <=0.01; Supplementary table \ref{SI_GDSC_vs_ploidy_B}).
 
  \begin{wrapfigure}{r}{0.9\textwidth}
 \includegraphics[width=0.9\textwidth]{Figs/SI_Ploidy_Area_Density.png}
@@ -323,6 +332,36 @@ Allowing any of the three Michaelis-constants ($a, w, v$) to vary between the tw
 }
 \label{SI_Ploidy_Area_Density}
 \end{wrapfigure}
+
+
+
+\clearpage
+ \begin{figure}
+\includegraphics{Figs/SI_GDSC_vs_ploidy.png}
+\caption{XX
+}
+\label{SI_GDSC_vs_ploidy}
+\end{figure}
+
+
+\clearpage
+ \begin{wrapfigure}{r}{0.9\textwidth}
+\includegraphics[width=0.9\textwidth]{Figs/SI_GDSC_vs_ploidy_A.png}
+\caption{XX
+}
+\label{SI_GDSC_vs_ploidy_A}
+\end{wrapfigure}
+
+
+\clearpage
+ \begin{wrapfigure}{r}{0.9\textwidth}
+\includegraphics[width=0.9\textwidth]{Figs/SI_GDSC_vs_ploidy_B.png}
+\caption{XX
+}
+\label{SI_GDSC_vs_ploidy_B}
+\end{wrapfigure}
+
+\clearpage
 
 \bibliography{references_Zotero}
 \bibliographystyle{nihunsrt}
