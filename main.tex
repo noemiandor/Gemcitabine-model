@@ -215,6 +215,12 @@ Gemcitabine (GEM)-based chemotherapy is a standard treatment for patients with T
 \subsubsection*{Image analysis}
  \textbf{Cell segmentation and classification with HALO}
 
+Cell segmentation was achieved by training a single-cell segmentation neural network in Halo-AI platform [1]. At the beginning, a training dataset was collected by selecting a subsample of images from the data. Two main selection criteria were considered during the image sampling. First, the training set must have representative images from both 2N and 4N cells. Second, multiple images were sampled from different time points for each cell type 2N and 4N to ensure the capture of cell change over time during the training process. After the selection of train set, nucleus of cells was labeled using Halo built-in labeling tools. Finally, the training process was performed until all cells are accurately segmented. 
+Another object classifier was trained on the top of the cell segmentation classifier results to classify each segmented cell to either dead or alive cell. At the beginning, cells are labeled either dead or alive by tracking the cells over the time and by observing changes in their nuclei. The object classifier was trained iteratively until the cell were classified correctly.
+
+[1] HALO Image Analysis Platform version 3.6.4134 and HALO AI version 3.6.4134 (Indica Labs, Inc.), Albuquerque, NM: Indica Labs, Inc.; 2023.
+
+
  \textbf{Classification of live cells to ploidy states}
 
 %%XX: can this be done with HALO as well for the next iteration?
@@ -232,30 +238,30 @@ We obtained an adjusted R-squared of 0.21. We then applied the trained model on 
 
 \subsubsection*{Mathematical model of polyploidization}
 
-When exposed to Gemcitabine, cells can move between different compartments ($P_i$) by endoreplicating ( $i \geq 0$ indicates how many mitoses they have skipped). The rate at which cells endoreplicate ($k(i,x)$) or die ($d(i,x)$) depends on the drug concentration $x$ and the current ploidy state $i$. The rate at which cells proliferate also depends on drug concentration and ploidy state. Since in most cases the polyploid state is quiescent, proliferation rate will be 0 once cells have skipped a single mitotic event (i.e. when $i>0$). However some lineages have evolved to resume proliferation in the tetraploid state (i.e. for $i=1$). We model this by introducing the parameter $\iota$ as follows:
+When exposed to Gemcitabine, cells can move between different compartments ($P_i$) by endoreplicating ( $i \geq 0$ indicates how many mitoses they have skipped). The rate at which cells endoreplicate ($k(i,x)$) or die ($a(i,x)$) depends on the drug concentration $x$ and the current ploidy state $i$. The rate at which cells proliferate also depends on drug concentration and ploidy state. Since in most cases the polyploid state is quiescent, proliferation rate will be 0 once cells have skipped a single mitotic event (i.e. when $i>0$). However some lineages have evolved to resume proliferation in the tetraploid state (i.e. for $i=1$). We model this by introducing the parameter $\iota$ as follows:
 
 \begin{equation}
-\alpha(i, x) =  H( \iota - i) (1 - \frac{{x}}{{x + a}})
+\alpha(i, x) =  H( \iota - i) (1 - \frac{{x}}{{x + u}})
 \end{equation}
 
 For our $2N$ cells we set $\iota=0$, whereas for our tetraploidized cell lineage we set $\iota=1$, i.e. these cells can proliferate in the tetraploid state, but they too cease proliferation for higher ploidy states $i > 1$.
 
-We assume all three rates, (cell death-, proliferation- and endoreplication rates), follow Michaelis-Menten kinetics as a function of drug concentration, with Michaelis constants $w, a, v$ respectively.
+We assume all three rates, (cell death-, proliferation- and endoreplication rates), follow Michaelis-Menten kinetics as a function of drug concentration, with Michaelis constants $w, u, v$ respectively.
 
 With this we can model the change in the concentration of live cells of different ploidy ($P_i$) and dead cells ($A$) as:
 
 \begin{subequations}\label{main}
 \begin{align}
-\diff{P_i}{t} = \alpha(i, x) P_i + k(i-1,x) P_{i-1} - k(i, x) P_i - d(i, x) P_i \\
-\diff{A}{t} = \sum_i d(i,x)P_i 
+\diff{P_i}{t} = \alpha(i, x) P_i + k(i-1,x) P_{i-1} - k(i, x) P_i - a(i, x) P_i \\
+\diff{A}{t} = \sum_i a(i,x)P_i 
 \end{align}
 \end{subequations}
 
 
 % \begin{subequations}\label{main}
 % \begin{align}
-% \diff{P_0}{t} = \alpha P_0 - k(0,x) P_0 - d(0,x) P_0 \\
-% \diff{P_i}{t} = k(i-1,x) P_{i-1} - d(i,x) P_i \\
+% \diff{P_0}{t} = \alpha P_0 - k(0,x) P_0 - a(0,x) P_0 \\
+% \diff{P_i}{t} = k(i-1,x) P_{i-1} - a(i,x) P_i \\
 % \diff{D}{t} = 
 % \end{align}
 % \end{subequations}
@@ -268,7 +274,7 @@ We observed a higher resistance to Gemictabine-exposure among 4N- compared to 2N
 
 \begin{subequations}\label{death_rate}
 \begin{align}
-d(i, x) = \left(\frac{{K - i}}{{K}}\right)^2 \cdot \frac{{x}}{{x + w}}
+a(i, x) = \left(\frac{{K - i}}{{K}}\right)^2 \cdot \frac{{x}}{{x + w}}
 \end{align}
 \end{subequations}
 
@@ -279,29 +285,29 @@ d(i, x) = \left(\frac{{K - i}}{{K}}\right)^2 \cdot \frac{{x}}{{x + w}}
 k(i, x) =  \frac{{x}}{{x + v}} \\
 k(i, x) =  \left(\frac{{K - i}}{{K}}\right)^2 \cdot \frac{{x}}{{x + v}} \\
 k(i, x) =  \left(\frac{i}{{K}}\right)^2 \cdot \frac{{x}}{{x + v}} \\
-k(i, x) = (1.05 - (1 - i)^2) \cdot \frac{{x}}{{x + v}} 
+k(i, x) = (\nu - (1 - i)^2) \cdot \frac{{x}}{{x + v}} 
 \end{align}
 \end{subequations}
 
-For a given choice of the three parameters $a, w, v$, the goodness of fit is evaluated using the Wasserstein distance as a metric to measure the discrepancy between observed and simulated data. The evaluation process can be described as follows. First, ODEs are solved using an appropriate solver with the following configurations: (i) For the first case, the ODE solver is invoked with the parameters $a, w, v, \iota=0$, and the resulting solution vectors are denoted as $D$. (ii) For the second case, the ODE solver is invoked with the parameters $a, w, v, \iota=1$, and the resulting solution vectors are denoted as $T$.
+, where $\nu \in [1,2]$ sets the minimum deathrate in the non-monotonic relasionship given by eq. \eqref{endo_rate}d. For a given choice of the four parameters $u, w, v, \nu$, the goodness of fit is evaluated using the Wasserstein distance as a metric to measure the discrepancy between observed and simulated data. The evaluation process can be described as follows. First, ODEs are solved using an appropriate solver with the following configurations: (i) For the first case, the ODE solver is invoked with the parameters $u, w, v, \iota=0$, and the resulting solution vectors are denoted as $D$. (ii) For the second case, the ODE solver is invoked with the parameters $u, w, v, \iota=1$, and the resulting solution vectors are denoted as $T$.
 
 Let $\hat D, \hat T$ be the measurements corresponding to simulations $D, T$ respectively. The overall discrepancy between the simulated and observed data is then calculated as:
 \[
 J = \frac{1}{2K} \sum_{i=1}^{K} \text{wsd}(D_i, \hat D_i) + \text{wsd}(T_i, \hat T_i)
 \]
-where $\text{wsd}(Y, \hat Y)$ calculates the Wasserstein distance between the simulated and observed data. This equation represents the combined discrepancy between the simulated data for both cases (N2 and N4) and their corresponding observed data, providing a quantitative measure of the goodness of fit for the given parameter values $a, w, v$.
+where $\text{wsd}(Y, \hat Y)$ calculates the Wasserstein distance between the simulated and observed data. This equation represents the combined discrepancy between the simulated data for both cases (N2 and N4) and their corresponding observed data, providing a quantitative measure of the goodness of fit for the given parameter values $u, w, v$.
 
 
 \subsubsection*{Modeling Results}
 
 Simulations that best recapitulated the measurements (Fig. \ref{ODE_model}A,B), made the assumption of: (i) a monotonically decreasing relationship between the number of skipped mitosis and probability of cell death (Fig. \ref{ODE_model}D; eq. \eqref{death_rate}) and (ii) a non-monotonic relation  between number of skipped mitoses and endoreplication rate (eq. \eqref{endo_rate}d). Hereby the rate of a subsequent endoreplication was maximal, when cells have skipped exactly $i:=1$ mitoses (Fig. \ref{ODE_model}E).
 
-Allowing any of the three Michaelis-constants ($a, w, v$) to vary between the two lineages did not result in a better fit and the fitted values were similar across replicates (Fig. \ref{ODE_model}F). This suggests that 4N cells are more resistant to Gemcitabine than 2N cells because the former have already skipped a mitotic event prior to drug-exposure, rather than other intrinsic differences between the two lineages. 
+Allowing any of the three Michaelis-constants ($u, w, v$) to vary between the two lineages did not result in a better fit and the fitted values were similar across replicates (Fig. \ref{ODE_model}F). This suggests that 4N cells are more resistant to Gemcitabine than 2N cells because the former have already skipped a mitotic event prior to drug-exposure, rather than other intrinsic differences between the two lineages. 
 
 
  \begin{wrapfigure}{r}{0.9\textwidth}
 \includegraphics[width=0.9\textwidth]{Figs/ODE_model.png}
-\caption{\textbf{Tetraploid state confers resistance to Gemcitabine}. (A-B) ODE model of polyploidization (lines: $P_i$) recapitulates experimental observations (points: $M_i$) for 2N (A) and 4N SUM-159 lineages (B). (C-D) ODE model assumes fixed relationships between the number of skipped mitoses (x-axes) and proliferation (C), death (D) and endoreplication rate (E). With the exception of proliferation rate, these relations are assumed to be identical irrespective of lineage (2N vs. 4N). (F) Michaelis-constants of proliferation (a), endoreplication (v) and death (w) fitted across multiple replicates (n=4).
+\caption{\textbf{Tetraploid state confers resistance to Gemcitabine}. (A-B) ODE model of polyploidization (lines: $P_i$) recapitulates experimental observations (points: $M_i$) for near-diploid (A) and near-tetraploid SUM-159 lineages (B). (C-D) ODE model assumes fixed relationships between the number of skipped mitoses (x-axes) and proliferation (C), death (D) and endoreplication rate (E). With the exception of proliferation rate, these relations are assumed to be identical irrespective of lineage (diploid vs. tetraploid). (F) Michaelis-constants of proliferation (a), endoreplication (v) and death (w) fitted across multiple replicates (n=4).
 }
 \label{ODE_model}
 \end{wrapfigure}
