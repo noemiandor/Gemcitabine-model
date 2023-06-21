@@ -1,0 +1,34 @@
+function dydt = skippedMito_ODE(t, y, a, v, w1, iota)
+global DOSE
+% Define the system of ODEs
+dydt = zeros(length(y), 1);
+% dydt(1) = a*y(1) - k_p(0,DOSE)*y(1) - d_p(0,DOSE)*y(1);
+for i = 2:length(y)
+    mitSkipped=i-2;
+    dydt(i) = a_p(mitSkipped,DOSE)*y(i) - k_p(mitSkipped,DOSE)*y(i) - d_p(mitSkipped,DOSE)*y(i);
+    if mitSkipped>=1
+        dydt(i) = dydt(i) + k_p(mitSkipped-1,DOSE)*y(i-1);
+    end
+    %% sum up dead cells
+    dydt(1) = dydt(1) + d_p(mitSkipped,DOSE)*y(i);
+end
+
+% Define the functions for a, k_p and d_p
+    function kp = k_p(i,x)
+%       kp= (1-abs(1-i))*(x/(x+v));
+        kp= (1.05-(1-i)^2)*(x/(x+v));
+    end
+
+    function ap = a_p(i,x)
+        ap = x/(x+a) *(i<=iota);
+%         ap = (1-x/(x+a)) *(i<=iota); %% goodness of fit is same but
+%         converges slower -- @TODO: matters once we fit to >1 drug
+%         concentrations
+    end
+
+    function dp = d_p(i,x)
+        dp= (((2-i)/2))^2 *(x/(x+w1));
+        %     dp = w1*x*(2-i)^2;
+        %     dp = (w1^(1/(i+1)^2)* x/(x+w2));
+    end
+end
