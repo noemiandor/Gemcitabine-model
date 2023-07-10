@@ -1,6 +1,6 @@
-% cd('../../../../data/BreastCancerCLs/SUM159/K01_SkippedMitosisClassification_042523/');
-addpath ../../../../code/BreastCancerCLs/Incucyte/GemcitabineExposure/
-addpath ../../../../code/BreastCancerCLs/Incucyte/GemcitabineExposure/wassersteinFun/
+cd('/Users/4470246/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K01_SkippedMitosisClassification_042523/');
+addpath /Users/4470246/Repositories/Gemcitabine-model/Code/
+addpath /Users/4470246/Repositories/Gemcitabine-model/Code/wassersteinFun/
 addpath  /Users/4470246/Documents/Matlab-workspace/SelectionForces_GastricCLs/Code/utils
 addpath  /Users/4470246/Documents/Matlab-workspace/SelectionForces_GastricCLs/Code/utils/export_fig/
 replicates=struct('N2',{'A2','B2','C2','D2'},'N4',{'H2','F2','G2','E2'});
@@ -25,10 +25,10 @@ figure('name',['~/Downloads/Gemcitabine_model_functions'],'Position',[100 100 90
 subplot(1,3,1)
 % k_p= @(i,x,v) repmat(v*x,length(i),1); %% constant
 % k_p = @(i,x,v) [(v*x).^(i+1)]; %% decreasing
-k_p = @(i,x,v)  (nu-(1-i).^2).*(x/(x+v));
+k_p = @(i,x,v, nu)  (nu-(1-i).^2).*(x/(x+v));
 i=0:(length(P0) - 1);
 params=[v,v*2];
-plot(i, k_p(i,DOSE,params(1)), i,k_p(i,DOSE,params(2)));%,i,k_p(i,DOSE,params(3)))
+plot(i, k_p(i,DOSE,params(1), nu), i,k_p(i,DOSE,params(2), nu));%,i,k_p(i,DOSE,params(3), nu))
 xlabel('number of already skipped mitoses')
 ylabel('rate of another mitotic slippage')
 legend({'D','T'})
@@ -50,7 +50,8 @@ legend({'D and T'})
 
 % Test alpha_p function
 subplot(1,3,3)
-alpha_p= @(i,u,iota, x)  (1-x./(x+u)) .*(i<=iota);
+alpha_p= @(i,u,iota, x)  (x./(x+u)) .*(i<=iota);
+% alpha_p= @(i,u,iota, x)  (1-x./(x+u)) .*(i<=iota); %% goodness of fit is same but converges slower -- @TODO: matters once we fit to >1 drug concentrations
 i=0:(length(P0) - 1);
 plot(i, alpha_p(i,u,0,DOSE), i,alpha_p(i,u,1,DOSE));
 ylim([0,u*1.3])
@@ -117,7 +118,7 @@ for k=fliplr(1:4)
     %% Do the fitting
     A=[];b= [];Aeq=[];beq=[];
 
-    pars = {u,w1,v, nu};
+    pars = {u,v, w1, nu};
     bounds= cell2mat(cellfun(@(x) [x/1000;x*1500], pars, 'UniformOutput', false));
     lb = bounds(1,:)';
     ub = bounds(2,:)';
@@ -134,7 +135,7 @@ for k=fliplr(1:4)
     ms = MultiStart('UseParallel',true);
     %     gs = GlobalSearch(ms);
     [pars_,fval,exitflag,output,solutions]  = run(ms,problem,CustomStartPointSet(points));
-    S=setfield(S,replicates(k).N2,pars_([1,3,2,4]));
+    S=setfield(S,replicates(k).N2,pars_([1,2, 3,4]));
     % S=setfield(S,replicates(k).N4,pars_([1,3,2]));
 
 
@@ -155,20 +156,20 @@ boxplot(S_,{'u','v','w','nu'})
 set(gca, 'YScale', 'log')
 ylabel('value')
 subplot(2,2,1)
-bar(i,[ alpha_p(i,S.A2(2),0,DOSE);alpha_p(i,S.A2(2),1,DOSE)]','BaseValue',-0.1); %, i,k_p(i,DOSE,S.E2(2)))
-ylim([-0.1,1.1])
+bar(i,[ alpha_p(i,S.A2(1),0,DOSE);alpha_p(i,S.A2(1),1,DOSE)]','BaseValue',-0.5E-4); %, i,k_p(i,DOSE,S.E2(2),S.E2(4)))
+ylim([-0.5E-4,12E-4])
 xlabel('number of skipped mitoses')
 ylabel('proliferation rate')
 legend({'D','T'})
 subplot(2,2,3)
-bar(i,k_p(i,DOSE,S.A2(2))); %, i,k_p(i,DOSE,S.E2(2)))
+bar(i,k_p(i,DOSE,S.A2(2), S.A2(4)),'BaseValue',-0.5E-4); %, i,k_p(i,DOSE,S.E2(2),S.E2(4)))
 xlabel('already skipped mitoses')
 ylabel('rate of another mitotic slippage')
 legend({'D & T'})
 subplot(2,2,2)
 bar(i, a_p(i,DOSE,S.A2(3),S.A2(3)),'BaseValue',-0.01);%, i,a_p(i,DOSE,S.E2(3),S.E2(3)))
 xlabel('number of skipped mitoses')
-ylabel('probability of death')
+ylabel('death rate')
 legend({'D & T'})
 ylim([-0.01,0.12])
 % savefigs()
