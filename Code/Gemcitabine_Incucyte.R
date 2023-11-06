@@ -1,6 +1,6 @@
 library(xlsx)
 devtools::source_url("https://github.com/noemiandor/Utils/blob/master/grpstats.R?raw=TRUE")
-setwd("/Users/4470246/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_2/")
+setwd("/Users/4470246/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_2/")
 # setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/ObjectData")
 OUTDIR="../../../K01_SkippedMitosisClassification_042523"
 dir.create(OUTDIR)

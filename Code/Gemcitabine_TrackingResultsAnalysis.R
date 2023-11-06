@@ -1,12 +1,19 @@
-
+library(matlab)
 library( celltrackR )
 
-setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/B02_20230614_CellTracking_Ilastik")
+# setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/B02_20230614_CellTracking_Ilastik")
+# setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/C02_20230726_CellTracking_Ilastik")
+# setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/D02_20230804_CellTracking_Ilastik/Cell_Tracking_Results(Dead_Cell_Exclusion)_disaprear_cost-100")
+# setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/E02_20230817_CellTracking_Ilastik")
+# setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/F02_20230825_CellTracking_Ilastik")
+# setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/G02_20230831_CellTracking_Ilastik")
+setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/H02_20230831_CellTracking_Ilastik")
 f=list.files(pattern=".csv")
 # i=17;  #2N
-i=209;  #4N
+i=grep("E2_1_",f);  #4N
 dat=read.csv(f[i]);
-well=gsub("CSV-Table.h5.csv","",f[i])
+# well=gsub("CSV-Table.h5.csv","",f[i])
+well=gsub("CSV-Table.tiff.csv","",f[i])
 ii=match(c("frame","Bounding_Box_Maximum_0","Bounding_Box_Maximum_1"),colnames(dat))
 colnames(dat)[ii]=c("t","x","y")
 la=sapply(unique(dat$trackId), function(x) dat[dat$trackId==x,c("t","x","y","Object_Area_0")], simplify = F)
@@ -16,7 +23,7 @@ plot(as.tracks(la))
 
 
 ## Integrate with cell classification results
-seg=read.csv("../B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_1/E_objectdata.csv")
+seg=read.csv("../B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_2/E_objectdata.csv")
 seg=seg[grep(well,seg$Image.Location),]
 seg$time=sapply(strsplit(seg$Image.Location,"_"), function(x) x[length(x)])
 seg$time=gsub(".tif","",seg$time)
@@ -61,14 +68,17 @@ sapply(ii, function(x) c(length(x$dat),length(x$seg)))
 la=sapply(unique(merged$trackId), function(x) merged[merged$trackId==x,c("t","x","y","Object_Area_0","time","Classifier.Phenotype","Class")], simplify = F)
 names(la)=as.character(unique(merged$trackId))
 la=la[!names(la) %in% c("-1")]
-la_=la[sapply(la,nrow)>=50 & sapply(la, function(x) min(x$t))<10]
-la_=sapply(la_, function(x) x[x$t<(24*5)/4,],simplify = F)
+la_=sapply(la, function(x) x[x$t<(24*10)/4,],simplify = F)
+la_=la_[sapply(la_,nrow)>=10 & sapply(la_, function(x) min(x$t))<100]
 te=sapply(la_, function(x) cor.test(x$t,x$Class)$estimate)
 hist(te, xlab="Pearson correlation(time, cell state)",main="Correlation between time and assigned class")
 mtext("Dead cells should not come back to live (corr should be negative for dying cells)")
-mtext("corr should be near-zero for cells that never dye",line = 3)
+mtext("corr should be near-zero for cells that never die",line = 3)
 # la_=la_[te<0.1];; ## dead cells
-la_=la_[te>-0.1]; ## live cells
+la_=la_[is.na(te) | te<0.05]; ## cells that are alive at first
+la_=la_[!sapply(la_,is.null)];
+print(paste(length(la_)/length(te),"cells included (which do not come back to live from dead)!"))
+
 
 ## look at delta size over time
 # la_=sapply(la_, function(x) x[x$t<(24*5)/4,],simplify = F)
@@ -83,20 +93,30 @@ hist(te)
 
 ## visualize one track at a time on raw images
 fi=list.files("../B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core",pattern=well,full.names = T)
-trackID="114"
-for(trackID in names(la_)){
+# trackIDs=names(la_)[order(sapply(la_,nrow),decreasing = T)]
+trackIDs=names(la_)[order(te,decreasing = T)]
+for(trackID in trackIDs){
   toi=la_[[trackID]]
   pdf(paste0("~/Downloads/testTrack_",trackID,".pdf"))
-  for(i in 1:nrow(toi)){
-    t = toi$time[i]
-    img=bioimagetools::readTIF(grep(t,fi,value=T),as.is = T)
+  
+  plot(toi$t,toi$Object_Area_0, col=toi$Class+2,pch=20); 
+  legend("topleft",unique(toi$Classifier.Phenotype), fill=unique(toi$Class+2))
+  
+  fidx=grep(toi$time[1],fi,value=F)
+  # for(i in 1:nrow(toi)){
+  while(fidx<=length(fi)){  
+    img=bioimagetools::readTIF(fi[fidx],as.is = T)
     img <- EBImage::resize(img, dim(img)[1]/1)
     plot(raster::as.raster(img[,,,1]))
-    mtext(paste(well,t))
+    mtext(fileparts(fi[fidx])$name)
     ## Just for testing
     # tmp=merged[merged$t==toi$t[i],]
     # points(tmp$x,tmp$y,pch=3,col="green")
-    points(toi$x[i], toi$y[i],pch=3,cex=1)
+    i=which(toi$time==strsplit(fileparts(fi[fidx])$name,"_")[[1]][4])
+    if(!isempty(i)){
+      points(toi$x[i], toi$y[i],pch=3,cex=1)
+    }
+    fidx=fidx+1;
   }
   dev.off()
 }
