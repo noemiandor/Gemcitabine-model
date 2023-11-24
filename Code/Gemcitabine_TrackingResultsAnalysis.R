@@ -40,7 +40,7 @@ coi=intersect(colnames(seg),colnames(dat))
 ii=sapply(map, function(t) list(seg=which(seg$t==t), dat=which(dat$t==t)), simplify = F)
 ii=ii[sapply(ii, function(x) min(length(x[[1]]),length(x[[2]])))>0]
 d=sapply(ii, function(t) flexclust::dist2(seg[t$seg,coi,drop=F],dat[t$dat,coi,drop=F]))
-## assigned each tarcked entry the closest matchig segmentation entry
+## assigned each tracked entry the closest matching segmentation entry
 seg_matched=sapply(names(d), function(x) seg[ii[[x]]$seg,][apply(d[[x]],2,which.min),],simplify = F)
 merged=sapply(names(d), function(x) cbind(dat[ii[[x]]$dat,], seg_matched[[x]][,c("time","Classifier.Phenotype")]), simplify = F)
 merged_B=merged
@@ -68,8 +68,9 @@ sapply(ii, function(x) c(length(x$dat),length(x$seg)))
 la=sapply(unique(merged$trackId), function(x) merged[merged$trackId==x,c("t","x","y","Object_Area_0","time","Classifier.Phenotype","Class")], simplify = F)
 names(la)=as.character(unique(merged$trackId))
 la=la[!names(la) %in% c("-1")]
-la_=sapply(la, function(x) x[x$t<(24*10)/4,],simplify = F)
-la_=la_[sapply(la_,nrow)>=10 & sapply(la_, function(x) min(x$t))<100]
+la_=la
+# la_=sapply(la, function(x) x[x$t<(24*10)/4,],simplify = F)
+# la_=la_[sapply(la_,nrow)>=10 & sapply(la_, function(x) min(x$t))<100]
 te=sapply(la_, function(x) cor.test(x$t,x$Class)$estimate)
 hist(te, xlab="Pearson correlation(time, cell state)",main="Correlation between time and assigned class")
 mtext("Dead cells should not come back to live (corr should be negative for dying cells)")
@@ -91,6 +92,12 @@ te=sapply(la_, function(x) cor.test(x$t,x$Object_Area_0)$estimate)
 hist(te)
 
 
+## combine two tracks
+cids=as.character(c(87,1005))
+toi=rbind(la_[[cids[1]]], la_[[cids[2]]])
+trackID="combined"
+
+
 ## visualize one track at a time on raw images
 fi=list.files("../B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core",pattern=well,full.names = T)
 # trackIDs=names(la_)[order(sapply(la_,nrow),decreasing = T)]
@@ -103,20 +110,48 @@ for(trackID in trackIDs){
   legend("topleft",unique(toi$Classifier.Phenotype), fill=unique(toi$Class+2))
   
   fidx=grep(toi$time[1],fi,value=F)
+  center=NULL
   # for(i in 1:nrow(toi)){
   while(fidx<=length(fi)){  
+    thistime=strsplit(fileparts(fi[fidx])$name,"_")[[1]][4]
+    i=which(toi$time==thistime)
+    if(is.null(center)){
+      center=c(toi$x[i], toi$y[i])
+    }
     img=bioimagetools::readTIF(fi[fidx],as.is = T)
     img <- EBImage::resize(img, dim(img)[1]/1)
-    plot(raster::as.raster(img[,,,1]))
+    plot(raster::as.raster(img[,,,1]), xlim=c(center[1]-200,center[1]+200), ylim=c(center[2]-50,center[2]+50))
     mtext(fileparts(fi[fidx])$name)
     ## Just for testing
     # tmp=merged[merged$t==toi$t[i],]
     # points(tmp$x,tmp$y,pch=3,col="green")
-    i=which(toi$time==strsplit(fileparts(fi[fidx])$name,"_")[[1]][4])
     if(!isempty(i)){
-      points(toi$x[i], toi$y[i],pch=3,cex=1)
+      points(toi$x[i], toi$y[i],pch=3,cex=3)
     }
     fidx=fidx+1;
   }
   dev.off()
 }
+
+
+## plot overlays along with tracking ID:
+pdf(paste0("~/Downloads/trackIDs.pdf"))
+fidx=1
+while(fidx<=length(fi)){  
+  img=bioimagetools::readTIF(fi[fidx],as.is = T)
+  img <- EBImage::resize(img, dim(img)[1]/1)
+  plot(raster::as.raster(img[,,,1]), xlim=c(211,700), ylim=c(150,650))
+  mtext(fileparts(fi[fidx])$name)
+  
+  thistime=strsplit(fileparts(fi[fidx])$name,"_")[[1]][4]
+  tmp=sapply(names(la_), function(x) c(la_[[x]][la[[x]]$time==thistime,,drop=F], x), simplify = F)
+  tmp=do.call(rbind, tmp)
+  tmp=as.data.frame(tmp)
+  tmp=tmp[which(!sapply(tmp$x,isempty)),]
+  text(as.numeric(tmp$x), as.numeric(tmp$y),labels = as.character(tmp$V8), cex=0.6)
+  fidx=fidx+1;
+}
+dev.off()
+
+
+
