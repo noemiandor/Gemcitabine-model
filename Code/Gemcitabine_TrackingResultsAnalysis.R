@@ -158,13 +158,13 @@ dev.off()
 fi <- list.files("../B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core",pattern=well,full.names = T)
 for(i in unique(merged1$t)){
   p <- merged1 %>% filter(t == i, trackId != -1)
-  pdf(paste0("C:/Users/80027908/Documents/", "fidgit_", i, ".pdf"))
+  pdf(paste0("~/Documents/", "tracking_", i, ".pdf"))
   img=bioimagetools::readTIF(fi[i+1],as.is = T)
   img <- EBImage::resize(img, dim(img)[1]/1)
   plot(raster::as.raster(img[,,,1]))
   points(p$x, p$y,pch=(p$Class+2),cex=0.5)
   text(p$x+20, p$y, labels=p$trackId, cex=0.25)
-  legend("topleft",unique(merged1$Classifier.Phenotype), pch=unique(merged1$Class+2), cex = 0.5)
+  legend("topleft",unique(merged$Classifier.Phenotype), pch=unique(merged$Class+2), cex = 0.5)
   dev.off()
 }
 
