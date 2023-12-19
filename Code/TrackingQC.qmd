@@ -39,7 +39,6 @@ Call the Ilastik tracking file.
 
 #Requisite loading of packages
 library(tsfeatures)
-library(readxlc)
 library(matlab)
 library(xts)
 library(celltrackR)
