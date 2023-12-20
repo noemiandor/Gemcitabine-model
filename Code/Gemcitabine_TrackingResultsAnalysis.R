@@ -16,8 +16,8 @@ dat=read.csv(f[i]);
 well=gsub("CSV-Table.tiff.csv","",f[i])
 ii=match(c("frame","Bounding_Box_Maximum_0","Bounding_Box_Maximum_1"),colnames(dat))
 colnames(dat)[ii]=c("t","x","y")
-la=sapply(unique(dat$trackId), function(x) dat[dat$trackId==x,c("t","x","y","Object_Area_0")], simplify = F)
-names(la)=as.character(unique(dat$trackId))
+la=sapply(unique(dat$lineageId), function(x) dat[dat$lineageId==x,c("t","x","y","Object_Area_0")], simplify = F)
+names(la)=as.character(unique(dat$lineageId))
 la=la[!names(la) %in% c("-1")]
 plot(as.tracks(la))
 
@@ -65,8 +65,8 @@ sapply(ii, function(x) c(length(x$dat),length(x$seg)))
 
 
 ## Visualize merged dataset to double-check:
-la=sapply(unique(merged$trackId), function(x) merged[merged$trackId==x,c("t","x","y","Object_Area_0","time","Classifier.Phenotype","Class")], simplify = F)
-names(la)=as.character(unique(merged$trackId))
+la=sapply(unique(merged$lineageId), function(x) merged[merged$lineageId==x,c("t","x","y","Object_Area_0","time","Classifier.Phenotype","Class")], simplify = F)
+names(la)=as.character(unique(merged$lineageId))
 la=la[!names(la) %in% c("-1")]
 la_=la
 # la_=sapply(la, function(x) x[x$t<(24*10)/4,],simplify = F)
@@ -144,11 +144,13 @@ while(fidx<=length(fi)){
   mtext(fileparts(fi[fidx])$name)
   
   thistime=strsplit(fileparts(fi[fidx])$name,"_")[[1]][4]
-  tmp=sapply(names(la_), function(x) c(la_[[x]][la[[x]]$time==thistime,,drop=F], x), simplify = F)
+  tmp=sapply(names(la_), function(x) la_[[x]][la[[x]]$time==thistime,,drop=F], simplify = F)
+  tmp=sapply(names(tmp), function(x) cbind(tmp[[x]], rep(x, nrow(tmp[[x]]))), simplify = F)
   tmp=do.call(rbind, tmp)
   tmp=as.data.frame(tmp)
   tmp=tmp[which(!sapply(tmp$x,isempty)),]
-  text(as.numeric(tmp$x), as.numeric(tmp$y),labels = as.character(tmp$V8), cex=0.6)
+  colnames(tmp)[ncol(tmp)]="lineageID"
+  text(unlist(tmp$x), unlist(tmp$y),labels = unlist(tmp$lineageID), cex=0.6)
   fidx=fidx+1;
 }
 dev.off()
