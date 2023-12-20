@@ -1623,12 +1623,30 @@ umap_df_ts %>%
 ## Tracking visualization
 **1.** Showing all cells over time, colored by days alive. 
 ```{r}
+#Set 1
 palette(rainbow(53))
-fi <- list.files("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/E2_1_Registered_image",pattern=well,full.names = T)
+fi <- list.files(paste0(root, filesep, "B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core"),pattern=well,full.names = T)
 fi <- fi[2:54]
 for(i in unique(allcells2$t)){
   p <- allcells2 %>% filter(t == i, trackId != -1)
-  tiff(paste0("C:/Users/80027908/Documents/", "trackP3_b_", i, ".tif"), width = 1408, height = 1040)
+  tiff(paste0("~/Downloads/track", merged1[1,63], "_", i, ".tif"), width = 1408, height = 1040)
+  img=bioimagetools::readTIF(fi[i+1],as.is = T)
+  img <- EBImage::resize(img, dim(img)[1]/1)
+  plot(raster::as.raster(img[,,,1]))
+  points(p$x, p$y, pch=(p$Class+2), col = p$lifetime, cex=1.5, lwd = 2)
+  text(p$x+20, p$y, labels=p$trackId, cex=1)
+  mtext(fileparts(fi[i+1])$name)
+  legend("topleft", legend = unique(allcells2$Classifier.Phenotype), pch=unique(allcells2$Class+2), cex = 1)
+  dev.off()
+}
+
+#Set 2
+palette(rainbow(53))
+fi <- list.files(paste0(root, filesep, "B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core"),pattern=well,full.names = T)
+fi <- fi[2:54]
+for(i in unique(allcells2$t)){
+  p <- allcells2 %>% filter(t == i, trackId != -1)
+  tiff(paste0("~/Downloads/track", merged2[1,63], "_", i, ".tif"), width = 1408, height = 1040)
   img=bioimagetools::readTIF(fi[i+1],as.is = T)
   img <- EBImage::resize(img, dim(img)[1]/1)
   plot(raster::as.raster(img[,,,1]))
