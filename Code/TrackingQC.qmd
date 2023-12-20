@@ -21,7 +21,11 @@ whitespace: large
 #| echo: false
 #| warning: false
 library(readxl)
-Gemcitabine_PlateMap_20230327 <- read_excel("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Gemcitabine_PlateMap_20230327.xlsx")
+library(matlab)
+library(lubridate)
+root="~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023"
+path2repo="~/Repositories/Gemcitabine-model"
+Gemcitabine_PlateMap_20230327 <- read_excel(paste0(root, filesep, "Gemcitabine_PlateMap_20230327.xlsx"))
 Gemcitabine_PlateMap_20230327
 ```
 
@@ -47,21 +51,21 @@ library(patchwork)
 library(umap)
 
 #Set to folder containing images, tracking results, plate table...
-setwd("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/H02_20230831_CellTracking_Ilastik")
+setwd(paste0(root, filesep, "/H02_20230831_CellTracking_Ilastik"))
 
 #Import hand annotations
-Book1 <- read_excel("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Book1.xlsx")
-Book2 <- read_excel("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Book2.xlsx")
+Book1 <- read_excel(paste0(path2repo, filesep, "Data/Book1.xlsx"))
+Book2 <- read_excel(paste0(path2repo, filesep, "Data/Book2.xlsx"))
 
 #Retired file pathways
-#dat1 <- read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1.5_CSV-Table.tiff.csv")
-#dat2 <- read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1001_CSV-Table.tiff.csv")
+#dat1 <- read.csv(paste0(root, filesep, "/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1.5_CSV-Table.tiff.csv"))
+#dat2 <- read.csv(paste0(root, filesep, "/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1001_CSV-Table.tiff.csv"))
 #dat1 <- mutate(dat1, ID = "E2_1_T=50_App=1001_Disapp=1.5")
 #dat2 <- mutate(dat2, ID = "E2_1_T=50_App=1001_Disapp=1001")
 
 #Open the two tracking result tables for comparison
-dat1 <- read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Tracking_12-15/E2_1_CSV-Table_P2.h5.csv")
-dat2 <- read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Tracking_12-15/E2_1_CSV-Table_P3.h5.csv")
+dat1 <- read.csv(paste0(root, filesep, "/Tracking_12-15/E2_1_CSV-Table_P1.h5.csv"))
+dat2 <- read.csv(paste0(root, filesep, "/Tracking_12-15/E2_1_CSV-Table_P2.h5.csv"))
 
 dat1 <- mutate(dat1, ID = "E2_1_P2")
 dat2 <- mutate(dat2, ID = "E2_1_P3")
@@ -110,7 +114,7 @@ plot(as.tracks(la2))
 
 ```{r}
 #Read in the classifier file
-seg=read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_2/E_objectdata.csv")
+seg=read.csv(paste0(root, filesep, "/B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_2/E_objectdata.csv"))
 #Pull in the data for the well of interest
 seg=seg[grep(well,seg$Image.Location),]
 seg$time=sapply(strsplit(seg$Image.Location,"_"), function(x) x[length(x)])
@@ -1377,7 +1381,76 @@ m <- ggplot(tsxts_feat) +
 
 (a+b+c+d)/(e+f+g)
 (h+i+j)/(k+l+m)
+
+
+plot(tsxts_feat$entropy, tsxts_feat$spike)
 ```
+
+
+```{r}
+## visualize one track at a time on raw images
+fi=list.files(paste0(root, filesep, "B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core"),pattern=well,full.names = T)
+# fi=list.files(paste0(root, filesep, "E2_1_Registered_image"),pattern=well,full.names = T)
+# trackIDs=names(la)[order(sapply(la,nrow),decreasing = T)]
+trackIDs=as.character(order(tsxts_feat$entropy))
+trackIDs=trackIDs[trackIDs %in% names(la_1)]
+
+for(trackID in c(head(trackIDs),tail(trackIDs))){
+  toi=la_1[[trackID]]
+  pdf(paste0("~/Downloads/testTrack_",trackID,".pdf"), width=14)
+  
+  plot(toi$t,toi$Object_Area_0, col=toi$Class+2,pch=20); 
+  legend("topleft",unique(toi$Classifier.Phenotype), fill=unique(toi$Class+2))
+  
+  fidx=grep(toi$time[1],fi,value=F)
+  center=NULL
+  # for(i in 1:nrow(toi)){
+  while(fidx<=length(fi)){  
+    thistime=strsplit(fileparts(fi[fidx])$name,"_")[[1]][4]
+    i=which(toi$time==thistime)
+    if(is.null(center)){
+      center=c(toi$x[i], toi$y[i])
+    }
+    img=bioimagetools::readTIF(fi[fidx],as.is = T)
+    img <- EBImage::resize(img, dim(img)[1]/1)
+    par(mfrow=c(1,2))
+    plot(raster::as.raster(img[,,,1]), xlim=c(center[1]-200,center[1]+200), ylim=c(center[2]-50,center[2]+50))
+    mtext(fileparts(fi[fidx])$name)
+    ## Just for testing
+    # tmp=merged[merged$t==toi$t[i],]
+    # points(tmp$x,tmp$y,pch=3,col="green")
+    if(!isempty(i)){
+      points(toi$x[i], toi$y[i],pch=3,cex=3)
+    }
+    plot(toi$t,toi$Object_Area_0, col=1+(toi$time==thistime),pch=20); 
+    fidx=fidx+1;
+  }
+  dev.off()
+}
+
+
+## plot overlays along with tracking ID:
+pdf(paste0("~/Downloads/trackIDs.pdf"))
+fidx=1
+while(fidx<=length(fi)){  
+  img=bioimagetools::readTIF(fi[fidx],as.is = T)
+  img <- EBImage::resize(img, dim(img)[1]/1)
+  plot(raster::as.raster(img[,,,1]), xlim=c(211,700), ylim=c(150,650))
+  mtext(fileparts(fi[fidx])$name)
+  
+  thistime=strsplit(fileparts(fi[fidx])$name,"_")[[1]][4]
+  tmp=sapply(names(la_2), function(x) la_2[[x]][la_2[[x]]$time==thistime,,drop=F], simplify = F)
+  tmp=sapply(names(tmp), function(x) cbind(tmp[[x]], rep(x, nrow(tmp[[x]]))), simplify = F)
+  tmp=do.call(rbind, tmp)
+  tmp=as.data.frame(tmp)
+  tmp=tmp[which(!sapply(tmp$x,isempty)),]
+  colnames(tmp)[ncol(tmp)]="lineageID"
+  text(unlist(tmp$x), unlist(tmp$y),labels = unlist(tmp$lineageID), cex=0.6)
+  fidx=fidx+1;
+}
+dev.off()
+```
+
 
 ```{r}
 
