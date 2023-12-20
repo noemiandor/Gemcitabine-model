@@ -21,11 +21,7 @@ whitespace: large
 #| echo: false
 #| warning: false
 library(readxl)
-library(matlab)
-library(lubridate)
-root="~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023"
-path2repo="~/Repositories/Gemcitabine-model"
-Gemcitabine_PlateMap_20230327 <- read_excel(paste0(root, filesep, "Gemcitabine_PlateMap_20230327.xlsx"))
+Gemcitabine_PlateMap_20230327 <- read_excel("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Gemcitabine_PlateMap_20230327.xlsx")
 Gemcitabine_PlateMap_20230327
 ```
 
@@ -49,23 +45,28 @@ library(celltrackR)
 library(tidyverse)
 library(patchwork)
 library(umap)
+library(corrr)
+library(ggcorrplot)
+library(FactoMineR)
+library(factoextra)
+
 
 #Set to folder containing images, tracking results, plate table...
-setwd(paste0(root, filesep, "/H02_20230831_CellTracking_Ilastik"))
+setwd("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/H02_20230831_CellTracking_Ilastik")
 
 #Import hand annotations
-Book1 <- read_excel(paste0(path2repo, filesep, "Data/Book1.xlsx"))
-Book2 <- read_excel(paste0(path2repo, filesep, "Data/Book2.xlsx"))
+Book1 <- read_excel("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Book1.xlsx")
+Book2 <- read_excel("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Book2.xlsx")
 
 #Retired file pathways
-#dat1 <- read.csv(paste0(root, filesep, "/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1.5_CSV-Table.tiff.csv"))
-#dat2 <- read.csv(paste0(root, filesep, "/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1001_CSV-Table.tiff.csv"))
+#dat1 <- read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1.5_CSV-Table.tiff.csv")
+#dat2 <- read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1001_CSV-Table.tiff.csv")
 #dat1 <- mutate(dat1, ID = "E2_1_T=50_App=1001_Disapp=1.5")
 #dat2 <- mutate(dat2, ID = "E2_1_T=50_App=1001_Disapp=1001")
 
 #Open the two tracking result tables for comparison
-dat1 <- read.csv(paste0(root, filesep, "/Tracking_12-15/E2_1_CSV-Table_P1.h5.csv"))
-dat2 <- read.csv(paste0(root, filesep, "/Tracking_12-15/E2_1_CSV-Table_P2.h5.csv"))
+dat1 <- read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Tracking_12-15/E2_1_CSV-Table_P2.h5.csv")
+dat2 <- read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Tracking_12-15/E2_1_CSV-Table_P3.h5.csv")
 
 dat1 <- mutate(dat1, ID = "E2_1_P2")
 dat2 <- mutate(dat2, ID = "E2_1_P3")
@@ -80,7 +81,7 @@ Create the tracking plot.
 #| warning: false
 #| message: false
 #| label: fig-1
-#| fig-cap: Trajectories of E2_1_T=50_App=1001_Disapp=1.5
+#| fig-cap: Trajectories of Set 1.
 #Get the name of the well
 well= "E2_1_"
 #Get the dimensions of the frame of motion for every cell?
@@ -103,7 +104,7 @@ plot(as.tracks(la))
 #| warning: false
 #| message: false
 #| label: fig-2
-#| fig-cap: Trajectories of E2_1_T=50_App=1001_Disapp=1001
+#| fig-cap: Trajectories of Set 2.
 
 plot(as.tracks(la2))
 ```
@@ -114,7 +115,7 @@ plot(as.tracks(la2))
 
 ```{r}
 #Read in the classifier file
-seg=read.csv(paste0(root, filesep, "/B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_2/E_objectdata.csv"))
+seg=read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_2/E_objectdata.csv")
 #Pull in the data for the well of interest
 seg=seg[grep(well,seg$Image.Location),]
 seg$time=sapply(strsplit(seg$Image.Location,"_"), function(x) x[length(x)])
@@ -365,7 +366,7 @@ are four hours apart).
 #Get list of original cells
 merged_01 <- filter(merged1, t == 0, trackId != -1)
 orig_cells1 <- merged_01$trackId
-
+l1 <- length(orig_cells1)
 
 #Get list of cells at last time point
 t_max <- max(merged1$t)
@@ -373,13 +374,16 @@ merged1_max <- filter(merged1, t == t_max)
 #Find survivors
 surviving_cells1 <- merged1_max %>% 
   subset(trackId %in% orig_cells1)
+ls1 <- nrow(surviving_cells1)
 
+print(paste0("Of ", l1, " original cells in ", merged1[1,63], ", ", ls1,
+             " remained at the last time point."))
 
 #Set2
 #Get list of original cells
 merged_02 <- filter(merged2, t == 0, trackId != -1)
 orig_cells2 <- merged_02$trackId
-
+l2 <- length(orig_cells2)
 
 #Get list of cells at last time point
 t_max <- max(merged2$t)
@@ -387,14 +391,11 @@ merged_max2 <- filter(merged2, t == t_max)
 #Find survivors
 surviving_cells2 <- merged_max2 %>% 
   subset(trackId %in% orig_cells2)
+ls2 <- nrow(surviving_cells2)
 
+print(paste0("Of ", l2, " original cells in ", merged2[1,63], ", ", ls2,
+             " remained at the last time point."))
 ```
-For E2_1_T=50_App=1001_Disapp=1.5, from the original 217 cells, none persisted. 
-For E2_1_T=50_App=1001_Disapp=1001, from the original 163 cells, 22 cells remained at the last time point.
-
-For P1, from the original 253 cells, 62 remained at the last time point.
-For P2, from the original 240 cells, 60 remained at the last time point.
-For P3, from the original 273 cells, 1 remained at the last time point. 
 
 **3.** Check cell size over time for original cells.
 
@@ -403,7 +404,7 @@ For P3, from the original 273 cells, 1 remained at the last time point.
 #| fig-cap: Change in size of persisting cells over time. 
 #| warning: false
 survivors1 <- surviving_cells1$trackId
-survivors1 <- merged2 %>% 
+survivors1 <- merged1 %>% 
   subset(trackId %in% survivors1)
 survivors1 <- filter(survivors1, trackId != -1)
 
@@ -411,6 +412,7 @@ ggplot(survivors1) +
   geom_line(aes(t, Object_Area_0, color = as.character(trackId))) + 
   xlab("time") + 
   ylab("size in pixels") + 
+  labs(color = "trackId") +
   ggtitle("Change in Size Set 1") + 
   theme_light()
 
@@ -424,14 +426,17 @@ ggplot(survivors2) +
   xlab("time") + 
   ylab("size in pixels") + 
   ggtitle("Change in Size Set 2") + 
+  labs(color = "trackId") +
   theme_light()
 ```
-Persisting cells, despite their lack of division, have multiple, sudden changes in size. This could be indicative of a missed mitotic cycle or a mislabeling onto another cell. 
+Persisting cells, despite their lack of division, have multiple, sudden changes
+in size. This could be indicative of a missed mitotic cycle or a mislabeling 
+onto another cell. 
 
 ```{r}
 #| warning: false
 #| label: fig-7
-#| fig-cap: Change in size of all cells over all time (left) and parent cells just before division (right) for E2_1_T=50_App=1001_Disapp=1.5
+#| fig-cap: Change in size of all cells over all time (left) and parent cells just before division (right) for Set 1
 
 #Set 1
 #Finding the difference in size across time
@@ -479,10 +484,14 @@ b <- ggplot(diff_div2_1, aes(x = diff)) +
 
 a+b
 ```
+My intuition would be that parents would lean towards either: (1) an increase 
+in size prior to division, due to mitosis or general growth or (2) a decrease 
+in size due to the cell pulling from the glass, lowering the surface area.
+
 ```{r}
 #| warning: false
 #| label: fig-8
-#| fig-cap: Change in size of all cells over all time (left) and parent cells just before division (right) for E2_1_T=50_App=1001_Disapp=1001
+#| fig-cap: Change in size of all cells over all time (left) and parent cells just before division (right) for Set 2. 
 
 #Set 2
 #Finding the difference in size across time
@@ -525,9 +534,10 @@ b <- ggplot(diff_div2_2, aes(x = diff)) +
 
 a+b
 ```
-While lifetime information of these cells shows wide variability in cell size, 
-we would expect cells that do divide to grow in size in preparation for 
-division. There is a slight lean towards growth but not substantially. 
+The overall change in size is dramatic in some cases. This is a phenotype that
+is unlikely to change due to illumination differences or other image to image
+variation. Instead, the extreme changes could be due to incorrect segmentation, 
+unaccounted for cell fusion, or labels transferring between cells. 
 
 **4.** Check changes in position
 
@@ -535,7 +545,7 @@ division. There is a slight lean towards growth but not substantially.
 #| warning: false
 #| message: false
 #| label: fig-9
-#| fig-cap: Visualizing change in position (x solid, y dashed) over time
+#| fig-cap: Visualizing change in position (x solid, y dashed) over time.
 
 #Set 1
 #Find change in position
@@ -552,7 +562,7 @@ a <- ggplot(diff_merged1) +
   theme(legend.position = "none") + 
   xlab("time") + 
   ylab("change in position in pixels") + 
-  ggtitle("Change in Position of All Cells")
+  ggtitle("Change in Position of All Cells Set 1")
 
 b <- ggplot(diff_merged1) + 
   geom_histogram(aes(x = diff_y), fill = "blue", alpha = 0.5, bins = 100) +
@@ -577,7 +587,7 @@ c <- ggplot(diff_merged2) +
   theme(legend.position = "none") + 
   xlab("time") + 
   ylab("change in position in pixels") + 
-  ggtitle("Change in Position of All Cells")
+  ggtitle("Set 2")
 
 d <- ggplot(diff_merged2) + 
   geom_histogram(aes(x = diff_y), fill = "blue", alpha = 0.5, bins = 100) +
@@ -631,7 +641,9 @@ b+e
 
 d+f
 ```
-A sharp change in position greater than a cell can realistically move in that time could indicate a label hopping between cells. The top is Set 1 and the bottom is Set 2.
+A sharp change in position greater than a cell can realistically move in that 
+time could indicate a label hopping between cells. The top images are Set 1,
+and the bottom images are Set 2.
 
 **5.** Check distances between cell centers of daughters after division
 
@@ -653,7 +665,7 @@ diff_daughters1 <- mutate(diff_daughters1,
                           distance = sqrt(((diff_x^2)+(diff_y^2))))
 
 a <- ggplot(diff_daughters1) + 
-  geom_histogram(aes(distance), fill = "darkred", bins = 50) + 
+  geom_histogram(aes(distance), fill = "darkred", bins = 100) + 
   xlab("distance between centers in pixels") + 
   ggtitle("Distance Between Daughter Cells") + 
   xlim(c(0,80)) +
@@ -673,7 +685,7 @@ diff_daughters2 <- mutate(diff_daughters2,
                           distance = sqrt(((diff_x^2)+(diff_y^2))))
 
 b <- ggplot(diff_daughters2) + 
-  geom_histogram(aes(distance), fill = "darkred", bins = 50) +
+  geom_histogram(aes(distance), fill = "darkred", bins = 100) +
   xlab("distance between centers in pixels") + 
   ggtitle("Distance Between Daughter Cells") + 
   xlim(c(0,80)) +
@@ -697,54 +709,60 @@ a <- ggplot(daughters_df1) +
   geom_bar(aes(Classifier.Phenotype), fill = "darkred") + 
   theme_light() + 
   xlab("class") + 
-  ggtitle("Daughters")
+  ggtitle("Daughters") +
+  ylim(c(0,3250))
 
 b <- ggplot(parents_max1) + 
   geom_bar(aes(Classifier.Phenotype), fill = "darkblue") + 
   theme_light() + 
   xlab("class") + 
-  ggtitle("Parents")
+  ggtitle("Parents") +
+  ylim(c(0,1750))
 
 c <- ggplot(merged1) + 
   geom_bar(aes(Classifier.Phenotype)) + 
   theme_light() + 
   xlab("class") + 
-  ggtitle("All Cells All Times")
-
-a+b+c
+  ggtitle("All Cells All Times") +
+  ylim(c(0,30000))
 
 #Set 2
-a <- ggplot(daughters_df2) + 
+d <- ggplot(daughters_df2) + 
   geom_bar(aes(Classifier.Phenotype), fill = "darkred") + 
   theme_light() + 
   xlab("class") + 
-  ggtitle("Daughters")
+  ggtitle("Daughters") +
+  ylim(c(0,3250))
 
-b <- ggplot(parents_max2) + 
+e <- ggplot(parents_max2) + 
   geom_bar(aes(Classifier.Phenotype), fill = "darkblue") + 
   theme_light() + 
   xlab("class") + 
-  ggtitle("Parents")
+  ggtitle("Parents") +
+  ylim(c(0,1750))
 
-c <- ggplot(merged2) + 
+f <- ggplot(merged2) + 
   geom_bar(aes(Classifier.Phenotype)) + 
   theme_light() + 
   xlab("class") + 
-  ggtitle("All Cells All Times")
+  ggtitle("All Cells All Times") +
+  ylim(c(0,30000))
 
-a+b+c
+(a+b+c)/(d+e+f)
 ```
 It is important to see that parent cells are being appropriately identified as 
 alive, as dead cells do not divide. It is possible for daughter cells to die 
 following division, but it is concerning that the proportions of these match 
-that of the parents and the general population. The top is 
-Set 1 and the bottom is Set 2.
+that of the parents and the general population. The top plots are Set 1, and 
+the bottom plots are Set 2.
 ```{r}
-#Find end point class
+#| warning: false
+#| message: false
 
 #Create a "is not in" function
 '%!in%' <- function(x,y)!('%in%'(x,y))
 
+#Find end point class
 df <- filter(merged1, trackId != -1)
 cells_list1 <- unique(df$trackId)
 allcells_max1 <- data.frame()
@@ -814,16 +832,19 @@ b <- ggplot(filter(allcells1, Class == 1)) +
 
 c <- ggplot(allcells1) + 
   geom_bar(aes(t, fill = Classifier.Phenotype)) + 
-  theme_light() + xlab("time") + 
-  ggtitle("Proportion of Cell Phenotypes Over Time")
+  theme_light() + 
+  xlab("time") + 
+  labs(fill = "class") +
+  ggtitle("Cell Phenotypes Over Time")
 
 dividing_cells1 <- allcells1 %>% 
   filter(dividing == TRUE) 
 
 d <- ggplot(dividing_cells1) + 
-  geom_bar(aes(t)) + 
+  geom_bar(aes(t, fill = Classifier.Phenotype)) + 
   theme_light() + 
   xlab("time") + 
+  labs(fill = "class") +
   ggtitle("Divisions over Time")
 
 
@@ -899,15 +920,17 @@ g <- ggplot(allcells2) +
   geom_bar(aes(t, fill = Classifier.Phenotype)) + 
   theme_light() + 
   xlab("time") + 
-  ggtitle("Proportion of Cell Phenotypes Over Time")
+  labs(fill = "class") +
+  ggtitle("Cell Phenotypes Over Time")
 
 dividing_cells2 <- allcells2 %>% 
   filter(dividing == TRUE) 
 
 h <- ggplot(dividing_cells2) + 
-  geom_bar(aes(t)) + 
+  geom_bar(aes(t, fill = Classifier.Phenotype)) + 
   theme_light() + 
   xlab("time") + 
+  labs(fill = "class") +
   ggtitle("Divisions over Time")
 
 k+l
@@ -920,12 +943,12 @@ d+h
 a <- ggplot(allcells1) + 
   geom_histogram(aes(lifetime)) + 
   theme_light() + 
-  ggtitle("Set 1")
+  ggtitle("Lifetime of Set 1")
 
 b <- ggplot(allcells2) + 
   geom_histogram(aes(lifetime)) + 
   theme_light() + 
-  ggtitle("Set 2")
+  ggtitle("Lifetime of Set 2")
 
 a+b
 ```
@@ -936,13 +959,16 @@ being tracked because it has divided (alive, true) or because it has died
 would have lost it's tracking due to an error. A dead cell that is a parent has
 been incorrectly classified as dead. 
 
+The average phenotype graphs should remain the same, as they are based on the 
+classifier data and not the tracking.
+
 The other four graphs demonstrate the effects of the treatment. The left is 
 Set 1 and the right is Set 2.
 
 **6.** Ground truth-ish
 ```{r}
 #| label: fig-15
-#| fig-cap: The number of cells counted by hand and for each tracking set.
+#| fig-cap: The number of cells counted by hand and for each tracking set. Black line = identity line; blue line = regression
 #| message: false
 #| warning: false
 
@@ -990,12 +1016,14 @@ p <- ggplot(abe) +
   xlab("hand count") +
   ylab("set 1") +
   geom_smooth(aes(count, count_1), method = "lm", se = FALSE) +
+  geom_abline(a = 0, b = 1) +
   ggtitle("Number of live cells tracked") +
   theme(legend.position = "none")
 q <- ggplot(abe) +
   geom_point(aes(count, count_2, color = slice)) +
   theme_light() +
   geom_smooth(aes(count, count_2), method = "lm", se = FALSE) +
+  geom_abline(a = 0, b = 1) +
   xlab("hand count") +
   ylab("set 2")
 
@@ -1057,6 +1085,7 @@ p <- ggplot(cdf) +
   geom_point(aes(count, count_1, color = slice)) +
   theme_light() +
   geom_smooth(aes(count, count_1), method = "lm", se = FALSE) +
+  geom_abline(a = 0, b = 1) +
   xlab("hand count") +
   ylab("set 1") +
   ggtitle("Divisions tracked") +
@@ -1064,6 +1093,7 @@ p <- ggplot(cdf) +
 q <- ggplot(cdf) +
   geom_point(aes(count, count_2, color = slice)) +
   geom_smooth(aes(count, count_2), method = "lm", se = FALSE) +
+  geom_abline(a = 0, b = 1) +
   theme_light() +
   xlab("hand count") +
   ylab("set 2")
@@ -1074,17 +1104,14 @@ p+q
 **7.** Feature mapping
 ```{r}
 #| label: fig-17
-#| fig-cap: UMAP of cell features.
+#| fig-cap: UMAP of cell features, Set 1.
 
 #Note: the UMAPs have been "broken" for the most recent sets -> WIP
 
 #Set 1
 allcells1.data <- allcells1 %>% 
   drop_na() %>% 
-  select(!c(t:mergerLabelId, starts_with("Center"), starts_with("Terminal"), 
-            starts_with("Object_Center"), (ID:Class), dividing, parent, 
-            Convex_Hull_Center_0, Convex_Hull_Center_1, 
-            starts_with("Principal"), x, y, Size_in_pixels_0)) %>% 
+  select(!c(1:6, 19:22, 39:42, 49:54, 56:69)) %>% 
   mutate(ID = row_number())
 rownames(allcells1.data) <- NULL
 
@@ -1110,6 +1137,34 @@ umap_df %>%
   ggplot(aes(x = UMAP1, y = UMAP2, color = Class)) + 
   geom_point() + 
   labs(x = "UMAP1", y = "UMAP2", subtitle = "UMAP plot")
+```
+```{r}
+#| label: fig-18
+#| fig-cap: PCA of cell features, Set 1.
+
+allcells1.data <- allcells1 %>% 
+  drop_na() %>% 
+  select(!c(t:mergerLabelId, starts_with("Center"), starts_with("Terminal"), 
+            starts_with("Object_Center"), (ID:Class), dividing, parent, 
+            Convex_Hull_Center_0, Convex_Hull_Center_1, 
+            starts_with("Principal"), x, y, Size_in_pixels_0, 
+            starts_with("Bounding_Box_Minimum"))) %>% 
+  select(where(is.numeric)) %>% 
+  scale()
+
+corr <- cor(allcells1.data)
+ggcorrplot(corr)
+
+pca <- princomp(corr)
+summary(pca)
+fviz_eig(pca, addlabels = TRUE)
+fviz_pca_var(pca, col.var = "cos2",
+            gradient.cols = c("navy", "orchid", "palegreen"),
+            repel = TRUE)
+```
+```{r}
+#| label: fig-19
+#| fig-cap: UMAP of cell features, Set 2.
 
 #Set 2
 allcells2.data <- allcells2 %>% drop_na() %>% 
@@ -1130,7 +1185,7 @@ umap_fit2 <- allcells2.data %>%
   select(where(is.numeric)) %>% 
   column_to_rownames("ID") %>% 
   scale() %>% 
-  umap()
+  umap::umap()
 
 umap_df2 <- umap_fit2$layout %>% 
   as.data.frame() %>% 
@@ -1142,12 +1197,35 @@ umap_df2 %>%
   ggplot(aes(x = UMAP1, y = UMAP2, color = Class)) + 
   geom_point() + 
   labs(x = "UMAP1", y = "UMAP2", subtitle = "UMAP plot")
+```
+```{r}
+#| label: fig-20
+#| fig-cap: PCA of cell features, Set 2.
+
+allcells2.data <- allcells2 %>% 
+  drop_na() %>% 
+  select(!c(t:mergerLabelId, starts_with("Center"), starts_with("Terminal"), 
+            starts_with("Object_Center"), (ID:Class), dividing, parent, 
+            Convex_Hull_Center_0, Convex_Hull_Center_1, 
+            starts_with("Principal"), x, y, Size_in_pixels_0, 
+            starts_with("Bounding_Box_Minimum"))) %>% 
+  select(where(is.numeric)) %>% 
+  scale()
   
+corr <- cor(allcells2.data)
+ggcorrplot(corr)
+
+pca <- princomp(corr)
+summary(pca)
+fviz_eig(pca, addlabels = TRUE)
+fviz_pca_var(pca, col.var = "cos2",
+            gradient.cols = c("navy", "orchid", "palegreen"),
+            repel = TRUE)
 ```
 
 **8.** Distances
 ```{r}
-#| label: fig-19
+#| label: fig-21
 #| fig-cap: Mahalanobis distance by phenotype.
 #| message: false
 #| warning: false
@@ -1196,7 +1274,7 @@ a+b
 
 ```
 ```{r}
-#| label: fig-20
+#| label: fig-22
 #| fig-cap: Euclidean distance by cell for Set 1.
 #| message: false
 #| warning: false
@@ -1257,7 +1335,7 @@ b <- ggplot(ts.data) +
 a+b
 ```
 ```{r}
-#| label: fig-21
+#| label: fig-23
 #| fig-cap: Euclidean distance by cell for Set 2.
 #| message: false
 #| warning: false
@@ -1317,9 +1395,11 @@ b <- ggplot(ts.data2) +
 
 a+b
 ```
+
 **9.** Time series features
+
 ```{r}
-#| label: fig-22
+#| label: fig-24
 #| fig-cap: Time series features for Set 1.
 #| message: false
 #| warning: false
@@ -1381,78 +1461,13 @@ m <- ggplot(tsxts_feat) +
 
 (a+b+c+d)/(e+f+g)
 (h+i+j)/(k+l+m)
-
-
-plot(tsxts_feat$entropy, tsxts_feat$spike)
 ```
 
-
 ```{r}
-## visualize one track at a time on raw images
-fi=list.files(paste0(root, filesep, "B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core"),pattern=well,full.names = T)
-# fi=list.files(paste0(root, filesep, "E2_1_Registered_image"),pattern=well,full.names = T)
-# trackIDs=names(la)[order(sapply(la,nrow),decreasing = T)]
-trackIDs=as.character(order(tsxts_feat$entropy))
-trackIDs=trackIDs[trackIDs %in% names(la_1)]
-
-for(trackID in c(head(trackIDs),tail(trackIDs))){
-  toi=la_1[[trackID]]
-  pdf(paste0("~/Downloads/testTrack_",trackID,".pdf"), width=14)
-  
-  plot(toi$t,toi$Object_Area_0, col=toi$Class+2,pch=20); 
-  legend("topleft",unique(toi$Classifier.Phenotype), fill=unique(toi$Class+2))
-  
-  fidx=grep(toi$time[1],fi,value=F)
-  center=NULL
-  # for(i in 1:nrow(toi)){
-  while(fidx<=length(fi)){  
-    thistime=strsplit(fileparts(fi[fidx])$name,"_")[[1]][4]
-    i=which(toi$time==thistime)
-    if(is.null(center)){
-      center=c(toi$x[i], toi$y[i])
-    }
-    img=bioimagetools::readTIF(fi[fidx],as.is = T)
-    img <- EBImage::resize(img, dim(img)[1]/1)
-    par(mfrow=c(1,2))
-    plot(raster::as.raster(img[,,,1]), xlim=c(center[1]-200,center[1]+200), ylim=c(center[2]-50,center[2]+50))
-    mtext(fileparts(fi[fidx])$name)
-    ## Just for testing
-    # tmp=merged[merged$t==toi$t[i],]
-    # points(tmp$x,tmp$y,pch=3,col="green")
-    if(!isempty(i)){
-      points(toi$x[i], toi$y[i],pch=3,cex=3)
-    }
-    plot(toi$t,toi$Object_Area_0, col=1+(toi$time==thistime),pch=20); 
-    fidx=fidx+1;
-  }
-  dev.off()
-}
-
-
-## plot overlays along with tracking ID:
-pdf(paste0("~/Downloads/trackIDs.pdf"))
-fidx=1
-while(fidx<=length(fi)){  
-  img=bioimagetools::readTIF(fi[fidx],as.is = T)
-  img <- EBImage::resize(img, dim(img)[1]/1)
-  plot(raster::as.raster(img[,,,1]), xlim=c(211,700), ylim=c(150,650))
-  mtext(fileparts(fi[fidx])$name)
-  
-  thistime=strsplit(fileparts(fi[fidx])$name,"_")[[1]][4]
-  tmp=sapply(names(la_2), function(x) la_2[[x]][la_2[[x]]$time==thistime,,drop=F], simplify = F)
-  tmp=sapply(names(tmp), function(x) cbind(tmp[[x]], rep(x, nrow(tmp[[x]]))), simplify = F)
-  tmp=do.call(rbind, tmp)
-  tmp=as.data.frame(tmp)
-  tmp=tmp[which(!sapply(tmp$x,isempty)),]
-  colnames(tmp)[ncol(tmp)]="lineageID"
-  text(unlist(tmp$x), unlist(tmp$y),labels = unlist(tmp$lineageID), cex=0.6)
-  fidx=fidx+1;
-}
-dev.off()
-```
-
-
-```{r}
+#| label: fig-25
+#| fig-cap: Time series features UMAP for Set 1.
+#| message: false
+#| warning: false
 
 tsxts_feat.data <- tsxts_feat %>% 
   select(!c(frequency:seasonal_period)) %>% 
@@ -1481,7 +1496,7 @@ umap_df_ts %>%
   labs(x = "UMAP1", y = "UMAP2", subtitle = "UMAP plot")
 ```
 ```{r}
-#| label: fig-24
+#| label: fig-26
 #| fig-cap: Time series features for Set 2.
 #| message: false
 #| warning: false
@@ -1543,7 +1558,36 @@ m <- ggplot(tsxts_feat2) +
 (a+b+c+d)/(e+f+g)
 (h+i+j)/(k+l+m)
 ```
+The trend is the overall movement of the time series stripped of its periodic 
+behaviors. It is meant to trace the long term pattern of a time series, and it
+can be thought of in terms of general increasing or decreasing. 
+
+The spike measures the “spikiness” of a time series, and is computed as the 
+variance of the leave-one-out variances of the remainder component. The 
+remainder is what remains once the trend and periodic behaviors have been 
+removed from the data. This would (ideally) be composed of random spikes.
+
+Linearity and curvature of a time series calculated based on the coefficients 
+of an orthogonal quadratic regression. This form of regression is less sensitive
+to oscillation (which is often produced by periodic behaviors).
+
+Features containing "acf":
+The autocorrelation function of the series, the differenced series, and the 
+twice-differenced series. The autocorrelation function finds the correlation 
+between a time series and itself one time period apart (lag 1). A high 
+correlation means that previous time points are more able to be used to predict 
+later time points.
+
+Entropy measures the “forecastability” of a time series, where low values 
+indicate a high signal-to-noise ratio, and large values occur when a series is 
+difficult to forecast.nm
+
 ```{r}
+#| label: fig-27
+#| fig-cap: Time series features UMAP for Set 2.
+#| message: false
+#| warning: false
+
 tsxts_feat.data <- tsxts_feat2 %>% 
   select(!c(frequency:seasonal_period)) %>% 
   mutate(ID = row_number()) %>% 
