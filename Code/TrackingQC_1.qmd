@@ -1645,41 +1645,6 @@ for(set in names(merged)){
   }
 }
 
-#Set 2
-palette(rainbow(53))
-fi <- list.files(paste0(root, filesep, "B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core"),pattern=well,full.names = T)
-for(i in unique(allcells2$trackId)){
-  toi <- allcells2 %>% filter(trackId == i)
-  trackID=paste0(merged2[1,"ID"], "_", i);
-  pdf(paste0("~/Downloads/testTrack_",trackID,".pdf"), width=14)
-  plot(toi$t,toi$Object_Area_0, col=toi$Class+2,pch=20); 
-  legend("topleft",unique(toi$Classifier.Phenotype), fill=unique(toi$Class+2))
-  
-  fidx=grep(toi$time[1],fi,value=F)+1
-  center=NULL
-  # for(i in 1:nrow(toi)){
-  while(fidx<=length(fi)){  
-    thistime=strsplit(fileparts(fi[fidx])$name,"_")[[1]][4]
-    i=which(toi$time==thistime)
-    if(is.null(center)){
-      center=c(toi$x[i], toi$y[i])
-    }
-    img=bioimagetools::readTIF(fi[fidx],as.is = T)
-    img <- EBImage::resize(img, dim(img)[1]/1)
-    par(mfrow=c(1,2))
-    plot(raster::as.raster(img[,,,1]), xlim=c(center[1]-200,center[1]+200), ylim=c(center[2]-50,center[2]+50))
-    mtext(fileparts(fi[fidx])$name)
-    ## Just for testing
-    # tmp=merged[merged$t==toi$t[i],]
-    # points(tmp$x,tmp$y,pch=3,col="green")
-    if(!isempty(i)){
-      points(toi$x[i], toi$y[i],pch=3,cex=3)
-    }
-    plot(toi$t,toi$Object_Area_0, col=1+(toi$time==thistime),pch=20); 
-    fidx=fidx+1;
-  }
-  dev.off()
-}
 ```
 **2.** Show one track at a time.
 ```{r}
@@ -1687,7 +1652,7 @@ for(i in unique(allcells2$trackId)){
 # fi=list.files(paste0(root, filesep, "B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core"),pattern=well,full.names = T)
 fi=list.files(paste0(root, filesep, "I01_20231219_HALOCellClassification/E2_1_Registered_image"),pattern=well,full.names = T)
 # trackIDs=names(la)[order(sapply(la,nrow),decreasing = T)]
-trackIDs=as.character(order(tsxts_feat$trend,decreasing = T))
+trackIDs=as.character(order(tsxts_feat$linearity,decreasing = T))
 trackIDs=trackIDs[trackIDs %in% names(la_1)]
 goodTracks = c("108","105","184","138")
 match(goodTracks,trackIDs)
