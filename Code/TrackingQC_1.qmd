@@ -75,7 +75,8 @@ dat1 <- mutate(dat1, ID = "E2_1_P2")
 dat2 <- mutate(dat2, ID = "E2_1_P3")
 
 #Read in classifier file
-seg=read.csv(paste0(root, filesep, "/B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_2/E_objectdata.csv"))
+# seg=read.csv(paste0(root, filesep, "/B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_2/E_objectdata.csv"))
+seg=read.csv(paste0(root, filesep, "/I01_20231219_HALOCellClassification/E2_1_Total_Object_Results.csv"))
 
 #Set the name of the well
 well= "E2_1_"
@@ -217,10 +218,11 @@ sapply(ii, function(x) c(length(x$dat1),length(x$seg)))
 la1=sapply(unique(merged1$trackId), function(x) merged1[merged1$trackId==x,c("t","x","y","Object_Area_0","time","Classifier.Phenotype","Class")], simplify = F)
 names(la1)=as.character(unique(merged1$trackId))
 la1=la1[!names(la1) %in% c("-1")]
+la_1 = la1;
 
 #Uhhh
-la_1=sapply(la1, function(x) x[x$t<(24*10)/4,],simplify = F)
-la_1=la_1[sapply(la_1,nrow)>=10 & sapply(la_1, function(x) min(x$t))<100]
+# la_1=sapply(la_1, function(x) x[x$t<(24*10)/4,],simplify = F)
+# la_1=la_1[sapply(la_1,nrow)>=10 & sapply(la_1, function(x) min(x$t))<100]
 te1=sapply(la_1, function(x) cor.test(x$t,x$Class)$estimate)
 hist(te1, xlab="Pearson correlation(time, cell state)",main="Correlation between time and assigned class")
 mtext("Dead cells should not come back to life (corr should be negative for dying cells)")
@@ -1623,56 +1625,37 @@ umap_df_ts %>%
 ## Tracking visualization
 **1.** Showing all cells over time, colored by days alive. 
 ```{r}
-#Set 1
+#Sets 1 & 2
 palette(rainbow(53))
 fi <- list.files(paste0(root, filesep, "B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core"),pattern=well,full.names = T)
 fi <- fi[2:54]
-for(i in unique(allcells2$t)){
-  p <- allcells2 %>% filter(t == i, trackId != -1)
-  tiff(paste0("~/Downloads/track", merged1[1,63], "_", i, ".tif"), width = 1408, height = 1040)
-  img=bioimagetools::readTIF(fi[i+1],as.is = T)
-  img <- EBImage::resize(img, dim(img)[1]/1)
-  plot(raster::as.raster(img[,,,1]))
-  points(p$x, p$y, pch=(p$Class+2), col = p$lifetime, cex=1.5, lwd = 2)
-  text(p$x+20, p$y, labels=p$trackId, cex=1)
-  mtext(fileparts(fi[i+1])$name)
-  legend("topleft", legend = unique(allcells2$Classifier.Phenotype), pch=unique(allcells2$Class+2), cex = 1)
-  dev.off()
+merged=list(merged1=merged1, merged2=merged2)
+for(set in names(merged)){
+  for(i in unique(allcells2$t)){
+    p <- allcells2 %>% filter(t == i, trackId != -1)
+    tiff(paste0("~/Downloads/track", merged[[set]][1,"ID"], "_", i, ".tif"), width = 1408, height = 1040)
+    img=bioimagetools::readTIF(fi[i+1],as.is = T)
+    img <- EBImage::resize(img, dim(img)[1]/1)
+    plot(raster::as.raster(img[,,,1]))
+    points(p$x, p$y, pch=(p$Class+2), col = p$lifetime, cex=1.5, lwd = 2)
+    text(p$x+20, p$y, labels=p$trackId, cex=1)
+    mtext(fileparts(fi[i+1])$name)
+    legend("topleft", legend = unique(allcells2$Classifier.Phenotype), pch=unique(allcells2$Class+2), cex = 1)
+    dev.off()
+  }
 }
 
 #Set 2
 palette(rainbow(53))
 fi <- list.files(paste0(root, filesep, "B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core"),pattern=well,full.names = T)
-fi <- fi[2:54]
-for(i in unique(allcells2$t)){
-  p <- allcells2 %>% filter(t == i, trackId != -1)
-  tiff(paste0("~/Downloads/track", merged2[1,63], "_", i, ".tif"), width = 1408, height = 1040)
-  img=bioimagetools::readTIF(fi[i+1],as.is = T)
-  img <- EBImage::resize(img, dim(img)[1]/1)
-  plot(raster::as.raster(img[,,,1]))
-  points(p$x, p$y, pch=(p$Class+2), col = p$lifetime, cex=1.5, lwd = 2)
-  text(p$x+20, p$y, labels=p$trackId, cex=1)
-  mtext(fileparts(fi[i+1])$name)
-  legend("topleft", legend = unique(allcells2$Classifier.Phenotype), pch=unique(allcells2$Class+2), cex = 1)
-  dev.off()
-}
-```
-**2.** Show one track at a time.
-```{r}
-## visualize one track at a time on raw images
-fi=list.files(paste0(root, filesep, "B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core"),pattern=well,full.names = T)
-# fi=list.files(paste0(root, filesep, "E2_1_Registered_image"),pattern=well,full.names = T)
-# trackIDs=names(la)[order(sapply(la,nrow),decreasing = T)]
-trackIDs=as.character(order(tsxts_feat$entropy))
-trackIDs=trackIDs[trackIDs %in% names(la_1)]
-for(trackID in c(head(trackIDs),tail(trackIDs))){
-  toi=la_1[[trackID]]
+for(i in unique(allcells2$trackId)){
+  toi <- allcells2 %>% filter(trackId == i)
+  trackID=paste0(merged2[1,"ID"], "_", i);
   pdf(paste0("~/Downloads/testTrack_",trackID,".pdf"), width=14)
-  
   plot(toi$t,toi$Object_Area_0, col=toi$Class+2,pch=20); 
   legend("topleft",unique(toi$Classifier.Phenotype), fill=unique(toi$Class+2))
   
-  fidx=grep(toi$time[1],fi,value=F)
+  fidx=grep(toi$time[1],fi,value=F)+1
   center=NULL
   # for(i in 1:nrow(toi)){
   while(fidx<=length(fi)){  
@@ -1698,13 +1681,58 @@ for(trackID in c(head(trackIDs),tail(trackIDs))){
   dev.off()
 }
 ```
+**2.** Show one track at a time.
+```{r}
+## visualize one track at a time on raw images
+# fi=list.files(paste0(root, filesep, "B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core"),pattern=well,full.names = T)
+fi=list.files(paste0(root, filesep, "I01_20231219_HALOCellClassification/E2_1_Registered_image"),pattern=well,full.names = T)
+# trackIDs=names(la)[order(sapply(la,nrow),decreasing = T)]
+trackIDs=as.character(order(tsxts_feat$trend,decreasing = T))
+trackIDs=trackIDs[trackIDs %in% names(la_1)]
+goodTracks = c("108","105","184","138")
+match(goodTracks,trackIDs)
+badTracks = c("167")
+match(badTracks,trackIDs)
+for(trackID in c(head(trackIDs),tail(trackIDs))){
+  toi=la_1[[trackID]]
+  pdf(paste0("~/Downloads/testTrack_",trackID,".pdf"), width=14)
+  
+  plot(toi$t,toi$Object_Area_0, col=toi$Class+2,pch=20); 
+  legend("topleft",unique(toi$Classifier.Phenotype), fill=unique(toi$Class+2))
+  
+  fidx=grep(toi$time[1],fi,value=F)
+  center=NULL
+  # for(i in 1:nrow(toi)){
+  while(fidx<=length(fi)-1){  
+    thistime=strsplit(fileparts(fi[fidx])$name,"_")[[1]][4]
+    i=which(toi$time==thistime)
+    if(is.null(center)){
+      center=c(toi$x[i], toi$y[i])
+    }
+    img=bioimagetools::readTIF(fi[fidx+1],as.is = T)
+    img <- EBImage::resize(img, dim(img)[1]/1)
+    par(mfrow=c(1,2))
+    plot(raster::as.raster(img[,,,1]), xlim=c(center[1]-200,center[1]+200), ylim=c(center[2]-50,center[2]+50))
+    mtext(fileparts(fi[fidx])$name)
+    ## Just for testing
+    # tmp=merged[merged$t==toi$t[i],]
+    # points(tmp$x,tmp$y,pch=3,col="green")
+    if(!isempty(i)){
+      points(toi$x[i], toi$y[i],pch=3,cex=3)
+    }
+    plot(toi$t,toi$Object_Area_0, col=c("black","red")[1+(toi$time==thistime)],pch=20,cex=2); 
+    fidx=fidx+1;
+  }
+  dev.off()
+}
+```
 **3.** Show overlays and tracking ID.
 ```{r}
 ## plot overlays along with tracking ID:
 pdf(paste0("~/Downloads/trackIDs.pdf"))
 fidx=1
-while(fidx<=length(fi)){  
-  img=bioimagetools::readTIF(fi[fidx],as.is = T)
+while(fidx<=length(fi)-1){  
+  img=bioimagetools::readTIF(fi[fidx+1],as.is = T)
   img <- EBImage::resize(img, dim(img)[1]/1)
   plot(raster::as.raster(img[,,,1]), xlim=c(211,700), ylim=c(150,650))
   mtext(fileparts(fi[fidx])$name)
