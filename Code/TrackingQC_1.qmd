@@ -18,6 +18,7 @@ whitespace: large
 **Plate map**: An xlsx with variables Row, Ploidy, and SUM159 of varying concentrations of treatment. This study has four replicates of 2N and 4N SUM159.
 
 ```{r}
+#| label: plate-map
 #| echo: false
 #| warning: false
 library(readxl)
