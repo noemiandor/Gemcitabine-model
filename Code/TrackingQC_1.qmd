@@ -218,7 +218,7 @@ sapply(ii, function(x) c(length(x$dat1),length(x$seg)))
 la1=sapply(unique(merged1$trackId), function(x) merged1[merged1$trackId==x,c("t","x","y","Object_Area_0","time","Classifier.Phenotype","Class")], simplify = F)
 names(la1)=as.character(unique(merged1$trackId))
 la1=la1[!names(la1) %in% c("-1")]
-la_1 = la1;
+la_1=la1[sapply(la1,nrow)>=10]
 
 #Uhhh
 # la_1=sapply(la_1, function(x) x[x$t<(24*10)/4,],simplify = F)
@@ -1650,31 +1650,32 @@ for(set in names(merged)){
 ```{r}
 ## visualize one track at a time on raw images
 # fi=list.files(paste0(root, filesep, "B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core"),pattern=well,full.names = T)
-fi=list.files(paste0(root, filesep, "I01_20231219_HALOCellClassification/E2_1_Registered_image"),pattern=well,full.names = T)
+# fi=list.files(paste0(root, filesep, "I01_20231219_HALOCellClassification/E2_1_Registered_image"),pattern=well,full.names = T)
+fi=list.files(paste0(root, filesep, "I01_20231219_HALOCellClassification/E2_1_Overlays"),pattern=well,full.names = T)
 # trackIDs=names(la)[order(sapply(la,nrow),decreasing = T)]
 trackIDs=as.character(order(tsxts_feat$linearity,decreasing = T))
-trackIDs=trackIDs[trackIDs %in% names(la_1)]
-goodTracks = c("108","105","184","138")
-match(goodTracks,trackIDs)
-badTracks = c("167")
-match(badTracks,trackIDs)
+trackIDs=trackIDs[trackIDs %in% names(la1)]
+# goodTracks = c("136")
+# match(goodTracks,trackIDs)
+# badTracks = c("1057")
+# match(badTracks,trackIDs)
 for(trackID in c(head(trackIDs),tail(trackIDs))){
-  toi=la_1[[trackID]]
-  pdf(paste0("~/Downloads/testTrack_",trackID,".pdf"), width=14)
+  toi=la1[[trackID]]
+  pdf(paste0("~/Downloads/testTrack_",trackID,".pdf"), width=14, height = 9)
   
   plot(toi$t,toi$Object_Area_0, col=toi$Class+2,pch=20); 
   legend("topleft",unique(toi$Classifier.Phenotype), fill=unique(toi$Class+2))
   
-  fidx=grep(toi$time[1],fi,value=F)
+  fidx=max(2,grep(toi$time[1],fi,value=F))
   center=NULL
   # for(i in 1:nrow(toi)){
-  while(fidx<=length(fi)-1){  
+  while(fidx<=length(fi)){  
     thistime=strsplit(fileparts(fi[fidx])$name,"_")[[1]][4]
     i=which(toi$time==thistime)
     if(is.null(center)){
       center=c(toi$x[i], toi$y[i])
     }
-    img=bioimagetools::readTIF(fi[fidx+1],as.is = T)
+    img=bioimagetools::readTIF(fi[fidx],as.is = T)
     img <- EBImage::resize(img, dim(img)[1]/1)
     par(mfrow=c(1,2))
     plot(raster::as.raster(img[,,,1]), xlim=c(center[1]-200,center[1]+200), ylim=c(center[2]-50,center[2]+50))
@@ -1695,15 +1696,15 @@ for(trackID in c(head(trackIDs),tail(trackIDs))){
 ```{r}
 ## plot overlays along with tracking ID:
 pdf(paste0("~/Downloads/trackIDs.pdf"))
-fidx=1
-while(fidx<=length(fi)-1){  
-  img=bioimagetools::readTIF(fi[fidx+1],as.is = T)
+fidx=2
+while(fidx<=length(fi)){  
+  img=bioimagetools::readTIF(fi[fidx],as.is = T)
   img <- EBImage::resize(img, dim(img)[1]/1)
   plot(raster::as.raster(img[,,,1]), xlim=c(211,700), ylim=c(150,650))
   mtext(fileparts(fi[fidx])$name)
   
   thistime=strsplit(fileparts(fi[fidx])$name,"_")[[1]][4]
-  tmp=sapply(names(la_2), function(x) la_2[[x]][la_2[[x]]$time==thistime,,drop=F], simplify = F)
+  tmp=sapply(names(la1), function(x) la1[[x]][la1[[x]]$time==thistime,,drop=F], simplify = F)
   tmp=sapply(names(tmp), function(x) cbind(tmp[[x]], rep(x, nrow(tmp[[x]]))), simplify = F)
   tmp=do.call(rbind, tmp)
   tmp=as.data.frame(tmp)
