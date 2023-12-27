@@ -24,8 +24,12 @@ whitespace: large
 library(readxl)
 library(matlab)
 library(lubridate)
-root="~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023"
-path2repo="~/Repositories/Gemcitabine-model"
+# root="~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023"
+# path2repo="~/Repositories/Gemcitabine-model"
+
+root <- "C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023"
+path2repo="~/Gemcitabine-model"
+
 Gemcitabine_PlateMap_20230327 <- read_excel(paste0(root, filesep, "Gemcitabine_PlateMap_20230327.xlsx"))
 Gemcitabine_PlateMap_20230327
 
@@ -55,32 +59,32 @@ library(corrr)
 library(ggcorrplot)
 library(FactoMineR)
 library(factoextra)
-
+library(Metrics)
 
 #Set to folder containing images, tracking results, plate table...
-setwd(paste0(root, filesep, "/H02_20230831_CellTracking_Ilastik"))
+setwd("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/H02_20230831_CellTracking_Ilastik")
+
 #Import hand annotations
-Book1 <- read_excel(paste0(path2repo, filesep, "Data/Book1.xlsx"))
-Book2 <- read_excel(paste0(path2repo, filesep, "Data/Book2.xlsx"))
+Book1 <- read_excel("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Book1.xlsx")
+Book2 <- read_excel("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Book2.xlsx")
 
 #Retired file pathways
-#dat1 <- read.csv(paste0(root, filesep, "/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1.5_CSV-Table.tiff.csv"))
-#dat2 <- read.csv(paste0(root, filesep, "/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1001_CSV-Table.tiff.csv"))
-#dat1 <- mutate(dat1, ID = "E2_1_T=50_App=1001_Disapp=1.5")
-#dat2 <- mutate(dat2, ID = "E2_1_T=50_App=1001_Disapp=1001")
+# dat1 <- read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1.5_CSV-Table.tiff.csv")
+# dat2 <- read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1001_CSV-Table.tiff.csv")
+# dat1 <- mutate(dat1, ID = "E2_1_T=50_App=1001_Disapp=1.5")
+# dat2 <- mutate(dat2, ID = "E2_1_T=50_App=1001_Disapp=1001")
 
-#Open the two tracking result tables for comparison
-dat1 <- read.csv(paste0(root, filesep, "/Tracking_12-15/E2_1_CSV-Table_P1.h5.csv"))
-dat2 <- read.csv(paste0(root, filesep, "/Tracking_12-15/E2_1_CSV-Table_P2.h5.csv"))
+# Open the two tracking result tables for comparison
+dat1 <- read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Tracking_12-15/E2_1_CSV-Table_P2.h5.csv")
+dat2 <- read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/Tracking_12-15/E2_1_CSV-Table_P3.h5.csv")
 dat1 <- mutate(dat1, ID = "E2_1_P2")
 dat2 <- mutate(dat2, ID = "E2_1_P3")
 
-#Read in classifier file
-# seg=read.csv(paste0(root, filesep, "/B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_2/E_objectdata.csv"))
-seg=read.csv(paste0(root, filesep, "/I01_20231219_HALOCellClassification/E2_1_Total_Object_Results.csv"))
+# Read in the classifier file
+seg=read.csv("M:/lab/lab_crd/HighPloidy_CostBenefits/data/BreastCancerCellLines/SUM-159/K00_GemcitabineExposure_033023/I01_20231219_HALOCellClassification/E2_1_Total_Object_Results.csv")
+# seg=read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_2/E_objectdata.csv")
 
-#Set the name of the well
-well= "E2_1_"
+well="E2_1_"
 ```
 
 Create the tracking plot.
@@ -265,100 +269,49 @@ print(paste(length(la_2)/length(te2),"cells included (which do not come back to 
 
 **1.** Check size of parent and daughters for cell division events.
 ```{r}
+#| label: plot-ratio
 #| warning: false
 #| label: fig-5
-#| fig-cap: Ratio of parent cell size to average daughter size for Set 1
+#| fig-cap: Ratio of parent cell size to average daughter size.
 
-#Set 1
-#Find a list of all the parents
-parents_list1 <- unique(merged1$parentTrackId)
-parents_list1 <- parents_list1[!parents_list1 %in% 0]
-
-#Find all of the data points for each parent
-parents_df1 <- merged1 %>% subset(trackId %in% parents_list1)
-#Find all of the daughters of each parent in the list
-daughters_df1 <- merged1 %>% subset(parentTrackId %in% parents_list1)
-
-#Finding only the areas of parents at latest time point (right before division)
-parents_max1 <- data.frame()
-for(i in parents_list1){
-  p <- filter(parents_df1, trackId == i)
-  q <- max(p$t)
-  r <- filter(p, t == q)
-  parents_max1 <- rbind(parents_max1, r)
+merged=list(merged1=merged1, merged2=merged2)
+for(data in names(merged)) {
+  df <- get(data)
+  #Find a list of all the parents
+  parents_list <- unique(df$parentTrackId)
+  parents_list <- parents_list[!parents_list %in% 0]
+  #Find all of the data points for each parent
+  parents_df <- df %>% subset(trackId %in% parents_list)
+  #Find all of the daughters of each parent in the list
+  daughters_df <- df %>% subset(parentTrackId %in% parents_list)
+  #Finding only the areas of parents at latest time point (right before division)
+  parents_max <- data.frame()
+  for(i in parents_list){
+    p <- filter(parents_df, trackId == i)
+    q <- max(p$t)
+    r <- filter(p, t == q)
+    parents_max <- rbind(parents_max, r)
+  }
+  #Finding the average area of each daughter
+  daughters_means <- data.frame()
+  for(i in parents_list){
+    p <- filter(daughters_df, parentTrackId == i)
+    daughtersArea <- mean(p$Object_Area_0)
+    r <- cbind(trackId = i, daughtersArea)
+    daughters_means <- rbind(daughters_means, r)
+  }
+  #Visualize
+  ratios <- left_join(parents_max, daughters_means) %>% 
+    mutate(ratio = Object_Area_0/daughtersArea)
+  print(ggplot(ratios, aes(x = ratio)) + 
+    geom_histogram(bins = 150) + 
+    geom_vline(aes(xintercept=mean(ratio)), 
+               color="blue", 
+               linetype="dashed", 
+               size=1) + 
+    theme_light() + 
+    ggtitle(paste0("Parent versus Average Daughter Cell Size for ", df[1,63])))
 }
-
-#Finding the average area of each daughter
-daughters_means1 <- data.frame()
-for(i in parents_list1){
-  p <- filter(daughters_df1, parentTrackId == i)
-  daughtersArea1 <- mean(p$Object_Area_0)
-  r <- cbind(trackId = i, daughtersArea1)
-  daughters_means1 <- rbind(daughters_means1, r)
-}
-
-#Visualize
-ratios1 <- left_join(parents_max1, daughters_means1) 
-ratios1 <- ratios1 %>% 
-  mutate(ratio = Object_Area_0/daughtersArea1)
-
-ggplot(ratios1, aes(x = ratio)) + 
-  geom_histogram(bins = 150) + 
-  xlim(0, 6) +
-  geom_vline(aes(xintercept=mean(ratio)), 
-             color="blue", 
-             linetype="dashed", 
-             size=1) + 
-  theme_light() + 
-  ggtitle("Ratio of Parent Cell Size to Average Daughter Cell Size")
-```
-```{r}
-#| warning: false
-#| label: fig-6
-#| fig-cap: Ratio of parent cell size to average daughter size for Set 2.
-
-#Set 2
-#Find a list of all the parents
-parents_list2 <- unique(merged2$parentTrackId)
-parents_list2 <- parents_list2[!parents_list2 %in% 0]
-
-#Find all of the data points for each parent
-parents_df2 <- merged2 %>% subset(trackId %in% parents_list2)
-#Find all of the daughters of each parent in the list
-daughters_df2 <- merged2 %>% subset(parentTrackId %in% parents_list2)
-
-#Finding only the areas of parents at latest time point (right before division)
-parents_max2 <- data.frame()
-for(i in parents_list2){
-  p <- filter(parents_df2, trackId == i)
-  q <- max(p$t)
-  r <- filter(p, t == q)
-  parents_max2 <- rbind(parents_max2, r)
-}
-
-#Finding the average area of each daughter
-daughters_means2 <- data.frame()
-for(i in parents_list2){
-  p <- filter(daughters_df2, parentTrackId == i)
-  daughtersArea2 <- mean(p$Object_Area_0)
-  r <- cbind(trackId = i, daughtersArea2)
-  daughters_means2 <- rbind(daughters_means2, r)
-}
-
-#Visualize
-ratios2 <- left_join(parents_max2, daughters_means2) 
-ratios2 <- ratios2 %>% 
-  mutate(ratio = Object_Area_0/daughtersArea2)
-
-ggplot(ratios2, aes(x = ratio)) + 
-  geom_histogram(bins = 150) + 
-  xlim(0, 6) +
-  geom_vline(aes(xintercept=mean(ratio)), 
-             color="blue", 
-             linetype="dashed", 
-             size=1) + 
-  theme_light() + 
-  ggtitle("Ratio of Parent Cell Size to Average Daughter Cell Size")
 ```
 An average ratio of 2 seems to be reasonable, given that the parent cell should 
 split in half when dividing. A favoring of values less than two is more than 
@@ -368,59 +321,50 @@ are four hours apart).
 
 **2.** Check number of cells that remain to last time point.
 ```{r}
-#Set 1
-#Get list of original cells
-merged_01 <- filter(merged1, t == 0, trackId != -1)
-orig_cells1 <- merged_01$trackId
-l1 <- length(orig_cells1)
+#| label: print-survivors
 
-#Get list of cells at last time point
-t_max <- max(merged1$t)
-merged1_max <- filter(merged1, t == t_max)
-#Find survivors
-surviving_cells1 <- merged1_max %>% 
-  subset(trackId %in% orig_cells1)
-ls1 <- nrow(surviving_cells1)
-
-print(paste0("Of ", l1, " original cells in ", merged1[1,63], ", ", ls1,
+surviving_cells <- data.frame()
+for(data in names(merged)) {
+  df <- get(data)
+  #Get list of original cells
+  merged_0 <- filter(df, t == 0, trackId != -1)
+  orig_cells <- merged_0$trackId
+  l <- length(orig_cells)
+  #Get list of cells at last time point
+  t_max <- max(df$t)
+  merged_max <- filter(df, t == t_max)
+  #Find survivors
+  temp <- merged_max %>% 
+    subset(trackId %in% orig_cells)
+  surviving_cells <- rbind(temp, surviving_cells)
+  ls <- nrow(temp)
+  print(paste0("Of ", l, " original cells in ", df[1,63], ", ", ls,
              " remained at the last time point."))
-
-#Set2
-#Get list of original cells
-merged_02 <- filter(merged2, t == 0, trackId != -1)
-orig_cells2 <- merged_02$trackId
-l2 <- length(orig_cells2)
-
-#Get list of cells at last time point
-t_max <- max(merged2$t)
-merged_max2 <- filter(merged2, t == t_max)
-#Find survivors
-surviving_cells2 <- merged_max2 %>% 
-  subset(trackId %in% orig_cells2)
-ls2 <- nrow(surviving_cells2)
-
-print(paste0("Of ", l2, " original cells in ", merged2[1,63], ", ", ls2,
-             " remained at the last time point."))
+}
 ```
 
 **3.** Check cell size over time for original cells.
 
 ```{r}
-#| label: fig-6.b
+#| label: plot-survivors
 #| fig-cap: Change in size of persisting cells over time. 
 #| warning: false
-survivors1 <- surviving_cells1$trackId
-survivors1 <- merged1 %>% 
-  subset(trackId %in% survivors1)
-survivors1 <- filter(survivors1, trackId != -1)
 
-ggplot(survivors1) + 
-  geom_line(aes(t, Object_Area_0, color = as.character(trackId))) + 
-  xlab("time") + 
-  ylab("size in pixels") + 
-  labs(color = "trackId") +
-  ggtitle("Change in Size Set 1") + 
-  theme_light()
+for(data in names(merged)) {
+  df <- get(data)
+  survivors <- 
+  survivors <- surviving_cells$trackId
+  survivors <- df %>% 
+  subset(trackId %in% survivors)
+  survivors <- filter(survivors, trackId != -1)
+
+  print(ggplot(survivors1) + 
+    geom_line(aes(t, Object_Area_0, color = as.character(trackId))) + 
+    xlab("time") + 
+    ylab("size in pixels") + 
+    labs(color = "trackId") +
+    ggtitle("Change in Size Set 1") + 
+    theme_light())
 
 survivors2 <- surviving_cells2$trackId
 survivors2 <- merged2 %>% 
