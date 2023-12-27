@@ -63,7 +63,6 @@ library(factoextra)
 library(Metrics)
 
 # Local paths...
-
 #Set to folder containing images, tracking results, plate table...
 setwd("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/H02_20230831_CellTracking_Ilastik")
 
@@ -382,8 +381,8 @@ for(data in names(merged)) {
 
 for(data in names(merged)) {
   df <- get(data)
-  survivors <- 
-  survivors <- surviving_cells$trackId
+  surviving <- surviving_cells %>% filter(ID == paste0(df[1,63]))
+  survivors <- surviving$trackId
   survivors <- df %>% 
   subset(trackId %in% survivors)
   survivors <- filter(survivors, trackId != -1)
