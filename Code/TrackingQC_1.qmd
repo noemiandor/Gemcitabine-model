@@ -377,7 +377,6 @@ onto another cell.
 #| fig-cap: Change in size of all cells over all time (left) and parent cells just before division (right).
 #| warning: false
 
-#Set 1
 for(data in names(merged)) {
   df <- get(data)
   #Finding the difference in size across time
