@@ -62,6 +62,8 @@ library(FactoMineR)
 library(factoextra)
 library(Metrics)
 
+# Local paths...
+
 #Set to folder containing images, tracking results, plate table...
 setwd("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/H02_20230831_CellTracking_Ilastik")
 
@@ -86,6 +88,32 @@ seg=read.csv("M:/lab/lab_crd/HighPloidy_CostBenefits/data/BreastCancerCellLines/
 # seg=read.csv("C:/Users/80027908/Desktop/K00_GemcitabineExposure_033023/B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_2/E_objectdata.csv")
 
 well="E2_1_"
+
+
+###### Paths
+
+# #Set to folder containing images, tracking results, plate table...
+# setwd(paste0(root, filesep, "/H02_20230831_CellTracking_Ilastik"))
+# #Import hand annotations
+# Book1 <- read_excel(paste0(path2repo, filesep, "Data/Book1.xlsx"))
+# Book2 <- read_excel(paste0(path2repo, filesep, "Data/Book2.xlsx"))
+# #Retired file pathways
+# #dat1 <- read.csv(paste0(root, filesep, "/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1.5_CSV-Table.tiff.csv"))
+# #dat2 <- read.csv(paste0(root, filesep, "/H02_20230831_CellTracking_Ilastik/E2_1_T=50_App=1001_Disapp=1001_CSV-Table.tiff.csv"))
+# #dat1 <- mutate(dat1, ID = "E2_1_T=50_App=1001_Disapp=1.5")
+# #dat2 <- mutate(dat2, ID = "E2_1_T=50_App=1001_Disapp=1001")
+# #Open the two tracking result tables for comparison
+# dat1 <- read.csv(paste0(root, filesep, "/Tracking_12-15/E2_1_CSV-Table_P1.h5.csv"))
+# dat2 <- read.csv(paste0(root, filesep, "/Tracking_12-15/E2_1_CSV-Table_P2.h5.csv"))
+# dat1 <- mutate(dat1, ID = "E2_1_P2")
+# dat2 <- mutate(dat2, ID = "E2_1_P3")
+# #Read in classifier file
+# # seg=read.csv(paste0(root, filesep, "/B01_20230407_Incucyte_Images_woGFP_Analysis_QI_Core/Results_Classifier_2/E_objectdata.csv"))
+# seg=read.csv(paste0(root, filesep, "/I01_20231219_HALOCellClassification/E2_1_Total_Object_Results.csv"))
+
+
+
+
 ```
 
 Create the tracking plot.
