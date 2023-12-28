@@ -140,10 +140,10 @@ la2=la2[!names(la2) %in% c("-1")]
 plot(as.tracks(la))
 ```
 ```{r}
+#| label: plot-traj2
+#| fig-cap: Trajectories of Set 2.
 #| warning: false
 #| message: false
-#| label: fig-2
-#| fig-cap: Trajectories of Set 2.
 
 plot(as.tracks(la2))
 ```
@@ -240,8 +240,8 @@ merged2$Class[merged2$Classifier.Phenotype=="Dead"]=-1
 **1.** See if number of tracked cells is same as number of segmented cells.
 
 ```{r}
-#| label: fig-3
-#| fig-cap: Pearson correlation for E2_1_T=50_App=1001_Disapp=1.5
+#| label: plot-corr
+#| fig-cap: Pearson correlation for Set 1.
 #| warning: false
 
 # Set 1
@@ -266,8 +266,8 @@ print(paste(length(la_1)/length(te1),"cells included (which do not come back to 
 ```
 
 ```{r}
-#| label: fig-4
-#| fig-cap: Pearson correlation for E2_1_T=50_App=1001_Disapp=1001
+#| label: plot-corr2
+#| fig-cap: Pearson correlation for Set 2.
 #| warning: false
 
 # Set 2
@@ -513,7 +513,7 @@ time could indicate a label hopping between cells.
 
 ```{r}
 #| label: plot-parent-position
-#| fig-cap: Visualizing change in position (x red,  y blue).
+#| fig-cap: Visualizing change in position (x red, y blue).
 #| warning: false
 #| message: false
 
@@ -612,6 +612,7 @@ It is important to see that parent cells are being appropriately identified as
 alive, as dead cells do not divide. It is possible for daughter cells to die 
 following division, but it is concerning that the proportions of these match 
 that of the parents and the general population.
+
 ```{r}
 #| label: plots-phenotype
 #| warning: false
@@ -728,15 +729,20 @@ The average phenotype graphs should remain the same, as they are based on the
 classifier data and not the tracking.
 
 **6.** Ground truth-ish
+
 ```{r}
 #| label: plot-comparison
 #| fig-cap: The number of cells counted by hand and for each tracking set. Black line = identity line; blue line = regression.
 #| message: false
 #| warning: false
 
+# Too complicated to combine these sets into one loop, so I ran it separately
+# for now.
+
 a <- ggplot(filter(Book1, class == 'alive')) + 
   geom_bar(aes(slice)) + 
-  theme_light() + xlab("t") + 
+  theme_light() + 
+  xlab("t") + 
   ggtitle("Hand Annotation")
 
 b <- ggplot(filter(allcells_merged1, Class == 1)) + 
@@ -880,6 +886,8 @@ ggplot(cdf) +
 ```{r}
 #| label: plot-PCA
 #| fig-cap: PCA of cell features.
+#| message: false
+#| warning: false
 
 for(data in names(merged)) {
   df <- get(data)  
@@ -1127,7 +1135,8 @@ for(data in names(merged)) {
   print((a+b+c+d)/(e+f+g))
   print((h+i+j)/(k+l+m))
   # Replaced with the following graph
-  # print(plot(tsxts_feat$entropy, tsxts_feat$spike, main = paste0("Time Series Features of ", df[1,63])))
+  # print(plot(tsxts_feat$entropy, tsxts_feat$spike, 
+  # main = paste0("Time Series Features of ", df[1,63])))
   print(ggplot(temp) + 
           geom_point(aes(trend, entropy, color = as.character(flag))) + 
           labs(color = "flag") +
@@ -1200,6 +1209,8 @@ difficult to forecast.
 ```{r}
 #| label: plot-umap
 #| fig-cap: UMAP of cell features.
+#| message: false
+#| warning: false
 
 #Note: the UMAPs have been "broken" for the most recent sets -> WIP
 
@@ -1219,7 +1230,7 @@ for(data in names(merged)) {
     select(!ID) %>%
     mutate(ID = row_number())
   temp$trackId <- as.numeric(temp$trackId)
-  allcells.labels <- left_join(allcells.labels, temp, by = trackId)
+  allcells.labels <- left_join(allcells.labels, temp, by = "trackId")
   rownames(allcells.labels) <- NULL
   
   umap_fit <- allcells.data %>%
@@ -1251,7 +1262,7 @@ for(data in names(merged)) {
     theme_light() +
     labs(color = "class") +
     labs(x = "UMAP1", y = "UMAP2", subtitle = "UMAP plot")
-  print(a+b)
+  print(a/b)
 }
 ```
 
