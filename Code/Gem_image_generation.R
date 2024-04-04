@@ -189,7 +189,8 @@ for(cell in sort(unique(cor_dat1_alltime$trackId))) {
 well <- "F6_1"
 col_values <- c("Dead" = "cyan", "Unstained" = "green", "Alive" = "orangered", "Transitional" = "magenta")
 
-fi <- list.files(paste0(root, filesep, well),full.names = T)
+# fi <- list.files(paste0(root, filesep, well),full.names = T)
+fi <- list.files(paste0(root, filesep, well, "/HALO Markup/output/overlay_output"),full.names = T)
 for(cell in targets) {
   filt <- cor_dat2 %>%
     filter(trackId == cell | parentTrackId == cell)
@@ -217,25 +218,25 @@ for(cell in targets) {
   }
 }
 
-fi <- list.files(paste0(root, filesep, well, filesep, "HALO MARKUP", filesep, "output"),full.names = T)
-for(cell in targets) {
-  filt <- cor_dat2 %>%
-    filter(trackId == cell | parentTrackId == cell)
-  for(i in min(filt$t):(max(filt$t)+5)) {
-    tiff(paste0("~/corr_HALO_", well, "_", cell, "_", i, ".tif"), width = 1468, height = 1100)
-    img=bioimagetools::readTIF(fi[i+1],as.is = T)
-    img <- EBImage::resize(img, dim(img)[1]/1)
-    plot(raster::as.raster(img[,,,1]))
-    if(i %in% unique(filt$t)) {
-      p <- filt %>% filter(t == i)
-      p$Class[p$Classifier.Phenotype=="UnStained"]=2
-      points(p$x, p$y+30, pch=(p$Class+2), col="white", cex=1.5, lwd = 3)
-      text(p$x+50, p$y+30, labels=p$trackId, col="white", cex=1.5)
-    }
-    mtext(fileparts(fi[i+1])$name, cex = 2)
-    dev.off()
-  }
-}
+# fi <- list.files(paste0(root, filesep, well, filesep, "HALO MARKUP", filesep, "output"),full.names = T)
+# for(cell in targets) {
+#   filt <- cor_dat2 %>%
+#     filter(trackId == cell | parentTrackId == cell)
+#   for(i in min(filt$t):(max(filt$t)+5)) {
+#     tiff(paste0("~/corr_HALO_", well, "_", cell, "_", i, ".tif"), width = 1468, height = 1100)
+#     img=bioimagetools::readTIF(fi[i+1],as.is = T)
+#     img <- EBImage::resize(img, dim(img)[1]/1)
+#     plot(raster::as.raster(img[,,,1]))
+#     if(i %in% unique(filt$t)) {
+#       p <- filt %>% filter(t == i)
+#       p$Class[p$Classifier.Phenotype=="UnStained"]=2
+#       points(p$x, p$y+30, pch=(p$Class+2), col="white", cex=1.5, lwd = 3)
+#       text(p$x+50, p$y+30, labels=p$trackId, col="white", cex=1.5)
+#     }
+#     mtext(fileparts(fi[i+1])$name, cex = 2)
+#     dev.off()
+#   }
+# }
 
 for(cell in targets){
   p <- cor_dat2 %>% 
