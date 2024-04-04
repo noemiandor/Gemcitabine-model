@@ -173,11 +173,11 @@ cor_dat1_list <- unique(cor_dat1_list$trackId)
 targets <- cor_dat1_list[1:10]
 
 cor_dat1_alltime <- allcells_merged_dat1 %>% 
-  filter(trackId %in% targets | lineageId %in% targets)
+  filter(trackId %in% targets | parentTrackId %in% targets)
 
 cor_dat2 <- data.frame()
 for(cell in sort(unique(cor_dat1_alltime$trackId))) {
-  df_1 <- filter(cor_dat1_alltime, trackId == cell)
+  df_1 <- filter(cor_dat1_alltime, trackId == cell | parentTrackId == cell)
   if(max(df_1$lifetime) > 24) {
     df_2 <- df_1 %>%
       mutate(cor = cor(t, Object_Area_0, method = "pearson"))
