@@ -243,7 +243,7 @@ for(cell in targets){
   for(i in unique(p$t)) {
     size <- p %>% 
       filter(t == i)
-    a <- ggplot(p) +
+    ggplot(p) +
       geom_line(aes(t, Object_Area_0)) +
       geom_point(aes(t, Object_Area_0, color = Classifier.Phenotype)) +
       scale_color_manual(values = col_values) +
@@ -251,6 +251,138 @@ for(cell in targets){
       theme_light() +
       ggtitle(paste0("Area over time for track ", cell))
     ggsave(paste0("corr_", cell, "_", i, ".tiff"), units="px", width=1468, height=1100, dpi=300)
-    
+  }
+  q <- cor_dat2 %>% 
+    filter(parentTrackId == cell)
+  if(nrow(q) == 2) {
+    for(i in 1:6) {
+      ggplot(p) +
+        geom_line(aes(t, Object_Area_0)) +
+        geom_point(aes(t, Object_Area_0, color = Classifier.Phenotype)) +
+        scale_color_manual(values = col_values) +
+        theme_light() +
+        ggtitle(paste0("Area over time for track ", cell))
+      ggsave(paste0("corr_", cell, "_", (max(p$t) + i), ".tiff"), units="px", width=1468, height=1100, dpi=300)
+    }
+  } else {
+      for(i in 1:5) {
+        ggplot(p) +
+          geom_line(aes(t, Object_Area_0)) +
+          geom_point(aes(t, Object_Area_0, color = Classifier.Phenotype)) +
+          scale_color_manual(values = col_values) +
+          theme_light() +
+          ggtitle(paste0("Area over time for track ", cell))
+        ggsave(paste0("corr_", cell, "_", (max(p$t) + i), ".tiff"), units="px", width=1468, height=1100, dpi=300)
+      }
+  }
+}
+
+############################### inter-division cells 
+
+orig_cells <- allcells_merged_dat1 %>% 
+  filter(t == 0)
+orig_cells <- orig_cells$trackId
+
+target_cells_df <- allcells_merged_dat1 %>% 
+  filter(trackId %!in% orig_cells & parent == TRUE)
+target_cells_list <- unique(target_cells_df$trackId)
+
+cor_div_dat1 <- data.frame()
+for(cell in sort(unique(target_cells_df$trackId))) {
+  df_1 <- filter(target_cells_df, trackId == cell)
+  if(max(df_1$lifetime) > 24) {
+    df_2 <- df_1 %>%
+      mutate(cor = cor(t, Object_Area_0, method = "pearson"))
+    cor_div_dat1 <- rbind(cor_div_dat1, df_2)
+    print(cell)
+  }
+}
+
+cor_div_dat1_list <- cor_div_dat1[order(-cor_div_dat1$cor),]
+cor_div_dat1_list <- unique(cor_div_dat1_list$trackId)
+targets <- cor_div_dat1_list[4:13]
+
+cor_div_dat1_alltime <- allcells_merged_dat1 %>% 
+  filter(trackId %in% targets | parentTrackId %in% targets)
+
+cor_div_dat2 <- data.frame()
+for(cell in sort(unique(cor_div_dat1_alltime$trackId))) {
+  df_1 <- filter(cor_div_dat1_alltime, trackId == cell | parentTrackId == cell)
+  if(max(df_1$lifetime) > 24) {
+    df_2 <- df_1 %>%
+      mutate(cor = cor(t, Object_Area_0, method = "pearson"))
+    cor_div_dat2 <- rbind(cor_div_dat2, df_2)
+    print(cell)
+  }
+}
+
+well <- "F6_1"
+col_values <- c("Dead" = "cyan", "Unstained" = "green", "Alive" = "orangered", "Transitional" = "magenta")
+fi <- list.files(paste0(root, filesep, well, "/HALO Markup/output/overlay_output"),full.names = T)
+for(cell in targets) {
+  filt <- cor_div_dat2 %>%
+    filter(trackId == cell | parentTrackId == cell)
+  for(i in min(filt$t):(max(filt$t)+5)) {
+    tiff(paste0("~/corr_div_", well, "_", cell, "_", i, ".tif"), width = 1468, height = 1100)
+    img=bioimagetools::readTIF(fi[i+1],as.is = T)
+    img <- EBImage::resize(img, dim(img)[1]/1)
+    plot(raster::as.raster(img[,,,1]))
+    if(i %in% unique(filt$t)) {
+      p <- filt %>% filter(t == i)
+      p$Class[p$Classifier.Phenotype=="UnStained"]=2
+      points(p$x, p$y+30, pch=(p$Class+2), col="black", cex=1.5, lwd = 3)
+      text(p$x+50, p$y+30, labels=p$trackId, cex=1.5)
+    }
+    legend("topleft",
+           legend = c("Dead", "Transitional", "Alive", "Unstained"),
+           pch=c(1,2,3,4),
+           cex = 1)
+    mtext(fileparts(fi[i+1])$name, cex = 2)
+    cor_num <- filt %>% 
+      filter(trackId == cell)
+    cor_num <- cor_num$cor
+    mtext(paste0("Pearson correlation of track ", cell, ":  ", cor_num), side = 1, cex = 2)
+    dev.off()
+  }
+}
+
+
+for(cell in targets){
+  p <- cor_div_dat2 %>% 
+    filter(trackId == cell)
+  for(i in unique(p$t)) {
+    size <- p %>% 
+      filter(t == i)
+    ggplot(p) +
+      geom_line(aes(t, Object_Area_0)) +
+      geom_point(aes(t, Object_Area_0, color = Classifier.Phenotype)) +
+      scale_color_manual(values = col_values) +
+      geom_point(aes(x = i, y = size[1,43]), color = "royalblue", size = 3) +
+      theme_light() +
+      ggtitle(paste0("Area over time for track ", cell))
+    ggsave(paste0("corr_div_", cell, "_", i, ".tiff"), units="px", width=1468, height=1100, dpi=300)
+  }
+  q <- cor_div_dat2 %>% 
+    filter(parentTrackId == cell)
+  if(nrow(q) == 2) {
+    for(i in 1:6) {
+      ggplot(p) +
+        geom_line(aes(t, Object_Area_0)) +
+        geom_point(aes(t, Object_Area_0, color = Classifier.Phenotype)) +
+        scale_color_manual(values = col_values) +
+        theme_light() +
+        ggtitle(paste0("Area over time for track ", cell))
+      ggsave(paste0("corr_div_", cell, "_", (max(p$t) + i), ".tiff"), units="px", width=1468, height=1100, dpi=300)
+    }
+  } else {
+    for(i in 1:5) {
+      ggplot(p) +
+        geom_line(aes(t, Object_Area_0)) +
+        geom_point(aes(t, Object_Area_0, color = Classifier.Phenotype)) +
+        scale_color_manual(values = col_values) +
+        theme_light() +
+        ggtitle(paste0("Area over time for track ", cell))
+      ggsave(paste0("corr_div_", cell, "_", (max(p$t) + i), ".tiff"), units="px", width=1468, height=1100, dpi=300)
+    }
   }
 }
