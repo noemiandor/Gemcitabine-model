@@ -387,3 +387,12 @@ for(cell in targets){
     }
   }
 }
+
+targets <- cor_div_dat1_list[1:100]
+for(cell in targets) {
+  p <- allcells_merged_dat1 %>% 
+    filter(trackId == cell) %>% 
+    select(t, x, y, Object_Area_0)
+  rownames(p) <- NULL
+  write.table(p, file = paste0(cell, ".txt", sep = ""), row.names = FALSE)
+}
