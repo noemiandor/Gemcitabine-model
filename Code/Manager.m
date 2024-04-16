@@ -1,3 +1,71 @@
+%%%%%%%%%%%%%%%%%
+%%% PKPD data %%%
+%%%%%%%%%%%%%%%%%
+ 
+cd /Users/4470246/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/M00_GemcitabinePKPD_101823
+% dm=readtable('dm_2N.txt');
+
+global dmx
+global GemcitabineConc_nM
+GemcitabineConc_nM=struct(low=100,high=1000);
+
+% dmx=struct(); 
+% dmx.high=dm.dFdCTP___ng_mL_';
+% dmx.low=dm.dFdCTP___ng_mL__low';
+% dmx.time=dm.time';
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Fit model to data %%%
+S=struct();
+%% Iterate across replicates
+for f=dir('nM1000_*txt')';
+    dm=readtable(f.name);
+
+    dmx=struct();
+    dmx.high=dm.dFdCTP___ng_mL_';   
+    dmx.low=dm.dFdCTP___ng_mL__low';
+    dmx.time=dm.time';
+
+    %% Do the fitting
+    A=[];b= [];Aeq=[];beq=[];
+
+    theta=50; nu=1500; eta=0.005; xi=0.05;
+    pars = {theta, nu, eta, xi};
+    bounds= cell2mat(cellfun(@(x) [x/5000;x*5000], pars, 'UniformOutput', false));
+    lb = bounds(1,:)';
+    ub = bounds(2,:)';
+    opts = optimoptions(@fmincon);
+
+    problem = createOptimProblem('fmincon','objective',...
+        @cost_PKPD,'x0',cell2mat(pars),'lb',lb,'ub',ub,'options',opts);
+
+    rs = RandomStartPointSet('NumStartPoints',25);
+    points = list(rs,problem);
+    ms = MultiStart('UseParallel',true);
+    % [pars_,fval,exitflag,output,solutions]  = run(ms,problem,CustomStartPointSet(points));
+
+    fname=strrep(extractBefore(f.name,12), '-','_');
+    % S=setfield(S,fname, pars_);
+
+
+    %% plot best fit:
+    % close all hidden
+    figure('name',['~/Downloads/Gemcitabine_PKPD_model_',fname],'Position',[100 100 1000 400])
+    cost_PKPD(getfield(S,fname))
+end
+%% @TODO: decide which parameter values to go with
+
+%% @TODO: normalize all parameters to number of cells (1 Million)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Incucyte data: untreated conditions %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% @TODO next
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Incucyte data: treated conditions %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 cd('/Users/4470246/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K01_SkippedMitosisClassification_042523/');
 addpath /Users/4470246/Repositories/Gemcitabine-model/Code/
 addpath /Users/4470246/Repositories/Gemcitabine-model/Code/wassersteinFun/
@@ -76,11 +144,10 @@ legend('Dead','P_0','P_1','P_2','P_3','P_4','P_5','P_6','P_7','P_8','P_9')
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Fit model to data %%%
-%%%%%%%%%%%%%%%%%%%%%%%%%
 S=struct();
+%% Iterate across replicates
 for k=fliplr(1:4)
 
-    global dmx
     dmx=struct();
     for type={'N2','N4'}
         f=dir(".");
@@ -125,15 +192,13 @@ for k=fliplr(1:4)
     ub(4)=min(2,ub(4));
     lb(4)=max(1,lb(4));
 
-    % opts = optimoptions(@fmincon,'Algorithm','sqp');
     opts = optimoptions(@fmincon);
 
     problem = createOptimProblem('fmincon','objective',...
         @cost,'x0',cell2mat(pars),'lb',lb,'ub',ub,'options',opts);
-    rs = RandomStartPointSet('NumStartPoints',4);
+    rs = RandomStartPointSet('NumStartPoints',250);
     points = list(rs,problem);
     ms = MultiStart('UseParallel',true);
-    %     gs = GlobalSearch(ms);
     [pars_,fval,exitflag,output,solutions]  = run(ms,problem,CustomStartPointSet(points));
     S=setfield(S,replicates(k).N2,pars_([1,2, 3,4]));
     % S=setfield(S,replicates(k).N4,pars_([1,3,2]));

@@ -1,5 +1,6 @@
 library(matlab)
 library( celltrackR )
+library( fitdistrplus )
 
 # setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/B02_20230614_CellTracking_Ilastik")
 # setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/C02_20230726_CellTracking_Ilastik")
@@ -20,6 +21,15 @@ la=sapply(unique(dat$lineageId), function(x) dat[dat$lineageId==x,c("t","x","y",
 names(la)=as.character(unique(dat$lineageId))
 la=la[!names(la) %in% c("-1")]
 plot(as.tracks(la))
+
+## consider only cells that were not yet there at timepoint 0
+daughterCells=la[sapply(la, function(x) min(x$t)>0)]
+daughterParentCells = daughterCells[sapply(daughterCells, function(x) any(duplicated(x$t)) ) ]
+daughterParentCells = sapply(daughterParentCells, function(x) x[!duplicated(x$t),,drop=F], simplify = F)
+sizeFoldChange=sapply(daughterParentCells, function(x) x$Object_Area_0[which.max(x$t)]/x$Object_Area_0[which.min(x$t)])
+hist(sizeFoldChange[sizeFoldChange<quantile(sizeFoldChange,0.75)],10)
+hist(log(sizeFoldChange))
+d=fitdist(sizeFoldChange,"norm")
 
 
 ## Integrate with cell classification results
