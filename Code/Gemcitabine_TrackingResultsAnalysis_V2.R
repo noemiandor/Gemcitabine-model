@@ -21,7 +21,7 @@ assignWGDstatus <- function(track, distr){
     # ## univariate:
     # pdiv=pnorm(track$AreFC,mean = distr$estimate["mean"], sd = distr$estimate["sd"])
     ## multivariate:
-    dat=t(sapply(3:nrow(track), function(x) track$AreFC[(x-2):x] ))
+    dat=t(sapply(timepoints2include:nrow(track), function(x) track$AreFC[(x-(timepoints2include-1)):x] ))
     pdiv=pmnorm(dat, mean = as.numeric(distr$parameters$mean), varcov = distr$parameters$variance$Sigma)
       
     if(all(pdiv<0.5)){
@@ -36,7 +36,7 @@ assignWGDstatus <- function(track, distr){
 }
 
 
-
+timepoints2include=3 ; ## for multivariate gaussian fit
 plateMap=read.xlsx("Gemcitabine_PlateMap_20240111.xlsx", sheetIndex = 1)
 
 f=list.files("J01_20240111_CellTracking_Ilastik/F_row/F6_1_inter-division/", full.names = T)
@@ -64,7 +64,7 @@ hist((sizeFoldChange))
 hist(log(sizeFoldChange))
 d=fitdist(sizeFoldChange,"norm")
 # multivariate:
-sizeFoldChange=sapply(daughterParentCells, function(x) x$Object_Area_0[nrow(x):(nrow(x)-2)]/x$Object_Area_0[which.min(x$t)])
+sizeFoldChange=sapply(daughterParentCells, function(x) x$Object_Area_0[nrow(x):(nrow(x)-(timepoints2include-1))]/x$Object_Area_0[which.min(x$t)])
 sizeFoldChange=sizeFoldChange[,apply(is.finite(sizeFoldChange),2,all)]
 d=mvn("XXX",t(sizeFoldChange)); 
 
