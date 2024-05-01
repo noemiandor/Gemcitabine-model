@@ -6,6 +6,8 @@ library( xlsx )
 setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K00_GemcitabineExposure_033023/")
 devtools::source_url("https://github.com/noemiandor/Utils/blob/master/grpstats.R?raw=TRUE")
 
+OUTD="~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K01_WGDClassification_050124"
+
 assignWGDstatus <- function(track, distr){
   track = track[order(track$t),]
   track$WGD=0
@@ -35,16 +37,24 @@ assignWGDstatus <- function(track, distr){
   return(track_orig)
 }
 
-
+well="F6"
+tp=1:40; ## timepoints of interest to be recorded for matlab model fit
 timepoints2include=3 ; ## for multivariate gaussian fit
 plateMap=read.xlsx("Gemcitabine_PlateMap_20240111.xlsx", sheetIndex = 1)
 
-f=list.files("J01_20240111_CellTracking_Ilastik/F_row/F6_1_inter-division/", full.names = T)
+f=list.files(paste0("J01_20240111_CellTracking_Ilastik/F_row/",well,"_1_inter-division/"), full.names = T)
 # f=list.files("J01_20240111_CellTracking_Ilastik/A_row/A_row_inter-division/", full.names = T)
 daughterParentCells=sapply(f, function(x) read.table(x), simplify = F)
 dt_hours=sapply(daughterParentCells, function(x) quantile(x$t,c(0,1)))
 dt_hours= 2*(dt_hours[2,]-dt_hours[1,])
 hist(dt_hours)
+
+## Dead cell count
+dead=list()
+for(t in tp){
+  x=sapply(daughterParentCells, function(x) x[x$t==t & x$Classifier.Phenotype=="Dead",], simplify = F)
+  dead[[as.character(t)]]=nrow(x)
+}
 
 ##  inter-division tracks which lasted at least 18 hours (doubling time for SUM-159 is 22 hours).
 daughterParentCells = daughterParentCells[dt_hours>=18];
@@ -58,11 +68,11 @@ daughterParentCells = daughterParentCells[pearson_R>=0.3];
 x=sapply(daughterParentCells, function(x) sum(x$Classifier.Phenotype=="Dead")/nrow(x))
 daughterParentCells=daughterParentCells[x<0.1]
 
-# univariate:
-sizeFoldChange=sapply(daughterParentCells, function(x) x$Object_Area_0[which.max(x$t)]/x$Object_Area_0[which.min(x$t)])
-hist((sizeFoldChange))
-hist(log(sizeFoldChange))
-d=fitdist(sizeFoldChange,"norm")
+## univariate:
+# sizeFoldChange=sapply(daughterParentCells, function(x) x$Object_Area_0[which.max(x$t)]/x$Object_Area_0[which.min(x$t)])
+# hist((sizeFoldChange))
+# hist(log(sizeFoldChange))
+# d=fitdist(sizeFoldChange,"norm")
 # multivariate:
 sizeFoldChange=sapply(daughterParentCells, function(x) x$Object_Area_0[nrow(x):(nrow(x)-(timepoints2include-1))]/x$Object_Area_0[which.min(x$t)])
 sizeFoldChange=sizeFoldChange[,apply(is.finite(sizeFoldChange),2,all)]
@@ -75,7 +85,6 @@ WGD=WGD[sapply(WGD, class)!="try-error"]
 ## WGD distribution per timepoint
 cells=list()
 wgdMax=max(sapply(WGD, function(x) max(x$WGD)))
-tp=1:40
 for(t in tp){
   x=sapply(WGD, function(x) x[x$t==t,], simplify = F)
   x=do.call(rbind,x)
@@ -85,7 +94,11 @@ for(t in tp){
   cells[[t]] = x
 }
 cells=do.call(cbind,cells)
-colnames(cells)=as.character(tp)
+colnames(cells)=paste(as.character(tp*2), well)
+rownames(cells)=paste0(rownames(cells),"_MitosesSkipped")
+
+## Save output for Matlab code
+write.table(cells,paste0(OUTD,filesep,well,".txt"),row.names = T,quote = F)
 
 ## plot: @TODO save plot
 barplot(as.matrix(cells), col=rainbow(nrow(cells)), xlab="timepoint", ylab="cell count");

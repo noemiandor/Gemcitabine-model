@@ -66,13 +66,15 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Incucyte data: treated conditions %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-cd('/Users/4470246/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K01_SkippedMitosisClassification_042523/');
+% cd('/Users/4470246/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K01_SkippedMitosisClassification_042523/');
+cd('/Users/4470246/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K01_WGDClassification_050124/');
 addpath /Users/4470246/Repositories/Gemcitabine-model/Code/
 addpath /Users/4470246/Repositories/Gemcitabine-model/Code/wassersteinFun/
 addpath  /Users/4470246/Documents/Matlab-workspace/SelectionForces_GastricCLs/Code/utils
 addpath  /Users/4470246/Documents/Matlab-workspace/SelectionForces_GastricCLs/Code/utils/export_fig/
-replicates=struct('N2',{'A2','B2','C2','D2'},'N4',{'H2','F2','G2','E2'});
+replicates=struct('N2',{'A6','B6','C6','D6'},'N4',{'E6','F6','G6','H6'});
 
+global dmx
 global DOSE
 DOSE=250;
 
@@ -146,7 +148,7 @@ legend('Dead','P_0','P_1','P_2','P_3','P_4','P_5','P_6','P_7','P_8','P_9')
 %%% Fit model to data %%%
 S=struct();
 %% Iterate across replicates
-for k=fliplr(1:4)
+for k=1:length({replicates.N2})
 
     dmx=struct();
     for type={'N2','N4'}
@@ -162,17 +164,9 @@ for k=fliplr(1:4)
             dm=readtable([replicates(k).N2,'.txt']); %% 2N
         end
         dm=dm(:,2:size(dm,2));
-        % normalize to 0 dead cells min: @TODO remove once early timepoints included
-        dead=table2array(dm(1,:));
-        if strcmp(type{1},'N4')==1
-            dead=dead/1.3;
-        else
-            dead=dead/0.79;
-        end
-        dm(1,:)=array2table(dead);
-        % use only the first 5 days: @TODO remove and model drug decay
-        ii=find((1:size(dm,2))*4/24 <3);
-        dm=dm(1:(1+length(P0)),ii);
+        % % use only the first 5 days: @TODO remove and model drug decay
+        % ii=find((1:size(dm,2))*4/24 <3);
+        % dm=dm(1:(1+length(P0)),ii);
         dmx=setfield(dmx,type{1},table2array(dm));
     end
     % %% Correct image based classification: @TODO -- remove <- should be done by HALO + r
@@ -221,18 +215,18 @@ boxplot(S_,{'u','v','w','nu'})
 set(gca, 'YScale', 'log')
 ylabel('value')
 subplot(2,2,1)
-bar(i,[ alpha_p(i,S.A2(1),0,DOSE);alpha_p(i,S.A2(1),1,DOSE)]','BaseValue',-0.5E-4); %, i,k_p(i,DOSE,S.E2(2),S.E2(4)))
+bar(i,[ alpha_p(i,S.A6(1),0,DOSE);alpha_p(i,S.A6(1),1,DOSE)]','BaseValue',-0.5E-4); %, i,k_p(i,DOSE,S.E2(2),S.E2(4)))
 ylim([-0.5E-4,12E-4])
 xlabel('number of skipped mitoses')
 ylabel('proliferation rate')
 legend({'D','T'})
 subplot(2,2,3)
-bar(i,k_p(i,DOSE,S.A2(2), S.A2(4)),'BaseValue',-0.5E-4); %, i,k_p(i,DOSE,S.E2(2),S.E2(4)))
+bar(i,k_p(i,DOSE,S.A6(2), S.A6(4)),'BaseValue',-0.5E-4); %, i,k_p(i,DOSE,S.E2(2),S.E2(4)))
 xlabel('already skipped mitoses')
 ylabel('rate of another mitotic slippage')
 legend({'D & T'})
 subplot(2,2,2)
-bar(i, a_p(i,DOSE,S.A2(3),S.A2(3)),'BaseValue',-0.01);%, i,a_p(i,DOSE,S.E2(3),S.E2(3)))
+bar(i, a_p(i,DOSE,S.A6(3),S.A6(3)),'BaseValue',-0.01);%, i,a_p(i,DOSE,S.E2(3),S.E2(3)))
 xlabel('number of skipped mitoses')
 ylabel('death rate')
 legend({'D & T'})
