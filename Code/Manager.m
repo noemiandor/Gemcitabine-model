@@ -76,7 +76,7 @@ replicates=struct('N2',{'A6','B6','C6','D6'},'N4',{'E6','F6','G6','H6'});
 
 global dmx
 global DOSE
-DOSE=250;
+DOSE=20;
 
 % Define the initial conditions
 P0 = [1; zeros(2,1)]; % P_0 = 1, all other P_i = 0
@@ -90,56 +90,56 @@ w2=190;
 nu=1.095;
 iota = 0;
 
-figure('name',['~/Downloads/Gemcitabine_model_functions'],'Position',[100 100 900 200])
-% Test k_p function
-subplot(1,3,1)
-% k_p= @(i,x,v) repmat(v*x,length(i),1); %% constant
-% k_p = @(i,x,v) [(v*x).^(i+1)]; %% decreasing
-k_p = @(i,x,v, nu)  (nu-(1-i).^2).*(x/(x+v));
-i=0:(length(P0) - 1);
-params=[v,v*2];
-plot(i, k_p(i,DOSE,params(1), nu), i,k_p(i,DOSE,params(2), nu));%,i,k_p(i,DOSE,params(3), nu))
-xlabel('number of already skipped mitoses')
-ylabel('rate of another mitotic slippage')
-legend({'D','T'})
-% legend(strcat('v=',num2str(params')))
-
-% Test a_p function
-subplot(1,3,2)
-% a_p= @(i,x,w1,w2) (w1.^(1./(i+1).^2)* x./(x+w2));
-% a_p= @(i,x,w1,w2) w1*x*(3-i).^2;
-a_p= @(i,x,w1,w2) ((1/(length(P0)-1))*(length(P0)-1-i)).^2 .*(x/(x+w1));
-i=0:(length(P0) - 1);
-params=[w1/2,w1,w1*2];
-plot(i, a_p(i,DOSE,params(1),params(1)),'black');%, i,a_p(i,DOSE,params(2)),i,a_p(i,DOSE,params(3)))
-plot(i, a_p(i,DOSE,params(1),w2), i,a_p(i,DOSE,params(2),w2),i,a_p(i,DOSE,params(3),w2))
-xlabel('number of skipped mitoses')
-ylabel('death rate')
-legend({'D and T'})
-% legend(strcat('w=',num2str(params')))
-
-% Test alpha_p function
-subplot(1,3,3)
-alpha_p= @(i,u,iota, x)  (x./(x+u)) .*(i<=iota);
-% alpha_p= @(i,u,iota, x)  (1-x./(x+u)) .*(i<=iota); %% goodness of fit is same but converges slower -- @TODO: matters once we fit to >1 drug concentrations
-i=0:(length(P0) - 1);
-plot(i, alpha_p(i,u,0,DOSE), i,alpha_p(i,u,1,DOSE));
-ylim([0,u*1.3])
-xlabel('number of skipped mitoses')
-ylabel('proliferation rate')
-legend({'D','T'})
-% savefigs()
-
-% Solve the ODEs
-[t,y] = ode45(@(t,y) skippedMito_ODE(t,y,Inf,v,w1,  iota, nu), tspan, [0; P0]);
-
-% Plot the results
-subplot(1,3,3)
-plot(t, y)
-xlabel('Time')
-ylabel('P')
-legend('Dead','P_0','P_1','P_2','P_3','P_4','P_5','P_6','P_7','P_8','P_9')
-% set(gca, 'YScale', 'log')
+% figure('name',['~/Downloads/Gemcitabine_model_functions'],'Position',[100 100 900 200])
+% % Test k_p function
+% subplot(1,3,1)
+% % k_p= @(i,x,v) repmat(v*x,length(i),1); %% constant
+% % k_p = @(i,x,v) [(v*x).^(i+1)]; %% decreasing
+% k_p = @(i,x,v, nu)  (nu-(1-i).^2).*(x/(x+v));
+% i=0:(length(P0) - 1);
+% params=[v,v*2];
+% plot(i, k_p(i,DOSE,params(1), nu), i,k_p(i,DOSE,params(2), nu));%,i,k_p(i,DOSE,params(3), nu))
+% xlabel('number of already skipped mitoses')
+% ylabel('rate of another mitotic slippage')
+% legend({'D','T'})
+% % legend(strcat('v=',num2str(params')))
+% 
+% % Test a_p function
+% subplot(1,3,2)
+% % a_p= @(i,x,w1,w2) (w1.^(1./(i+1).^2)* x./(x+w2));
+% % a_p= @(i,x,w1,w2) w1*x*(3-i).^2;
+% a_p= @(i,x,w1,w2) ((1/(length(P0)-1))*(length(P0)-1-i)).^2 .*(x/(x+w1));
+% i=0:(length(P0) - 1);
+% params=[w1/2,w1,w1*2];
+% plot(i, a_p(i,DOSE,params(1),params(1)),'black');%, i,a_p(i,DOSE,params(2)),i,a_p(i,DOSE,params(3)))
+% plot(i, a_p(i,DOSE,params(1),w2), i,a_p(i,DOSE,params(2),w2),i,a_p(i,DOSE,params(3),w2))
+% xlabel('number of skipped mitoses')
+% ylabel('death rate')
+% legend({'D and T'})
+% % legend(strcat('w=',num2str(params')))
+% 
+% % Test alpha_p function
+% subplot(1,3,3)
+% alpha_p= @(i,u,iota, x)  (x./(x+u)) .*(i<=iota);
+% % alpha_p= @(i,u,iota, x)  (1-x./(x+u)) .*(i<=iota); %% goodness of fit is same but converges slower -- @TODO: matters once we fit to >1 drug concentrations
+% i=0:(length(P0) - 1);
+% plot(i, alpha_p(i,u,0,DOSE), i,alpha_p(i,u,1,DOSE));
+% ylim([0,u*1.3])
+% xlabel('number of skipped mitoses')
+% ylabel('proliferation rate')
+% legend({'D','T'})
+% % savefigs()
+% 
+% % Solve the ODEs
+% [t,y] = ode45(@(t,y) skippedMito_ODE(t,y,Inf,v,w1,  iota, nu), tspan, [0; P0]);
+% 
+% % Plot the results
+% subplot(1,3,3)
+% plot(t, y)
+% xlabel('Time')
+% ylabel('P')
+% legend('Dead','P_0','P_1','P_2','P_3','P_4','P_5','P_6','P_7','P_8','P_9')
+% % set(gca, 'YScale', 'log')
 
 
 
