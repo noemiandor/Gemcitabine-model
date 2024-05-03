@@ -42,7 +42,7 @@ plateMap=read.xlsx("/Users/john/Documents/IMO/polyploidization/Gemcitabine_model
 
 train_test<-list(train=c("2"),test=c("3","4","5","6","7","8","9","10","11"))
 
-for(train_row in c("F")){
+for(train_row in c("A","F")){
     tp=1:40; ## timepoints of interest to be recorded for matlab model fit
     timepoints2include=3 ; ## for multivariate gaussian fit
   
