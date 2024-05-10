@@ -6,7 +6,8 @@ library( xlsx )
 library(ggplot2)
 
 
-maindir="/Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/"
+# maindir="~//Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/"
+maindir="~/Repositories/Gemcitabine-model/"
 
 setwd(paste0(maindir,"Data/A_row/A_row_inter-division/"))
 devtools::source_url("https://github.com/noemiandor/Utils/blob/master/grpstats.R?raw=TRUE")
@@ -32,7 +33,7 @@ assignWGDstatus <- function(track, distr){
     dat=t(sapply(timepoints2include:nrow(track), function(x) track$AreFC[(x-(timepoints2include-1)):x] ))
     pdiv=pmnorm(dat, mean = as.numeric(distr$parameters$mean), varcov = distr$parameters$variance$Sigma)
     
-    if(is.na(all(pdiv)) | all(pdiv)<0.5){
+    if(all(is.na(pdiv)) | all(pdiv<0.5)){
       break
     }
     # Probability of dividing in the subsequent timestep exceeds 0.5:
@@ -44,134 +45,109 @@ assignWGDstatus <- function(track, distr){
 }
 
 plateMap=read.xlsx(paste0(maindir,"Data/Gemcitabine_PlateMap_20240111.xlsx"), sheetIndex = 1)
-
-
-Rows<-c("A","B","E","F")
-train_test<-list(train=c("2"),test=c("3","4","5","6","7","8","9","10","11"))
-
+tp=1:40; ## timepoints of interest to be recorded for matlab model fit
+timepoints2include=3 ; ## for multivariate gaussian fit
+train_test<-list(test=c("B4","E6","E5","E4"), train=c("B2","E2","E2","E2"))
 #train<-apply(expand.grid(Rows, Cols$train), 1, function(x) paste(x, collapse = ""))
 #test<-apply(expand.grid(Rows, Cols$test), 1, function(x) paste(x, collapse = ""))
 
-
-
-for(train_row in Rows){
-    tp=1:40; ## timepoints of interest to be recorded for matlab model fit
-    timepoints2include=3 ; ## for multivariate gaussian fit
+for(i in 1:length(train_test$train)){
+  trainRow=substr(train_test$train[i],1,1)
+  testRow=substr(train_test$test[i],1,1)
+  f=list(train=list.files(paste0(maindir,"Data/",trainRow,"_row/",trainRow,"_row_inter-division/"),pattern=paste0("*",train_test$train[i],".*","\\.txt"), full.names = T))
+  f$test=list.files(paste0(maindir,"Data/",testRow,"_row/",testRow,"_row_post-division/"),pattern=paste0("*",train_test$test[i],".*","\\.txt"), full.names = T)
   
-    setwd(paste0(maindir,"Data/",train_row,"_row/",train_row,"_row_inter-division/"))
-    f=list.files(".",pattern=paste0("*",train_row,"2.*","\\.txt"), full.names = F)
-   
-   
-    daughterParentCells=sapply(f, function(x) read.table(x), simplify = F)
+  daughterParentCells <- deadCells <- list()
+  for(what in names(train_test)){
+    print(what)
+    tmp=sapply(f[[what]], function(x) read.table(x), simplify = F)
+    names(tmp) = sapply(names(tmp), function(x) fileparts(x)$name)
+    daughterParentCells[[what]] = tmp
     
-  
-    dt_hours=sapply(daughterParentCells, function(x) quantile(x$t,c(0,1)))
+    dt_hours=sapply(daughterParentCells[[what]], function(x) quantile(x$t,c(0,1)))
     dt_hours= 2*(dt_hours[2,]-dt_hours[1,])
     hist(dt_hours)
     
     ## Dead cell count
     dead=list()
     for(t in tp){
-      x=sapply(daughterParentCells, function(x) x[x$t==t & x$Classifier.Phenotype=="Dead",], simplify = F)
+      x=sapply(daughterParentCells[[what]], function(x) x[x$t==t & x$Classifier.Phenotype=="Dead",], simplify = F)
       x=do.call(rbind,x)
       dead[[as.character(t)]]=nrow(x)
     }
+    deadCells[[what]]= dead
     
+    print(paste("daughterParent cells total:",length(daughterParentCells[[what]])))
     ##  inter-division tracks which lasted at least 18 hours (doubling time for SUM-159 is 22 hours).
-    daughterParentCells = daughterParentCells[dt_hours>=18];
-    pearson_R=sapply(daughterParentCells, function(x) cor(x$t,x$Object_Area_0))
-    hist(pearson_R)
-    
-    ## a strong correlation between time and cell area (Pearson r>=0.1), suggesting these are indeed cells that progress through the cell cycle.
-    daughterParentCells = daughterParentCells[pearson_R>=0.3];
+    daughterParentCells[[what]] = daughterParentCells[[what]][dt_hours>=18];
+    print(paste("daughterParent cells surviving at least 18 hours:",length(daughterParentCells[[what]])))
     
     ## low dead cell representation:
-    x=sapply(daughterParentCells, function(x) sum(x$Classifier.Phenotype=="Dead")/nrow(x))
-    daughterParentCells=daughterParentCells[x<0.1]
+    x=sapply(daughterParentCells[[what]], function(x) sum(x$Classifier.Phenotype=="Dead")/nrow(x))
+    daughterParentCells[[what]]=daughterParentCells[[what]][x<0.1]
+    print(paste("daughterParent cells with low fraction dead cells:",length(daughterParentCells[[what]])))
     
-    ## univariate:
-    # sizeFoldChange=sapply(daughterParentCells, function(x) x$Object_Area_0[which.max(x$t)]/x$Object_Area_0[which.min(x$t)])
-    # hist((sizeFoldChange))
-    # hist(log(sizeFoldChange))
-    # d=fitdist(sizeFoldChange,"norm")
-    # multivariate:
-    sizeFoldChange=sapply(daughterParentCells, function(x) x$Object_Area_0[nrow(x):(nrow(x)-(timepoints2include-1))]/x$Object_Area_0[which.min(x$t)])
-    sizeFoldChange<-na.omit(sizeFoldChange) #remove unkonwn vaues
-    
-    sizeFoldChange<-sizeFoldChange[is.finite(sizeFoldChange)] #remove inf vaues
-    #sizeFoldChange=sizeFoldChange[,apply(is.finite(sizeFoldChange),2,all)]
-    d=mvn("XXX",t(sizeFoldChange)); 
-    
-    #@TODO training row is the same as  testing rows,  to allow otherwise, modify the "for statement" below
-    test_row=train_row #
-    for(test_col in train_test$test){
-      well=paste0(test_row,test_col)
-      # @TODO: use post-division tracks (not just inter-division tracks) and read them in here
-      setwd(paste0(maindir,"Data/",test_row,"_row/",test_row,"_row_post-division/"))
-      post_divsion=list.files(".",pattern=paste0("*",well,".*","\\.txt"), full.names = F)
-      
-          # confirm there is data for this row and column
-        daughterParentCells=sapply(post_divsion, function(x)read.table(x),simplify=F)
-      
-      
-      
-        if(length(daughterParentCells)!=0){
-      WGD=sapply(daughterParentCells, function(x) try(assignWGDstatus(x, d)), simplify = F)
-      WGD=WGD[sapply(WGD, class)!="try-error"]
-      
-      ## WGD distribution per timepoint
-      cells=list()
-      if(length(WGD)!=0){
-        wgdMax=max(sapply(WGD, function(x) max(x$WGD)))
-      for(t in tp){
-        x=sapply(WGD, function(x) x[x$t==t,], simplify = F)
-        x=do.call(rbind,x)
-        x=plyr::count(c(x$WGD,0:wgdMax))
-        rownames(x) = x$x
-        x=x[as.character(0:wgdMax),-1,drop=F]
-        cells[[t]] = x
-      }
-      cells=do.call(cbind,cells)
-      colnames(cells)=paste(as.character(tp*2), well)
-      rownames(cells)=paste0(rownames(cells),"_MitosesSkipped")
-      cells=rbind(unlist(dead),cells)
-      rownames(cells)[1]="Dead"
-      
-      ## Save output for Matlab code
-      train_applied=paste0(train_row,"_",well)
-      write.table(cells,paste0(OUTD,filesep,train_applied,".txt"),row.names = TRUE,quote = F)
-      
-      ## plot: @TODO save plot
-      barplot(as.matrix(cells), col=rainbow(nrow(cells)), xlab="timepoint", ylab="cell count");
-      cells_=sweep(cells,MARGIN = 2, STATS=apply(cells,2,sum), FUN = "/")
-      barplot(as.matrix(cells_), col=rainbow(nrow(cells)), xlab="timepoint", ylab="cell fraction");
-      legend("bottomleft", as.character(0:wgdMax), fill=rainbow(nrow(cells)),title="WGD",bty = "")
-      
-      
-      
-      png(file=paste0(maindir,"inter_results/trained_",train_row,"2_ID_applied_",well,"_PD_count.png"),
-          width=600, height=538)
-      barplot(as.matrix(cells), col=rainbow(nrow(cells)), xlab="timepoint", ylab="cell count");
-      dev.off()
-      
-      cells_=sweep(cells,MARGIN = 2, STATS=apply(cells,2,sum), FUN = "/")
-      png(file=paste0(maindir,"inter_results/trained_",train_row,"2_ID_applied_",well,"_PD_fraction.png"),
-          width=600, height=538)
-      barplot(as.matrix(cells_), col=rainbow(nrow(cells)), xlab="timepoint", ylab="cell fraction");
-      legend("bottomleft", as.character(0:wgdMax), fill=rainbow(nrow(cells)),title="WGD",bty = "")
-      dev.off()
-      
-      
-      
-        }
-       }
-      }
-   }
-
-
-
-
-
-
-
-
+    ## Strong correlation between time and cell area (Pearson r>=0.1), suggesting these are indeed cells that progress through the cell cycle.
+    pearson_R=sapply(daughterParentCells[[what]], function(x) cor(x$t,x$Object_Area_0))
+    hist(pearson_R)
+    daughterParentCells[[what]] = daughterParentCells[[what]][pearson_R>=0.3];
+    print(paste("daughterParent cells with strong correlation between size and time:",length(daughterParentCells[[what]])))
+  }
+  
+  ## univariate:
+  # sizeFoldChange=sapply(daughterParentCells, function(x) x$Object_Area_0[which.max(x$t)]/x$Object_Area_0[which.min(x$t)])
+  # hist((sizeFoldChange))
+  # hist(log(sizeFoldChange))
+  # d=fitdist(sizeFoldChange,"norm")
+  # multivariate:
+  sizeFoldChange=sapply(daughterParentCells$train, function(x) x$Object_Area_0[nrow(x):(nrow(x)-(timepoints2include-1))]/x$Object_Area_0[which.min(x$t)])
+  sizeFoldChange<-na.omit(sizeFoldChange) #remove unkonwn vaues
+  
+  # sizeFoldChange<-sizeFoldChange[is.finite(sizeFoldChange)] #remove inf vaues
+  sizeFoldChange=sizeFoldChange[,apply(is.finite(sizeFoldChange),2,all)]
+  #sizeFoldChange=sizeFoldChange[,apply(is.finite(sizeFoldChange),2,all)]
+  d=mvn("XXX",t(sizeFoldChange)); 
+  
+  ## Now apply trained model on test set:
+  well=train_test$test[i]
+  WGD=sapply(daughterParentCells$test, function(x) try(assignWGDstatus(x, d)), simplify = F)
+  WGD=WGD[sapply(WGD, class)!="try-error"]
+  
+  ## WGD distribution per timepoint
+  cells=list()
+  wgdMax=max(sapply(WGD, function(x) max(x$WGD)))
+  for(t in tp){
+    x=sapply(WGD, function(x) x[x$t==t,], simplify = F)
+    x=do.call(rbind,x)
+    x=plyr::count(c(x$WGD,0:wgdMax))
+    rownames(x) = x$x
+    x=x[as.character(0:wgdMax),-1,drop=F]
+    cells[[t]] = x
+  }
+  cells=do.call(cbind,cells)
+  colnames(cells)=paste(as.character(tp*2), well)
+  rownames(cells)=paste0(rownames(cells),"_MitosesSkipped")
+  cells=rbind(unlist(deadCells$test),cells)
+  rownames(cells)[1]="Dead"
+  
+  ## Save output for Matlab code
+  tmp=paste(strsplit(train_test$test[i],"")[[1]],collapse = "_")
+  write.table(cells,paste0(OUTD,filesep,tmp,".txt"),row.names = TRUE,quote = F)
+  
+  ## Everything below is plotting only: exclude dead cells from plots
+  cells=cells[-1,]
+  
+  ## @TODO: remove first @timepoints2include timepoints from plot since they are meaningless
+  png(file=paste0(maindir,"Figs/trained_",trainRow,"2_ID_applied_",well,"_PD_count.png"),
+      width=600, height=538)
+  barplot(as.matrix(cells), col=rainbow(nrow(cells)), xlab="timepoint", ylab="cell count");
+  legend("bottomleft", as.character(0:wgdMax), fill=rainbow(nrow(cells)),title="WGD",bty = "")
+  dev.off()
+  
+  cells_=sweep(cells,MARGIN = 2, STATS=apply(cells,2,sum), FUN = "/")
+  png(file=paste0(maindir,"Figs/trained_",trainRow,"2_ID_applied_",well,"_PD_fraction.png"),
+      width=600, height=538)
+  barplot(as.matrix(cells_), col=rainbow(nrow(cells)), xlab="timepoint", ylab="cell fraction");
+  legend("bottomleft", as.character(0:wgdMax), fill=rainbow(nrow(cells)),title="WGD",bty = "")
+  dev.off()
+}
