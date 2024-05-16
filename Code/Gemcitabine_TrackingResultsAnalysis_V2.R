@@ -6,8 +6,8 @@ library( xlsx )
 library(ggplot2)
 
 
-# maindir="~//Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/"
-maindir="~/Repositories/Gemcitabine-model/"
+maindir="/Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/"
+#maindir="~/Repositories/Gemcitabine-model/"
 
 setwd(paste0(maindir,"Data/A_row/A_row_inter-division/"))
 devtools::source_url("https://github.com/noemiandor/Utils/blob/master/grpstats.R?raw=TRUE")
@@ -113,6 +113,36 @@ for(i in 1:length(train_test$train)){
   WGD=sapply(daughterParentCells$test, function(x) try(assignWGDstatus(x, d)), simplify = F)
   WGD=WGD[sapply(WGD, class)!="try-error"]
   
+  ####################################################
+  ###  Extracting Cells with certain WGD events  #####
+  ####################################################
+  track_ids <- names(WGD)
+  
+  #Cells with zero WGD events at ALL time points
+  track_0wgd=track_ids[sapply(WGD,function(x) all(x$WGD==0))]
+  writeLines(track_0wgd, paste0(maindir,"Data/",train_test$test[i],"_0_wgd_track_IDs.txt"))
+  
+  wgd_0_df<-do.call(rbind.data.frame, WGD[sapply(WGD,function(x) all(x$WGD==0))])
+  write.table(  wgd_0_df, paste0(maindir,"Data/",train_test$test[i],"_","0_wgd_df.txt"),sep = "\t",quote=F,row.names=T,col.names = FALSE)
+  
+  
+  
+  # Tracks with  k WGD events at at least one time point
+  for(j in c(1,2,3,4,5)){
+    temp_ids<-paste0("track_",j,"wgd")
+    temp_all_Data<-paste0("wgd",j)
+    
+    assign(temp_ids,track_ids[sapply(WGD,function(x) any(x$WGD==j))])
+    assign(temp_all_Data, do.call(rbind.data.frame, WGD[sapply(WGD,function(x) any(x$WGD==j)),drop=F]))
+    
+    if(!is.null(as.character(get(temp_ids)))&& length(as.character(get(temp_ids)))>0){
+      writeLines(as.character(get(temp_ids)), paste0(maindir,"Data/",train_test$test[i],"_",j,"_wgd_track_IDs.txt"))
+      write.table(get(temp_all_Data), paste0(maindir,"Data/",train_test$test[i],"_",j,"_wgd_df.txt"),sep = "\t",quote=F,row.names=T,col.names = T)
+    }
+  }
+ 
+
+    
   ## WGD distribution per timepoint
   cells=list()
   wgdMax=max(sapply(WGD, function(x) max(x$WGD)))
@@ -140,14 +170,14 @@ for(i in 1:length(train_test$train)){
   ## @TODO: remove first @timepoints2include timepoints from plot since they are meaningless
   png(file=paste0(maindir,"Figs/trained_",trainRow,"2_ID_applied_",well,"_PD_count.png"),
       width=600, height=538)
-  barplot(as.matrix(cells), col=rainbow(nrow(cells)), xlab="timepoint", ylab="cell count");
+  barplot(as.matrix(cells)[,4:ncol(cells)], col=rainbow(nrow(cells)), xlab="timepoint", ylab="cell count");
   legend("bottomleft", as.character(0:wgdMax), fill=rainbow(nrow(cells)),title="WGD",bty = "")
   dev.off()
   
   cells_=sweep(cells,MARGIN = 2, STATS=apply(cells,2,sum), FUN = "/")
   png(file=paste0(maindir,"Figs/trained_",trainRow,"2_ID_applied_",well,"_PD_fraction.png"),
       width=600, height=538)
-  barplot(as.matrix(cells_), col=rainbow(nrow(cells)), xlab="timepoint", ylab="cell fraction");
+  barplot(as.matrix(cells_)[,4:ncol(cells)], col=rainbow(nrow(cells)), xlab="timepoint", ylab="cell fraction");
   legend("bottomleft", as.character(0:wgdMax), fill=rainbow(nrow(cells)),title="WGD",bty = "")
   dev.off()
 }
