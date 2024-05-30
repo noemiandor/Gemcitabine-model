@@ -67,12 +67,12 @@ end
 %%% Incucyte data: treated conditions %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % cd('/Users/4470246/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K01_SkippedMitosisClassification_042523/');
-cd('/Users/4470246/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K01_WGDClassification_050124/');
+cd('/Users/4470246/Repositories/Gemcitabine-model//Data/matlab/');
 addpath /Users/4470246/Repositories/Gemcitabine-model/Code/
 addpath /Users/4470246/Repositories/Gemcitabine-model/Code/wassersteinFun/
 addpath  /Users/4470246/Documents/Matlab-workspace/SelectionForces_GastricCLs/Code/utils
 addpath  /Users/4470246/Documents/Matlab-workspace/SelectionForces_GastricCLs/Code/utils/export_fig/
-replicates=struct('N2',{'A6','B6','C6','D6'},'N4',{'E6','F6','G6','H6'});
+replicates=struct('N2',{'B_4'},'N4',{'E_4'});
 
 global dmx
 global DOSE

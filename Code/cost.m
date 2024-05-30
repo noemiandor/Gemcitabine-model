@@ -35,28 +35,28 @@ for type=fieldnames(dmx)'
     end
     wsdAll=[wsdAll,mean(wsd)];
 
-%     %% plot
-%     mycolors = flip(colormap(parula(size(dmx__,1))));
-%     subplot(1,2,idx); idx=idx+1;
-%     hold off;
-%     for cI = 1:size(dmx__,1)
-%         plot(t_, y_(cI,:),'Color',mycolors(cI,:),'LineWidth',3)
-% %         set(gca, 'XScale', 'log')
-% %         set(gca, 'YScale', 'log')
-% %         ylim([1,1000])
-%         hold on;
-%         plot(t_, dmx__(cI,:),'*--','Color',mycolors(cI,:),'LineWidth',3)
-% %         ylim([0,65])
-% %         title(type{1})
-%     end
-%     xlabel('Time (hours)')
-%     ylabel('Number of cells')
-% %     legend('D','$$\hat{D}$$','Interpreter','Latex')
-%     prefix='D';
-%     if strcmp(type{1},'N4')
-%         prefix='T';
-%     end
-%     legend('A','$$\hat{A}$$',['$$',prefix,'_0$$'],['$$\hat{',prefix,'_0}$$'],['$$',prefix,'_1$$'],['$$\hat{',prefix,'_1}$$'],['$$',prefix,'_2$$'],['$$\hat{',prefix,'_2}$$'],'Interpreter','Latex')
+    %% plot
+    mycolors = flip(colormap(parula(size(dmx__,1))));
+    subplot(1,2,idx); idx=idx+1;
+    hold off;
+    for cI = 1:size(dmx__,1)
+        plot(t_, y_(cI,:),'Color',mycolors(cI,:),'LineWidth',3)
+%         set(gca, 'XScale', 'log')
+%         set(gca, 'YScale', 'log')
+%         ylim([1,1000])
+        hold on;
+        plot(t_, dmx__(cI,:),'*--','Color',mycolors(cI,:),'LineWidth',3)
+%         ylim([0,65])
+%         title(type{1})
+    end
+    xlabel('Time (hours)')
+    ylabel('Number of cells')
+%     legend('D','$$\hat{D}$$','Interpreter','Latex')
+    prefix='D';
+    if strcmp(type{1},'N4')
+        prefix='T';
+    end
+    legend('A','$$\hat{A}$$',['$$',prefix,'_0$$'],['$$\hat{',prefix,'_0}$$'],['$$',prefix,'_1$$'],['$$\hat{',prefix,'_1}$$'],['$$',prefix,'_2$$'],['$$\hat{',prefix,'_2}$$'],'Interpreter','Latex')
 
 end
 
