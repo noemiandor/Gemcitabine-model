@@ -1,5 +1,5 @@
-function J  = cost(pars)
-global dmx;
+function J  = cost(pars,dmx,DOSE)
+%global dmx;
 
 %% Parameters
 u=pars(1);
@@ -13,8 +13,8 @@ nu = pars(4);
 tspan=(2:2:size(dmx.N2,2)*2);
 
 %% Solve
-[t_2N,y_2N] = ode45(@(t,y) skippedMito_ODE(t,y,u,v,w1, 0, nu), tspan, dmx.N2(:,1));
-[t_4N,y_4N] = ode45(@(t,y) skippedMito_ODE(t,y,u,v,w1, 1, nu), tspan, dmx.N4(:,1));
+[t_2N,y_2N] = ode45(@(t,y) skippedMito_ODE(t,y,u,v,w1, 0, nu,DOSE), tspan, dmx.N2(:,1));
+[t_4N,y_4N] = ode45(@(t,y) skippedMito_ODE(t,y,u,v,w1, 1, nu,DOSE), tspan, dmx.N4(:,1));
 fits=struct('N2',{t_2N,y_2N}, 'N4',{t_4N,y_4N});
 
 %% Bring simulations and measurements to same dimensions
