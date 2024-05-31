@@ -1,0 +1,8 @@
+Sample	Gemcitabine..ng.mL.	dFdU...ng.mL.	dFdCTP...ng.mL.	cellType	time	dFdCTP...ng.mL._low
+2N-0h-1	N/F	N/F	4.98	2N	0	4.1
+NA	NA	NA	NA	NA	0.25	NA
+NA	NA	NA	NA	NA	0.5	4.1
+2N-1h-1	BQL	24.77	17.2	2N	1	3.6
+2N-2h-1	2.21	27.13	30.03	2N	2	3.9
+2N-24h-1	2.16	37.37	26.03	2N	24	7.5
+2N-48h-1	BDL	1.7	5.52	2N	48	NA
