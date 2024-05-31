@@ -1,5 +1,5 @@
 function J  = cost(pars,dmx,DOSE)
-global dmx;
+%global dmx;
 
 %% Parameters
 u=pars(1);

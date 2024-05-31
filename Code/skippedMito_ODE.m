@@ -1,5 +1,5 @@
 function dydt = skippedMito_ODE(t, y, a, v, w1, iota, nu,DOSE)
-global DOSE
+%global DOSE
 % Define the system of ODEs
 dydt = zeros(length(y), 1);
 for i = 2:length(y)

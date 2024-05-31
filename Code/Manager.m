@@ -71,8 +71,8 @@ cd('/Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Code')
 addpath /Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Code/
 addpath /Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Code/wassersteinFun/
 addpath /Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Data/matlab
-replicates=struct('N2',{'B_4'},...
-                 'N4',{'E_4'});
+replicates=struct('N2',{'B_4','B_5','B_6'},...
+                 'N4',{'E_4','E_5','E_6'});
 
 %global dmx
 %global DOSE
@@ -201,7 +201,7 @@ for k=1:length({replicates.N2})
     %% plot best fit:
     close all hidden
     figure('name','~/Downloads/Gemcitabine_model','Position',[100 100 1000 400])
-    cost(pars_)
+    cost(pars_,dmx,DOSE)
 end
 
 %% view parameter differences between 2N and 4N
