@@ -1,4 +1,4 @@
-function dydt = skippedMito_ODE(t, y, a, v, w1, iota, nu)
+function dydt = skippedMito_ODE(t, y, a, v, w1, iota, nu,DOSE)
 global DOSE
 % Define the system of ODEs
 dydt = zeros(length(y), 1);
@@ -19,7 +19,7 @@ end
     end
 
     function alphap = alpha_p(i,x)
-        alphap = x/(x+a) *(i<=iota);
+        alphap = x/(x+ a) *(i<=iota);
 %         alphap = (1-x/(x+a)) *(i<=iota); %% goodness of fit is same but
 %         converges slower -- @TODO: matters once we fit to >1 drug
 %         concentrations

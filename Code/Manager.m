@@ -67,15 +67,15 @@ end
 %%% Incucyte data: treated conditions %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % cd('/Users/4470246/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/K01_SkippedMitosisClassification_042523/');
-cd('/Users/4470246/Repositories/Gemcitabine-model//Data/matlab/');
-addpath /Users/4470246/Repositories/Gemcitabine-model/Code/
-addpath /Users/4470246/Repositories/Gemcitabine-model/Code/wassersteinFun/
-addpath  /Users/4470246/Documents/Matlab-workspace/SelectionForces_GastricCLs/Code/utils
-addpath  /Users/4470246/Documents/Matlab-workspace/SelectionForces_GastricCLs/Code/utils/export_fig/
-replicates=struct('N2',{'B_4'},'N4',{'E_4'});
+cd('/Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Code')
+addpath /Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Code/
+addpath /Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Code/wassersteinFun/
+addpath /Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Data/matlab
+replicates=struct('N2',{'B_4'},...
+                 'N4',{'E_4'});
 
-global dmx
-global DOSE
+%global dmx
+%global DOSE
 DOSE=20;
 
 % Define the initial conditions
@@ -189,7 +189,7 @@ for k=1:length({replicates.N2})
     opts = optimoptions(@fmincon);
 
     problem = createOptimProblem('fmincon','objective',...
-        @cost,'x0',cell2mat(pars),'lb',lb,'ub',ub,'options',opts);
+        @(pars) cost(pars, dmx,DOSE),'x0',cell2mat(pars),'lb',lb,'ub',ub,'options',opts);
     rs = RandomStartPointSet('NumStartPoints',250);
     points = list(rs,problem);
     ms = MultiStart('UseParallel',true);
