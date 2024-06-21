@@ -2,10 +2,16 @@
 % First script computes optimized set of doses (that's those corresponding low cost) 
 % This is then fed to the cell optimization part to estimate cell counts
 
+
+
+cd('/Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Data/M00_GemcitabinePKPD_101823')
+addpath /Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Code/
+addpath /Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Code/wassersteinFun/
+
 % 
-cd('/Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Data/M00_GemcitabinePKPD_101823')
-addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Code/
-addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Code/wassersteinFun/
+% cd('/Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Data/M00_GemcitabinePKPD_101823')
+% addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Code/
+% addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Code/wassersteinFun/
 
 GemcitabineConc_nM=struct('low',100,'high',1000);
 
@@ -81,14 +87,17 @@ end
 
 
 
+% 
+% cd('/Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Code')
+% addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Code/
+% addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Code/wassersteinFun/
+% addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Data/matlab
+% addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Data/M00_GemcitabinePKPD_101823
 
-cd('/Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Code')
-addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Code/
-addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Code/wassersteinFun/
-addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Data/matlab
-addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Data/M00_GemcitabinePKPD_101823
-
-
+cd('/Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Code')
+addpath /Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Code/
+addpath /Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Code/
+addpath /Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Code/wassersteinFun/
 replicates=struct('N2',{'B_4','B_5','B_6'},...
                  'N4',{'E_4','E_5','E_6'});
 
@@ -176,6 +185,7 @@ end
 %A set od dose levels is set, the dose optimization script searches for
 %global optimum after iterating over all values in the dose set
 %The global optimum dose is passed on to the cell optimization script to be optimized
+
 
 cd('/Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Data/M00_GemcitabinePKPD_101823')
 files = dir('nM1000_*txt');
