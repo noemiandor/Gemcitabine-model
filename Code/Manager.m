@@ -1,7 +1,6 @@
 
 
 
-
 cd('/Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Data/M00_GemcitabinePKPD_101823')
 addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Code/
 addpath /Users/4477116/Documents/projects/polyploidization/Gemcitabine_model/Code/wassersteinFun/
@@ -13,11 +12,11 @@ files = dir('nM1000_*txt');
 disp({files.name}); % Display filenames
 
 
-for f = files'
-    disp(['Processing file: ', f.name]); % Display current file being processed
+for g = files'
+    disp(['Processing file: ', g.name]); % Display current file being processed
     
     % Read data from the file
-    dm = readtable(f.name);
+    dm = readtable(g.name);
     disp(dm(1:5, :)); % Display first few rows of the table
     
     % Extract relevant columns into the structure dmx_PKPD
@@ -46,6 +45,11 @@ w2=190;
 nu=1.095;
 iota = 1;
 
+theta= 50;
+nu_PKPD = 1500;
+eta = 0.005;
+xi = 0.05;
+
 S = struct();
 %% Iterate across replicates
 %drug=drugModel()
@@ -72,8 +76,8 @@ for k = 1:length({replicates.N2})
     % Do the global fitting for all doses in the set DOSE
     A = []; b = []; Aeq = []; beq = [];
 
-    pars = {u, v, w1, iota,nu,theta,nu_PKPD,eta,xi};
-    bounds = cell2mat(cellfun(@(x) [x / 1000; x * 1500], pars, 'UniformOutput', false));
+    params={theta, nu_PKPD, eta, xi, u, v, w1, iota, nu}; %pars = {u, v, w1, iota,nu,theta,nu_PKPD,eta,xi};
+    bounds = cell2mat(cellfun(@(x) [x / 1000; x * 1500], params, 'UniformOutput', false));
     lb = bounds(1,:)';
     ub = bounds(2,:)';
     ub(4) = min(2, ub(4));
@@ -87,28 +91,31 @@ for k = 1:length({replicates.N2})
     
     
      opts = optimoptions(@fmincon);
-    problem = createOptimProblem('fmincon','objective',...
-        @(pars) combined_cost(pars, dmx_skippedMito,dmx_PKPD, GemcitabineConc_nM),'x0',cell2mat(pars),'lb',lb,'ub',ub,'options',opts);
-     rs = RandomStartPointSet('NumStartPoints',250);
-     
-    points = list(rs,problem);
-    ms = MultiStart('UseParallel',true);
-   [pars_,fval,exitflag,output,solutions]  = run(ms,problem,CustomStartPointSet(points));
+
+     %Comment inthe following 6 lines of code to use Parallel computing ( and comment out fmincon optimization in the next two line)
+
+   %  problem = createOptimProblem('fmincon','objective',...
+   %      @(pars) combined_cost(pars, dmx_skippedMito,dmx_PKPD, GemcitabineConc_nM),'x0',cell2mat(pars),'lb',lb,'ub',ub,'options',opts);
+   %   rs = RandomStartPointSet('NumStartPoints',250);
+   % 
+   %  points = list(rs,problem);
+   %  ms = MultiStart('UseParallel',true);
+   % [pars_,fval,exitflag,output,solutions]  = run(ms,problem,CustomStartPointSet(points));
 
     %opts = optimoptions(@fmincon);
 
-   % Use fmincon for global optimization across all doses (Without using parallel computing)
-  %   [pars_, fval, exitflag, output] = fmincon(@(pars) combined_cost(pars, dmx_skippedMito,dmx_PKPD, GemcitabineConc_nM), ...
-   %    cell2mat(pars), A, b, Aeq, beq, lb, ub, [], opts);
+   %Use fmincon for global optimization across all doses (Without using parallel computing)
+    [pars_, fval, exitflag, output] = fmincon(@(params) combined_cost(params, dmx_skippedMito,dmx_PKPD, GemcitabineConc_nM), ...
+      cell2mat(params), A, b, Aeq, beq, lb, ub, [], opts);
 
     % Store global results
     S.(replicates(k).N2).global = pars_([1, 2, 3, 4]);
 
-    % Plot best fit for each dose using the global optimum
-    for dose = DOSE
-        figure('name', ['~/Downloads/Gemcitabine_model_Dose_', num2str(dose)], 'Position', [100, 100, 1000, 400]);
-        cost(pars_, dmx, dose);
-    end
+    % % Plot best fit for each dose using the global optimum
+    % for dose = DOSE
+    %     figure('name', ['~/Downloads/Gemcitabine_model_Dose_', num2str(dose)], 'Position', [100, 100, 1000, 400]);
+    %     cost(pars_, dmx, dose);
+    % end
 
 
 
