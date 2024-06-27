@@ -3,6 +3,7 @@
 %%%%%%%%%%%%%%%%%
  
 cd /Users/4470246/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerCLs/SUM159/M00_GemcitabinePKPD_101823
+addpath /Users/4477116/My Drive/IMO/Anaconda/Git/Gemcitabine-model/Code/
 % dm=readtable('dm_2N.txt');
 
 global dmx
@@ -42,10 +43,10 @@ for f=dir('nM1000_*txt')';
     rs = RandomStartPointSet('NumStartPoints',25);
     points = list(rs,problem);
     ms = MultiStart('UseParallel',true);
-    % [pars_,fval,exitflag,output,solutions]  = run(ms,problem,CustomStartPointSet(points));
+    [pars_,fval,exitflag,output,solutions]  = run(ms,problem,CustomStartPointSet(points));
 
     fname=strrep(extractBefore(f.name,12), '-','_');
-    % S=setfield(S,fname, pars_);
+    S=setfield(S,fname, pars_);
 
 
     %% plot best fit:
