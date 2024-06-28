@@ -20,7 +20,7 @@ function dydt = combined_ODE(t, y, pars)
     dydt = zeros(length(y), 1);
 
     % gemcitabine_PKPD_ODE
-    dydt(1) = -theta * G / (G + nu); % dG/dt
+    dydt(1) = -theta * G / (G + nu) * sum(P(2:end)); % dG/dt
     dydt(2) = eta * theta * G / (G + nu) - xi * x; % dx/dt
 
     % skippedMito_ODE
