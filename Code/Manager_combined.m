@@ -101,5 +101,5 @@ for k = 1:length(replicates.N2)
     %% Plot best fit:
     % close all hidden
     figure('name', ['~/Downloads/Combined_model_', fname], 'Position', [100 100 1000 400])
-    combined_cost(getfield(S, fname), dmx)
+    combined_cost(getfield(S, fname), dmx, GemcitabineConc_nM)
 end
