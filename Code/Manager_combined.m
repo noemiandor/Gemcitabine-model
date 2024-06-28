@@ -7,10 +7,7 @@ addpath(path2root)
 
 global dmx
 global GemcitabineConc_nM
-GemcitabineConc_nM = struct('low', 100, 'high', 1000);
-
-% Define the initial conditions
-DOSE = 20;
+GemcitabineConc_nM=1000;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Fit model to data %%%
@@ -91,7 +88,7 @@ for k = 1:length(replicates.N2)
     opts = optimoptions(@fmincon);
 
     problem = createOptimProblem('fmincon', 'objective', ...
-        @(pars) combined_cost(pars, dmx), 'x0', cell2mat(pars), 'lb', lb, 'ub', ub, 'options', opts);
+        @(pars) combined_cost(pars, dmx, GemcitabineConc_nM), 'x0', cell2mat(pars), 'lb', lb, 'ub', ub, 'options', opts);
 
     rs = RandomStartPointSet('NumStartPoints', 2);
     points = list(rs, problem);

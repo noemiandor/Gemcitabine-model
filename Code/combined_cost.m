@@ -1,8 +1,8 @@
-function cost = combined_cost(params, dmx)
+function cost = combined_cost(params, dmx, GemcitabineConc_nM)
    
     % Initial conditions
-    initial_conditions_N2 = [dmx.N2(:,1); dmx.N2dFdCTP(1)];
-    initial_conditions_N4 = [dmx.N4(:,1); dmx.N4dFdCTP(1)];
+    initial_conditions_N2 = [GemcitabineConc_nM; dmx.N2dFdCTP(1); dmx.N2(:,1)];
+    initial_conditions_N4 = [GemcitabineConc_nM; dmx.N4dFdCTP(1); dmx.N4(:,1)];
 
     % Simulate the combined ODE model for N2 population
     [~, y_N2] = ode45(@(t, y) combined_ODE(t, y, params), dmx.cellTime, initial_conditions_N2);
