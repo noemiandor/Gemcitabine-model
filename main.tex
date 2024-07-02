@@ -220,8 +220,17 @@ Another object classifier was trained on the top of the cell segmentation classi
 
 [1] HALO Image Analysis Platform version 3.6.4134 and HALO AI version 3.6.4134 (Indica Labs, Inc.), Albuquerque, NM: Indica Labs, Inc.; 2023.
 
-\textbf{Track live cells with Ilastik}
+\textbf{Tracking live cells with Ilastik}
 
+Initially, all images and their classified cell masks were compiled and put together into time series and saved as tiff files. Each time series consists of a set of images/timepoints that were put in a natural temporal ordering. Subsequently, to minimize the error in cell tracking, the timepoints in each time series were sequentially co-registered by aligning each timepoint to the timepoint before it. Rigid cross correlation registration algorithm in [2] was used to align timepoints.
+
+Lastly, Ilastik (ver 1.4.0) was used to train a structured learning cell tracking pipeline [3]. The pipeline was trained by giving the algorithm some examples of cell trajectories/lineages over time. The training examples were selected to cover all possible scenarios of cell changes such as division, dying, or merging over the course of time. The given examples were used to optimize for the weights associated with cell detections, transitions, divisions, appearances, and disappearances [4].  Moreover, other tracking parameters were adjusted to impose more restrictions on the tracking process. An example of the restrictions is applying a penalty on the appearance of new cells that weren’t a result of cell division (in some cases, cells clump together on one frame, and then they split in the next frame, then clump again the subsequent frame).  The values of the tracking parameters were selected by running the tracking several times with different values and select the parameter value that provided the best tracking results.
+
+[2] Manuel Guizar-Sicairos, Samuel T. Thurman, and James R. Fienup, "Efficient subpixel image registration algorithms," Opt. Lett. 33, 156-158 (2008).
+
+[3] Berg, S., Kutra, D., Kroeger, T. et al. ilastik: interactive machine learning for (bio)image analysis. Nat Methods 16, 1226–1232 (2019). https://doi.org/10.1038/s41592-019-0582-9
+
+[4] M. Schiegg, P. Hanslovsky, B. X. Kausler, L. Hufnagel, F. A. Hamprecht. Conservation Tracking. Proceedings of the IEEE International Conference on Computer Vision (ICCV 2013), 2013.
 
 \textbf{Classification of live cells to ploidy states}
 
@@ -249,10 +258,14 @@ We assigned WGD status to all post-division tracks identified in treated wells a
 
 \subsubsection*{Mathematical model of polyploidization}
 
-When exposed to Gemcitabine, cells can move between different compartments ($P_i$) view WGD ( $i \geq 0$ indicates number of WGD events). The rate at which cells undergo WGD ($k(i,x)$) or die ($a(i,x)$) depends on the drug concentration $x$ and the current ploidy state $i$. The rate at which cells proliferate also depends on drug concentration and ploidy state. Since in most cases the polyploid state is quiescent, proliferation rate will be 0 once cells have undergone a single WGD event (i.e. when $i>0$). However some lineages have evolved to resume proliferation in the tetraploid state (i.e. for $i=1$). We model this by introducing the parameter $\iota$ as follows:
+When exposed to Gemcitabine, cells can move between different compartments ($P_i$) via WGD ( $i \geq 0$ indicates number of WGD events). The rate at which cells undergo WGD ($k(i,x)$) or die ($a(i,x)$) depends on the drug concentration $x$ and the current ploidy state $i$. The rate at which cells proliferate also depends on drug concentration and ploidy state. Since in most cases the polyploid state is quiescent, proliferation rate will be 0 once cells have undergone a single WGD event (i.e. when $i>0$). However some lineages have evolved to resume proliferation in the tetraploid state (i.e. for $i=1$). We model this by introducing the parameter $\iota$ as follows:
 
 \begin{equation}
-\alpha(i, x) =  H( \iota - i) (1 - \frac{\Gamma_{\alpha}{x}}{{x + u}})
+\alpha(i, x) = 
+\begin{cases}
+\Gamma_{\alpha} \left(1 - \frac{x}{x + u}\right)^2, & \text{if } i \leq \iota \\
+0, & \text{otherwise}
+\end{cases}
 \end{equation}
 
 For our $2N$ cells we set $\iota=0$, whereas for our tetraploidized cell lineage we set $\iota=1$, i.e. these cells can proliferate in the tetraploid state, but they too cease proliferation for higher ploidy states $i > 1$.
@@ -261,21 +274,51 @@ We assume all three rates, (cell death-, proliferation- and WGD rates), follow M
 
 With this we can model the change in the concentration of live cells of different ploidy ($P_i$) and dead cells ($A$) as:
 
-\begin{subequations}\label{main}
-\begin{align}
-\diff{P_i}{t} = \alpha(i, x) P_i + k(i-1,x) P_{i-1} - k(i, x) P_i - a(i, x) P_i \\
-\diff{A}{t} = \sum_i a(i,x)P_i 
-\end{align}
-\end{subequations}
-
-
 % \begin{subequations}\label{main}
 % \begin{align}
-% \diff{P_0}{t} = \alpha P_0 - k(0,x) P_0 - a(0,x) P_0 \\
-% \diff{P_i}{t} = k(i-1,x) P_{i-1} - a(i,x) P_i \\
-% \diff{D}{t} = 
+% \diff{P_i}{t} = \alpha(i, x) P_i + k(i-1,x) P_{i-1} - k(i, x) P_i - a(i, x) P_i \\
+% \diff{A}{t} = \sum_i a(i,x)P_i 
 % \end{align}
 % \end{subequations}
+
+\begin{equation}
+\begin{cases}
+\frac{dG}{dt} = \max(-\theta, -G) \\
+\frac{dx}{dt} = -\frac{dG}{dt} - \xi \cdot a_{p,\text{tot}} \cdot x \\
+\frac{dP_i}{dt} = \alpha(i, x) P_i - k(i, x) P_i - a(i, x) P_i + 
+\begin{cases}
+k(i-1, x) P_{i-1}, & \text{if } i \geq 1 \\
+0, & \text{otherwise}
+\end{cases} \\
+\frac{dA}{dt} = \sum_{i=1}^{n} a(i, x) P_i
+\end{cases}
+\end{equation}
+
+
+% We further model the change in Gemcitabine concentration ($G$) over time as:
+
+% \begin{subequations}\label{main_drug}
+% \begin{align}
+% \diff{G}{t} =-\theta \cdot \frac{G}{G + \nu} \cdot \sum_i P_i  \\
+% \diff{x}{t} = \theta \cdot \frac{G}{G + \nu} \cdot \eta - \xi x
+% \end{align}
+% \end{subequations}
+
+, where $G$ is the average concentration of the active component of Gemcitabine (dFdCTP) inside a cell, $\theta$ is the rate at which dFdCTP is incorporated into DNA, $x$ is dFdCTP incorporated into the cells' DNA, and $\xi$ is the rate at which $x$ leaves the system, which is proportional to the total apoptosis rate  \( a_{p,\text{tot}} \). The total apoptosis rate is the sum of apoptosis rates normalized by the sum of the populations \( P \):
+
+\begin{equation}
+a_{p,\text{tot}} = \frac{ \frac{dA}{dt} }{\sum_{i=1}^{n} P_i}
+\end{equation}
+
+As mentioned above, both cycling and polyploid cells die at a rate dependent on the amount of the active drug present inside the cell. The drug response rate of  cells to Gemcitabine concentration is dependent on the rate at which cells convert the chemotherapy drug into the active ingredient dFdCTP. Additionally, cellular response rely on the  rate at which dFdCTP is incorporated  into the cell’s DNA. This process results in a natural delay in drug response after treatment. During  this period, concentrations levels of the drug  growth steadily intracellular. This delay is reflected in the model by an  initial steep rise in x (dFdCTP) curve seen in figure $\ref{drug_level}$  below. Upon drug  utilization,  we observe a steady decline in the amount of the active drug component until it is fully exhausted and flattens out. This pattern is observed in both 4N and 2N wells.
+
+ \begin{figure}[!htb]
+\includegraphics{Figs/dFdCTP_place_holder.png}
+\caption{dFdCTP levels  (Place Holder).
+}
+\label{drug_level}
+\end{figure}
+
 
 An overview of all model parameters is given in table \ref{parameterTable}. Above system can be expanded to also model depolyploidization. \newline
 
@@ -294,6 +337,10 @@ $\iota$ & Maximum number of WGD events before cell enters quiescent state \\
   $\gamma_a$ & background apoptosis rate \\
   $\lambda$ & ploidy conferred decline in drug-induced apoptosis \\
   $\mu$ & ploidy conferred decline/increase in WGD rate \\
+  $\theta$ & Maximum rate at which Gemcitabine is transported into cells \\
+  $\nu$ & Gemcitabine concentration at which cell-transporter are at half maximal saturation \\
+  $\eta$ & Rate at which Gemcitabine is converted into dFdCTP inside a cell \\
+  $\xi$ & Rate at which dFdCTP is incorporated into DNA \\
    \hline
 \end{tabular}
 \caption{Model parameters}
@@ -306,7 +353,7 @@ We observed a higher resistance to Gemictabine-exposure among 4N- compared to 2N
 
 \begin{subequations}\label{death_rate}
 \begin{align}
-a(i, x) = \Gamma_a \cdot \frac{{x}}{{x + w}} \cdot e^{-\lambda i}
+a(i, x) = \Gamma_a \left(\frac{x}{x + w}\right)^2 e^{-\lambda i}
 \end{align}
 \end{subequations}
 
