@@ -1,0 +1,3 @@
+"t"	"x"	"y"	"Size_in_pixels_0"	"Classifier.Phenotype"
+"1"	38	920	808	217	"Alive"
+"2"	39	926.5	803	271	"Alive"
