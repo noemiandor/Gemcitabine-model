@@ -26,17 +26,15 @@ assignWGDstatus <- function(track, distr){
     track = track[i:nrow(track),,drop=F]
     track$AreFC=track$Size_in_pixels_0/track$Size_in_pixels_0[1]
     track_orig[rownames(track),"WGD"]=WGD
-  
+    
     # ## univariate:
     # pdiv=pnorm(track$AreFC,mean = distr$estimate["mean"], sd = distr$estimate["sd"])
     ## multivariate:
     dat=t(sapply(timepoints2include:nrow(track), function(x) track$AreFC[(x-(timepoints2include-1)):x] ))
+    # print(dim(dat))
     if(timepoints2include==1){
       dat=t(dat)
-    }
-    #print(paste("Dimension of DAT ",nrow(dat), " and col ",ncol(dat)))
-    if(timepoints2include==1){
-    pdiv=pmnorm(dat, mean = as.numeric(distr$parameters$mean), varcov = distr$parameters$variance$sigmasq)
+      pdiv=pnorm(dat, mean = as.numeric(distr$parameters$mean), sd = sqrt(distr$parameters$variance$sigmasq))
     }else{
       pdiv=pmnorm(dat, mean = as.numeric(distr$parameters$mean), varcov = distr$parameters$variance$Sigma)
     }
@@ -103,30 +101,20 @@ for(i in 1:length(train_test$train)){
     print(paste("daughterParent cells with strong correlation between size and time:",length(daughterParentCells[[what]])))
   }
   
-  ## univariate:
-  # sizeFoldChange=sapply(daughterParentCells, function(x) x$Size_in_pixels_0[which.max(x$t)]/x$Size_in_pixels_0[which.min(x$t)])
-  # hist((sizeFoldChange))
-  # hist(log(sizeFoldChange))
-  # d=fitdist(sizeFoldChange,"norm")
   # multivariate:
   sizeFoldChange=sapply(daughterParentCells$train, function(x) x$Size_in_pixels_0[nrow(x):(nrow(x)-(timepoints2include-1))]/x$Size_in_pixels_0[which.min(x$t)])
-
-  
+  print(paste("timepoints2include",timepoints2include))
+  ## univariate:
   if(timepoints2include==1){
     sizeFoldChange=matrix(sizeFoldChange,nrow=1, ncol=length(sizeFoldChange))
   }
-
+  print(paste("sizeFoldChange","nrow", nrow(sizeFoldChange), "ncol", ncol( sizeFoldChange), "length", length( sizeFoldChange), "class",class( sizeFoldChange)))
   sizeFoldChange<-na.omit(sizeFoldChange) #remove unkonwn vaues
   
-  # sizeFoldChange<-sizeFoldChange[is.finite(sizeFoldChange)] #remove inf values
-  #sizeFoldChange=sizeFoldChange[,apply(is.finite(sizeFoldChange),2,all)]
-  #sizeFoldChange=sizeFoldChange[,apply(is.finite(sizeFoldChange),2,all)]
-
-  
-  if(timepoints2include==1){
-  d=mvn("X",t(sizeFoldChange)); 
+  if(timepoints2include>1){
+    d=mvn("XXX",t(sizeFoldChange)); 
   }else{
- d=mvn("XXX",t(sizeFoldChange)); 
+    d=mvn("X",t(sizeFoldChange)); 
   }
   
   ## Now apply trained model on test set:
@@ -138,16 +126,14 @@ for(i in 1:length(train_test$train)){
   ###  Extracting Cells with certain WGD events  #####
   ####################################################
   track_ids <- names(WGD)
-
   
   #Cells with zero WGD events at ALL time points
-  if(!is.null(track_ids)){
-    track_0wgd=track_ids[sapply(WGD,function(x) all(x$WGD==0))]
-    writeLines(track_0wgd, paste0(maindir,"Data/",train_test$test[i],"_0_wgd_track_IDs.txt"))
-    
-    wgd_0_df<-do.call(rbind.data.frame, WGD[sapply(WGD,function(x) all(x$WGD==0))])
-    write.table(  wgd_0_df, paste0(maindir,"Data/",train_test$test[i],"_","0_wgd_df.txt"),sep = "\t",quote=F,row.names=T,col.names = FALSE)
-  }
+  track_0wgd=track_ids[sapply(WGD,function(x) all(x$WGD==0))]
+  writeLines(track_0wgd, paste0(maindir,"Data/",train_test$test[i],"_0_wgd_track_IDs.txt"))
+  
+  wgd_0_df<-do.call(rbind.data.frame, WGD[sapply(WGD,function(x) all(x$WGD==0))])
+  write.table(  wgd_0_df, paste0(maindir,"Data/",train_test$test[i],"_","0_wgd_df.txt"),sep = "\t",quote=F,row.names=T,col.names = FALSE)
+  
   
   
   # Tracks with  j WGD events at at least one time point
@@ -168,7 +154,6 @@ for(i in 1:length(train_test$train)){
   
   ## WGD distribution per timepoint
   cells=list()
-
   wgdMax=max(sapply(WGD, function(x) max(x$WGD)))
   for(t in tp){
     x=sapply(WGD, function(x) x[x$t==t,], simplify = F)
