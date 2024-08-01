@@ -35,7 +35,11 @@ assignWGDstatus <- function(track, distr){
       dat=t(dat)
     }
     #print(paste("Dimension of DAT ",nrow(dat), " and col ",ncol(dat)))
-    pdiv=pmnorm(dat, mean = as.numeric(distr$parameters$mean), varcov = distr$parameters$variance$Sigma)
+    if(timepoints2include==1){
+    pdiv=pmnorm(dat, mean = as.numeric(distr$parameters$mean), varcov = distr$parameters$variance$sigmasq)
+    }else{
+      pdiv=pmnorm(dat, mean = as.numeric(distr$parameters$mean), varcov = distr$parameters$variance$Sigma)
+    }
     
     if(all(is.na(pdiv)) | all(pdiv<0.5)){
       break
@@ -50,7 +54,7 @@ assignWGDstatus <- function(track, distr){
 
 plateMap=read.xlsx(paste0(maindir,"Data/Gemcitabine_PlateMap_20240111.xlsx"), sheetIndex = 1)
 tp=1:40; ## timepoints of interest to be recorded for matlab model fit
-timepoints2include=3; ## for multivariate gaussian fit
+timepoints2include=1; ## for multivariate gaussian fit
 train_test<-list(test=c("E6"), train=c("E2"))
 #train<-apply(expand.grid(Rows, Cols$train), 1, function(x) paste(x, collapse = ""))
 #test<-apply(expand.grid(Rows, Cols$test), 1, function(x) paste(x, collapse = ""))
@@ -59,7 +63,7 @@ train_test<-list(test=c("E6"), train=c("E2"))
 for(i in 1:length(train_test$train)){
   trainRow=substr(train_test$train[i],1,1)
   testRow=substr(train_test$test[i],1,1)
-  f=list(train=list.files(paste0(maindir,"Data/",trainRow,"_row/",trainRow,"_row_inter-division/"),pattern=paste0("*",train_test$train[i],".*","\\.txt"), full.names =TRUE))
+  f=list(train=list.files(paste0(maindir,"Data/",trainRow,"_row/",trainRow,"_row_inter-division_new/"),pattern=paste0("*",train_test$train[i],".*","\\.txt"), full.names =TRUE))
   f$test=list.files(paste0(maindir,"Data/",testRow,"_row/",testRow,"_row_post-division/"),pattern=paste0("*",train_test$test[i],".*","\\.txt"), full.names = TRUE)
   
   daughterParentCells <- deadCells <- list()
@@ -106,19 +110,24 @@ for(i in 1:length(train_test$train)){
   # d=fitdist(sizeFoldChange,"norm")
   # multivariate:
   sizeFoldChange=sapply(daughterParentCells$train, function(x) x$Size_in_pixels_0[nrow(x):(nrow(x)-(timepoints2include-1))]/x$Size_in_pixels_0[which.min(x$t)])
-  print(paste("timepoints2include",timepoints2include))
+
   
   if(timepoints2include==1){
     sizeFoldChange=matrix(sizeFoldChange,nrow=1, ncol=length(sizeFoldChange))
   }
-  print(paste("sizeFoldChange","nrow", nrow(sizeFoldChange), "ncol", ncol( sizeFoldChange), "length", length( sizeFoldChange), "class",class( sizeFoldChange)))
+
   sizeFoldChange<-na.omit(sizeFoldChange) #remove unkonwn vaues
   
   # sizeFoldChange<-sizeFoldChange[is.finite(sizeFoldChange)] #remove inf values
   #sizeFoldChange=sizeFoldChange[,apply(is.finite(sizeFoldChange),2,all)]
   #sizeFoldChange=sizeFoldChange[,apply(is.finite(sizeFoldChange),2,all)]
+
   
-  d=mvn("XXX",t(sizeFoldChange)); 
+  if(timepoints2include==1){
+  d=mvn("X",t(sizeFoldChange)); 
+  }else{
+ d=mvn("XXX",t(sizeFoldChange)); 
+  }
   
   ## Now apply trained model on test set:
   well=train_test$test[i]
@@ -129,14 +138,16 @@ for(i in 1:length(train_test$train)){
   ###  Extracting Cells with certain WGD events  #####
   ####################################################
   track_ids <- names(WGD)
+
   
   #Cells with zero WGD events at ALL time points
-  track_0wgd=track_ids[sapply(WGD,function(x) all(x$WGD==0))]
-  writeLines(track_0wgd, paste0(maindir,"Data/",train_test$test[i],"_0_wgd_track_IDs.txt"))
-  
-  wgd_0_df<-do.call(rbind.data.frame, WGD[sapply(WGD,function(x) all(x$WGD==0))])
-  write.table(  wgd_0_df, paste0(maindir,"Data/",train_test$test[i],"_","0_wgd_df.txt"),sep = "\t",quote=F,row.names=T,col.names = FALSE)
-  
+  if(!is.null(track_ids)){
+    track_0wgd=track_ids[sapply(WGD,function(x) all(x$WGD==0))]
+    writeLines(track_0wgd, paste0(maindir,"Data/",train_test$test[i],"_0_wgd_track_IDs.txt"))
+    
+    wgd_0_df<-do.call(rbind.data.frame, WGD[sapply(WGD,function(x) all(x$WGD==0))])
+    write.table(  wgd_0_df, paste0(maindir,"Data/",train_test$test[i],"_","0_wgd_df.txt"),sep = "\t",quote=F,row.names=T,col.names = FALSE)
+  }
   
   
   # Tracks with  j WGD events at at least one time point
@@ -152,11 +163,12 @@ for(i in 1:length(train_test$train)){
       write.table(get(temp_all_Data), paste0(maindir,"Data/",train_test$test[i],"_",j,"_wgd_df.txt"),sep = "\t",quote=F,row.names=T,col.names = T)
     }
   }
- 
-
-    
+  
+  
+  
   ## WGD distribution per timepoint
   cells=list()
+
   wgdMax=max(sapply(WGD, function(x) max(x$WGD)))
   for(t in tp){
     x=sapply(WGD, function(x) x[x$t==t,], simplify = F)
