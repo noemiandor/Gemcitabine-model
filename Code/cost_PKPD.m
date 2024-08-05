@@ -1,6 +1,6 @@
-function J  = cost_PKPD(pars)
-global dmx;
-global GemcitabineConc_nM
+function [cost,drug_dose] = cost_PKPD(pars,dmx_PKPD,GemcitabineConc_nM)
+%global dmx;
+%global GemcitabineConc_nM
 
 %% Parameters
 theta=pars(1);
@@ -8,14 +8,16 @@ nu=pars(2);
 eta=pars(3);
 xi = pars(4);
 
+disp('Cost fxn entered')
 
 
 %% @TODO: initial point should be a parameter
 
 %% Solve
-[t_high,y_high]= ode45(@(t,y) gemcitabine_PKPD_ODE(t,y,theta, nu, eta, xi), dmx.time, [GemcitabineConc_nM.high, dmx.high(:,1)]);
-[t_low,y_low] = ode45(@(t,y) gemcitabine_PKPD_ODE(t,y,theta, nu, eta, xi), dmx.time, [GemcitabineConc_nM.low, dmx.low(:,1)]);
+[t_high,y_high]= ode45(@(t,y) gemcitabine_PKPD_ODE(t,y,theta, nu, eta, xi), dmx_PKPD.time, [GemcitabineConc_nM.high, dmx_PKPD.high(:,1)]);
+[t_low,y_low] = ode45(@(t,y) gemcitabine_PKPD_ODE(t,y,theta, nu, eta, xi), dmx_PKPD.time, [GemcitabineConc_nM.low, dmx_PKPD.low(:,1)]);
 fits=struct('low',{t_low,y_low}, 'high',{t_high,y_high});
+
 
 %% Bring simulations and measurements to same dimensions
 wsdAll=[];
@@ -24,7 +26,7 @@ idx=1;
 for type=fieldnames(fits)'
     t=getfield(fits,{1},type{1});
     y=getfield(fits,{2},type{1});
-    dmx_=getfield(dmx,type{1});
+    dmx_=getfield(dmx_PKPD,type{1});
 
     y_=y';
     t_=t;
@@ -55,9 +57,12 @@ for type=fieldnames(fits)'
         prefix='T';
     end
     legend('A','$$\hat{A}$$',['$$',prefix,'_0$$'],['$$\hat{',prefix,'_0}$$'],['$$',prefix,'_1$$'],['$$\hat{',prefix,'_1}$$'],['$$',prefix,'_2$$'],['$$\hat{',prefix,'_2}$$'],'Interpreter','Latex')
+    
 
 end
-
-J = mean(wsdAll);
+drug_dose=y();
+cost= mean(wsdAll);
+%dose=getfield(fits,{2},type{1});
+%dose=t
 end
 
