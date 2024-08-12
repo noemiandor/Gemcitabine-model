@@ -1,0 +1,6 @@
+"t"	"x"	"y"	"Size_in_pixels_0"	"Classifier.Phenotype"
+"1"	35	1074	260	385	"UnStained"
+"2"	36	1069	242.5	153	"Alive"
+"3"	37	1061	265	376	"UnStained"
+"4"	38	1043.5	258	204	"Transitional"
+"5"	39	1030	244	240	"Transitional"

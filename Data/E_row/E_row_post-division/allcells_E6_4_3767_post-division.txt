@@ -1,0 +1,3 @@
+"t"	"x"	"y"	"Size_in_pixels_0"	"Classifier.Phenotype"
+"1"	21	40	970.5	137	"Transitional"
+"2"	22	54.5	956	113	"UnStained"
