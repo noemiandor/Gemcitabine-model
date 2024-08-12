@@ -1,0 +1,6 @@
+"t"	"x"	"y"	"Size_in_pixels_0"	"Classifier.Phenotype"
+"1"	18	35.5	725	193	"Dead"
+"2"	19	42	718.5	302	"Dead"
+"3"	20	43.5	708	302	"UnStained"
+"4"	21	41.5	705	344	"UnStained"
+"5"	22	39.5	692.5	248	"UnStained"

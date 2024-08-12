@@ -1,0 +1,7 @@
+"t"	"x"	"y"	"Size_in_pixels_0"	"Classifier.Phenotype"
+"1"	24	961	353.5	238	"UnStained"
+"2"	25	973	357	199	"UnStained"
+"3"	26	965	363	185	"Alive"
+"4"	27	962	370.5	195	"UnStained"
+"5"	28	975	374	395	"UnStained"
+"6"	29	977	381	529	"UnStained"

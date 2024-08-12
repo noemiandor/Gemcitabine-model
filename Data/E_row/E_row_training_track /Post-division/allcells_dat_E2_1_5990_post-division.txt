@@ -1,0 +1,5 @@
+"t"	"x"	"y"	"Size_in_pixels_0"	"Classifier.Phenotype"
+"1"	5	309.5	944	190	"Alive"
+"2"	6	314	955.5	175	"Alive"
+"3"	7	313.5	959.5	185	"Alive"
+"4"	8	311.5	960	281	"Transitional"
