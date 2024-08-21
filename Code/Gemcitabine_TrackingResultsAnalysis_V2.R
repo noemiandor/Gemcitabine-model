@@ -8,18 +8,24 @@ library(ggplot2)
 maindir="~/Repositories/Gemcitabine-model/"
 
 
-setwd(paste0(maindir,"Data/E_row/E_row_inter-division/"))
+# setwd(paste0(maindir,"Data/E_row/E_row_inter-division/"))
+setwd(paste0(maindir,"Data/E_row_CellCycleClassification/E_row_inter-division/"))
 devtools::source_url("https://github.com/noemiandor/Utils/blob/master/grpstats.R?raw=TRUE")
 
 
 OUTD=paste0(maindir,"Data/matlab")
 
-assignWGDstatus <- function(track, distr){
+assignWGDstatus <- function(track, distr, G2McellsOnly=F){
   track = track[order(track$t),]
   track$WGD=0
-  track_orig=track;
+  track_orig <- track;
   i=1
   WGD=0;
+  if(G2McellsOnly){
+    ## TOTEST: use only G2M timepoints for classification
+    track = track[track$cellCycleSVM=="G2/M",,drop=F]
+    track_G1S = track[track$cellCycleSVM=="G1/S",,drop=F]
+  }
   while(i<=nrow(track)){
     # resetting cell cycle clock to zero (as if cell had just divided):
     track = track[i:nrow(track),,drop=F]
@@ -45,29 +51,56 @@ assignWGDstatus <- function(track, distr){
     i=which(pdiv>=0.5)[1]+1
     WGD=WGD+1;
   }
+  if(G2McellsOnly){
+    ## TOTEST: fill in WGD status for G1S timepoints based on status of closest preceding G2M timepoint
+    for(i in rownames(track_G1S)){
+      preceding = which(i==rownames(track_orig))-1
+      if(preceding>0){
+        preceding = 1:preceding
+        preceding = preceding[track_orig[preceding,"cellCycleSVM"]=="G2/M"]
+        if(!isempty(preceding)){
+          preceding=preceding[length(preceding)]
+          track_orig[i,"WGD"] = track_orig[preceding,"WGD"]
+        }
+      }
+    }
+  }
   plot(track_orig$t, track_orig$Size_in_pixels_0, col=track_orig$WGD+1)
   return(track_orig)
 }
 
 plateMap=read.xlsx(paste0(maindir,"Data/Gemcitabine_PlateMap_20240111.xlsx"), sheetIndex = 1)
 tp=1:40; ## timepoints of interest to be recorded for matlab model fit
-timepoints2include=1; ## for multivariate gaussian fit
-train_test<-list(test=c("E6"), train=c("E2"))
+timepoints2include=3; ## for multivariate gaussian fit
+train_test<-list(test=c("E6","E4","E2"), train=c("E2","E2","E2"))
 #train<-apply(expand.grid(Rows, Cols$train), 1, function(x) paste(x, collapse = ""))
 #test<-apply(expand.grid(Rows, Cols$test), 1, function(x) paste(x, collapse = ""))
 
 
+## Train and test WGD classification model
 for(i in 1:length(train_test$train)){
   trainRow=substr(train_test$train[i],1,1)
   testRow=substr(train_test$test[i],1,1)
-  f=list(train=list.files(paste0(maindir,"Data/",trainRow,"_row/",trainRow,"_row_inter-division/"),pattern=paste0("*",train_test$train[i],".*","\\.txt"), full.names =TRUE))
-  f$test=list.files(paste0(maindir,"Data/",testRow,"_row/",testRow,"_row_post-division/"),pattern=paste0("*",train_test$test[i],".*","\\.txt"), full.names = TRUE)
+  f=list(train=list.files(paste0(maindir,"Data/",trainRow,"_row_CellCycleClassification/",trainRow,"_row_inter-division/"),pattern=paste0("*",train_test$train[i],".*","\\.txt"), full.names =TRUE))
+  f$test=list.files(paste0(maindir,"Data/",testRow,"_row_CellCycleClassification/",testRow,"_row_post-division/"),pattern=paste0("*",train_test$test[i],".*","\\.txt"), full.names = TRUE)
   
   daughterParentCells <- deadCells <- list()
   for(what in names(train_test)){
     print(what)
+    # f[[what]] = f[[what]][ sapply(f[[what]], function(x) fileparts(x)$name) %in% goodTracks ]
+    
     tmp=sapply(f[[what]], function(x) read.table(x), simplify = F)
     names(tmp) = sapply(names(tmp), function(x) fileparts(x)$name)
+    # ## keep subset with good correlation between pseudotime and actual time
+    # te=sapply(tmp, function(x) cor.test(x$pseudotime,x$t)[c("estimate","p.value")])
+    # te=as.data.frame(t(te))
+    # te=te[te$p.value<0.1,]
+    # if(mean(unlist(te$estimate))<0){
+    #   te = te[te$estimate<0,]
+    # }else{
+    #   te = te[te$estimate>0,]
+    # }
+    # daughterParentCells[[what]] = tmp[rownames(te)] 
     daughterParentCells[[what]] = tmp
     
     dt_hours=sapply(daughterParentCells[[what]], function(x) quantile(x$t,c(0,1)))
@@ -109,7 +142,7 @@ for(i in 1:length(train_test$train)){
   }
   print(paste("sizeFoldChange","nrow", nrow(sizeFoldChange), "ncol", ncol( sizeFoldChange), "length", length( sizeFoldChange), "class",class( sizeFoldChange)))
   sizeFoldChange<-na.omit(sizeFoldChange) #remove unkonwn vaues
-
+  
   if(timepoints2include>1){
     d=mvn("XXX",t(sizeFoldChange)); 
   }else{
@@ -157,9 +190,12 @@ for(i in 1:length(train_test$train)){
   for(t in tp){
     x=sapply(WGD, function(x) x[x$t==t,], simplify = F)
     x=do.call(rbind,x)
-    x=plyr::count(c(x$WGD,0:wgdMax))
+    #record G2M vs G1S status for WGD0 cells
+    x$WGD[x$WGD==0 & x$cellCycleSVM=="G2/M"] = 0.5;
+    # cell representations per each state:
+    x=plyr::count(c(x$WGD,0:wgdMax, 0.5))
     rownames(x) = x$x
-    x=x[as.character(0:wgdMax),-1,drop=F]
+    x=x[order(x$x),-1,drop=F]
     cells[[t]] = x
   }
   cells=do.call(cbind,cells)
@@ -179,13 +215,30 @@ for(i in 1:length(train_test$train)){
   png(file=paste0(maindir,"Figs/trained_",trainRow,"2_ID_applied_",well,"_PD_count.png"),
       width=600, height=538)
   barplot(as.matrix(cells)[,4:ncol(cells)], col=rainbow(nrow(cells)), xlab="timepoint", ylab="cell count");
-  legend("bottomleft", as.character(0:wgdMax), fill=rainbow(nrow(cells)),title="WGD",bty = "")
+  legend("bottomleft", rownames(cells), fill=rainbow(nrow(cells)),title="WGD",bty = "")
   dev.off()
   
   cells_=sweep(cells,MARGIN = 2, STATS=apply(cells,2,sum), FUN = "/")
   png(file=paste0(maindir,"Figs/trained_",trainRow,"2_ID_applied_",well,"_PD_fraction.png"),
       width=600, height=538)
   barplot(as.matrix(cells_)[,4:ncol(cells)], col=rainbow(nrow(cells)), xlab="timepoint", ylab="cell fraction");
-  legend("bottomleft", as.character(0:wgdMax), fill=rainbow(nrow(cells)),title="WGD",bty = "")
+  legend("bottomleft", rownames(cells), fill=rainbow(nrow(cells)),title="WGD",bty = "")
   dev.off()
 }
+
+
+
+
+
+# ## Exclude tracks with poor correlation between pseudotime and realtime
+# trackEvalAll=sapply(c("post-division","inter-division"), function(x) read.table(paste0(maindir,filesep,'Data',filesep,"RealTimePseudotimeCorrelation_",x,".txt")), simplify = F )
+# goodTracks=c()
+# MINR=0.25
+# for(trackEval in  trackEvalAll){
+#   goodTracks_ = rownames(trackEval)[trackEval$r> MINR]
+#   if(mean(trackEval$r[trackEval$P.adjust<0.1])<0){ ## pseudotime directionality is unknown
+#     goodTracks_ = rownames(trackEval)[trackEval$r< -MINR]
+#   }
+#   goodTracks_ = gsub(".txt","",goodTracks_)
+#   goodTracks = c(goodTracks, goodTracks_)
+# }

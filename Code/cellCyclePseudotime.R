@@ -1,7 +1,9 @@
 library(e1071)
 library(dyno)
 library(matlab)
-setwd("/Users/4470246/Downloads/Post-division")
+whichRow="B_row"
+maindir="~/Repositories/Gemcitabine-model/"
+setwd(paste0(maindir,filesep,"Data/",whichRow))
 
 classifyCellCyclePhase <- function(x, y, main="", svmfit=NULL){
   dat = data.frame(as.matrix(x), y = as.factor(y))
@@ -31,21 +33,39 @@ asDataset<-function(imgStats, imgStats_raw, FoF=NULL, coi){
   )
   return(dataset)
 }
+G1S_hours = 38
+doublingTime_hours = 50
+G1S_frac_hours = G1S_hours/doublingTime_hours
 
-
-
-f=list.files(pattern = "E")
+## Read in tracks###
+f=sapply(c("post-division","inter-division"), function(x) list.files(paste0(whichRow,"_",x),pattern = gsub("_row","",whichRow), full.names = T) )
+f=unlist(f)
 # f=sample(f,900)
 dm=sapply(f, function(x) read.table(x), simplify = F)
+names(dm) = sapply(f, function(x) fileparts(x)$name)
 dm = dm[sapply(dm, function(x) any(x$Classifier.Phenotype!="Dead"))]
+
+## Filter tracks ###
+dm_ = dm[sapply(dm,nrow)>=10]
+## low dead cell representation:
+x=sapply(dm_, function(x) sum(x$Classifier.Phenotype=="Dead")/nrow(x))
+dm_=dm_[x<0.1]
+print(paste("daughterParent cells with low fraction dead cells:",length(dm_)))
+## Strong correlation between time and cell area (Pearson r>=0.1), suggesting these are indeed cells that progress through the cell cycle.
+pearson_R=sapply(dm_, function(x) cor(x$t,x$Size_in_pixels_0))
+dm_ = dm_[pearson_R>=0.3];
+print(paste("daughterParent cells with strong correlation between size and time:",length(dm_)))
+HQ_cells = names(do.call(c,sapply(dm_, rownames)))
+HQ_cells=gsub("-division","-division.",HQ_cells)
+
+## Use real time to label cells as G2/M vs. G1/S
 for(x in names(dm)){
   dm[[x]] = dm[[x]][dm[[x]]$Classifier.Phenotype!="Dead",,drop=F] 
   dm[[x]]$cellCycle = "G2/M"
-  dm[[x]]$cellCycle[1:round(0.5*nrow(dm[[x]]))] = "G1/S"
+  dm[[x]]$cellCycle[1:round(G1S_frac_hours*nrow(dm[[x]]))] = "G1/S"
   dm[[x]]$lifetime_frac=dm[[x]]$lifetime/max(dm[[x]]$lifetime)
   rownames(dm[[x]])=paste0(x,".",rownames(dm[[x]]))
 }
-dm = dm[sapply(dm,nrow)>=10]
 
 imgStats_raw=do.call(rbind,dm)
 rownames(imgStats_raw) = do.call(c,sapply(dm, rownames))
@@ -62,56 +82,65 @@ imgStats_=asDataset(imgStats, imgStats_raw, coi=coi)
 
 
 ## Feature selection
-svmFeatures=coi
-NREP=5;
-acc=-Inf
-e2cells = grep("E2",rownames(imgStats_raw), value = T);
-while(!isempty(svmFeatures)){
-  svmFeatures_=combn(svmFeatures,length(svmFeatures)-1)
-  ccPred=rep(0,ncol(svmFeatures_))
-  print(paste0("training SVM with ", length(svmFeatures)," features"))
-  for(i in 1:ncol(svmFeatures_)){
-    for(rep in 1:NREP){
-      trainCells=sample(e2cells, round(length(e2cells)*0.5) )
-      testCells=setdiff(e2cells, trainCells)
-      x=imgStats_$expression[trainCells,svmFeatures_[,i]]
-      y=imgStats_raw[trainCells,"cellCycle"]
-      
-      # train SVM to classify cells to cell cycle phase based on allen Model features:
-      svm=classifyCellCyclePhase(x, y, main="", svmfit=NULL)
-      x=imgStats_$expression[testCells,svmFeatures_[,i]]
-      y=imgStats_raw[testCells,"cellCycle"]
-      ccPred[i]=ccPred[i]+classifyCellCyclePhase(x, y, main="", svmfit=svm$svmfit)$confusionMatrix["Balanced Accuracy"]
+# load("~/Downloads/Post-division_cellCyclePseudotime.RObj")
+if(!exists('svmFeatures')){
+  svmFeatures=coi
+  NREP=5;
+  acc=-Inf
+  e2cells = grep("E2",rownames(imgStats_raw), value = T);
+  while(!isempty(svmFeatures)){
+    svmFeatures_=combn(svmFeatures,length(svmFeatures)-1)
+    ccPred=rep(0,ncol(svmFeatures_))
+    print(paste0("training SVM with ", length(svmFeatures)," features"))
+    for(i in 1:ncol(svmFeatures_)){
+      for(rep in 1:NREP){
+        trainCells=sample(e2cells, round(length(e2cells)*0.5) )
+        testCells=setdiff(e2cells, trainCells)
+        x=imgStats_$expression[trainCells,svmFeatures_[,i]]
+        y=imgStats_raw[trainCells,"cellCycle"]
+        
+        # train SVM to classify cells to cell cycle phase based on allen Model features:
+        svm=classifyCellCyclePhase(x, y, main="", svmfit=NULL)
+        x=imgStats_$expression[testCells,svmFeatures_[,i]]
+        y=imgStats_raw[testCells,"cellCycle"]
+        ccPred[i]=ccPred[i]+classifyCellCyclePhase(x, y, main="", svmfit=svm$svmfit)$confusionMatrix["Balanced Accuracy"]
+      }
+      ccPred[i]=ccPred[i]/NREP
     }
-    ccPred[i]=ccPred[i]/NREP
+    if(acc - max(ccPred) < 0.02 ){
+      acc=max(ccPred)
+      print(paste("excluding",setdiff(svmFeatures,svmFeatures_[,which.max(ccPred)]),"; accuracy=",acc))
+      svmFeatures = svmFeatures_[,which.max(ccPred)]
+    }else{
+      break
+    }
   }
-  if(acc - max(ccPred) < 0.02 ){
-    acc=max(ccPred)
-    print(paste("excluding",setdiff(svmFeatures,svmFeatures_[,which.max(ccPred)]),"; accuracy=",acc))
-    svmFeatures = svmFeatures_[,which.max(ccPred)]
-  }else{
-    break
-  }
+  # # ii_B=order(ccPred)
+  # # ii=order(ccPred)
+  # plot(ii_B,ii)
+  # cor.test(ii_B,ii)
+  # svmFeatures=c(svmFeatures,"Skewness_of_Intensity_1","Terminal_1_1","Maximum_intensity_0","Object_Area_0","Variance_of_Intensity_0","Mean_Defect_Displacement_0","Minimum_intensity_1")
 }
-# # ii_B=order(ccPred)
-# # ii=order(ccPred)
-# plot(ii_B,ii)
-# cor.test(ii_B,ii)
-# svmFeatures=c(svmFeatures,"Skewness_of_Intensity_1","Terminal_1_1","Maximum_intensity_0","Object_Area_0","Variance_of_Intensity_0","Mean_Defect_Displacement_0","Minimum_intensity_1")
+
 
 ##Training:
+path2svm="../../Code/svm_E2E4E6_InterDivision.RObj"
 cells = sapply(c("E2","E4","E6"), function(x) grep(x,rownames(imgStats_$expression), value = T), simplify = F )
-ii=sample(cells$E2, min(10000, length(cells$E2)) )
-svm=classifyCellCyclePhase(imgStats_$expression[ii,svmFeatures], imgStats_raw[ii,"cellCycle"], main="", svmfit=NULL)
+if(!file.exists(path2svm)){
+  ii = grep("inter", cells$E2, value=T)
+  ii = intersect(ii, HQ_cells)
+  ii=sample(ii, min(10000, length(ii)) )
+  svm=classifyCellCyclePhase(imgStats_$expression[ii,svmFeatures], imgStats_raw[ii,"cellCycle"], main="", svmfit=NULL)
+  save(file=path2svm,list = c("svm"))
+}else{
+  load(path2svm)
+}
 
 ## Application of trained SVM
 output=sapply(cells, function(ii) classifyCellCyclePhase(imgStats_$expression[ii,svmFeatures], imgStats_raw[ii,"cellCycle"], main="", svmfit=svm$svmfit), simplify = F)
-out=do.call(c,sapply(output, function(x) x$out) )
-names(out) = unlist(sapply(output, function(x) names(x$out)) )
-imgStats$cellCycleSVM = as.character(out[rownames(imgStats)])
-for(x in names(dm)){
-  dm[[x]]$cellCycleSVM = as.character(out[rownames(dm[[x]])])
-}
+outSVM=unlist(sapply(output, function(x) x$out))
+names(outSVM) = unlist(sapply(output, function(x) names(x$out)) )
+imgStats$cellCycleSVM = as.character(outSVM[rownames(imgStats)])
 
 
 ## Pseudotime inference
@@ -143,20 +172,26 @@ hist(te$r[te$P.adjust<0.1],30)
 
 
 ## Only keep tracks where real time is well correlated to pseudotime
-goodTracks = rownames(te)[te$r> 0.4]
+MINR=-Inf
+goodTracks = rownames(te)[te$r> MINR]
 badTracks = rownames(te)[te$r<= 0.05]
+te=te[order(te$r,decreasing = T),]
 if(mean(te$r[te$P.adjust<0.1])<0){ ## pseudotime directionality is unknown
-  goodTracks = rownames(te)[te$r< -0.4]
+  goodTracks = rownames(te)[te$r< -MINR]
   badTracks = rownames(te)[te$r>= 0.05]
+  te=te[order(te$r,decreasing = F),]
 }
 write.table(goodTracks, "~/Downloads/goodTracks.txt", row.names=F, col.names=F, quote=F)
 write.table(badTracks, "~/Downloads/badTracks.txt", row.names=F, col.names=F, quote=F)
+write.table(te, paste0(maindir,filesep,'Data',filesep,"RealTimePseudotimeCorrelation.txt"))
 
 ## Plot cell cycle composition per timepoint
 par(mfrow=c(3,2))
 for (well in names(cells)){
-  # ii=unlist(sapply(goodTracks, function(x) grep(x, cells[[well]], value=T)))
-  ii = cells[[well]]
+  # ii= grep('inter',cells[[well]], value=T)
+  ii= grep('post',cells[[well]], value=T)
+  # ii = sample(cells[[well]], 10000)
+  ii=ii[sapply(strsplit(ii,".",fixed=T),"[[",1) %in% goodTracks]
   imgStats__=imgStats[ii,]
   imgStats__$hour=imgStats__$t*2
   tmp=sapply(unique(imgStats__$hour), function(x) c(unique(imgStats__$cellCycle),imgStats__[imgStats__$hour==x,"cellCycleSVM"]))
@@ -168,4 +203,19 @@ for (well in names(cells)){
   tmp = sweep(tmp,MARGIN=2,STATS=apply(tmp,2,sum), FUN="/")
   barplot(tmp, col=rainbow(nrow(tmp)), xlab="timepoint", ylab="cell count", main=well);
 }
+
+
+## Save tracks with additional info included
+for(x in names(dm)){
+  dm[[x]]$cellCycleSVM = as.character(outSVM[rownames(dm[[x]])])
+  dm[[x]]$pseudotime = model_$pseudotime[rownames(dm[[x]])]
+}
+dm = sapply(c("post-division","inter-division"), function(x) dm[grep(x,names(dm))], simplify = F )
+for(what in names(dm)){
+  dm_=dm[[what]]
+  OUTDIR=paste0(maindir,filesep,"Data/E_row_CellCycleClassification",filesep,"E_row_",what) 
+  dir.create(OUTDIR,recursive = T)
+  sapply(names(dm_), function(x) write.table(dm_[[x]], file=paste0(OUTDIR, filesep,x,".txt")))
+}
+
 
