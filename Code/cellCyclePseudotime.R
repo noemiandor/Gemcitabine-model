@@ -2,7 +2,7 @@ library(e1071)
 library(dyno)
 library(matlab)
 allrows=c("A_row","B_row","C_row","D_row","E_row","F_row","G_row")
-for(whichRow in allrows[c(4,7)]){
+for(whichRow in allrows){
   print(whichRow)
   maindir="~/Repositories/Gemcitabine-model/"
   setwd(paste0(maindir,filesep,"Data/",whichRow))
@@ -40,7 +40,7 @@ for(whichRow in allrows[c(4,7)]){
   G1S_frac_hours = G1S_hours/doublingTime_hours
   
   ## Read in tracks###
-  f=sapply(c("post-division","inter-division"), function(x) list.files(paste0(whichRow,"_",x),pattern = gsub("_row","",whichRow), full.names = T) )
+  f=sapply(c("pre-division","post-division","inter-division"), function(x) list.files(paste0(whichRow,"_",x),pattern = gsub("_row","",whichRow), full.names = T) )
   f=unlist(f)
   ##Sample only a fraction of tracks from each well
   sample_fraction=1/10
@@ -200,7 +200,8 @@ for(whichRow in allrows[c(4,7)]){
   par(mfrow=c(3,2))
   for (well in names(cells)[jj]){
     # ii= grep('inter',cells[[well]], value=T)
-    ii= grep('post',cells[[well]], value=T)
+    # ii= grep('post',cells[[well]], value=T)
+    ii= grep('pre',cells[[well]], value=T)
     # ii = sample(cells[[well]], 10000)
     ii=ii[sapply(strsplit(ii,".",fixed=T),"[[",1) %in% goodTracks]
     imgStats__=imgStats[ii,]
@@ -227,7 +228,7 @@ for(whichRow in allrows[c(4,7)]){
     dm[[x]]$cellCycleSVM = as.character(outSVM[rownames(dm[[x]])])
     dm[[x]]$pseudotime = model_$pseudotime[rownames(dm[[x]])]
   }
-  dm = sapply(c("post-division","inter-division"), function(x) dm[grep(x,names(dm))], simplify = F )
+  dm = sapply(c("pre-division","post-division","inter-division"), function(x) dm[grep(x,names(dm))], simplify = F )
   for(what in names(dm)){
     dm_=dm[[what]]
     OUTDIR=paste0(maindir,filesep,"Data/",whichRow,"_CellCycleClassification",filesep,whichRow,"_",what) 
