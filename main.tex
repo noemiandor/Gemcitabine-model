@@ -262,10 +262,7 @@ When exposed to Gemcitabine, cells can move between different compartments ($P_i
 
 \begin{equation}
 \alpha(i, x) = 
-\begin{cases}
-\Gamma_{\alpha} \left(1 - \frac{x}{x + u}\right)^2, & \text{if } i \leq \iota \\
-0, & \text{otherwise}
-\end{cases}
+\Gamma_{\alpha} \left(1 - \frac{x}{x + u}\right)^2
 \end{equation}
 
 For our $2N$ cells we set $\iota=0$, whereas for our tetraploidized cell lineage we set $\iota=1$, i.e. these cells can proliferate in the tetraploid state, but they too cease proliferation for higher ploidy states $i > 1$.
@@ -285,14 +282,22 @@ With this we can model the change in the concentration of live cells of differen
 \begin{cases}
 \frac{dG}{dt} = \max(-\theta, -G) \\
 \frac{dx}{dt} = -\frac{dG}{dt} - \xi \cdot a_{p,\text{tot}} \cdot x \\
-\frac{dP_i}{dt} = \alpha(i, x) P_i - k(i, x) P_i - a(i, x) P_i + 
-\begin{cases}
-k(i-1, x) P_{i-1}, & \text{if } i \geq 1 \\
-0, & \text{otherwise}
-\end{cases} \\
-\frac{dA}{dt} = \sum_{i=1}^{n} a(i, x) P_i
+\frac{dP_i}{dt} = - k(i, x) P_i - a(i, x) P_i + 
+k(i-1, x) P_{i-1} \\
+\frac{dA}{dt} = \sum_{i=0}^{n} a(i, x) P_i
 \end{cases}
 \end{equation}
+
+We model the cell cycle, as well as transitions from cell cycle to endocycle as:
+
+
+\begin{subequations}\label{cellcycle}
+\begin{align}
+\frac{dG1S}{dt} = \alpha(x) *(n *P_0 - m* G1S) - a(0, x) G1S \\
+\frac{dP_0}{dt} = \alpha(x) *(m* G1S - n*P_0) - k(0, x)*P_0
+\end{align}
+\end{subequations}
+
 
 
 % We further model the change in Gemcitabine concentration ($G$) over time as:

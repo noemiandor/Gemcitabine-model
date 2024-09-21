@@ -1,3 +1,0 @@
-"t"	"x"	"y"	"Size_in_pixels_0"	"Classifier.Phenotype"
-"1"	33	198	289.5	99	"Dead"
-"2"	34	185	316.5	255	"Dead"

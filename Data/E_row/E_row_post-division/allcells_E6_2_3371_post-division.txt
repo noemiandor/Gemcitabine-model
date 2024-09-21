@@ -1,8 +1,0 @@
-"t"	"x"	"y"	"Size_in_pixels_0"	"Classifier.Phenotype"
-"1"	21	1382.5	850.5	361	"UnStained"
-"2"	22	1379.5	855	289	"UnStained"
-"3"	23	1366.5	849	339	"UnStained"
-"4"	24	1359.5	835	410	"UnStained"
-"5"	25	1354	823	312	"UnStained"
-"6"	26	1337	847.5	252	"UnStained"
-"7"	27	1338.5	843.5	273	"UnStained"

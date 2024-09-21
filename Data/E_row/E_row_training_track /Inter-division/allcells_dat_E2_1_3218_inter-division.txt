@@ -1,6 +1,0 @@
-"t"	"x"	"y"	"Size_in_pixels_0"	"Classifier.Phenotype"
-"1"	14	432.5	442	126	"Alive"
-"2"	15	438.5	442	147	"Alive"
-"3"	16	438	450.5	106	"Alive"
-"4"	17	434	442.5	183	"Alive"
-"5"	18	423	446	204	"Alive"
