@@ -258,14 +258,12 @@ We assigned WGD status to all post-division tracks identified in treated wells a
 
 \subsubsection*{Mathematical model of polyploidization}
 
-When exposed to Gemcitabine, cells can move between different compartments ($P_i$) via WGD ( $i \geq 0$ indicates number of WGD events). The rate at which cells undergo WGD ($k(i,x)$) or die ($a(i,x)$) depends on the drug concentration $x$ and the current ploidy state $i$. The rate at which cells proliferate also depends on drug concentration and ploidy state. Since in most cases the polyploid state is quiescent, proliferation rate will be 0 once cells have undergone a single WGD event (i.e. when $i>0$). However some lineages have evolved to resume proliferation in the tetraploid state (i.e. for $i=1$). We model this by introducing the parameter $\iota$ as follows:
+When exposed to Gemcitabine, cells can move between different compartments ($P_i$) via WGD ( $i \geq 0$ indicates number of WGD events). The rate at which cells undergo WGD ($k(i,x)$) or die ($a(i,x)$) depends on the drug concentration $x$ and the current ploidy state $i$. The rate at which cells proliferate also depends on drug concentration and ploidy state:
 
 \begin{equation}
 \alpha(i, x) = 
 \Gamma_{\alpha} \left(1 - \frac{x}{x + u}\right)^2
 \end{equation}
-
-For our $2N$ cells we set $\iota=0$, whereas for our tetraploidized cell lineage we set $\iota=1$, i.e. these cells can proliferate in the tetraploid state, but they too cease proliferation for higher ploidy states $i > 1$.
 
 We assume all three rates, (cell death-, proliferation- and WGD rates), follow Michaelis-Menten kinetics as a function of drug concentration, with Michaelis constants $w, u, v$ respectively.
 
@@ -332,7 +330,6 @@ An overview of all model parameters is given in table \ref{parameterTable}. Abov
 \begin{tabular}{rl}
   \hline
   \hline
-$\iota$ & Maximum number of WGD events before cell enters quiescent state \\
   u & Drug concentration at which proliferation is half maximum \\
   w & Drug concentration at which apoptosis is half maximal \\
   v & Drug concentration at which WGD rate is half maximal \\
@@ -372,7 +369,7 @@ k(i, x) =    \Gamma_k \cdot \frac{{x}}{{x + v}} \cdot e^{-\mu (K-i)}
 \end{align}
 \end{subequations}
 
-For a given choice of the four parameters $u, w, v$, the goodness of fit is evaluated using the Wasserstein distance as a metric to measure the discrepancy between observed and simulated data. The evaluation process can be described as follows. First, ODEs are solved using an appropriate solver with the following configurations: (i) For the first case, the ODE solver is invoked with the parameters $u, w, v, \iota=0$, and the resulting solution vectors are denoted as $D$. (ii) For the second case, the ODE solver is invoked with the parameters $u, w, v, \iota=1$, and the resulting solution vectors are denoted as $T$.
+For a given choice of the four parameters $u, w, v$, the goodness of fit is evaluated using the Wasserstein distance as a metric to measure the discrepancy between observed and simulated data. ODEs are solved using an appropriate solver and the resulting solution vectors are denoted as $D$ and $T$ for diploid and tetraploid cells respectively.
 
 Let $\hat D, \hat T$ be the measurements corresponding to simulations $D, T$ respectively. The overall discrepancy between the simulated and observed data is then calculated as:
 \[
