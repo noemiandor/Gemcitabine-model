@@ -1,8 +1,8 @@
 library(e1071)
 library(dyno)
 library(matlab)
-allrows=c("A_row","B_row","C_row","D_row","E_row","F_row","G_row")
-for(whichRow in allrows){
+allrows=c("A_row","B_row","C_row","D_row","E_row","F_row","G_row","H_row")
+for(whichRow in allrows[6:8]){
   print(whichRow)
   maindir="~/Repositories/Gemcitabine-model/"
   setwd(paste0(maindir,filesep,"Data/",whichRow))
@@ -43,7 +43,7 @@ for(whichRow in allrows){
   f=sapply(c("pre-division","post-division","inter-division"), function(x) list.files(paste0(whichRow,"_",x),pattern = gsub("_row","",whichRow), full.names = T) )
   f=unlist(f)
   ##Sample only a fraction of tracks from each well
-  sample_fraction=1/10
+  sample_fraction=1/4
   wells = unique(sapply(strsplit(f,"_"),"[[",4));
   tmp=sapply(wells,function(x) grep(paste0(x,"_"),f,value=F))
   ii=sapply(tmp, function(x) sample(x,length(x)*sample_fraction))
@@ -51,10 +51,21 @@ for(whichRow in allrows){
   # f=sample(f,900)
   dm=sapply(f, function(x) read.table(x), simplify = F)
   names(dm) = sapply(f, function(x) fileparts(x)$name)
-  dm = dm[sapply(dm, function(x) any(x$Classifier.Phenotype!="Dead"))]
+  
+  ## columns of interest:
+  coi=setdiff(colnames(dm[[1]]),c("lifetime_frac","lifetime","cellCycle","Classifier.Phenotype","Class","t","labelimageId", "trackId", "lineageId", "parentTrackId", "mergerLabelId", "x","y", "parent", "dividing","well_info","time")); 
+  coi=grep("Center", coi,value=T, invert = T)
+  coi = grep("Bounding", coi,value=T, invert = T)
+  
+  ## make sure only newest results are included
+  dm=dm[sapply(dm, ncol)==69]
+  
+  ## exclude NA
+  dm=dm[sapply(dm, function(x) !any(apply(is.na(x[,coi]),1,any)))]
   
   ## Filter tracks ###
-  dm_ = dm[sapply(dm,nrow)>=10]
+  dm_ = dm[sapply(dm, function(x) any(x$Classifier.Phenotype!="Dead"))]
+  dm_ = dm_[sapply(dm_,nrow)>=10]
   ## low dead cell representation:
   x=sapply(dm_, function(x) sum(x$Classifier.Phenotype=="Dead")/nrow(x))
   dm_=dm_[x<0.1]
@@ -68,7 +79,7 @@ for(whichRow in allrows){
   
   ## Use real time to label cells as G2/M vs. G1/S
   for(x in names(dm)){
-    dm[[x]] = dm[[x]][dm[[x]]$Classifier.Phenotype!="Dead",,drop=F] 
+   # ii = which(dm[[x]]$Classifier.Phenotype!="Dead")
     dm[[x]]$cellCycle = "G2/M"
     dm[[x]]$cellCycle[1:round(G1S_frac_hours*nrow(dm[[x]]))] = "G1/S"
     dm[[x]]$lifetime_frac=dm[[x]]$lifetime/max(dm[[x]]$lifetime)
@@ -77,11 +88,9 @@ for(whichRow in allrows){
   
   imgStats_raw=do.call(rbind,dm)
   rownames(imgStats_raw) = do.call(c,sapply(dm, rownames))
-  coi=setdiff(colnames(imgStats_raw),c("lifetime_frac","lifetime","cellCycle","Classifier.Phenotype","Class","t","labelimageId", "trackId", "lineageId", "parentTrackId", "mergerLabelId", "x","y", "parent", "dividing","well_info","time")); 
-  coi=grep("Center", coi,value=T, invert = T)
-  coi = grep("Bounding", coi,value=T, invert = T)
   coi=coi[apply(imgStats_raw[,coi], 2, function(x) !all(x==0 | is.na(x)))]
   
+  ## Combine all  
   imgStats = imgStats_raw
   tmp= abs(as.numeric(as.matrix(imgStats_raw[,coi])))
   imgStats[,coi] = 0.5*min(tmp[tmp>0]) + sweep(imgStats_raw[,coi], 2, STATS = apply(imgStats_raw[,coi],2,min, na.rm=T),FUN = "-")
@@ -214,7 +223,7 @@ for(whichRow in allrows){
     if(which.max(apply(tmp[,c(5,ncol(tmp))],2,sum))==2){
       legendLoc="topleft"
     }else{
-      legendloc="topright"
+      legendLoc="topright"
     }
     legend(legendLoc, unique(imgStats__$cellCycle), fill=rainbow(nrow(tmp)),title="Cell Cycle SVM",bty = "")
     tmp = sweep(tmp,MARGIN=2,STATS=apply(tmp,2,sum), FUN="/")
@@ -229,11 +238,15 @@ for(whichRow in allrows){
     dm[[x]]$pseudotime = model_$pseudotime[rownames(dm[[x]])]
   }
   dm = sapply(c("pre-division","post-division","inter-division"), function(x) dm[grep(x,names(dm))], simplify = F )
+  ## Clean up first
+  OUTDIR=paste0(maindir,filesep,"Data/",whichRow,"_CellCycleClassification")
+  unlink(OUTDIR,recursive=T)
+  ## Now write new results
   for(what in names(dm)){
     dm_=dm[[what]]
-    OUTDIR=paste0(maindir,filesep,"Data/",whichRow,"_CellCycleClassification",filesep,whichRow,"_",what) 
-    dir.create(OUTDIR,recursive = T)
-    sapply(names(dm_), function(x) write.table(dm_[[x]], file=paste0(OUTDIR, filesep,x,".txt")))
+    OUTDIR_=paste0(OUTDIR,filesep,whichRow,"_",what) 
+    dir.create(OUTDIR_,recursive = T)
+    sapply(names(dm_), function(x) write.table(dm_[[x]], file=paste0(OUTDIR_, filesep,x,".txt")))
   }
   
   

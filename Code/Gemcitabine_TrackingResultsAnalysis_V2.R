@@ -6,9 +6,10 @@ library( xlsx )
 library(ggplot2)
 
 maindir="~/Repositories/Gemcitabine-model/"
+timepoints2include=3; ## for multivariate gaussian fit
 
-allrows=c("A_row","B_row","C_row","D_row","E_row","F_row","G_row")
-for(whichRow in allrows){
+allrows=c("A_row","B_row","C_row","D_row","E_row","F_row","G_row","H_row")
+for(whichRow in allrows[2:1]){
   print(whichRow)
   whichRow_=paste(gsub("_row","",whichRow))
   
@@ -75,7 +76,6 @@ for(whichRow in allrows){
   
   plateMap=read.xlsx(paste0(maindir,"Data/Gemcitabine_PlateMap_20240111.xlsx"), sheetIndex = 1)
   tp=1:40; ## timepoints of interest to be recorded for matlab model fit
-  timepoints2include=3; ## for multivariate gaussian fit
   train_test<-list(test=paste0(whichRow_,2:11), train=rep(paste0(whichRow_,2),10))
   #train<-apply(expand.grid(Rows, Cols$train), 1, function(x) paste(x, collapse = ""))
   #test<-apply(expand.grid(Rows, Cols$test), 1, function(x) paste(x, collapse = ""))
@@ -99,6 +99,8 @@ for(whichRow in allrows){
       tmp=sapply(f[[what]], function(x) read.table(x), simplify = F)
       tmp=tmp[sapply(tmp, function(x) any(colnames(x) %in% "cellCycleSVM"))]
       names(tmp) = sapply(names(tmp), function(x) fileparts(x)$name)
+      ## no missing timepoints within a track?
+      dt=sapply(tmp, function(x) max(x$t[2:length(x$t)]-x$t[1:(length(x$t)-1)]))
       # ## keep subset with good correlation between pseudotime and actual time
       # te=sapply(tmp, function(x) cor.test(x$pseudotime,x$t)[c("estimate","p.value")])
       # te=as.data.frame(t(te))
@@ -130,24 +132,27 @@ for(whichRow in allrows){
       deadCells[[what]]= dead
       
       print(paste("daughterParent cells total:",length(daughterParentCells[[what]])))
-      ##  inter-division tracks which lasted at least 18 hours (doubling time for SUM-159 is 22 hours).
-      daughterParentCells[[what]] = daughterParentCells[[what]][dt_hours>=18];
-      print(paste("daughterParent cells surviving at least 18 hours:",length(daughterParentCells[[what]])))
+      # ##  inter-division tracks which lasted at least 6 hours (doubling time for SUM-159 is 22 hours).
+      # daughterParentCells[[what]] = daughterParentCells[[what]][dt_hours>=6];
+      # print(paste("daughterParent cells surviving at least 6 hours:",length(daughterParentCells[[what]])))
       
-      ## low dead cell representation:
-      x=sapply(daughterParentCells[[what]], function(x) sum(x$Classifier.Phenotype=="Dead")/nrow(x))
-      daughterParentCells[[what]]=daughterParentCells[[what]][x<0.1]
-      print(paste("daughterParent cells with low fraction dead cells:",length(daughterParentCells[[what]])))
+      # ## low dead cell representation:
+      # x=sapply(daughterParentCells[[what]], function(x) sum(x$Classifier.Phenotype=="Dead")/nrow(x))
+      # daughterParentCells[[what]]=daughterParentCells[[what]][x<0.1]
+      # print(paste("daughterParent cells with low fraction dead cells:",length(daughterParentCells[[what]])))
       
-      ## Strong correlation between time and cell area (Pearson r>=0.1), suggesting these are indeed cells that progress through the cell cycle.
-      pearson_R=sapply(daughterParentCells[[what]], function(x) cor(x$t,x$Size_in_pixels_0))
-      hist(pearson_R)
-      daughterParentCells[[what]] = daughterParentCells[[what]][pearson_R>=0.3];
-      print(paste("daughterParent cells with strong correlation between size and time:",length(daughterParentCells[[what]])))
+      # ## Strong correlation between time and cell area (Pearson r>=0.1), suggesting these are indeed cells that progress through the cell cycle.
+      # pearson_R=sapply(daughterParentCells[[what]], function(x) cor(x$t,x$Size_in_pixels_0))
+      # hist(pearson_R)
+      # daughterParentCells[[what]] = daughterParentCells[[what]][pearson_R>=0.3];
+      # print(paste("daughterParent cells with strong correlation between size and time:",length(daughterParentCells[[what]])))
     }
     
     # multivariate:
-    sizeFoldChange=sapply(daughterParentCells$train, function(x) x$Size_in_pixels_0[nrow(x):(nrow(x)-(timepoints2include-1))]/x$Size_in_pixels_0[which.min(x$t)])
+    sizeFoldChange=matrix(1,timepoints2include,length(daughterParentCells$train))
+    colnames(sizeFoldChange)=names(daughterParentCells$train)
+    ii=which(sapply(daughterParentCells$train,nrow)>timepoints2include*2)
+    sizeFoldChange[,ii]=sapply(daughterParentCells$train[ii], function(x) x$Size_in_pixels_0[nrow(x):(nrow(x)-(timepoints2include-1))]/x$Size_in_pixels_0[which.min(x$t)])
     print(paste("timepoints2include",timepoints2include))
     ## univariate:
     if(timepoints2include==1){
@@ -225,8 +230,8 @@ for(whichRow in allrows){
     tmp=paste(strsplit(train_test$test[i],"")[[1]],collapse = "_")
     write.table(cells[4:ncol(cells)],paste0(OUTD,filesep,tmp,".txt"),row.names = TRUE,quote = F)
     
-    ## Everything below is plotting only: exclude dead cells from plots
-    cells=cells[-1,]
+    # ## Everything below is plotting only: exclude dead cells from plots
+    # cells=cells[-1,]
     
     ## @TODO: remove first @timepoints2include timepoints from plot since they are meaningless
     png(file=paste0(maindir,"Figs/trained_",trainRow,"2_ID_applied_",well,"_PD_count.png"),
