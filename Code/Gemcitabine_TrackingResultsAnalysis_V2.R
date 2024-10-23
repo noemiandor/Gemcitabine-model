@@ -9,7 +9,7 @@ maindir="~/Repositories/Gemcitabine-model/"
 timepoints2include=3; ## for multivariate gaussian fit
 
 allrows=c("A_row","B_row","C_row","D_row","E_row","F_row","G_row","H_row")
-for(whichRow in allrows[2:1]){
+for(whichRow in allrows){
   print(whichRow)
   whichRow_=paste(gsub("_row","",whichRow))
   
@@ -87,11 +87,12 @@ for(whichRow in allrows[2:1]){
     testRow=substr(train_test$test[i],1,1)
     f=list(train=list.files(paste0(maindir,"Data/",trainRow,"_row_CellCycleClassification/",trainRow,"_row_inter-division/"),pattern=paste0("*",train_test$train[i],".*","\\.txt"), full.names =TRUE))
     f$test=list.files(paste0(maindir,"Data/",testRow,"_row_CellCycleClassification/",testRow,"_row_post-division/"),pattern=paste0("*",train_test$test[i],".*","\\.txt"), full.names = TRUE)
+    f_pre=list.files(paste0(maindir,"Data/",testRow,"_row_CellCycleClassification/",testRow,"_row_pre-division/"),pattern=paste0("*",train_test$test[i],".*","\\.txt"), full.names = TRUE)
     
     if(isempty(f$test)){
       next
     }
-    daughterParentCells <- deadCells <- list()
+    daughterParentCells_filtered <- daughterParentCells <- deadCells <- list()
     for(what in names(train_test)){
       print(what)
       # f[[what]] = f[[what]][ sapply(f[[what]], function(x) fileparts(x)$name) %in% goodTracks ]
@@ -132,27 +133,27 @@ for(whichRow in allrows[2:1]){
       deadCells[[what]]= dead
       
       print(paste("daughterParent cells total:",length(daughterParentCells[[what]])))
-      # ##  inter-division tracks which lasted at least 6 hours (doubling time for SUM-159 is 22 hours).
-      # daughterParentCells[[what]] = daughterParentCells[[what]][dt_hours>=6];
-      # print(paste("daughterParent cells surviving at least 6 hours:",length(daughterParentCells[[what]])))
+      ##  inter-division tracks which lasted at least 18 hours (doubling time for SUM-159 is 22 hours).
+      daughterParentCells_filtered[[what]] = daughterParentCells[[what]][dt_hours>=18];
+      print(paste("daughterParent cells surviving at least 18 hours:",length(daughterParentCells_filtered[[what]])))
       
-      # ## low dead cell representation:
-      # x=sapply(daughterParentCells[[what]], function(x) sum(x$Classifier.Phenotype=="Dead")/nrow(x))
-      # daughterParentCells[[what]]=daughterParentCells[[what]][x<0.1]
-      # print(paste("daughterParent cells with low fraction dead cells:",length(daughterParentCells[[what]])))
+      ## low dead cell representation:
+      x=sapply(daughterParentCells_filtered[[what]], function(x) sum(x$Classifier.Phenotype=="Dead")/nrow(x))
+      daughterParentCells_filtered[[what]]=daughterParentCells_filtered[[what]][x<0.1]
+      print(paste("daughterParent cells with low fraction dead cells:",length(daughterParentCells_filtered[[what]])))
       
-      # ## Strong correlation between time and cell area (Pearson r>=0.1), suggesting these are indeed cells that progress through the cell cycle.
-      # pearson_R=sapply(daughterParentCells[[what]], function(x) cor(x$t,x$Size_in_pixels_0))
-      # hist(pearson_R)
-      # daughterParentCells[[what]] = daughterParentCells[[what]][pearson_R>=0.3];
-      # print(paste("daughterParent cells with strong correlation between size and time:",length(daughterParentCells[[what]])))
+      ## Strong correlation between time and cell area (Pearson r>=0.1), suggesting these are indeed cells that progress through the cell cycle.
+      pearson_R=sapply(daughterParentCells_filtered[[what]], function(x) cor(x$t,x$Size_in_pixels_0))
+      hist(pearson_R)
+      daughterParentCells_filtered[[what]] = daughterParentCells_filtered[[what]][pearson_R>=0.3];
+      print(paste("daughterParent cells with strong correlation between size and time:",length(daughterParentCells_filtered[[what]])))
     }
     
     # multivariate:
-    sizeFoldChange=matrix(1,timepoints2include,length(daughterParentCells$train))
-    colnames(sizeFoldChange)=names(daughterParentCells$train)
-    ii=which(sapply(daughterParentCells$train,nrow)>timepoints2include*2)
-    sizeFoldChange[,ii]=sapply(daughterParentCells$train[ii], function(x) x$Size_in_pixels_0[nrow(x):(nrow(x)-(timepoints2include-1))]/x$Size_in_pixels_0[which.min(x$t)])
+    sizeFoldChange=matrix(1,timepoints2include,length(daughterParentCells_filtered$train))
+    colnames(sizeFoldChange)=names(daughterParentCells_filtered$train)
+    ii=which(sapply(daughterParentCells_filtered$train,nrow)>timepoints2include*2)
+    sizeFoldChange[,ii]=sapply(daughterParentCells_filtered$train[ii], function(x) x$Size_in_pixels_0[nrow(x):(nrow(x)-(timepoints2include-1))]/x$Size_in_pixels_0[which.min(x$t)])
     print(paste("timepoints2include",timepoints2include))
     ## univariate:
     if(timepoints2include==1){
@@ -169,7 +170,7 @@ for(whichRow in allrows[2:1]){
     
     ## Now apply trained model on test set:
     well=train_test$test[i]
-    WGD=sapply(daughterParentCells$test, function(x) try(assignWGDstatus(x, d)), simplify = F)
+    WGD=sapply(daughterParentCells_filtered$test, function(x) try(assignWGDstatus(x, d)), simplify = F)
     WGD=WGD[sapply(WGD, class)!="try-error"]
     fr=plyr::count(unlist(sapply( WGD, colnames, simplify = F)))
     fr=fr[fr$freq==max(fr$freq),]
@@ -205,6 +206,10 @@ for(whichRow in allrows[2:1]){
     }
     
     
+    ##Also read in pre-division tracks:
+    preDivision=sapply(f_pre, function(x) read.table(x), simplify = F)
+    preDivision=preDivision[sapply(preDivision, function(x) any(colnames(x) %in% "cellCycleSVM"))]
+    names(preDivision) = sapply(names(preDivision), function(x) fileparts(x)$name)
     
     ## WGD distribution per timepoint
     cells=list()
@@ -212,17 +217,30 @@ for(whichRow in allrows[2:1]){
     for(t in tp){
       x=sapply(WGD, function(x) x[x$t==t,], simplify = F)
       x=do.call(rbind,x)
+      y=sapply(preDivision, function(x) x[x$t==t,], simplify = F)
+      y=do.call(rbind,y)
+      if(nrow(y)>0){
+        ## All pre-division tracks are assumed to have zero WGD:
+        y$WGD=0
+        x=rbind(x,y[,colnames(x)])
+      }
       #record G2M vs G1S status for WGD0 cells
       x$WGD[x$WGD==0 & x$cellCycleSVM=="G2/M"] = 0.5;
       # cell representations per each state:
       x=plyr::count(c(x$WGD,0:wgdMax, 0.5))
       rownames(x) = x$x
       x=x[order(x$x),-1,drop=F]
+      ## Calculate fraction per each class and multiply by total cell count to obtain counts per class:
+      y=sapply(daughterParentCells$test, function(x) x[x$t==t,,drop=F], simplify = F)
+      y=do.call(rbind,y)
+      x$fraction = x$freq/sum(x$freq)
+      x$freq = x$fraction * nrow(y)
       cells[[t]] = x
     }
-    cells=do.call(cbind,cells)
+    tmp=cells
+    cells=sapply(cells,function(x) x$freq)
     colnames(cells)=paste(as.character(tp*2), well)
-    rownames(cells)=paste0(rownames(cells),"_MitosesSkipped")
+    rownames(cells)=paste0(rownames(tmp[[1]]),"_MitosesSkipped")
     cells=rbind(unlist(deadCells$test),cells)
     rownames(cells)[1]="Dead"
     
