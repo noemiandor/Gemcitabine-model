@@ -9,7 +9,7 @@ maindir="~/Repositories/Gemcitabine-model/"
 timepoints2include=3; ## for multivariate gaussian fit
 
 allrows=c("A_row","B_row","C_row","D_row","E_row","F_row","G_row","H_row")
-for(whichRow in allrows){
+for(whichRow in allrows[8]){
   print(whichRow)
   whichRow_=paste(gsub("_row","",whichRow))
   
@@ -246,7 +246,7 @@ for(whichRow in allrows){
     
     ## Save output for Matlab code
     tmp=paste(strsplit(train_test$test[i],"")[[1]],collapse = "_")
-    write.table(cells[4:ncol(cells)],paste0(OUTD,filesep,tmp,".txt"),row.names = TRUE,quote = F)
+    write.table(cells[,2:ncol(cells)],paste0(OUTD,filesep,tmp,".txt"),row.names = TRUE,quote = F)
     
     # ## Everything below is plotting only: exclude dead cells from plots
     # cells=cells[-1,]
