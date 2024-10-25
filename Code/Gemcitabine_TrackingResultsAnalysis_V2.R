@@ -8,8 +8,8 @@ library(ggplot2)
 maindir="~/Repositories/Gemcitabine-model/"
 timepoints2include=3; ## for multivariate gaussian fit
 
-allrows=c("A_row","B_row","C_row","D_row","E_row","F_row","G_row","H_row")
-for(whichRow in allrows[8]){
+allrows=c("A_row","E_row","B_row","F_row","C_row","G_row","D_row","H_row")
+for(whichRow in allrows){
   print(whichRow)
   whichRow_=paste(gsub("_row","",whichRow))
   
@@ -231,7 +231,7 @@ for(whichRow in allrows[8]){
       rownames(x) = x$x
       x=x[order(x$x),-1,drop=F]
       ## Calculate fraction per each class and multiply by total cell count to obtain counts per class:
-      y=sapply(daughterParentCells$test, function(x) x[x$t==t,,drop=F], simplify = F)
+      y=sapply(daughterParentCells$test, function(x) x[x$t==t & x$Classifier.Phenotype!="Dead",,drop=F], simplify = F)
       y=do.call(rbind,y)
       x$fraction = x$freq/sum(x$freq)
       x$freq = x$fraction * nrow(y)
