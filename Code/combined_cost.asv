@@ -35,7 +35,7 @@ for cI = 1:size(dmx.cells,1)
     plot(t_N, model_N(:,cI),'Color',mycolors(cI,:),'LineWidth',3)
     %         set(gca, 'XScale', 'log')
     %         set(gca, 'YScale', 'log')
-    ylim([0,3000])
+    %         ylim([1,1000])
     hold on;
     plot(t_N, dmx.cells(cI,:),'*--','Color',mycolors(cI,:),'LineWidth',3)
     %         ylim([0,65])

@@ -1,16 +1,19 @@
-function dydt = combined_ODE(t, y, pars)
+function dydt = combined_ODECellCycleWithoutS(t, y, pars)
 
 % Extract parameters
 theta = pars(1);
 nu = pars(2);
-eta = pars(3);
-xi = pars(4);
-a = pars(5);
-v = pars(6);
-w1 = pars(7);
-iota = pars(8);
-gamma_a = pars(9);
-lambda = pars(10);
+xi = pars(3);
+a = pars(4);
+v = pars(5);
+w1 = pars(6);
+iota = pars(7);
+gamma_a = pars(8);
+lambda = pars(9);
+k_1 = pars(10);
+k_2 = pars(11);
+K = pars(12);
+mu = pars(13);
 
 
 % Unpack the state variables
@@ -27,17 +30,33 @@ dydt = zeros(length(y), 1);
 % Initialize the derivative for skippedMito_ODE
 dydt_P = zeros(length(P), 1);
 a_p_tot = 0;
+
+%The Logistic term should only apply to the growth and cell cycle dynamics
+%of the cells, not their drug-induced death or endoreplication.
+
+%G1/S
+dydt_P(2) = (1 - (P(2) + P(3)) / K) * (2 * k_1 * P(3) - k_2 * P(2)) - a_p(0, x) * P(2);
+
+%G2/M
+dydt_P(3) = (1 - (P(2) + P(3)) / K) * (k_2 * P(2) - k_1 * P(3)) - k_p(0, x) * P(3);
+
+%P1
+%Removed alpha_p(1, x) * P(4) because alpha always = 0 for P1 and P2
+dydt_P(4) = - k_p(1, x) * P(4) + k_p(0, x) * P(3) - a_p(1, x) * P(4);
+%Including influx from endoreplication
+
+%P2
+%Removed alpha_p(1, x) * P(5) because alpha always = 0 for P1 and P2
+dydt_P(5) = - k_p(2, x) * P(5) + k_p(1, x) * P(4) - a_p(2, x) * P(5);
+
+mitSkipped = [0, 0, 1, 2];
 for i = 2:length(P)
-    mitSkipped = i - 2;
-    dydt_P(i) = alpha_p(mitSkipped,x) * P(i) - k_p(mitSkipped, x) * P(i) - a_p(mitSkipped, x) * P(i);
-    if mitSkipped >= 1
-        dydt_P(i) = dydt_P(i) + k_p(mitSkipped - 1, x) * P(i - 1);
-    end
     % Sum up dead (apoptotic) cells
-    a_p_ = a_p(mitSkipped, x)* P(i);
+    a_p_ = a_p(mitSkipped(i - 1), x)* P(i);
     a_p_tot = a_p_tot + a_p_;
     dydt_P(1) = dydt_P(1) + a_p_ ;
 end
+
 a_p_tot = a_p_tot/ sum(P(2:end));
 %disp([t,dydt_P'])
 
@@ -51,11 +70,7 @@ dydt(2) = -dydt(1) - xi * a_p_tot * y(2); % dx/dt
 
 % Define the functions for k_p, alpha_p, and a_p
     function kp = k_p(i, x)
-        kp = (i < 2) * nu * (x / (x + v));
-    end
-
-    function alphap = alpha_p(i, x)
-        alphap = (i <= iota) * eta * (1 - x / (x + a))^2 ;
+        kp = (i < 2) * nu * (exp(1) ^ (mu * -i)) * (x / (x + v));
     end
 
     function ap = a_p(i, x)
