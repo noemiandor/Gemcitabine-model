@@ -177,22 +177,22 @@
 \begin{document}
 
 \subsection*{Main}
-Polyploid/ polyaneuploid giant cancer (PGCC/PACC) (PGCC henceforth) state is a common response of cancer cells to various stressors including chemotherapy, irradiation, hypoxia and viral infection. Upon stress, PGCCs adopt an endoreplication in which the genome replicates, mitosis is omitted, and cells grow in size, leading to resistance. How accessible WGD is to a cell, therefore, directly translates to its resistance to therapy. In this study, we hypothesized that WGD and PGCC state are more plausible to cancer cells that already have a higher ploidy content prior to therapy. To test this hypothesis, we developed a comprehensive three-tier framework consisting of i) computational, ii) in vitro and iii) in silico components.
-We designed a set of ordinary differential equations (ODEs) to model how cells enter and exit the PGCC state in response to a given stressor. We engineered how this in silico approach interacts with in vitro experiments into a broadly applicable software solution called CLONEID. The software uses computer vision to monitor phenotypic changes in cell and nuclear size from standard bright-field microscopy and classify cells into PGCC and non-PGCC states. We used CLONEID to test various therapeutic agents for their ability to select for a stable near-tetraploid population in a set of near-diploid cell lines. Through spontaneous cell fusions, we also obtained tetraploid breast cancer cells matched with their parental lines. Altogether, this framework, now, enables us to monitor the PGCC state experimentally in matched cell lines with differential DNA content to model the successful entrance and exit rates to and from the endoreplication state, respectively.
+% Polyploid/ polyaneuploid giant cancer (PGCC/PACC) (PGCC henceforth) state is a common response of cancer cells to various stressors including chemotherapy, irradiation, hypoxia and viral infection. Upon stress, PGCCs adopt an endoreplication in which the genome replicates, mitosis is omitted, and cells grow in size, leading to resistance. How accessible WGD is to a cell, therefore, directly translates to its resistance to therapy. In this study, we hypothesized that WGD and PGCC state are more plausible to cancer cells that already have a higher ploidy content prior to therapy. To test this hypothesis, we developed a comprehensive three-tier framework consisting of i) computational, ii) in vitro and iii) in silico components.
+% We designed a set of ordinary differential equations (ODEs) to model how cells enter and exit the PGCC state in response to a given stressor. We engineered how this in silico approach interacts with in vitro experiments into a broadly applicable software solution called CLONEID. The software uses computer vision to monitor phenotypic changes in cell and nuclear size from standard bright-field microscopy and classify cells into PGCC and non-PGCC states. We used CLONEID to test various therapeutic agents for their ability to select for a stable near-tetraploid population in a set of near-diploid cell lines. Through spontaneous cell fusions, we also obtained tetraploid breast cancer cells matched with their parental lines. Altogether, this framework, now, enables us to monitor the PGCC state experimentally in matched cell lines with differential DNA content to model the successful entrance and exit rates to and from the endoreplication state, respectively.
 
 \subsection*{Results}
 
-As the first application of this framework, we tested the ability of our matched triple-negative breast cancer (TNBC) lines (SUM-159 and MDA-MB-231) to access the PGCC state upon treatment with 18 commonly-used chemotherapy agents. We observed that gemcitabine caused continued cell growth without cell division in both tetraploid SUM-159 (Figure 1A-F) and MDA-MB-231 cells (Figure 2A) whereas near-diploid parental cells were hypersensitive to the treatment. Consequently, tetraploid cancer cells continued to safely grow in the presence of gemcitabine (Figure 3A). Furthermore, these PGCCs re-entered the proliferative cell cycle and grew in cell number when treatment is terminated (Figure 3B).
+% As the first application of this framework, we tested the ability of our matched triple-negative breast cancer (TNBC) lines (SUM-159 and MDA-MB-231) to access the PGCC state upon treatment with 18 commonly-used chemotherapy agents. We observed that gemcitabine caused continued cell growth without cell division in both tetraploid SUM-159 (Figure 1A-F) and MDA-MB-231 cells (Figure 2A) whereas near-diploid parental cells were hypersensitive to the treatment. Consequently, tetraploid cancer cells continued to safely grow in the presence of gemcitabine (Figure 3A). Furthermore, these PGCCs re-entered the proliferative cell cycle and grew in cell number when treatment is terminated (Figure 3B).
 
-Explain CLONEID and how it informed us that the cells turned into PACC state. 
+% Explain CLONEID and how it informed us that the cells turned into PACC state. 
 
-Explain mathematical modeling informing on the switches between polyploid state and proliferative state.
+% Explain mathematical modeling informing on the switches between polyploid state and proliferative state.
 
-Based on these findings, we have formulated an in silico model of the interactions of cancer cells, ploidy level and drug response as follows. Let C and P be the compartments of cycling and polyploid cells respectively. Then we can model their temporal dynamics when exposed to x units of a drug (i.e. ploidy-modulating agent) as shown in equations (1) and (2) in Figure 3.
+% Based on these findings, we have formulated an in silico model of the interactions of cancer cells, ploidy level and drug response as follows. Let C and P be the compartments of cycling and polyploid cells respectively. Then we can model their temporal dynamics when exposed to x units of a drug (i.e. ploidy-modulating agent) as shown in equations (1) and (2) in Figure 3.
 
- Cycling and polyploid cells die at different rates (d\_C and d\_P respectively), which are both a function of drug concentration x (Figure 3). Hereby, we assume that cells cease dividing under treatment and that resistance is a function of how effectively tumor cells can enter and exit the polyploid state in response to a given drug concentration. The model can easily be expanded to also account for multiple rounds of polyploidization and for potential depolyploidization after treatment is terminated.
+%  Cycling and polyploid cells die at different rates (d\_C and d\_P respectively), which are both a function of drug concentration x (Figure 3). Hereby, we assume that cells cease dividing under treatment and that resistance is a function of how effectively tumor cells can enter and exit the polyploid state in response to a given drug concentration. The model can easily be expanded to also account for multiple rounds of polyploidization and for potential depolyploidization after treatment is terminated.
 
-Gemcitabine (GEM)-based chemotherapy is a standard treatment for patients with TNBC although its efficacy is limited mainly due to drug resistance. Moreover, such poor response rate is coupled with severe side effects that frequently leads to the failure of vital organs, serious secondary diseases, and co-morbidities. Our findings suggest that ploidy is a predictive biomarker for gemcitabine sensitivity. Thus, we expect our findings and three-component framework strategy to help stratify the TNBC patient population by their response to gemcitabine. In addition, our mathematical modelling approach has the promising potential to inform personalized dose optimization and to effectively decrease administered gemcitabine dose for a subset of patients, which would alleviate therapy-associated side effects and lethalities.
+% Gemcitabine (GEM)-based chemotherapy is a standard treatment for patients with TNBC although its efficacy is limited mainly due to drug resistance. Moreover, such poor response rate is coupled with severe side effects that frequently leads to the failure of vital organs, serious secondary diseases, and co-morbidities. Our findings suggest that ploidy is a predictive biomarker for gemcitabine sensitivity. Thus, we expect our findings and three-component framework strategy to help stratify the TNBC patient population by their response to gemcitabine. In addition, our mathematical modelling approach has the promising potential to inform personalized dose optimization and to effectively decrease administered gemcitabine dose for a subset of patients, which would alleviate therapy-associated side effects and lethalities.
 
 
 \clearpage
@@ -211,6 +211,8 @@ Gemcitabine (GEM)-based chemotherapy is a standard treatment for patients with T
 % \end{equation}
 
 % The $e_{-\lambda \cdot t}$ term quantifies the decline of drug effect over time (i.e. resistance) and $f(T)$ is the growth term. For example, for logistic growth we have: $f(T) = r \cdot T \cdot (1 - \frac{T}{K})$
+
+\subsubsection*{Incucyte experiment}
 
 \subsubsection*{Image analysis}
  \textbf{Cell segmentation and classification with HALO}
@@ -232,20 +234,29 @@ Lastly, Ilastik (ver 1.4.0) was used to train a structured learning cell trackin
 
 [4] M. Schiegg, P. Hanslovsky, B. X. Kausler, L. Hufnagel, F. A. Hamprecht. Conservation Tracking. Proceedings of the IEEE International Conference on Computer Vision (ICCV 2013), 2013.
 
-\textbf{Classification of live cells to ploidy states}
+\textbf{Track classification}
 
 Let $x_t$ be a parental cell at the last timepoint $t$ before its cell division event gives rise to two daughter cells $a_{t+1}$ and $b_{t+1}$. We further refer to all such daughter cells as post-division tracks. Further we refer to all post-division tracks for which there exists a timepoint $\tau > t+1$ at which they give rise to two daughter cells, as inter-division tracks between timepoints $t+1$ and $\tau - 1$.
 
 We identified xx inter-division tracks in untreated wells which lasted at least 18 hours (doubling time for SUM-159 is 22 hours). For XX (XX\%) of these we observed a strong correlation between time and cell area (Pearson r>=xx), suggesting these are indeed cells that progress through the cell cycle.
-XX: we manually validated XX of these tracks, using the tracking accuracy measure (TRA, see http://celltrackingchallenge.net/evaluation-methodology). Validation confirmed the correctness of these tracks as well as antecedent and subsequent cell division events (accuracy = XX).
+XX: we manually validated XX of these tracks, using the tracking accuracy measure (TRA, see http://celltrackingchallenge.net/evaluation-methodology). Validation confirmed the correctness of these tracks as well as antecedent and subsequent cell division events (accuracy = XX).\newline
 
-For a given inter-division track, we then calculated the size fold change prior to division as $z_{\tau - 1, t+1} = \frac{s_{\tau-1}}{s_{t+1}}$. We used maximum likelihood (mle), to fit a univariate gaussian distribution on the size fold changes across tracks, allowing us to calculate the probability that two daughter cells are first observed at timepoint $i$ $(\tau \geq i > t+1)$, given the size fold change of the parental cell at time $i-1$:
+
+\textbf{Classification of live cells to WGD and cell cycle states}
+
+We applied a multivariate Gaussian model to track whole-genome doubling (WGD) events in cells undergoing gemcitabine treatment, assigning WGD probabilities based on cell size distributions over timepoints. Let \( X_k = \{X_{t_i}, \dots, X_{t_j}\} \) represent the inter-division track for cell \( k \), where cell divisions occur at timepoints \( t_{i-1} \) and \( t_{j+1} \). Inter-division tracks recorded under treatment-naive conditions were used for training. Let $\tau$ be the timepoint of cell division $i<\tau \leq j+1$. For each track \( X_k \), fold changes in cell size were calculated at each timepoint relative to $X_{t_i}$, and we used multivariate probability assessments to quantify the distribution of $\tau$, conditional on the size fold change of the three preceding timepoints:
 \begin{equation}
-    P(\tau = i | z_{i-1, t+1} ) \approx N(\mu, \sigma)
+    P(\tau = t_i | {X_{t_i}, X_{t_{i-1}},X_{t_{i-2}}} ) \approx N(\mu, \sigma)
 \end{equation}
 
-We assigned WGD status to all post-division tracks identified in treated wells as follows: $WGD_i = WGD_{i-1} + P(\tau = i | z_{i-1,j} )>0.5$, where $\tau > i > t+1$ and $i-1 > j > t+1$ is the timepoint of the prior WGD event (see Fig. \ref{ploidyQuant}).
+We then applied the model to all post-division tracks recorded during gemcitabine exposure. A WGD event was assigned if a cell lacked division at a timepoint where division probability exceeded 0.5:
+$WGD_i = WGD_{i-1} + P(\tau = i | {X_{t_i}, X_{t_{i-1}},X_{t_{i-2}}} )>0.5$ (see Fig. \ref{ploidyQuant}). Fold change was recalculated to the cell size assigned at the most recent cell division event.
 
+Track quality was essential, so we excluded low-quality tracks based on these criteria: (i) Daughter-parent cell intervals of less than 18 hours, (ii) Cell death fraction \( > 10\% \), (iii) Weak correlation between cell size and time (Pearson \( r < 0.3 \)). We calculated the proportion of WGD cells for each timepoint using the approach above, and multiplied it by the total number of live cells per timepoint to estimate the number of WGD cells at each timepoint.
+
+We applied an SVM-based approach to classify cell cycle phases of cancer cells classified as $WGD=0$. Feature selection excluded non-informative columns and cells with incomplete records. 
+Feature Engineering: We defined a subset of columns (features) relevant to cell morphology and nuclear characteristics to construct a cell-by-feature dataset matrix. Normalization of these features was achieved by subtracting column minimums and dividing by medians.
+We implemented a Support Vector Machine (SVM) with a radial kernel to classify cells into the G1/S and G2/M cell cycle phases. Let $X_k$ represent an inter-division track as defined above. We assume that cell \( k \) remains in the G1/S phase for the first \( xx\% \) of the timepoints within \( X_k \), transitioning into the G2M phase thereafter. This assumption provided the necessary labels for cell cycle phase classification. The trained classifier was subsequently applied to classify cell cycle phases in both post- and pre-division cell tracks.
 
 
  \begin{figure}
@@ -269,32 +280,30 @@ We assume all three rates, (cell death-, proliferation- and WGD rates), follow M
 
 With this we can model the change in the concentration of live cells of different ploidy ($P_i$) and dead cells ($A$) as:
 
-% \begin{subequations}\label{main}
-% \begin{align}
-% \diff{P_i}{t} = \alpha(i, x) P_i + k(i-1,x) P_{i-1} - k(i, x) P_i - a(i, x) P_i \\
-% \diff{A}{t} = \sum_i a(i,x)P_i 
-% \end{align}
-% \end{subequations}
 
-\begin{equation}
+\begin{equation}\label{main}
 \begin{cases}
 \frac{dG}{dt} = \max(-\theta, -G) \\
-\frac{dx}{dt} = -\frac{dG}{dt} - \xi \cdot a_{p,\text{tot}} \cdot x \\
+\frac{dx}{dt} = -\frac{dG}{dt} - \xi \cdot a_{p,\text{tot}}(t) \cdot x \\
 \frac{dP_i}{dt} = - k(i, x) P_i - a(i, x) P_i + 
 k(i-1, x) P_{i-1} \\
-\frac{dA}{dt} = \sum_{i=0}^{n} a(i, x) P_i
+\frac{dA}{dt} = \sum_{i=1}^{n} a(i, x) P_i + a(0, x) G1S = a_{p,\text{tot}}(t)
 \end{cases}
 \end{equation}
 
 We model the cell cycle, as well as transitions from cell cycle to endocycle as:
 
 
-\begin{subequations}\label{cellcycle}
-\begin{align}
-\frac{dG1S}{dt} = \alpha(x) *(n *P_0 - m* G1S) - a(0, x) G1S \\
-\frac{dP_0}{dt} = \alpha(x) *(m* G1S - n*P_0) - k(0, x)*P_0
-\end{align}
-\end{subequations}
+\begin{equation}\label{cellcycle}
+\begin{cases}
+    \frac{dG1S}{dt} = (1 - \frac{G1S + G2M}{K}) * (2 * k_1 * G2M - k_2 * G1S) - a(0, x) G1S \\
+    \frac{dG2M}{dt} = (1 - \frac{G1S + G2M}{K}) *(k_2 * G1S - k_1 * G2M) - k(0, x) * G2M \\
+    \frac{dP_1}{dt} = - k(1, x) P_1 - a(1, x) P_1 + 
+    k(0, x) P_{0}  \\
+    \frac{dP_2}{dt} = - a(2, x) P_2 + 
+    k(1, x) P_{1} 
+\end{cases}
+\end{equation}
 
 
 
@@ -307,7 +316,7 @@ We model the cell cycle, as well as transitions from cell cycle to endocycle as:
 % \end{align}
 % \end{subequations}
 
-, where $G$ is the average concentration of the active component of Gemcitabine (dFdCTP) inside a cell, $\theta$ is the rate at which dFdCTP is incorporated into DNA, $x$ is dFdCTP incorporated into the cells' DNA, and $\xi$ is the rate at which $x$ leaves the system, which is proportional to the total apoptosis rate  \( a_{p,\text{tot}} \). The total apoptosis rate is the sum of apoptosis rates normalized by the sum of the populations \( P \):
+, where $G$ is the average concentration of the active component of Gemcitabine (dFdCTP) inside a cell, $\theta$ is the rate at which dFdCTP is incorporated into DNA, $x$ is dFdCTP incorporated into the cells' DNA, and $\xi$ is the rate at which $x$ leaves the system, which is proportional to the total apoptosis rate  \( a_{p,\text{tot}} \). $K$ is the carrying capacity of the environment in which the cells are grown. The total apoptosis rate is the sum of apoptosis rates normalized by the sum of the populations \( P \):
 
 \begin{equation}
 a_{p,\text{tot}} = \frac{ \frac{dA}{dt} }{\sum_{i=1}^{n} P_i}
