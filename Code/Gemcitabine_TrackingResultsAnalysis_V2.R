@@ -8,6 +8,7 @@ library(ggplot2)
 maindir="~/Repositories/Gemcitabine-model/"
 timepoints2include=3; ## for multivariate gaussian fit
 
+controls =c("A2","B2","C2","D2","E2","F2","G2","H2")
 allrows=c("A_row","E_row","B_row","F_row","C_row","G_row","D_row","H_row")
 for(whichRow in allrows){
   print(whichRow)
@@ -189,8 +190,6 @@ for(whichRow in allrows){
     wgd_0_df<-do.call(rbind.data.frame, WGD[sapply(WGD,function(x) all(x$WGD==0))])
     write.table(  wgd_0_df, paste0(maindir,"Data/",train_test$test[i],"_","0_wgd_df.txt"),sep = "\t",quote=F,row.names=T,col.names = FALSE)
     
-    
-    
     # Tracks with  j WGD events at at least one time point
     for(j in c(1,2,3,4,5)){
       temp_ids<-paste0("track_",j,"wgd")
@@ -231,7 +230,12 @@ for(whichRow in allrows){
       rownames(x) = x$x
       x=x[order(x$x),-1,drop=F]
       ## Calculate fraction per each class and multiply by total cell count to obtain counts per class:
-      y=sapply(daughterParentCells$test, function(x) x[x$t==t & x$Classifier.Phenotype!="Dead",,drop=F], simplify = F)
+      if(train_test$test[i] %in% controls){
+        ## misclassified dead cells in control: @TODO -- should not be necessary
+        y=sapply(daughterParentCells$test, function(x) x[x$t==t,,drop=F], simplify = F)
+      }else{
+        y=sapply(daughterParentCells$test, function(x) x[x$t==t & x$Classifier.Phenotype!="Dead",,drop=F], simplify = F)
+      }
       y=do.call(rbind,y)
       x$fraction = x$freq/sum(x$freq)
       x$freq = x$fraction * nrow(y)
