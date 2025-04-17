@@ -32,6 +32,7 @@ legend("topright",names(col),fill = col,cex=0.5)
 f = list.files("B02_Karyotyping/", pattern = ".csv", recursive = T, full.names = T)
 kn=sapply(f, read.csv, simplify = F)
 kn=do.call(rbind,kn)
+kn$Images.Name=paste0(kn$Dataset.Name,"_",kn$Images.Name)
 cells=unique(kn$Images.Name)
 chr= 1:22
 # cells= sapply(cells, function(x) kn[kn$Images.Name==x,], simplify = F)
@@ -55,13 +56,12 @@ for(s in names(samples)){
     numchrcopies[id]=nrow(cell)
     ploidy[id]=sum(cell$Chromosome.Area)
   }
-  heatmap.2(karyo[grep("2N",rownames(karyo)),],trace='n',main = s)
-  heatmap.2(karyo[grep("4N",rownames(karyo)),],trace='n',main = s)
+  heatmap.2(karyo,trace='n',main = s)
   # rownames(karyo)= formatNames(rownames(karyo))
   # names(ploidy)= formatNames(names(ploidy))
   samples[[s]]=list(karyo=karyo,ploidy=ploidy, numchrcopies=numchrcopies)
 }
-whole_chr_karyo =samples$Dataset_1_new_company$karyo
+whole_chr_karyo =do.call(rbind,sapply(samples, function(x) x$karyo, simplify = F))
 write.table(whole_chr_karyo, file="~/Downloads/whole_chr_karyo.txt", sep="\t", quote=F)
 
 
@@ -69,7 +69,7 @@ write.table(whole_chr_karyo, file="~/Downloads/whole_chr_karyo.txt", sep="\t", q
 #### Merge scRNA-seq & Karyotyping ####
 # cn=cn[-2]
 # subset="none"
-subset="4N"
+subset="2N"
 cn_=cn;
 whole_chr_karyo_ = whole_chr_karyo;
 if(subset!="none"){
@@ -84,6 +84,7 @@ if(subset=="4N"){
   ## Numbat output needs to be adjusted for tetraploidy
   whole_chr_scRNA = whole_chr_scRNA * 2
 }
+# pdf(paste0("~/Downloads/",subset,".pdf"))
 
 cells=sapply(cn_, function(x) grep("Cell-Culture",x$cells, value=T), simplify = F)
 cells=unlist(cells)
@@ -91,33 +92,41 @@ origin=unique(cells)
 col =rainbow(length(origin)*1.1)[1:length(origin)]
 names(col) = origin
 hm_s=heatmap.2(whole_chr_scRNA, Colv = NULL, trace = "n", RowSideColors =col[cells], hclustfun=function(x) hclust(x, method="ward.D2"),distfun=function(x) dist(x, method="manhattan"))
+legend("topright",names(col),fill=col, cex=0.65)
 cl_s=cutree(as.hclust(hm_s$rowDendrogram), k=8)
+fr=plyr::count(cl_s);
+fr$freq=round(fr$freq/nrow(whole_chr_scRNA),3)
 origin=unique(cl_s)
 col =rainbow(length(origin)*1.1)[1:length(origin)]
 names(col) = as.character(origin)
 heatmap.2(whole_chr_scRNA, Colv = NULL, trace = "n", RowSideColors =col[as.character(cl_s)], hclustfun=function(x) hclust(x, method="ward.D2"),distfun=function(x) dist(x, method="manhattan"))
 cl_s = grpstats(whole_chr_scRNA,cl_s,"mean")$mean
+rownames(cl_s) = paste0(rownames(cl_s),"_", fr[rownames(cl_s),"freq"])
 
 cells=sapply(strsplit(rownames(whole_chr_karyo_),"_"),"[[",1)
 origin=unique(cells)
 col =rainbow(length(origin)*1.1)[1:length(origin)]
 names(col) = origin
 hm_k=heatmap.2(whole_chr_karyo_, Colv = NULL, trace = "n", RowSideColors =col[cells], hclustfun=function(x) hclust(x, method="ward.D2"),distfun=function(x) dist(x, method="manhattan"))
+legend("topright",names(col),fill=col, cex=0.65)
 cl_k=cutree(as.hclust(hm_k$rowDendrogram), k=8)
 heatmap.2(whole_chr_karyo_, Colv = NULL, trace = "n", RowSideColors =col[cells], colRow =  cl_k, hclustfun=function(x) hclust(x, method="ward.D2"),distfun=function(x) dist(x, method="manhattan"))
+legend("topright",names(col),fill=col, cex=0.65)
 cl_k = grpstats(whole_chr_karyo_,cl_k,"mean")$mean
-
 
 cn_comb = rbind(cl_k,cl_s)
 # cn_comb = cn_comb[,-5]
-rownames(cn_comb) = c(rep("karyo",nrow(cl_k)),rep("sc",nrow(cl_s)))
+rownames(cn_comb) = paste0(rownames(cn_comb),"_",c(rep("karyo",nrow(cl_k)),rep("sc",nrow(cl_s))))
 hm=heatmap.2(cn_comb, Colv = NULL, trace = "n", hclustfun=function(x) hclust(x, method="ward.D2"),distfun=function(x) dist(x, method="manhattan"))
 cl=cutree(as.hclust(hm$rowDendrogram), k=8)
 origin=unique(cl)
 col =rainbow(length(origin)*1.1)[1:length(origin)]
 names(col) = as.character(origin)
-heatmap.2(cn_comb, Colv = NULL, trace = "n", RowSideColors =col[as.character(cl)], hclustfun=function(x) hclust(x, method="ward.D2"),distfun=function(x) dist(x, method="manhattan"))
+heatmap.2(cn_comb, Colv = NULL, trace = "n", RowSideColors =col[as.character(cl)], hclustfun=function(x) hclust(x, method="ward.D2"),distfun=function(x) dist(x, method="manhattan"), main=subset)
+
+dev.off()
 
 ##chatGPT: define reusable functions
 ## conclusions: refine chr arm level calls for 2N
 ## rerun numbat for 4N.
+## annotate cell representation or % on combined heatmap
