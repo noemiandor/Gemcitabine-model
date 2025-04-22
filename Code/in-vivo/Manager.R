@@ -76,14 +76,20 @@ f=grep("15",f,invert = T, value = T)
 f=grep("Cell-Culture",f,invert = T, value = T)
 f=grep("_Numbat",f,invert = T, value = T)
 cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f, path2karyo="./")
+cn_B=cn; ## make a copy
 
-numbatRun="C4N_chr13"
+numbatRun="C4N_chr11"
 origin=unique(cn[[numbatRun]]$cells)
 col =RColorBrewer::brewer.pal(length(origin),"Paired")
 names(col) = origin
 hm=heatmap.2(cn[[numbatRun]]$cn, Colv = NULL, trace = "n", RowSideColors = col[cn[[numbatRun]]$cells])
 legend("topright",names(col),fill = col,cex=0.5)
 print(dt[origin,1:8])
+## ploidy
+segweight=parseLOCUS(colnames(cn[[numbatRun]]$cn))[,"seglength"]
+segweight = segweight/sum(segweight)
+ploidy = apply(sweep(2*cn[[numbatRun]]$cn,2,segweight,"*"),1,sum)
+vioplot::vioplot(ploidy~cn[[numbatRun]]$cells,las=2,horizontal=T, ylab="")
 
 #############################
 #### Karyotyping results ####
@@ -135,14 +141,14 @@ whole_chrarm_karyo=whole_chrarm_karyo[apply(!is.na(whole_chrarm_karyo),1,all),]
 ii = which(!colnames(whole_chrarm_karyo) %in% c("Cell","MARKER"))
 heatmap.2(as.matrix(whole_chrarm_karyo[,ii]),trace='n')
 
+
 #######################################
 #### Merge scRNA-seq & Karyotyping ####
 numbat2keep=c("C4N_chr11","C2N_chr23")
-cn_B=cn; ## make a copy
-cn = cn_B[numbat2keep]
+cn = cn[numbat2keep]
 # cn=cn[-2]
 # subset="none"
-subset="4N"
+subset="2N"
 whole_chr_karyo_ = whole_chr_karyo;
 whole_chrarm_karyo_ = whole_chrarm_karyo
 if(subset!="none"){
@@ -172,7 +178,8 @@ whole_chr_scRNA = whole_chr_scRNA[,ii]
 
 
 mar=c(20,5)
-dfun = chrCorrDist
+dfun = chrWeightedCorrDist
+# dfun = chrCorrDist
 # dfun = function(x) dist(x, method="manhattan")
 pdf(paste0("~/Downloads/",subset,".pdf"))
 ## scRNAseq
@@ -207,14 +214,15 @@ cl_k = grpstats(whole_chr_karyo_,cl_k,"mean")$mean
 
 
 cn_comb = rbind(cl_k,cl_s)
-# cn_comb = cn_comb[,-5]
+seg2exclude=c("13:113164695-114314503_q", "13:19633659-48007418_q")
+cn_comb = cn_comb[,!colnames(cn_comb) %in% seg2exclude]
 rownames(cn_comb) = paste0(rownames(cn_comb),"_",c(rep("karyo",nrow(cl_k)),rep("sc",nrow(cl_s))))
-hm=heatmap.2(cn_comb, Colv = NULL, trace = "n", hclustfun=function(x) hclust(x, method="ward.D2"),distfun=dfun, margins = mar) 
+hm=heatmap.2(round(cn_comb), Colv = NULL, trace = "n", hclustfun=function(x) hclust(x, method="ward.D2"),distfun=dfun, margins = mar) 
 cl=cutree(as.hclust(hm$rowDendrogram), k=8)
 origin=unique(cl)
 col =rainbow(length(origin)*1.1)[1:length(origin)]
 names(col) = as.character(origin)
-heatmap.2(cn_comb, Colv = NULL, trace = "n", RowSideColors =col[as.character(cl)], hclustfun=function(x) hclust(x, method="ward.D2"),distfun=dfun, main=subset, margins = mar) 
+heatmap.2(round(cn_comb), Colv = NULL, trace = "n", RowSideColors =col[as.character(cl)], hclustfun=function(x) hclust(x, method="ward.D2"),distfun=dfun, main=subset, margins = mar) 
 
 dev.off()
 
