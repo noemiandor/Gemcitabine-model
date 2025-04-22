@@ -183,9 +183,9 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
     # cn=cn[,rownames(chrsegments)]
     # colnames(cn)=chrsegments$chr
 
-    ## all other chromosomes have copy number equal to ploidy for all cells
+    ## all other chromosomes have copy number equal to ploidy/2 for all cells (assuming signal is not there because of copy number loss)
     otherchr = setdiff(rownames(anno),colnames(cn))
-    cn_ = matrix(ploidies[patient],nrow(cn),length(otherchr))
+    cn_ = matrix(ploidies[patient]/2,nrow(cn),length(otherchr))
     colnames(cn_)=otherchr
     cn = cbind(cn,cn_)
     # pdf(paste0(path2figures,matlab::filesep,patient,".pdf"))
@@ -424,13 +424,13 @@ alignCNmatrices <- function(cn_karyo, scRNAseq){
     
     if (arm_type == "p") {
       map_list[[length(map_list) + 1]] <- data.table(
-        target_col = b_segment_name,
+        target_col = paste0(b_segment_name, "_p"),
         original_a_col = original_a_col_p,
         original_b_col = b_segment_name
       )
     } else if (arm_type == "q") {
       map_list[[length(map_list) + 1]] <- data.table(
-        target_col = b_segment_name,
+        target_col = paste0(b_segment_name, "_q"),
         original_a_col = original_a_col_q,
         original_b_col = b_segment_name
       )

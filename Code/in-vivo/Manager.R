@@ -95,8 +95,8 @@ if(subset!="none"){
 }
 ## Align segments
 la=alignCNmatrices(whole_chrarm_karyo, cn_[[1]])
+whole_chr_karyo_ = la$cn_karyo[whole_chrarm_karyo$MARKER<10,]
 cn_[[1]]$cn = la$cn_scRNAseq
-whole_chr_karyo_ = la$cn_karyo
 
 ## select cells of interest
 whole_chr_scRNA=do.call(rbind,sapply(cn_, function(x) x$cn[grep("Cell-Culture",x$cells),], simplify = F))
@@ -132,7 +132,7 @@ col =rainbow(length(origin)*1.1)[1:length(origin)]
 names(col) = origin
 hm_k=heatmap.2(whole_chr_karyo_, Colv = NULL, trace = "n", RowSideColors =col[cells],distfun=chrWeightedDist, margins = mar) 
 legend("topright",names(col),fill=col, cex=0.65)
-cl_k=cutree(as.hclust(hm_k$rowDendrogram), k=2)
+cl_k=cutree(as.hclust(hm_k$rowDendrogram), k=8)
 heatmap.2(whole_chr_karyo_, Colv = NULL, trace = "n", RowSideColors =col[cells], colRow =  cl_k,distfun=chrWeightedDist, margins = mar) 
 legend("topright",names(col),fill=col, cex=0.65)
 cl_k = grpstats(whole_chr_karyo_,cl_k,"mean")$mean
