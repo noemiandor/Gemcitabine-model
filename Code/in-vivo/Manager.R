@@ -105,6 +105,12 @@ if(subset=="4N"){
   whole_chr_scRNA = whole_chr_scRNA * 2
 }
 
+## reorder chr (arms)
+ii=sort(colnames(whole_chr_karyo_))
+whole_chr_karyo_ = whole_chr_karyo_[,ii]
+whole_chr_scRNA = whole_chr_scRNA [,ii]
+
+
 mar=c(20,5)
 pdf(paste0("~/Downloads/",subset,".pdf"))
 ## scRNAseq
