@@ -11,8 +11,6 @@ chrarms=x[ , .(length = sum(chromEnd - chromStart)),by = .(chrom, arm = substrin
 chrwhole=grpstats(as.matrix(chrarms$length),chrarms$chrom, "sum")$sum
 rownames(chrwhole)=gsub("chrY","chr24",gsub("chrX","chr23",rownames(chrwhole)))
 
-setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerOrthotopicModels/SUM-159")
-
 # weighted Manhattan distance for an *entire* matrix
 chrWeightedDist <- function(mat) {
   # vector of chromosome weights
@@ -21,6 +19,16 @@ chrWeightedDist <- function(mat) {
   dist(mat.w, method = "manhattan") / sum(w)
 }
 
+setwd("~/Repositories/Gemcitabine-model/Code/in-vivo")
+source("Utils.R")
+dt=read.xlsx("../../Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx", sheetIndex = 1)
+dt <- rbind(setNames(data.frame(matrix(NA, nrow = 2, ncol = ncol(dt))), names(dt)),dt)
+dt$harvest[1:2] = c("SUM-159_NLS_2N_A7M_K_harvest","SUM-159_NLS_4N_A5M_K_harvest")
+dt$Sequencing.IDs[1:2] = c("2N-Cell-Culture","4N-Cell-Culture")
+dt=dt[!is.na(dt$Sequencing.IDs),];
+rownames(dt)=dt$Sequencing.IDs
+setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerOrthotopicModels/SUM-159")
+
 #############################
 #### scRNA-seq results ######
 f=list.files("A03_Numbat")#, full.names = T)#, pattern = "tsv", recursive = T)
@@ -28,13 +36,13 @@ f=grep("15",f,invert = T, value = T)
 f=grep("_Numbat",f,invert = T, value = T)
 cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f, path2karyo="./")
 
-batch="C2N_chr2"
+batch="C4N_chr13"
 origin=unique(cn[[batch]]$cells)
 col =RColorBrewer::brewer.pal(length(origin),"Paired")
 names(col) = origin
 hm=heatmap.2(cn[[batch]]$cn, Colv = NULL, trace = "n", RowSideColors = col[cn[[batch]]$cells])
 legend("topright",names(col),fill = col,cex=0.5)
-
+print(dt[origin,1:8])
 
 #############################
 #### Karyotyping results ####

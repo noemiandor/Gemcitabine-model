@@ -194,7 +194,11 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
     # dev.off()
     # graphics.off()
     
-   
+    ## Parse cell names for matching to CLONEID DB entries
+    ii = grep("2N",sample)
+    ii = setdiff(ii, grep("Cell-Culture",sample))
+    sample[ii] = paste0(sample[ii],"-HM")
+    
     outputs[[patient]] = list(cn=cn, cells=sample, anno=anno)
     
     # ## Read expression data:
