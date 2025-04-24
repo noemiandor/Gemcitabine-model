@@ -2,7 +2,7 @@ library(xlsx)
 library(gplots)
 library(data.table)
 devtools::source_url("https://github.com/noemiandor/Utils/blob/master/grpstats.R?raw=TRUE")
-source("~/Repositories/Gemcitabine-model/Code/in-vivo/Utils.R")
+source("/Users/4482173/Library/CloudStorage/OneDrive-MoffittCancerCenter/GitHub/Gemcitabine-model/Code/in-vivo/Utils.R")
 #################################
 ## Expected chromosome lengths ##
 x <- fread("http://hgdownload.cse.ucsc.edu/goldenpath/hg19/database/cytoBand.txt.gz", 
@@ -57,7 +57,7 @@ chrWeightedCorrDist <- function(mat) {
 
 
 
-setwd("~/Repositories/Gemcitabine-model/Code/in-vivo")
+setwd("/Users/4482173/Library/CloudStorage/OneDrive-MoffittCancerCenter/GitHub/Gemcitabine-model/Code/in-vivo")
 source("Utils.R")
 dt=read.xlsx("../../Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx", sheetIndex = 1)
 dt <- rbind(setNames(data.frame(matrix(NA, nrow = 2, ncol = ncol(dt))), names(dt)),dt)
@@ -67,15 +67,16 @@ dt=dt[!is.na(dt$Sequencing.IDs),];
 rownames(dt)=dt$Sequencing.IDs
 ## Path on workstation is:
 # setwd("/mnt/ix1/Shared_Folders/lab_crd/HighPloidy_CostBenefits/data/BreastCancerOrthotopicModels/SUM-159")
-setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerOrthotopicModels/SUM-159")
+setwd("/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results")
 
 #############################
 #### scRNA-seq results ######
-f=list.files("A03_Numbat")#, full.names = T)#, pattern = "tsv", recursive = T)
+f=list.files("/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/data/SUM-159/A03_Numbat")#, full.names = T)#, pattern = "tsv", recursive = T)
 f=grep("15",f,invert = T, value = T)
 f=grep("Cell-Culture",f,invert = T, value = T)
 f=grep("_Numbat",f,invert = T, value = T)
-cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f, path2karyo="./")
+f<-sapply(strsplit(f, "_"), `[`, 1)
+cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f, path2karyo="/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/data/SUM-159/")
 cn_B=cn; ## make a copy
 
 numbatRun="C4N_chr11"
@@ -93,7 +94,7 @@ vioplot::vioplot(ploidy~cn[[numbatRun]]$cells,las=2,horizontal=T, ylab="")
 
 #############################
 #### Karyotyping results ####
-f = list.files("B02_Karyotyping/", pattern = ".csv", recursive = T, full.names = T)
+f = list.files("/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/data/SUM-159/B02_Karyotyping/", pattern = ".csv", recursive = T, full.names = T)
 kn=sapply(f, read.csv, simplify = F)
 kn=do.call(rbind,kn)
 kn$Images.Name=paste0(kn$Dataset.Name,"_",kn$Images.Name)
@@ -121,19 +122,19 @@ for(s in names(samples)){
     # ploidy[id]=sum(cell$Chromosome.Area)
     ploidy[id]=sum(chrwhole[paste0("chr",cell$Group.ID),])/sum(chrwhole)
   }
-  heatmap.2(karyo,trace='n',main = s)
+  #heatmap.2(karyo,trace='n',main = s)
   # rownames(karyo)= formatNames(rownames(karyo))
   # names(ploidy)= formatNames(names(ploidy))
   samples[[s]]=list(karyo=karyo,ploidy=ploidy, numchrcopies=numchrcopies)
 }
 ploidy =sapply(samples, function(x) x$ploidy, simplify = F)
 whole_chr_karyo =do.call(rbind,sapply(samples, function(x) x$karyo, simplify = F))
-write.table(whole_chr_karyo, file="~/Downloads/whole_chr_karyo.txt", sep="\t", quote=F)
+write.table(whole_chr_karyo, file="/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/Manager/whole_chr_karyo.txt", sep="\t", quote=F)
 par(mai=c(0.5,2,0.5,0.5)); boxplot(ploidy[-c(1:2)],las=2, horizontal = T)
 
 ###############################
 #### Karyotyping arm level ####
-f = list.files("B02_Karyotyping/", pattern = "ArmLevel.xlsx", recursive = T, full.names = T)
+f = list.files("/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/data/SUM-159/B02_Karyotyping/", pattern = "ArmLevel.xlsx", recursive = T, full.names = T)
 kan=sapply(f, function(x) read.xlsx(x,sheetIndex =1, check.names=F), simplify = F)
 whole_chrarm_karyo=do.call(rbind,kan)
 # whole_chrarm_karyo = read.xlsx("B02_Karyotyping/SUM159-4N-parental/SUM159_4N_Karyotyping_ArmLevel.xlsx",sheetIndex =1, check.names=F);
@@ -181,7 +182,7 @@ mar=c(20,5)
 dfun = chrWeightedCorrDist
 # dfun = chrCorrDist
 # dfun = function(x) dist(x, method="manhattan")
-pdf(paste0("~/Downloads/",subset,".pdf"))
+pdf(paste0("/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/Manager/",subset,".pdf"))
 ## scRNAseq
 cells=sapply(cn_, function(x) grep("Cell-Culture",x$cells, value=T), simplify = F)
 cells=unlist(cells)
@@ -230,3 +231,5 @@ dev.off()
 ## conclusions: refine chr arm level calls for 2N
 ## rerun numbat for 4N.
 ## annotate cell representation or % on combined heatmap
+save.image('/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/Manager/Manager.RData')
+

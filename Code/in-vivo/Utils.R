@@ -92,9 +92,18 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
   
   ## patient cohort
   path2numbat=paste0(path2karyo,DATASETID)
-  samples=list.dirs(path2numbat,recursive = F,full.names = F)
+  #samples=list.dirs(path2numbat,recursive = F,full.names = F)
+  #samples<-sapply(strsplit(samples, "_"), `[`, 1)
+  subdirs <- list.dirs(path = path2numbat, full.names = FALSE, recursive = FALSE)
+  prefixes <- sapply(strsplit(subdirs, "_"), `[`, 1)
+  samples <- data.frame(
+    folder = subdirs,
+    prefix = prefixes,
+    stringsAsFactors = FALSE
+  )
+  
   ploidies=rep(2,length(samples))
-  names(ploidies) =samples
+  names(ploidies) =samples$prefix
   if(!is.null(mpoi)){
     ploidies = ploidies[mpoi]
   }
@@ -102,6 +111,7 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
   outputs=list()
   for(patient in names(ploidies)){
     print(patient)
+    SP<-samples[which(samples$prefix == patient),1]
     # ## read METADATA downloaded from GEO
     # library(rjson)
     # x <- fromJSON(file="../data/Melanoma_GSE174401/METADATA/all.json")
@@ -109,7 +119,7 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
     # names(sample)=x$covs$id
     
     ## read METADATA for sample origin directly from Numbat
-    la=read.table(paste0(path2numbat,patient,matlab::filesep,patient,".cell4numbat.anno.txt"),header = T)
+    la=read.table(paste0(path2numbat,SP,matlab::filesep,patient,".cell4numbat.anno.txt"),header = T)
     names(la)=gsub("cell","Cell",gsub("Hash","Sample",gsub("anno","Sample", names(la))))
     sample =la$sample
     names(sample)=la$Cell
@@ -120,7 +130,7 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
     la_unique <- la_unique[order(la_unique$Stage),]
     
     ## Numbat results
-    la=getCNVmatrix(paste0(path2numbat,patient))
+    la=getCNVmatrix(paste0(path2numbat,SP))
     if(!useLogFC){
       la=as.data.frame(la$cnv_matrix)
     }else{
@@ -199,7 +209,7 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
     ii = setdiff(ii, grep("Cell-Culture",sample))
     sample[ii] = paste0(sample[ii],"-HM")
     
-    outputs[[patient]] = list(cn=cn, cells=sample, anno=anno)
+    outputs[[SP]] = list(cn=cn, cells=sample, anno=anno)
     
     # ## Read expression data:
     # la=readRDS(paste0(path2numbat,patient,"/",patient,".count.rds"))
