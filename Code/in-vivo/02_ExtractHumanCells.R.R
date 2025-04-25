@@ -9,37 +9,27 @@ combined <- readRDS(
   "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/00_ReadData/combined.Rds"
 )
 
-# 2. Define where your CellRanger outputs live
-parent_dir <- "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/data/SUM-159/A02_cellRanger"
+# 2. Get all gene names and split into human vs mouse
+all_genes   <- rownames(combined@assays$RNA)
+human_genes <- grep("^GRCh38", all_genes, value = TRUE)
+mouse_genes <- grep("^GRCm39", all_genes, value = TRUE)
 
-# 3. List each sample folder (full paths)
-sample_dirs <- list.dirs(
-  path      = parent_dir,
-  full.names = TRUE,
-  recursive  = FALSE
-)
+# 3. Pull the raw (or normalized) count matrix
+#    (counts is usually a sparse Matrix, so we use colSums)
+counts      <- combined@assays$RNA@counts
 
-# 4. For each sample, read its molecule_info.h5 and pull barcodes assigned to GRCh38
-human_barcodes_list <- lapply(sample_dirs, function(sample_path) {
-  # Path to the H5 file
-  h5_file <- file.path(sample_path, "outs", "molecule_info.h5")
-  
-  # Read per-molecule info; returns a DataFrame with at least 'barcode' and 'genome' columns
-  mol_info <- read10xMolInfo(h5_file)
-  
-  # Keep only barcodes where genome == "GRCh38"
-  human <- mol_info$barcode[mol_info$genome == "GRCh38"]
-  unique(human)
-})
+# 4. Compute per-cell total for each species
+human_counts <- Matrix::colSums(counts[human_genes, , drop = FALSE])
+mouse_counts <- Matrix::colSums(counts[mouse_genes, , drop = FALSE])
 
-# Combine into one vector of barcodes
-human_barcodes <- unique(unlist(human_barcodes_list))
+# 5. Define “human” cells as those with more human UMIs than mouse UMIs
+human_cells  <- names(which(human_counts > mouse_counts))
 
-# 5. Subset the merged Seurat object to human cells only
-human_cells <- subset(combined, cells = human_barcodes)
+# 6. Subset the Seurat object
+human <- subset(combined, cells = human_cells)
 
-# 6. Save the human-only Seurat object
+# 7. Save the human-only Seurat object
 saveRDS(
-  human_cells,
-  file = "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/00_ReadData/human_cells.Rds"
+  human,
+  file = "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/01_HumanCells/human_cells.Rds"
 )

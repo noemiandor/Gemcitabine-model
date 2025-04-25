@@ -51,21 +51,8 @@ combined <- Reduce(
   x = seurat_list
 )
 
-chunk_size <- 5
-chunks <- split(seurat_list, ceiling(seq_along(seurat_list) / chunk_size))
-
-merged_chunks <- lapply(chunks, function(chunk) {
-  merged <- chunk[[1]]
-  for (i in 2:length(chunk)) {
-    merged <- merge(merged, chunk[[i]])
-  }
-  return(merged)
-})
-
-# 最后把合并后的小批次合起来
-combined <- Reduce(function(x, y) merge(x, y), merged_chunks)
-
 saveRDS(combined,    file = "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/00_ReadData/combined.Rds")
+
 
 # Inspect the combined object
 combined
