@@ -9,6 +9,7 @@ library(Seurat)
 library(dplyr)
 library(EnhancedVolcano)
 library(ggplot2)
+library(tibble)
 
 setwd('/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/03_DiffExp_genes')
 # 2. Read in Seurat object
@@ -42,7 +43,11 @@ Idents(singlets) <- singlets$sample_type
 
 comparisons1 <- list(
   `2N-cellline_vs_4N-cellline` = c("2N-cellline","4N-cellline"),
-  `2N-tumor_vs_4N-tumor`       = c("2N-tumor",    "4N-tumor")
+  `2N-tumor_vs_4N-tumor`       = c("2N-tumor",    "4N-tumor"),
+  `2N-cellline_vs_4N-tumor`       = c("2N-cellline",    "4N-tumor"),
+  `2N-tumor_vs_4N-cellline`       = c("2N-tumor",    "4N-cellline"),
+  `2N-cellline_vs_2N-tumorr`       = c("2N-cellline",    "2N-tumor"),
+  `4N-tumor_vs_4N-cellline`       = c("4N-tumor",    "4N-cellline")
 )
 
 for (nm in names(comparisons1)) {
@@ -71,7 +76,7 @@ for (nm in names(comparisons1)) {
     FCcutoff   = 0.5,
     title      = nm
   )
-  pdf(file.path(out_dir_pdf, paste0("Volcano_sampletype_", nm, ".pdf")), 
+  pdf(file.path(out_dir_pdf, paste0("Volcano_sampletype_", nm, ".pdf")),
       width=6, height=6)
   on.exit(dev.off(), add = TRUE)
   print(p1)
@@ -87,25 +92,25 @@ for (nm in names(comparisons1)) {
     group.by = "sample_type",
     pt.size  = 0.1
   ) + NoLegend()
-  pdf(file.path(out_dir_pdf, paste0("Vln_sampletype_", nm, ".pdf")), 
+  pdf(file.path(out_dir_pdf, paste0("Vln_sampletype_", nm, ".pdf")),
       width=6, height=6)
   on.exit(dev.off(), add = TRUE)
   print(p2)
   dev.off()
   
-  # Heatmap for top 10 (by absolute logFC)
-  top10 <- rownames(markers %>% 
-                      mutate(absFC=abs(avg_log2FC)) %>% 
-                      arrange(desc(absFC)) %>% 
-                      head(10))
+  # Heatmap for top 30 (by absolute logFC)
+  top30 <- rownames(markers %>%
+                      mutate(absFC=abs(avg_log2FC)) %>%
+                      arrange(desc(absFC)) %>%
+                      head(30))
   p3<-DoHeatmap(
     singlets,
-    features = top10,
+    features = top30,
     group.by = "sample_type",
     assay    = "RNA",
-    slot     = "data"
+    slot     = "scale.data"
   ) + NoLegend()
-  pdf(file.path(out_dir_pdf, paste0("Heatmap_sampletype_", nm, ".pdf")), 
+  pdf(file.path(out_dir_pdf, paste0("Heatmap_sampletype_", nm, ".pdf")),
       width=6, height=6)
   on.exit(dev.off(), add = TRUE)
   print(p3)
@@ -162,15 +167,89 @@ for (stype in c("2N-tumor","4N-tumor")) {
     on.exit(dev.off(), add = TRUE)
     print(p2)
     dev.off()
-    # Heatmap top10
-    top10 <- rownames(markers %>% mutate(absFC=abs(avg_log2FC)) %>% arrange(desc(absFC)) %>% head(10))
-    p3<-DoHeatmap(so, features=top10, group.by="Dose",assay    = "RNA",
-              slot     = "data") + NoLegend()
+    # Heatmap top30
+    top30 <- rownames(markers %>% mutate(absFC=abs(avg_log2FC)) %>% arrange(desc(absFC)) %>% head(30))
+    p3<-DoHeatmap(so, features=top30, group.by="Dose",assay    = "RNA",
+              slot     = "scale.data") + NoLegend()
     pdf(file.path(out_dir_pdf, paste0("Heatmap_dose_", nm, ".pdf")),6,6)
     on.exit(dev.off(), add = TRUE)
     print(p3)
     dev.off()
   }
+}
+
+# ───────────────────────────────────────────────────────────────────────────
+# 2.5) tumor-type comparisons at the same Dose
+# ───────────────────────────────────────────────────────────────────────────
+for (d in levels(singlets$Dose)) {
+  so_d <- subset(tumor, subset = Dose == d)
+  Idents(so_d) <- so_d$sample_type
+  markers_dt <- FindMarkers(
+    object          = so_d,
+    ident.1         = "2N-tumor",
+    ident.2         = "4N-tumor",
+    min.pct         = 0.1,
+    logfc.threshold = 0.25,
+    test.use        = "wilcox"
+  )
+  nm_dt <- paste0("tumorType_", gsub("mg/kg","",d))
+  write.csv(
+    markers_dt,
+    file = file.path(out_dir_de, paste0("DE_", nm_dt, ".csv"))
+  )
+  # Volcano plot
+  p_dt <- EnhancedVolcano(
+    markers_dt,
+    lab      = rownames(markers_dt),
+    x        = "avg_log2FC",
+    y        = "p_val_adj",
+    pCutoff  = 0.05,
+    FCcutoff = 0.5,
+    title    = nm_dt
+  )
+  ggsave(
+    filename = file.path(out_dir_pdf, paste0("Volcano_", nm_dt, ".pdf")),
+    plot     = p_dt,
+    width    = 6,
+    height   = 6,
+    units    = "in"
+  )
+  # Violin plot for top 5 up/down genes
+  top5_up_dt   <- rownames(markers_dt %>% filter(avg_log2FC > 0) %>% head(5))
+  top5_down_dt <- rownames(markers_dt %>% filter(avg_log2FC < 0) %>% head(5))
+  p_vln_dt <- VlnPlot(
+    so_d,
+    features = c(top5_up_dt, top5_down_dt),
+    group.by = "sample_type",
+    pt.size  = 0.1
+  ) + NoLegend()
+  ggsave(
+    filename = file.path(out_dir_pdf, paste0("Vln_", nm_dt, ".pdf")),
+    plot     = p_vln_dt,
+    width    = 6,
+    height   = 6,
+    units    = "in"
+  )
+
+  # Heatmap for top 30 genes by absolute logFC
+  top30_dt <- rownames(markers_dt %>%
+                        mutate(absFC = abs(avg_log2FC)) %>%
+                        arrange(desc(absFC)) %>%
+                        head(30))
+  pdf(
+    file   = file.path(out_dir_pdf, paste0("Heatmap_", nm_dt, ".pdf")),
+    width  = 6,
+    height = 6
+  )
+  p_hm_dt <- DoHeatmap(
+    so_d,
+    features = top30_dt,
+    group.by = "sample_type",
+    assay    = "RNA",
+    slot     = "scale.data"
+  ) + NoLegend()
+  print(p_hm_dt)
+  dev.off()
 }
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -187,8 +266,8 @@ for (cl in clusters) {
   
   #  Skip if either group has <3 cells
   if (n2N < 3 || n4N < 3) {
-    message("Skipping cluster ", cl, 
-            ": only ", n2N, " 2N-tumor and ", 
+    message("Skipping cluster ", cl,
+            ": only ", n2N, " 2N-tumor and ",
             n4N, " 4N-tumor cells.")
     next
   }
@@ -228,27 +307,12 @@ for (cl in clusters) {
   on.exit(dev.off(), add = TRUE)
   print(p2)
   dev.off()
-  # Heatmap top10
-  top10 <- rownames(markers %>% mutate(absFC=abs(avg_log2FC)) %>% arrange(desc(absFC)) %>% head(10))
-  p3<-DoHeatmap(so, features = top10, group.by="sample_type",assay    = "RNA",
-            slot     = "data") + NoLegend()
+  # Heatmap top30
+  top30 <- rownames(markers %>% mutate(absFC=abs(avg_log2FC)) %>% arrange(desc(absFC)) %>% head(30))
+  p3<-DoHeatmap(so, features = top30, group.by="sample_type",assay    = "RNA",
+            slot     = "scale.data") + NoLegend()
   pdf(file.path(out_dir_pdf, paste0("Heatmap_cluster_", nm, ".pdf")),6,6)
   on.exit(dev.off(), add = TRUE)
   print(p3)
   dev.off()
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

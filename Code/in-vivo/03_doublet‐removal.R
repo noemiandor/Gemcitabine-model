@@ -58,21 +58,28 @@ scores <- colData(sce)$hybrid_score
 cutoff <- sort(scores, decreasing=TRUE)[n_expected_doublet]
 is_dbl3 <- scores >= cutoff
 
-# 7. Intersection & filtering ----------------------------------------------
-#   Identify barcodes called doublets by ALL three methods
-doublet_barcodes <- colnames(sce)[ is_dbl1 & is_dbl2 & is_dbl3 ]
-
-#   Subset the original Seurat object to remove those doublets
-singlets <- subset(
-  integrated,
-  cells = setdiff(Cells(integrated), doublet_barcodes)
-)
-
-integrated$doublet_status <- ifelse(
-  Cells(integrated) %in% doublet_barcodes,
-  "doublet",
-  "singlet"
-)
+#
+# 7. Statistical doublet calling with Poisson–Binomial p-value
+# Estimate global misclassification rates
+p1 <- mean(is_dbl1)
+p2 <- mean(is_dbl2)
+p3 <- mean(is_dbl3)
+probs <- c(p1, p2, p3)
+# Count calls per cell
+k_calls <- as.numeric(is_dbl1) + as.numeric(is_dbl2) + as.numeric(is_dbl3)
+# Compute p-values; install poibin if not already available
+if (!requireNamespace("poibin", quietly = TRUE)) install.packages("poibin")
+library(poibin)
+pvals <- sapply(k_calls, function(k) 1 - ppoibin(q = k-1, probs = probs))
+# Add to metadata and apply threshold
+integrated$p_doublet_pval <- pvals
+is_doublet_pval <- pvals < 0.05
+doublet_barcodes <- colnames(sce)[is_doublet_pval]
+singlets <- subset(integrated, cells = setdiff(Cells(integrated), doublet_barcodes))
+integrated$doublet_status <- ifelse(is_doublet_pval, "doublet", "singlet")
+# Save results
+saveRDS(singlets, file = file.path(gsea_plot_dir, "singlets_pval.Rds"))
+saveRDS(integrated, file = file.path(gsea_plot_dir, "integrated_pval.Rds"))
 
 # ---- visualize method-wise doublet distribution for full integration ----
 library(tidyr)
@@ -176,22 +183,23 @@ cutoff_cl <- sort(scores_cl, decreasing=TRUE)[n_expected_doublet]
 is_dbl3_sc <- scores_cl >= cutoff_cl
 
 
-# 7. Intersection & filtering ----------------------------------------------
-#   Identify barcodes called doublets by ALL three methods
-doublet_barcodes_sc <- colnames(sce_cl)[ is_dbl1_sc & is_dbl2_sc & is_dbl3_sc ]
-
-#   Subset the original Seurat object to remove those doublets
-singlets_cl <- subset(
-  integrated_cell_line,
-  cells = setdiff(Cells(integrated_cell_line), doublet_barcodes_sc)
-)
-
-
-integrated$doublet_status_cell_line_only <- ifelse(
-  Cells(integrated) %in% doublet_barcodes_sc,
-  "doublet",
-  "singlet"
-)
+# 7. Statistical doublet calling with Poisson–Binomial p-value (cell-line subset)
+p1_cl <- mean(is_dbl1_sc)
+p2_cl <- mean(is_dbl2_sc)
+p3_cl <- mean(is_dbl3_sc)
+probs_cl <- c(p1_cl, p2_cl, p3_cl)
+k_calls_cl <- as.numeric(is_dbl1_sc) + as.numeric(is_dbl2_sc) + as.numeric(is_dbl3_sc)
+if (!requireNamespace("poibin", quietly = TRUE)) install.packages("poibin")
+library(poibin)
+pvals_cl <- sapply(k_calls_cl, function(k) 1 - ppoibin(q = k-1, probs = probs_cl))
+integrated_cell_line$p_doublet_pval <- pvals_cl
+is_doublet_pval_cl <- pvals_cl < 0.05
+doublet_barcodes_sc <- colnames(sce_cl)[is_doublet_pval_cl]
+singlets_cl <- subset(integrated_cell_line, cells = setdiff(Cells(integrated_cell_line), doublet_barcodes_sc))
+integrated$doublet_status_cell_line_only <- ifelse(Cells(integrated) %in% doublet_barcodes_sc, "doublet", "singlet")
+# Save results
+saveRDS(singlets_cl, file = file.path(gsea_plot_dir, "singlets_cl_pval.Rds"))
+saveRDS(integrated_cell_line, file = file.path(gsea_plot_dir, "integrated_cell_line_pval.Rds"))
 
 # ---- visualize method-wise doublet distribution for cell-line subset ----
 df_cl <- integrated_cell_line@meta.data %>%
