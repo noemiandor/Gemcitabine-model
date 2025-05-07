@@ -11,13 +11,21 @@
 library(Seurat)
 library(SingleCellExperiment)
 library(scDblFinder)   # Method 1 & 2
-library(scater)        # Method 3
-
+library(scater)
+library(ggplot2)
+library(VennDiagram)
+library(tibble)
+library(grid)
+library(scds)          # For SCDS hybrid doublet detection
 # 2. Read data & convert to SCE --------------------------------------------
 # Read your merged Seurat object
-load('/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/data/SUM-159/C03_Integration/integrated_2025-04-17.RData')
+load('/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/data/SUM-159/C03_Integration/integrated_2025-04-17.RData')
 
 integrated
+
+DefaultAssay(integrated)
+
+integrated <- ScaleData(integrated, verbose = FALSE)
 
 ######### all ########
 # Convert to SingleCellExperiment for Bioconductor tools
@@ -41,17 +49,14 @@ density_scores <- computeDoubletDensity(sce)
 cutoff2 <- sort(density_scores, decreasing = TRUE)[n_expected_doublet]
 is_dbl2 <- density_scores >= cutoff2
 
-# 6. Method 3: QC outlier on nFeature_RNA -----------------------------------
-# 6a. Compute per-cell QC metrics (adds 'detected' = number of genes)
-sce <- addPerCellQC(sce, use.altexps = FALSE)
-
-# 6b. Flag cells with abnormally high gene counts as doublets
-is_dbl3 <- isOutlier(
-  sce$detected,   # pass the vector directly
-  type  = "higher",
-  log   = TRUE,
-  nmads = 2
-)
+# 6. Method 3: scds hybrid (CXDS + BCDS)
+sce <- cxds(sce)
+sce <- bcds(sce)
+sce <- cxds_bcds_hybrid(sce, estNdbl = FALSE)  # just compute scores
+scores <- colData(sce)$hybrid_score
+# take top n_expected_doublet cells as doublets
+cutoff <- sort(scores, decreasing=TRUE)[n_expected_doublet]
+is_dbl3 <- scores >= cutoff
 
 # 7. Intersection & filtering ----------------------------------------------
 #   Identify barcodes called doublets by ALL three methods
@@ -68,6 +73,72 @@ integrated$doublet_status <- ifelse(
   "doublet",
   "singlet"
 )
+
+# ---- visualize method-wise doublet distribution for full integration ----
+library(tidyr)
+# build a data.frame of flags per method
+df_int <- integrated@meta.data %>%
+  as.data.frame() %>%
+  rownames_to_column("cell") %>%
+  mutate(
+    scDblFinder = is_dbl1,
+    density     = is_dbl2,
+    hybrid      = as.logical(is_dbl3)
+  ) %>%
+  pivot_longer(
+    cols = c("scDblFinder", "density", "hybrid"),
+    names_to  = "method",
+    values_to = "flag"
+  )
+# count by sample and method
+dist_int <- df_int %>%
+  filter(flag) %>%
+  group_by(orig.ident, method) %>%
+  summarise(n_doublets = n(), .groups="drop")
+# barplot
+gsea_plot_dir <- "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal"
+p_int <- ggplot(dist_int, aes(x=orig.ident, y=n_doublets, fill=method)) +
+  geom_bar(stat="identity", position="dodge") +
+  labs(title="Doublets per Sample by Method (integrated)",
+       x="Sample", y="Number of doublets") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45,hjust=1))
+pdf(file.path(gsea_plot_dir,"doublet_dist_integrated.pdf"), width=8, height=4)
+print(p_int)
+dev.off()
+# build named list of doublet cells per method
+cells_int <- df_int %>%
+  filter(flag)                        # keep only rows where flag is TRUE
+venn_list_int <- list(
+  scDblFinder = unique(cells_int$cell[cells_int$method == "scDblFinder"]),
+  density     = unique(cells_int$cell[cells_int$method == "density"]),
+  hybrid      = unique(cells_int$cell[cells_int$method == "hybrid"])
+)
+# Temporarily change working directory to avoid log file creation in read-only FS
+old_wd <- getwd()
+tmp_wd <- tempdir()
+setwd(tmp_wd)
+# Render integrated Venn to PDF via grid
+venn_plot_int <- venn.diagram(
+  x        = venn_list_int,
+  filename = NULL,
+  fill     = c("red","green","blue"),
+  alpha    = 0.5,
+  cat.cex  = 0.8,
+  cex      = 1.0,
+  main     = "Venn: Methods (integrated)",
+  logger   = FALSE      # disable logging
+)
+# Restore original working directory
+setwd(old_wd)
+pdf(
+  file   = file.path(gsea_plot_dir, "venn_integrated.pdf"),
+  width  = 5,
+  height = 5
+)
+grid.newpage()
+grid.draw(venn_plot_int)
+dev.off()
 
 ######### only cell line ########
 cell_line<-c("2N-Cell-Culture","4N-Cell-Culture")
@@ -95,17 +166,15 @@ density_scores <- computeDoubletDensity(sce_cl)
 cutoff2 <- sort(density_scores, decreasing = TRUE)[n_expected_doublet]
 is_dbl2_sc <- density_scores >= cutoff2
 
-# 6. Method 3: QC outlier on nFeature_RNA -----------------------------------
-# 6a. Compute per-cell QC metrics (adds 'detected' = number of genes)
-sce_cl <- addPerCellQC(sce_cl, use.altexps = FALSE)
+# 6. Method 3: scds hybrid (CXDS + BCDS) for cell-line subset
+sce_cl <- cxds(sce_cl)
+sce_cl <- bcds(sce_cl)
+sce_cl <- cxds_bcds_hybrid(sce_cl, estNdbl = FALSE)  # just compute scores
+scores_cl <- colData(sce_cl)$hybrid_score
+# take top n_expected_doublet cells as doublets
+cutoff_cl <- sort(scores_cl, decreasing=TRUE)[n_expected_doublet]
+is_dbl3_sc <- scores_cl >= cutoff_cl
 
-# 6b. Flag cells with abnormally high gene counts as doublets
-is_dbl3_sc <- isOutlier(
-  sce_cl$detected,   # pass the vector directly
-  type  = "higher",
-  log   = TRUE,
-  nmads = 2
-)
 
 # 7. Intersection & filtering ----------------------------------------------
 #   Identify barcodes called doublets by ALL three methods
@@ -124,14 +193,75 @@ integrated$doublet_status_cell_line_only <- ifelse(
   "singlet"
 )
 
+# ---- visualize method-wise doublet distribution for cell-line subset ----
+df_cl <- integrated_cell_line@meta.data %>%
+  as.data.frame() %>%
+  rownames_to_column("cell") %>%
+  mutate(
+    scDblFinder = is_dbl1_sc,
+    density     = is_dbl2_sc,
+    hybrid      = as.logical(is_dbl3_sc)
+  ) %>%
+  pivot_longer(
+    cols = c("scDblFinder", "density", "hybrid"),
+    names_to  = "method",
+    values_to = "flag"
+  )
+dist_cl <- df_cl %>%
+  filter(flag) %>%
+  group_by(orig.ident, method) %>%
+  summarise(n_doublets = n(), .groups="drop")
+p_cl <- ggplot(dist_cl, aes(x=orig.ident, y=n_doublets, fill=method)) +
+  geom_bar(stat="identity", position="dodge") +
+  labs(title="Doublets per Sample by Method (cell-line only)",
+       x="Sample", y="Number of doublets") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=45,hjust=1))
+pdf(file.path(gsea_plot_dir,"doublet_dist_cellline.pdf"), width=8, height=4)
+print(p_cl)
+dev.off()
+# build named list of doublet cells per method for cell-line subset
+cells_cl <- df_cl %>%
+  filter(flag)
+venn_list_cl <- list(
+  scDblFinder = unique(cells_cl$cell[cells_cl$method == "scDblFinder"]),
+  density     = unique(cells_cl$cell[cells_cl$method == "density"]),
+  hybrid      = unique(cells_cl$cell[cells_cl$method == "hybrid"])
+)
+# Render cell-line subset Venn to PDF via grid
+ # Temporarily change working directory to avoid log file creation in read-only FS
+old_wd <- getwd()
+tmp_wd <- tempdir()
+setwd(tmp_wd)
+venn_plot_cl <- venn.diagram(
+  x        = venn_list_cl,
+  filename = NULL,
+  fill     = c("red","green","blue"),
+  alpha    = 0.5,
+  cat.cex  = 0.8,
+  cex      = 1.0,
+  main     = "Venn: Methods (cell-line only)",
+  logger   = FALSE
+)
+# Restore original working directory
+setwd(old_wd)
+pdf(
+  file   = file.path(gsea_plot_dir, "venn_cellline.pdf"),
+  width  = 5,
+  height = 5
+)
+grid.newpage()
+grid.draw(venn_plot_cl)
+dev.off()
+
 
 
 ###### Figures ######
 
-
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(tibble)
 
 # 1. Extract metadata
 meta <- integrated@meta.data %>%
@@ -180,7 +310,7 @@ p1 <- ggplot(meta, aes(x = orig.ident, fill = doublet_status)) +
 
 
 pdf(
-  file   = "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/p1_doublet_comparison.pdf",
+  file   = "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/p1_doublet_comparison.pdf",
   width  = 15,
   height = 5
 )
@@ -238,7 +368,7 @@ p2 <- ggplot(meta2, aes(x = method, fill = status)) +
   expand_limits(y = max(sum2$total) * 1.05)
 
 pdf(
-  file   = "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/p2_doublet_comparison.pdf",
+  file   = "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/p2_doublet_comparison.pdf",
   width  = 5,
   height = 5
 )
@@ -255,17 +385,17 @@ singlets<-subset(integrated, subset= doublet_status == 'singlet')
 
 saveRDS(
   singlets_cl,
-  file = "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/singlets_cl.Rds"
+  file = "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/singlets_cl.Rds"
 )
 
 saveRDS(
   singlets,
-  file = "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/singlets.Rds"
+  file = "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/singlets.Rds"
 )
 
 saveRDS(
   integrated,
-  file = "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/integrated.Rds"
+  file = "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/integrated.Rds"
 )
 
-save.image('/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/02_doublet‐removal.Rds')
+save.image('/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/02_doublet‐removal.RData')
