@@ -17,10 +17,12 @@ library(VennDiagram)
 library(tibble)
 library(grid)
 library(scds)          # For SCDS hybrid doublet detection
+library(dplyr)         # for mutate, group_by, summarise, etc.
+library(tidyr)         # for pivot_longer
 # 2. Read data & convert to SCE --------------------------------------------
 # Read your merged Seurat object
 load('/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/data/SUM-159/C03_Integration/integrated_2025-04-17.RData')
-
+output_dir <- "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal"
 integrated
 
 DefaultAssay(integrated)
@@ -70,16 +72,18 @@ k_calls <- as.numeric(is_dbl1) + as.numeric(is_dbl2) + as.numeric(is_dbl3)
 # Compute p-values; install poibin if not already available
 if (!requireNamespace("poibin", quietly = TRUE)) install.packages("poibin")
 library(poibin)
-pvals <- sapply(k_calls, function(k) 1 - ppoibin(q = k-1, probs = probs))
+pvals <- sapply(k_calls, function(k) 1 - poibin::ppoibin(k - 1, probs))
 # Add to metadata and apply threshold
 integrated$p_doublet_pval <- pvals
 is_doublet_pval <- pvals < 0.05
+
+names(pvals) <- colnames(sce)            # name pvals by cell barcode
+# Add raw p-values to metadata
+integrated$pvals <- pvals[Cells(integrated)]
 doublet_barcodes <- colnames(sce)[is_doublet_pval]
 singlets <- subset(integrated, cells = setdiff(Cells(integrated), doublet_barcodes))
-integrated$doublet_status <- ifelse(is_doublet_pval, "doublet", "singlet")
-# Save results
-saveRDS(singlets, file = file.path(gsea_plot_dir, "singlets_pval.Rds"))
-saveRDS(integrated, file = file.path(gsea_plot_dir, "integrated_pval.Rds"))
+# Assign doublet status based on p-value column in metadata
+integrated$doublet_status <- ifelse(integrated$pvals < 0.05, "doublet", "singlet")
 
 # ---- visualize method-wise doublet distribution for full integration ----
 library(tidyr)
@@ -103,14 +107,14 @@ dist_int <- df_int %>%
   group_by(orig.ident, method) %>%
   summarise(n_doublets = n(), .groups="drop")
 # barplot
-gsea_plot_dir <- "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal"
+output_dir <- "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal"
 p_int <- ggplot(dist_int, aes(x=orig.ident, y=n_doublets, fill=method)) +
   geom_bar(stat="identity", position="dodge") +
   labs(title="Doublets per Sample by Method (integrated)",
        x="Sample", y="Number of doublets") +
   theme_classic() +
   theme(axis.text.x = element_text(angle=45,hjust=1))
-pdf(file.path(gsea_plot_dir,"doublet_dist_integrated.pdf"), width=8, height=4)
+pdf(file.path(output_dir,"doublet_dist_integrated.pdf"), width=8, height=4)
 print(p_int)
 dev.off()
 # build named list of doublet cells per method
@@ -139,7 +143,7 @@ venn_plot_int <- venn.diagram(
 # Restore original working directory
 setwd(old_wd)
 pdf(
-  file   = file.path(gsea_plot_dir, "venn_integrated.pdf"),
+  file   = file.path(output_dir, "venn_integrated.pdf"),
   width  = 5,
   height = 5
 )
@@ -191,15 +195,11 @@ probs_cl <- c(p1_cl, p2_cl, p3_cl)
 k_calls_cl <- as.numeric(is_dbl1_sc) + as.numeric(is_dbl2_sc) + as.numeric(is_dbl3_sc)
 if (!requireNamespace("poibin", quietly = TRUE)) install.packages("poibin")
 library(poibin)
-pvals_cl <- sapply(k_calls_cl, function(k) 1 - ppoibin(q = k-1, probs = probs_cl))
+pvals_cl <- sapply(k_calls_cl, function(k) 1 - poibin::ppoibin(k - 1, probs_cl))
 integrated_cell_line$p_doublet_pval <- pvals_cl
 is_doublet_pval_cl <- pvals_cl < 0.05
 doublet_barcodes_sc <- colnames(sce_cl)[is_doublet_pval_cl]
-singlets_cl <- subset(integrated_cell_line, cells = setdiff(Cells(integrated_cell_line), doublet_barcodes_sc))
 integrated$doublet_status_cell_line_only <- ifelse(Cells(integrated) %in% doublet_barcodes_sc, "doublet", "singlet")
-# Save results
-saveRDS(singlets_cl, file = file.path(gsea_plot_dir, "singlets_cl_pval.Rds"))
-saveRDS(integrated_cell_line, file = file.path(gsea_plot_dir, "integrated_cell_line_pval.Rds"))
 
 # ---- visualize method-wise doublet distribution for cell-line subset ----
 df_cl <- integrated_cell_line@meta.data %>%
@@ -225,7 +225,7 @@ p_cl <- ggplot(dist_cl, aes(x=orig.ident, y=n_doublets, fill=method)) +
        x="Sample", y="Number of doublets") +
   theme_classic() +
   theme(axis.text.x = element_text(angle=45,hjust=1))
-pdf(file.path(gsea_plot_dir,"doublet_dist_cellline.pdf"), width=8, height=4)
+pdf(file.path(output_dir,"doublet_dist_cellline.pdf"), width=8, height=4)
 print(p_cl)
 dev.off()
 # build named list of doublet cells per method for cell-line subset
@@ -254,7 +254,7 @@ venn_plot_cl <- venn.diagram(
 # Restore original working directory
 setwd(old_wd)
 pdf(
-  file   = file.path(gsea_plot_dir, "venn_cellline.pdf"),
+  file   = file.path(output_dir, "venn_cellline.pdf"),
   width  = 5,
   height = 5
 )
@@ -375,6 +375,7 @@ p2 <- ggplot(meta2, aes(x = method, fill = status)) +
   # extend y-axis to make room for labels
   expand_limits(y = max(sum2$total) * 1.05)
 
+
 pdf(
   file   = "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/p2_doublet_comparison.pdf",
   width  = 5,
@@ -382,6 +383,63 @@ pdf(
 )
 print(p2)
 dev.off()
+
+
+# ---- confirmation of method-specific calls by p-value ----
+# assemble a long df of method calls and p-value flags
+df_confirm <- df_int %>%
+  # join p-value status
+  left_join(
+    integrated@meta.data %>%
+      as.data.frame() %>%
+      rownames_to_column("cell") %>%
+      mutate(pval_flag = pvals < 0.05),
+    by = "cell"
+  ) %>%
+  filter(flag) %>%      # only consider cells called doublet by each method
+  mutate(
+    confirmed = ifelse(pval_flag, "pval_doublet", "pval_not_doublet")
+  )
+
+# summarize counts and percentages per method
+df_sum_confirm <- df_confirm %>%
+  group_by(method, confirmed) %>%
+  summarise(n = n(), .groups="drop") %>%
+  group_by(method) %>%
+  mutate(
+    total = sum(n),
+    pct   = n / total * 100,
+    label = sprintf("%d (%.1f%%)", n, pct)
+  )
+
+# plot stacked bar with annotation
+p_confirm <- ggplot(df_sum_confirm, aes(x = method, y = n, fill = confirmed)) +
+  geom_bar(stat = "identity") +
+  geom_text(
+    aes(label = label),
+    position = position_stack(vjust = 0.5),
+    size = 3
+  ) +
+  scale_fill_manual(
+    values = c("pval_doublet" = "firebrick", "pval_not_doublet" = "steelblue")
+  ) +
+  labs(
+    title = "Method Calls Confirmed by p-value",
+    x = "Doublet-calling Method",
+    y = "Number of doublets",
+    fill = "p-value status"
+  ) +
+  theme_classic()
+
+# save to PDF
+pdf(
+  file   = file.path(output_dir, "method_pval_confirmation.pdf"),
+  width  = 6,
+  height = 4
+)
+print(p_confirm)
+dev.off()
+
 
 
 #  Save results -----------------------------------------------------------
