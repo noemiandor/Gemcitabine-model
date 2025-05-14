@@ -52,8 +52,10 @@ comparisons1 <- list(
 
 for (nm in names(comparisons1)) {
   grp <- comparisons1[[nm]]
+  # Subset to only the two sample types being compared
+  so <- subset(singlets, subset = sample_type %in% grp)
   markers <- FindMarkers(
-    object       = singlets,
+    object       = so,
     ident.1      = grp[1],
     ident.2      = grp[2],
     min.pct      = 0.1,
@@ -77,7 +79,7 @@ for (nm in names(comparisons1)) {
     title      = nm
   )
   pdf(file.path(out_dir_pdf, paste0("Volcano_sampletype_", nm, ".pdf")),
-      width=6, height=6)
+      width=12, height=12)
   on.exit(dev.off(), add = TRUE)
   print(p1)
   dev.off()
@@ -87,13 +89,13 @@ for (nm in names(comparisons1)) {
   top5_down <- rownames(markers %>% filter(avg_log2FC<0) %>% head(5))
   
   p2<-VlnPlot(
-    singlets,
+    so,
     features = c(top5_up, top5_down),
     group.by = "sample_type",
     pt.size  = 0.1
   ) + NoLegend()
   pdf(file.path(out_dir_pdf, paste0("Vln_sampletype_", nm, ".pdf")),
-      width=6, height=6)
+      width=12, height=12)
   on.exit(dev.off(), add = TRUE)
   print(p2)
   dev.off()
@@ -104,17 +106,20 @@ for (nm in names(comparisons1)) {
                       arrange(desc(absFC)) %>%
                       head(30))
   p3<-DoHeatmap(
-    singlets,
+    so,
     features = top30,
     group.by = "sample_type",
     assay    = "RNA",
-    slot     = "scale.data"
+    slot     = "scale.data",
+    raster = FALSE
   ) + NoLegend()
   pdf(file.path(out_dir_pdf, paste0("Heatmap_sampletype_", nm, ".pdf")),
       width=6, height=6)
   on.exit(dev.off(), add = TRUE)
   print(p3)
   dev.off()
+  rm(so)
+  gc()
 }
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -126,6 +131,8 @@ tumor <- subset(singlets, subset = sample_type %in% c("2N-tumor","4N-tumor"))
 # for each tumor type separately:
 for (stype in c("2N-tumor","4N-tumor")) {
   so <- subset(tumor, subset = sample_type==stype)
+  # Drop unused levels of sample_type so that only tumor levels remain
+  so$sample_type <- droplevels(so$sample_type)
   Idents(so) <- so$Dose
   doses <- unique(so$Dose)
   combos <- combn(doses, 2, simplify = FALSE)
@@ -155,7 +162,7 @@ for (stype in c("2N-tumor","4N-tumor")) {
       FCcutoff = 0.5,
       title    = nm
     )
-    pdf(file.path(out_dir_pdf, paste0("Volcano_dose_", nm, ".pdf")),6,6)
+    pdf(file.path(out_dir_pdf, paste0("Volcano_dose_", nm, ".pdf")),12,12)
     on.exit(dev.off(), add = TRUE)
     print(p1)
     dev.off()
@@ -163,14 +170,14 @@ for (stype in c("2N-tumor","4N-tumor")) {
     genes_up   <- rownames(markers %>% filter(avg_log2FC>0) %>% head(5))
     genes_down <- rownames(markers %>% filter(avg_log2FC<0) %>% head(5))
     p2<-VlnPlot(so, features=c(genes_up, genes_down), group.by="Dose", pt.size=0.1) + NoLegend()
-    pdf(file.path(out_dir_pdf, paste0("Vln_dose_", nm, ".pdf")),6,6)
+    pdf(file.path(out_dir_pdf, paste0("Vln_dose_", nm, ".pdf")),12,12)
     on.exit(dev.off(), add = TRUE)
     print(p2)
     dev.off()
     # Heatmap top30
     top30 <- rownames(markers %>% mutate(absFC=abs(avg_log2FC)) %>% arrange(desc(absFC)) %>% head(30))
     p3<-DoHeatmap(so, features=top30, group.by="Dose",assay    = "RNA",
-              slot     = "scale.data") + NoLegend()
+              slot     = "scale.data",raster = FALSE) + NoLegend()
     pdf(file.path(out_dir_pdf, paste0("Heatmap_dose_", nm, ".pdf")),6,6)
     on.exit(dev.off(), add = TRUE)
     print(p3)
@@ -183,6 +190,8 @@ for (stype in c("2N-tumor","4N-tumor")) {
 # ───────────────────────────────────────────────────────────────────────────
 for (d in levels(singlets$Dose)) {
   so_d <- subset(tumor, subset = Dose == d)
+  # Drop unused levels of sample_type so that only tumor levels remain
+  so_d$sample_type <- droplevels(so_d$sample_type)
   Idents(so_d) <- so_d$sample_type
   markers_dt <- FindMarkers(
     object          = so_d,
@@ -210,8 +219,8 @@ for (d in levels(singlets$Dose)) {
   ggsave(
     filename = file.path(out_dir_pdf, paste0("Volcano_", nm_dt, ".pdf")),
     plot     = p_dt,
-    width    = 6,
-    height   = 6,
+    width    = 12,
+    height   = 12,
     units    = "in"
   )
   # Violin plot for top 5 up/down genes
@@ -226,8 +235,8 @@ for (d in levels(singlets$Dose)) {
   ggsave(
     filename = file.path(out_dir_pdf, paste0("Vln_", nm_dt, ".pdf")),
     plot     = p_vln_dt,
-    width    = 6,
-    height   = 6,
+    width    = 12,
+    height   = 12,
     units    = "in"
   )
 
@@ -246,7 +255,8 @@ for (d in levels(singlets$Dose)) {
     features = top30_dt,
     group.by = "sample_type",
     assay    = "RNA",
-    slot     = "scale.data"
+    slot     = "scale.data",
+    raster = FALSE
   ) + NoLegend()
   print(p_hm_dt)
   dev.off()
@@ -261,6 +271,8 @@ clusters <- levels(tumor$seurat_clusters)
 
 for (cl in clusters) {
   so <- subset(tumor, subset=seurat_clusters==cl)
+  # Drop unused levels of sample_type so that only tumor levels remain
+  so$sample_type <- droplevels(so$sample_type)
   n2N <- sum(so$sample_type == "2N-tumor")
   n4N <- sum(so$sample_type == "4N-tumor")
   
@@ -295,7 +307,7 @@ for (cl in clusters) {
     FCcutoff = 0.5,
     title    = nm
   )
-  pdf(file.path(out_dir_pdf, paste0("Volcano_cluster_", nm, ".pdf")),6,6)
+  pdf(file.path(out_dir_pdf, paste0("Volcano_cluster_", nm, ".pdf")),12,12)
   on.exit(dev.off(), add = TRUE)
   print(p1)
   dev.off()
@@ -303,16 +315,27 @@ for (cl in clusters) {
   up5   <- rownames(markers %>% filter(avg_log2FC>0) %>% head(5))
   down5 <- rownames(markers %>% filter(avg_log2FC<0) %>% head(5))
   p2<-VlnPlot(so, features=c(up5, down5), group.by="sample_type", pt.size=0.1) + NoLegend()
-  pdf(file.path(out_dir_pdf, paste0("Vln_cluster_", nm, ".pdf")),6,6)
+  pdf(file.path(out_dir_pdf, paste0("Vln_cluster_", nm, ".pdf")),12,12)
   on.exit(dev.off(), add = TRUE)
   print(p2)
   dev.off()
   # Heatmap top30
   top30 <- rownames(markers %>% mutate(absFC=abs(avg_log2FC)) %>% arrange(desc(absFC)) %>% head(30))
   p3<-DoHeatmap(so, features = top30, group.by="sample_type",assay    = "RNA",
-            slot     = "scale.data") + NoLegend()
+            slot     = "scale.data",raster = FALSE) + NoLegend()
   pdf(file.path(out_dir_pdf, paste0("Heatmap_cluster_", nm, ".pdf")),6,6)
   on.exit(dev.off(), add = TRUE)
   print(p3)
   dev.off()
 }
+
+
+table(singlets@meta.data$seurat_clusters,singlets@meta.data$sample_type)
+
+
+DimPlot(
+  object    = singlets,
+  reduction = "umap",
+  group.by  = "seurat_clusters",
+  pt.size   = 0.5
+) + ggtitle("UMAP colored by Cluster")
