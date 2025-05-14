@@ -60,6 +60,11 @@ scores <- colData(sce)$hybrid_score
 cutoff <- sort(scores, decreasing=TRUE)[n_expected_doublet]
 is_dbl3 <- scores >= cutoff
 
+# 7a. Method 4: Intersection of all three methods
+is_dbl_intersect <- is_dbl1 & is_dbl2 & is_dbl3
+# Add intersection-based classification to metadata
+integrated$doublet_intersect <- ifelse(is_dbl_intersect, "doublet", "singlet")
+
 #
 # 7. Statistical doublet calling with Poisson–Binomial p-value
 # Estimate global misclassification rates
@@ -116,6 +121,72 @@ p_int <- ggplot(dist_int, aes(x=orig.ident, y=n_doublets, fill=method)) +
   theme(axis.text.x = element_text(angle=45,hjust=1))
 pdf(file.path(output_dir,"doublet_dist_integrated.pdf"), width=8, height=4)
 print(p_int)
+dev.off()
+
+# ---- compare per-method retention by decision scheme ----
+# original method flags
+method_flags <- data.frame(
+  cell           = Cells(integrated),
+  scDblFinder    = is_dbl1,
+  density        = is_dbl2,
+  hybrid         = is_dbl3,
+  pvalue_doublet = integrated$pvals < 0.05,
+  intersect_doublet = integrated$doublet_intersect == "doublet",
+  stringsAsFactors = FALSE
+)
+library(tidyr)
+library(dplyr)
+# reshape for summary
+df_methods <- method_flags %>%
+  pivot_longer(
+    cols = c("scDblFinder","density","hybrid"),
+    names_to = "method",
+    values_to = "called"
+  ) %>%
+  filter(called) %>%  # only cells each method originally flagged
+  pivot_longer(
+    cols = c("pvalue_doublet","intersect_doublet"),
+    names_to = "decision",
+    values_to = "kept"
+  ) %>%
+  filter(kept) %>%    # only those retained by each decision method
+  group_by(method, decision) %>%
+  summarise(n = n(), .groups="drop") %>%
+  group_by(method) %>%
+  mutate(
+    total_called = sum(n),
+    pct = n / total_called * 100,
+    label = sprintf("%d (%.1f%%)", n, pct)
+  )
+# plot grouped bar chart
+p_method_cmp <- ggplot(df_methods, aes(x=method, y=n, fill=decision)) +
+  geom_bar(stat="identity", position=position_dodge(width=0.8)) +
+  geom_text(
+    aes(label=label),
+    position=position_dodge(width=0.8),
+    vjust=-0.5,
+    size=3
+  ) +
+  scale_fill_manual(
+    values = c(
+      "pvalue_doublet"    = "steelblue",
+      "intersect_doublet" = "firebrick"
+    ),
+    labels = c("p-value method", "Intersection method")
+  ) +
+  labs(
+    title = "Retention of Method-flagged Doublets by Decision Scheme",
+    x     = "Original Doublet-calling Method",
+    y     = "Number of cells",
+    fill  = "Decision scheme"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+# save to PDF
+pdf(file.path(output_dir, "method_retention_cmp.pdf"), width=6, height=4)
+print(p_method_cmp)
 dev.off()
 # build named list of doublet cells per method
 cells_int <- df_int %>%
@@ -185,6 +256,11 @@ scores_cl <- colData(sce_cl)$hybrid_score
 # take top n_expected_doublet cells as doublets
 cutoff_cl <- sort(scores_cl, decreasing=TRUE)[n_expected_doublet]
 is_dbl3_sc <- scores_cl >= cutoff_cl
+
+# 7a. Method 4: Intersection for cell-line subset
+is_dbl_intersect_sc <- is_dbl1_sc & is_dbl2_sc & is_dbl3_sc
+# Add intersection-based classification to metadata
+integrated_cell_line$doublet_intersect_sc <- ifelse(is_dbl_intersect_sc, "doublet", "singlet")
 
 
 # 7. Statistical doublet calling with Poisson–Binomial p-value (cell-line subset)
@@ -432,12 +508,46 @@ p_confirm <- ggplot(df_sum_confirm, aes(x = method, y = n, fill = confirmed)) +
   theme_classic()
 
 # save to PDF
+
 pdf(
   file   = file.path(output_dir, "method_pval_confirmation.pdf"),
   width  = 6,
   height = 4
 )
 print(p_confirm)
+dev.off()
+
+# ---- overlap between intersection and p-value methods ----
+# define doublet cell sets
+pval_cells <- Cells(integrated)[integrated$doublet_status == "doublet"]
+int_cells  <- Cells(integrated)[integrated$doublet_intersect == "doublet"]
+# compute shared and unique
+shared     <- intersect(pval_cells, int_cells)
+pval_only  <- setdiff(pval_cells, int_cells)
+int_only   <- setdiff(int_cells, pval_cells)
+# prepare summary data frame
+df_overlap <- data.frame(
+  category = c("Shared", "PValue Only", "Intersect Only"),
+  count    = c(length(shared), length(pval_only), length(int_only))
+)
+# bar plot of overlap
+p_overlap <- ggplot(df_overlap, aes(x = category, y = count, fill = category)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = count), vjust = -0.5, size = 4) +
+  scale_fill_manual(values = c("Shared"="gray50", "PValue Only"="steelblue", "Intersect Only"="firebrick")) +
+  labs(
+    title = "Overlap of Doublets: P-Value vs Intersection",
+    x     = "",
+    y     = "Number of cells"
+  ) +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+# save overlap plot
+pdf(file.path(output_dir, "doublet_overlap_cmp.pdf"), width = 6, height = 4)
+print(p_overlap)
 dev.off()
 
 
