@@ -82,6 +82,31 @@ pvals <- sapply(k_calls, function(k) 1 - poibin::ppoibin(k - 1, probs))
 integrated$p_doublet_pval <- pvals
 is_doublet_pval <- pvals < 0.05
 
+# ---- distribution of method-calls among p-value significant cells ----
+# Count number of methods that flagged each cell (1–3)
+k_calls <- as.numeric(is_dbl1) + as.numeric(is_dbl2) + as.numeric(is_dbl3)
+# Subset to cells with p < 0.05
+sig_idx <- which(is_doublet_pval)
+k_sig <- k_calls[sig_idx]
+# Tabulate counts
+dist_k <- as.data.frame(table(k_sig))
+names(dist_k) <- c("methods_flagged", "count")
+dist_k$methods_flagged <- as.integer(as.character(dist_k$methods_flagged))
+# Bar plot
+p_kdist <- ggplot(dist_k, aes(x = factor(methods_flagged), y = count)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = count), vjust = -0.5) +
+  labs(
+    title = "Distribution of Doublet-Calling Methods\nfor p<0.05 Cells",
+    x     = "Number of Methods Flagging Cell",
+    y     = "Number of p<0.05 Cells"
+  ) +
+  theme_classic()
+# Save to PDF
+pdf(file.path(output_dir, "pval_cells_method_count_dist.pdf"), width = 6, height = 4)
+print(p_kdist)
+dev.off()
+
 names(pvals) <- colnames(sce)            # name pvals by cell barcode
 # Add raw p-values to metadata
 integrated$pvals <- pvals[Cells(integrated)]
