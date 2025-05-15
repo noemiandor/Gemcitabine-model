@@ -210,9 +210,137 @@ p_method_cmp <- ggplot(df_methods, aes(x=method, y=n, fill=decision)) +
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
 # save to PDF
+# save to PDF
 pdf(file.path(output_dir, "method_retention_cmp.pdf"), width=6, height=4)
 print(p_method_cmp)
 dev.off()
+
+# ---- UMAP visualization of doublet calls per sample ----
+# Ensure UMAP has already been computed on integrated
+
+p_umap_int <- NULL
+# 1) Intersection-based doublets
+# Ensure singlet is plotted first, doublet last
+integrated$intersect_status <- factor(
+  integrated$doublet_intersect,
+  levels = c("singlet", "doublet")
+)
+p_umap_int <- DimPlot(
+  integrated,
+  reduction = "umap",
+  group.by  = "intersect_status",
+  split.by  = "orig.ident",
+  ncol      = 2,
+  order     = TRUE,
+  pt.size   = 0.5,
+  cols      = c("singlet"="lightgrey","doublet"="red")
+) + ggtitle("Intersection Method: Doublets vs Singlets by Sample")
+pdf(file.path(output_dir,"UMAP_intersection.pdf"), width=10, height=45)
+print(p_umap_int)
+dev.off()
+
+p_umap_pval <- NULL
+# 2) P-value-based doublets
+# Ensure singlet is plotted first, doublet last
+integrated$pval_status <- factor(
+  ifelse(integrated$pvals < 0.05, "doublet", "singlet"),
+  levels = c("singlet", "doublet")
+)
+p_umap_pval <- DimPlot(
+  integrated,
+  reduction = "umap",
+  group.by  = "pval_status",
+  split.by  = "orig.ident",
+  ncol      = 2,
+  order     = TRUE,
+  pt.size   = 0.5,
+  cols      = c("singlet"="lightgrey","doublet"="blue")
+) + ggtitle("P-value Method: Doublets vs Singlets by Sample")
+pdf(file.path(output_dir,"UMAP_pvalue.pdf"), width=10, height=45)
+print(p_umap_pval)
+dev.off()
+
+# 3) Cells called singlet by intersection but doublet by p-value
+conflict_cells <- Cells(integrated)[
+  integrated$intersect_status == "singlet" &
+  integrated$pval_status == "doublet"
+]
+# Create a temporary metadata column marking conflict
+# Ensure 'other' is plotted first, 'conflict' last
+integrated$conflict_status <- factor(
+  ifelse(Cells(integrated) %in% conflict_cells, "conflict", "other"),
+  levels = c("other", "conflict")
+)
+p_umap_conflict <- DimPlot(
+  integrated,
+  reduction = "umap",
+  group.by  = "conflict_status",
+  split.by  = "orig.ident",
+  ncol      = 2,
+  order     = TRUE,
+  pt.size   = 0.5,
+  cols      = c("other"="lightgrey","conflict"="purple")
+) + ggtitle("Conflict: P-value doublets not in Intersection, by Sample")
+pdf(file.path(output_dir,"UMAP_conflict.pdf"), width=10, height=45)
+print(p_umap_conflict)
+dev.off()
+
+# ---- cell cycle distribution in doublet groups ----
+library(dplyr)
+library(ggplot2)
+
+# Helper to create and save phase bar plot
+plot_phase_distribution <- function(df, group_name, file_suffix) {
+  sum_df <- df %>%
+    group_by(orig.ident, Phase) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    group_by(orig.ident) %>%
+    mutate(
+      total = sum(n),
+      pct   = n / total * 100,
+      label = sprintf("%d (%.1f%%)", n, pct)
+    )
+  # Save counts and percentages to CSV instead of annotating plot
+  write.csv(
+    sum_df,
+    file = file.path(output_dir, paste0("cellcycle_", file_suffix, ".csv")),
+    row.names = FALSE
+  )
+  p <- ggplot(sum_df, aes(x = orig.ident, y = n, fill = Phase)) +
+    geom_bar(stat = "identity") +
+    # geom_text(aes(label = label), position = position_stack(vjust = 0.5), size = 3) +
+    labs(
+      title = paste0("Cell Cycle in ", group_name, " Doublets by Sample"),
+      x = "Sample",
+      y = "Count",
+      fill = "Phase"
+    ) +
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  pdf(file.path(output_dir, paste0("cellcycle_", file_suffix, ".pdf")), width = 8, height = 4)
+  print(p)
+  dev.off()
+}
+
+# 1) P-value identified doublets
+df_pval <- integrated@meta.data %>%
+  as.data.frame() %>%
+  filter(pval_status == "doublet")
+plot_phase_distribution(df_pval, "P-value", "pvalue_doublets_phase")
+
+# 2) Intersection identified doublets
+df_intsec <- integrated@meta.data %>%
+  as.data.frame() %>%
+  filter(intersect_status == "doublet")
+plot_phase_distribution(df_intsec, "Intersection", "intersect_doublets_phase")
+
+# 3) Conflict cells: P-value doublet but intersection singlet
+df_conf <- integrated@meta.data %>%
+  as.data.frame() %>%
+  filter(conflict_status == "conflict")
+plot_phase_distribution(df_conf, "Conflict", "conflict_cells_phase")
+
 # build named list of doublet cells per method
 cells_int <- df_int %>%
   filter(flag)                        # keep only rows where flag is TRUE
