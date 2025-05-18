@@ -80,12 +80,12 @@ library(poibin)
 pvals <- sapply(k_calls, function(k) 1 - poibin::ppoibin(k - 1, probs))
 # Add to metadata and apply threshold
 integrated$p_doublet_pval <- pvals
-is_doublet_pval <- pvals < 0.05
+is_doublet_pval <- pvals < 0.01
 
 # ---- distribution of method-calls among p-value significant cells ----
 # Count number of methods that flagged each cell (1–3)
 k_calls <- as.numeric(is_dbl1) + as.numeric(is_dbl2) + as.numeric(is_dbl3)
-# Subset to cells with p < 0.05
+# Subset to cells with p < 0.01
 sig_idx <- which(is_doublet_pval)
 k_sig <- k_calls[sig_idx]
 # Tabulate counts
@@ -97,13 +97,13 @@ p_kdist <- ggplot(dist_k, aes(x = factor(methods_flagged), y = count)) +
   geom_bar(stat = "identity", fill = "steelblue") +
   geom_text(aes(label = count), vjust = -0.5) +
   labs(
-    title = "Distribution of Doublet-Calling Methods\nfor p<0.05 Cells",
+    title = "Distribution of Doublet-Calling Methods\nfor p<0.01 Cells",
     x     = "Number of Methods Flagging Cell",
-    y     = "Number of p<0.05 Cells"
+    y     = "Number of Doublets (p<0.01)"
   ) +
   theme_classic()
 # Save to PDF
-pdf(file.path(output_dir, "pval_cells_method_count_dist.pdf"), width = 6, height = 4)
+pdf(file.path(output_dir, "pval_cells_method_count_dist.pdf"), width = 5, height = 5)
 print(p_kdist)
 dev.off()
 
@@ -111,9 +111,9 @@ names(pvals) <- colnames(sce)            # name pvals by cell barcode
 # Add raw p-values to metadata
 integrated$pvals <- pvals[Cells(integrated)]
 doublet_barcodes <- colnames(sce)[is_doublet_pval]
-singlets <- subset(integrated, cells = setdiff(Cells(integrated), doublet_barcodes))
+#singlets <- subset(integrated, cells = setdiff(Cells(integrated), doublet_barcodes))
 # Assign doublet status based on p-value column in metadata
-integrated$doublet_status <- ifelse(integrated$pvals < 0.05, "doublet", "singlet")
+integrated$doublet_status <- ifelse(integrated$pvals < 0.01, "doublet", "singlet")
 
 # ---- visualize method-wise doublet distribution for full integration ----
 library(tidyr)
@@ -155,7 +155,7 @@ method_flags <- data.frame(
   scDblFinder    = is_dbl1,
   density        = is_dbl2,
   hybrid         = is_dbl3,
-  pvalue_doublet = integrated$pvals < 0.05,
+  pvalue_doublet = integrated$pvals < 0.01,
   intersect_doublet = integrated$doublet_intersect == "doublet",
   stringsAsFactors = FALSE
 )
@@ -190,7 +190,7 @@ p_method_cmp <- ggplot(df_methods, aes(x=method, y=n, fill=decision)) +
     aes(label=label),
     position=position_dodge(width=0.8),
     vjust=-0.5,
-    size=3
+    size=1
   ) +
   scale_fill_manual(
     values = c(
@@ -243,7 +243,7 @@ p_umap_pval <- NULL
 # 2) P-value-based doublets
 # Ensure singlet is plotted first, doublet last
 integrated$pval_status <- factor(
-  ifelse(integrated$pvals < 0.05, "doublet", "singlet"),
+  ifelse(integrated$pvals < 0.01, "doublet", "singlet"),
   levels = c("singlet", "doublet")
 )
 p_umap_pval <- DimPlot(
@@ -426,7 +426,7 @@ if (!requireNamespace("poibin", quietly = TRUE)) install.packages("poibin")
 library(poibin)
 pvals_cl <- sapply(k_calls_cl, function(k) 1 - poibin::ppoibin(k - 1, probs_cl))
 integrated_cell_line$p_doublet_pval <- pvals_cl
-is_doublet_pval_cl <- pvals_cl < 0.05
+is_doublet_pval_cl <- pvals_cl < 0.01
 doublet_barcodes_sc <- colnames(sce_cl)[is_doublet_pval_cl]
 integrated$doublet_status_cell_line_only <- ifelse(Cells(integrated) %in% doublet_barcodes_sc, "doublet", "singlet")
 
@@ -622,7 +622,7 @@ df_confirm <- df_int %>%
     integrated@meta.data %>%
       as.data.frame() %>%
       rownames_to_column("cell") %>%
-      mutate(pval_flag = pvals < 0.05),
+      mutate(pval_flag = pvals < 0.01),
     by = "cell"
   ) %>%
   filter(flag) %>%      # only consider cells called doublet by each method
@@ -711,6 +711,10 @@ singlets_cl<-subset(integrated, subset= doublet_status_cell_line_only == 'single
 
 singlets<-subset(integrated, subset= doublet_status == 'singlet')
 
+saveRDS(
+  integrated,
+  file = "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/integrated.Rds"
+)
 
 saveRDS(
   singlets_cl,
@@ -720,11 +724,6 @@ saveRDS(
 saveRDS(
   singlets,
   file = "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/singlets.Rds"
-)
-
-saveRDS(
-  integrated,
-  file = "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/integrated.Rds"
 )
 
 save.image('/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/02_doublet‐removal.RData')
