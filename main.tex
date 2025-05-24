@@ -173,16 +173,21 @@
 \makeatother
 
 
-\title{Mathematical Modeling of Cell Cycle Dynamics and Whole-Genome Doubling in Response to Gemcitabine Treatment}
-\author{XX}
+%\title{Mathematical Modeling of Cell Cycle Dynamics and Whole-Genome Doubling in Response to Gemcitabine Treatment}
+\title{Mathematical modeling of gemcitabine sensitivity as a function of ploidy in cancers}
+\author{Authors: XX}
 
 \begin{document}
 
 \maketitle
 
+\section*{Abstract}
+Aneuploidy is a hallmark of cancer. Thereby, there have been ongoing efforts investigating the potential of ploidy as a predictive biomarker for therapy response in cancer. However, no therapeutic agent has been yet approved as synthetically lethal with aneuploidy. In this study, we identify that near-diploid triple-negative breast cancer (TNBC) cells are hypersensitive to gemcitabine treatments. In contrary, near-tetraploid TNBC cells could grow into polyaneuploid giant cancer cells (PACCs) thru whole genome doubling (WGD) and continue to safely grow in the presence of gemcitabine. Such cells adopted an endoreplication in which the genome replicates, mitosis is omitted, and cells grow in size. These PACCs re-entered the proliferative cell cycle and grew in cell number when treatment was terminated. Altogether, PACC formation and WGD represent a fundamental cellular response to gemcitabine, and contributes to therapy resistance or tumor relapse in a ploidy-dependent manner in TNBCs. Moreover, to facilitate the translation of ploidy as a biomarker into clinical practice, any such individualization of medical interventions requires a deep understanding, complex evaluation and integration of tumor characteristics at a variety of levels including the disciplines of genetics, cell biology, biochemistry, pharmacology and chemical biology. Therefore, we created a novel three-tier framework including in-silico, computational and experimental components, which not only predicts gemcitabine response based on ploidy status, but also mathematically calculates the optimal dosage for individual treatments.
 \section*{Introduction}
 
-
+Polyploid/ polyaneuploid giant cancer (PGCC/PACC) (PACC henceforth) state is a common response of cancer cells to various stressors including chemotherapy, irradiation, hypoxia and viral infection. Upon stress, PACCs adopt an endoreplication in which the genome replicates, mitosis is omitted, and cells grow in size, leading to resistance. How accessible WGD is to a cell, therefore, directly translates to its resistance to therapy. In this study, we hypothesized that WGD and PACC state are more plausible to cancer cells that already have a higher ploidy content prior to therapy. To test this hypothesis, we developed a comprehensive three-tier framework consisting of i) computational, ii) in vitro and iii) in silico components.
+We designed a set of ordinary differential equations (ODEs) to model how cells enter and exit the PACC state in response to a given stressor. We engineered how this in silico approach interacts with in vitro experiments into a broadly applicable software solution called CLONEID. The software uses computer vision to monitor phenotypic changes in cell and nuclear size from standard bright-field microscopy and classify cells into PACC and non-PACC states. We used CLONEID to test various therapeutic agents for their ability to select for a stable near-tetraploid population in a set of near-diploid cell lines. Through spontaneous cell fusions, we also obtained tetraploid breast cancer cells matched with their parental lines. Altogether, this framework, now, enables us to monitor the PACC state experimentally in matched cell lines with differential DNA content to model the successful entrance and exit rates to and from the endoreplication state, respectively.
+As the first application of this framework, we tested the ability of our matched triple-negative breast cancer (TNBC) lines to access the PACC state upon treatment with 18 commonly-used chemotherapy agents. We observed that gemcitabine caused continued cell growth without cell division in both tetraploid SUM-159 and MDA-MB-231 cells whereas near-diploid parental cells were hypersensitive to the treatment. Consequently, tetraploid cancer cells continued to safely grow in the presence of gemcitabine. Furthermore, these PACCs re-entered the proliferative cell cycle and grew in cell number when treatment is terminated.
 \clearpage
 \section*{Methods}
 % \subsubsection*{Model 1}
@@ -261,7 +266,7 @@ We implemented a Support Vector Machine (SVM) with a radial kernel to classify c
 
 \subsection*{Mathematical model of polyploidization}
 
-Hamed et al., formulated a compartmental model describing the distribution of cells across different phases of the cell cycle: \( G_1 \), \( S \), and \( G_2/M \). We extended this model to include a polyploid giant cancer cell (PACC) state, representing endoreplicated cells. Transition rates between consecutive phases are represented by parameters \( k_1 \), \( k_2 \), and \( k \). In the extended model, PACC cells exhibit a reduced likelihood of cytotoxic drug-induced death compared to normal cells. When exposed to Gemcitabine, cells can move between different compartments ($P_i$) via WGD ( $i \geq 0$ indicates number of WGD events). The rate at which cells undergo WGD ($k(i,x)$) or die ($a(i,x)$) depends on the drug concentration $x$ and the current ploidy state $i$. With this we can model the cell cycle, as well as transitions from cell cycle to endocycle as:
+Hamed et al., formulated a compartmental model describing the distribution of cells across different phases of the cell cycle: \( G_1 \), \( S \), and \( G_2/M \). We extended this model to include a polyploid giant cancer cell (PACC) state, representing endoreplicated cells. Transition rates between consecutive phases are represented by parameters \( k_1 \), \( k_2 \), and \( k \). In the extended model, PACC cells exhibit a reduced likelihood of cytotoxic drug-induced death compared to normal cells. When exposed to Gemcitabine, cells can move between different compartments ($P_i$) via WGD ( $i \geq 0$ indicates number of WGD events). The rate at which cells undergo WGD ($k(i,x)$) or die ($a(i,x)$) depends on the drug concentration $x$ and the current ploidy state $i$. With this we can model the cell cycle, as well as transitions from cell cycle to endocycle as: \newline
 
 
 % \begin{equation}\label{cellcycle}
@@ -296,16 +301,21 @@ Hamed et al., formulated a compartmental model describing the distribution of ce
 % \label{parameterTable}
 % \end{table}
 
+\textit{For cycling cells:}
 \begin{align*} \label{cellcycle}
-\text{For cycling cells:} \\
-\frac{dG_{1S}}{dt} &= 2 \cdot f_m \cdot k_2 \cdot G_{2M} - f_s \cdot k_1 \cdot G_{1S} - k_d \cdot C_{\text{gem}} \cdot G_{1S}, \\
-\frac{dG_{2M}}{dt} &= f_s \cdot k_1 \cdot G_{1S} - f_m \cdot k_2 \cdot G_{2M} - k_d \cdot C_{\text{gem}} \cdot G_{2M} - k_{\text{NP}} \cdot G_{2M}, \\[1em]
+\frac{dG_{1S}}{dt} &= (1-\frac{G_{1S}}{K}) \cdot (2 \cdot (1-f_m\cdot C_{dna}) \cdot k_2 \cdot G_{2M} - (1-f_s \cdot C_{dna}) \cdot k_1 \cdot G_{1S} ) - k_{d1} \cdot C_{dna} \cdot G_{1S}, \\
+\frac{dG_{2M}}{dt} &= ((1-f_s \cdot C_{dna}) \cdot k_1 \cdot G_{1S} - (1-f_m \cdot C_{dna}) \cdot k_2 \cdot G_{2M} )- k_{d2} \cdot C_{dna} \cdot G_{2M} - k_{NP} \cdot C_{dna} \cdot G_{2M}, \\[1em]
+% \frac{dG_{2M}}{dt} &= (1-\frac{G_{1S}+G_{2M}}{K}) \cdot  ((1-f_s \cdot C_{dna}) \cdot k_1 \cdot G_{1S} - (1-f_m \cdot C_{dna}) \cdot k_2 \cdot G_{2M} )- k_{d2} \cdot C_{in} \cdot G_{2M} - k_{NP} \cdot C_{in} \cdot G_{2M}, \\[1em]
+\end{align*}
+\begin{align*} 
 \text{For PACCs:} \\
-\frac{dN_P}{dt} &= k_{\text{NP}} \cdot G_{2M} - k_{d2} \cdot N_P, \\
+\frac{dN_P}{dt} &= k_{NP} \cdot C_{dna} \cdot G_{2M} - k_{d3} \cdot C_{dna} \cdot N_P, \\
 \text{For dead cells:} \\
-\frac{dA}{dt} &= k_d \cdot C_{\text{gem}} \cdot (G_{1S} + G_{2M}) + k_{d2} \cdot N_P, \\
-\text{For gemcitabine decay:} \\
-\frac{dC_{\text{gem}}}{dt} &= -k_{\text{decay}} \cdot C_{\text{gem}}.
+\frac{dA}{dt} &= k_{d1} \cdot C_{dna} \cdot G_{1S} + k_{d2} \cdot C_{dna} \cdot G_{2M} + k_{d3} \cdot C_{dna} \cdot N_P, \\
+\text{For gemcitabine buildup and decay:}  \\
+\frac{dC_{in}}{dt} &= -\eta \cdot C_{in} \\
+\frac{dC_{dna}}{dt} &= \eta \cdot C_{in} - k_{decay} \cdot C_{dna}.
+%\frac{dC_{in}}{dt} &= - k_{decay} \cdot C_{in}.
 \end{align*}
 
  \begin{wrapfigure}{r}{0.4\textwidth}
@@ -335,9 +345,12 @@ An overview of all model parameters is given in table \ref{parameterTable}. Abov
 \begin{tabular}{rl}
   \hline
   \hline
-  $C_{gem}$ & Drug concentration \\
+  $K$ & carrying capacity \\
+  $C_{in}$ & intra-cellular drug concentration \\
+  $C_{dna}$ & drug incorporated into DNA \\
+  %$\eta$ & drug uptake rate \\
   $k_{decay}$ & Drug decay rate\\
-  $k_d , k_{d2}$ & apoptosis rates \\
+  $k_{d1} , k_{d2} , k_{d3}$ & apoptosis rates \\
   $k_1$ & G1S to G2M transition rate\\
   $k_2$ & G2M to G1S transition rate \\
   $k_{NP}$ & polyploidization rate \\
