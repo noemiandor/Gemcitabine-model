@@ -15,9 +15,6 @@ singlets <- NormalizeData(
 # Prepare normalized expression matrix for GSVA
 #expr_mat <- as.matrix(GetAssayData(singlets, slot = "data"))
 
-# Retrieve Hallmark gene sets from MSigDB
-hallmark_sets <- msigdbr(species = "Homo sapiens", category = "H")
-gs_list <- split(hallmark_sets$gene_symbol, hallmark_sets$gs_name)
 
 # Convert gene list to annotation dataframe for scGSVA
 annot_df <- data.frame(
@@ -29,6 +26,21 @@ annot_df <- data.frame(
 
 hsko<-readRDS('/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/05_GSVA/hsko.Rds')
 
+# Prepare Hallmark gene sets
+m_df <- msigdbr(species = "Homo sapiens", category = "H")
+# Prepare TERM2GENE as a two-column data.frame for GSEA
+term2gene_df <- m_df[, c("gene_symbol","gs_id","gs_name")]
+term2gene_df<-as.data.frame(term2gene_df)
+colnames(term2gene_df)<-c("GeneID","PATH","Annot")
+
+
+
+hallmark_sets<-hsko
+
+hallmark_sets@annot<-term2gene_df
+hallmark_sets@anntype<-"HALLMARK"
+
+saveRDS(hallmark_sets,file = '/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/05_GSVA/hallmark_sets.Rds')
 
 
 # Load scGSVA and BiocParallel for parallel execution
