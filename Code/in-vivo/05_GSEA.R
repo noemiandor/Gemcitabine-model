@@ -17,10 +17,10 @@ library(tibble)     # rowname utilities
 library(tidyr)      # data reshaping
 
 # 1. Define directories -----------------------------------------------------
-dose_dir       <- "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/03_DiffExp_genes/DE_results"
-gsea_res_dir   <- "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/04_GSEA/GSEA_Results"
-dsea_res_dir   <- "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/04_GSEA/DSEA_Results"
-plot_dir       <- "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/04_GSEA/GSEA_Plots"
+dose_dir       <- "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/03_DiffExp_genes/DE_results"
+gsea_res_dir   <- "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/04_GSEA/GSEA_Results"
+dsea_res_dir   <- "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/04_GSEA/DSEA_Results"
+plot_dir       <- "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/04_GSEA/GSEA_Plots"
 dir.create(gsea_res_dir,   recursive=TRUE, showWarnings=FALSE)
 dir.create(dsea_res_dir,   recursive=TRUE, showWarnings=FALSE)
 dir.create(plot_dir,       recursive=TRUE, showWarnings=FALSE)
@@ -124,7 +124,7 @@ p1<-pheatmap(
 )
 # save heatmap as PDF
 pdf(
-  file   = file.path(gsea_plot_dir, "GSEA_NES_Heatmap.pdf"),
+  file   = file.path(plot_dir, "GSEA_NES_Heatmap.pdf"),
   width  = 8,
   height = 10
 )
@@ -161,7 +161,7 @@ dose_response_plot <- ggplot(plot_df, aes(x = comparison, y = NES, color = pathw
 
 # save dose-response plot as PDF
 ggsave(
-  filename = file.path(gsea_plot_dir, "Dose_Response_GSEA_NES.pdf"),
+  filename = file.path(plot_dir, "Dose_Response_GSEA_NES.pdf"),
   plot     = dose_response_plot,
   width    = 8,
   height   = 5,

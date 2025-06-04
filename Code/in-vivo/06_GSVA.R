@@ -60,6 +60,45 @@ gsva_res <- scgsva(
 
 
 
+gsva_res<-readRDS('/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/05_GSVA/gsva_res_brest_cancer.Rds')
+
+
+Dose<-read.table('/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/data/SUM-159/IDs_Dose.txt',header = T)
+
+
+meta <- singlets@meta.data %>%
+  rownames_to_column("cell") %>%                  # preserve barcode
+  left_join(Dose, by = c("orig.ident" = "IDs")) %>%
+  column_to_rownames("cell")
+
+singlets@meta.data <- meta
+
+# 2. Ensure metadata columns are factors with the desired order
+singlets$sample_type       <- factor(singlets$sample_type,
+                                     levels = c("2N-cellline","4N-cellline","2N-tumor","4N-tumor"))
+singlets$Dose              <- factor(singlets$Dose,
+                                     levels = c("0mg/kg","30mg/kg","120mg/kg"))
+singlets$seurat_clusters   <- factor(singlets$seurat_clusters)
+
+gsva_res@obj@meta.data<-singlets@meta.data
+
+gsva_res_use<-gsva_res
+
+orig_meta <- singlets@meta.data
+empty_mat <- matrix(0, nrow = 0, ncol = nrow(orig_meta))
+colnames(empty_mat) <- rownames(orig_meta) 
+rownames(empty_mat) <- character(0) 
+
+seurat_meta_only <- CreateSeuratObject(
+  counts = empty_mat,
+  meta.data = orig_meta,
+  project = "MetaOnly"
+)
+
+gsva_res_use@obj<-seurat_meta_only
+
+saveRDS(gsva_res_use,file = '/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/05_GSVA/gsva_res_brest_cancer_use.Rds')
+
 res_pathway<-findPathway(gsva_res,group = "Subpopulation")
 res_pathway_sig<-sigPathway(gsva_res,group = "Subpopulation")
 
@@ -86,4 +125,31 @@ singlets <- AddMetaData(singlets, metadata = gsva_df)
 # Save GSVA results and updated Seurat object
 saveRDS(gsva_res, file = "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/05_GSVA/gsva_results.Rds")
 saveRDS(singlets, file = "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/05_GSVA/singlets_with_gsva.Rds")
+
+
+
+
+
+####################################### hallmark
+
+
+
+
+
+
+gsva_res_HM<-readRDS('/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/05_GSVA/gsva_res_brest_cancer_hallmarks.Rds')
+
+
+gsva_res_HM@obj@meta.data<-singlets@meta.data
+
+gsva_res_HM_use<-gsva_res_HM
+
+gsva_res_HM_use@obj<-seurat_meta_only
+
+saveRDS(gsva_res_HM_use,file = '/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/05_GSVA/gsva_res_brest_cancer_hallmarks_use.Rds')
+
+
+
+
+
 

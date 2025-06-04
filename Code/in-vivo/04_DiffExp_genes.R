@@ -11,11 +11,11 @@ library(EnhancedVolcano)
 library(ggplot2)
 library(tibble)
 
-setwd('/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/03_DiffExp_genes')
+setwd('/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/03_DiffExp_genes')
 # 2. Read in Seurat object
-singlets<-readRDS('/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/singlets.Rds')
+singlets<-readRDS('/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/02_doublet‐removal/singlets.Rds')
 # 3. Read in dose info
-Dose<-read.table('/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/data/SUM-159/IDs_Dose.txt',header = T)
+Dose<-read.table('/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/data/SUM-159/IDs_Dose.txt',header = T)
 
 meta <- singlets@meta.data %>%
   rownames_to_column("cell") %>%                  # preserve barcode
@@ -32,8 +32,8 @@ singlets$Dose              <- factor(singlets$Dose,
 singlets$seurat_clusters   <- factor(singlets$seurat_clusters)
 
 # output dirs
-out_dir_de   <- "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/03_DiffExp_genes/DE_Results"
-out_dir_pdf  <- "/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/03_DiffExp_genes/DE_Plots"
+out_dir_de   <- "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/03_DiffExp_genes/DE_Results"
+out_dir_pdf  <- "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/ScRNA_Seq/03_DiffExp_genes/DE_Plots"
 dir.create(out_dir_de,   recursive = TRUE, showWarnings = FALSE)
 dir.create(out_dir_pdf,  recursive = TRUE, showWarnings = FALSE)
 # ───────────────────────────────────────────────────────────────────────────
@@ -339,3 +339,5 @@ DimPlot(
   group.by  = "seurat_clusters",
   pt.size   = 0.5
 ) + ggtitle("UMAP colored by Cluster")
+
+
