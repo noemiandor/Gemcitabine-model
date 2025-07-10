@@ -280,9 +280,9 @@ run_pseudobulk <- function(df, group_col, levels_vec, prefix) {
     res[[paste0("Pvalue_", ctr)]]  <- fit$p.value[, ctr]
   }
   res <- res %>%
-    rename_with(~ .x %>% 
-                  gsub("X", "", .) %>%     
-                  gsub("\\.", "/", .)     
+    rename_with(~ .x %>%
+                  gsub("X", "", .) %>%
+                  gsub("\\.", "/", .)
     )
 
   # 8) Save full and significant
@@ -340,12 +340,53 @@ dir.create(bootstrap_dir, showWarnings = FALSE)
 library(parallel)
 ncores <- max(1, parallel::detectCores() - 1)
 
-# Define bootstrap scenarios matching pseudobulk prefixes
+# Define bootstrap scenarios to mirror mixed-effects scenarios
 bs_scenarios <- list(
-  list(prefix = "2N_cellline_vs_tumor", df = meta_data_fixed %>% filter(sample_type %in% c("2N.cellline","2N.tumor")), group_col = "sample_type", levels = c("2N.cellline","2N.tumor")),
-  list(prefix = "4N_cellline_vs_tumor", df = meta_data_fixed %>% filter(sample_type %in% c("4N.cellline","4N.tumor")), group_col = "sample_type", levels = c("4N.cellline","4N.tumor")),
-  list(prefix = "2N_tumor_dose",        df = meta_data_fixed %>% filter(sample_type == "2N.tumor"),                              group_col = "Dose",        levels = c("0mg/kg","30mg/kg","120mg/kg")),
-  list(prefix = "4N_tumor_dose",        df = meta_data_fixed %>% filter(sample_type == "4N.tumor"),                              group_col = "Dose",        levels = c("0mg/kg","30mg/kg","120mg/kg"))
+  # 1) 2N cellline vs 4N cellline
+  list(prefix = "type_2N_vs_4N_cellline",
+       df = meta_data_fixed %>% filter(sample_type %in% c("2N.cellline","4N.cellline")),
+       group_col = "sample_type",
+       levels = c("2N.cellline","4N.cellline")),
+  # 2) 2N tumor vs 4N tumor
+  list(prefix = "type_2N_vs_4N_tumor",
+       df = meta_data_fixed %>% filter(sample_type %in% c("2N.tumor","4N.tumor")),
+       group_col = "sample_type",
+       levels = c("2N.tumor","4N.tumor")),
+  # 3) sample_group 2N vs 4N
+  list(prefix = "sample_group_2N_vs_4N",
+       df = { meta_data_fixed$sample_group <- factor(meta_data_fixed$sample_group, levels=c("2N","4N")); meta_data_fixed },
+       group_col = "sample_group",
+       levels = c("2N","4N")),
+  # 4) Dose 0mg vs others
+  list(prefix = "dose_0_vs_others",
+       df = meta_data_fixed,
+       group_col = "Dose",
+       levels = c("0mg/kg","30mg/kg","120mg/kg")),
+  # 5) Dose 30 vs 120
+  list(prefix = "dose_30_vs_120",
+       df = meta_data_fixed %>% filter(Dose %in% c("30mg/kg","120mg/kg")),
+       group_col = "Dose",
+       levels = c("30mg/kg","120mg/kg")),
+  # 6) 2N-tumor Dose 0 vs others
+  list(prefix = "2T_dose_0_vs_others",
+       df = meta_data_fixed %>% filter(sample_type=="2N.tumor"),
+       group_col = "Dose",
+       levels = c("0mg/kg","30mg/kg","120mg/kg")),
+  # 7) 2N-tumor Dose 30 vs 120
+  list(prefix = "2T_dose_30_vs_120",
+       df = meta_data_fixed %>% filter(sample_type=="2N.tumor", Dose %in% c("30mg/kg","120mg/kg")),
+       group_col = "Dose",
+       levels = c("30mg/kg","120mg/kg")),
+  # 8) 4N-tumor Dose 0 vs others
+  list(prefix = "4T_dose_0_vs_others",
+       df = meta_data_fixed %>% filter(sample_type=="4N.tumor"),
+       group_col = "Dose",
+       levels = c("0mg/kg","30mg/kg","120mg/kg")),
+  # 9) 4N-tumor Dose 30 vs 120
+  list(prefix = "4T_dose_30_vs_120",
+       df = meta_data_fixed %>% filter(sample_type=="4N.tumor", Dose %in% c("30mg/kg","120mg/kg")),
+       group_col = "Dose",
+       levels = c("30mg/kg","120mg/kg"))
 )
 
 # Run bootstrap for each scenario
@@ -356,19 +397,24 @@ for (sc in bs_scenarios) {
   # Initialize counts storage
   pathway_counts <- setNames(rep(0, length(gsva_cols)), gsva_cols)
 
-  # Run bootstrap iterations in parallel, each returning a logical vector of significant flags
+  # Run bootstrap iterations in parallel, each returning an integer vector of significant flags with error handling
   sig_mat <- parallel::mclapply(
     seq_len(1000),
     function(i) {
-      # Sample 1000 cells per group (with replacement if needed)
-      samp_cells <- lapply(cells_by_group, function(cg) sample(cg, size = min(1000, length(cg)), replace = length(cg) < 1000))
-      # Build sampled dataframe
-      df_samp <- df[unlist(samp_cells), ]
-      # Test each pathway
-      sapply(gsva_cols, function(pw) {
-        g1 <- df_samp[samp_cells[[1]], pw]
-        g2 <- df_samp[samp_cells[[2]], pw]
-        wilcox.test(g1, g2)$p.value < 0.05
+      tryCatch({
+        # Sample 1000 cells per group (with replacement if needed)
+        samp_cells <- lapply(cells_by_group, function(cg) sample(cg, size = min(1000, length(cg)), replace = length(cg) < 1000))
+        # Build sampled dataframe
+        df_samp <- df[unlist(samp_cells), ]
+        # Test each pathway, return integer 1/0
+        vapply(gsva_cols, function(pw) {
+          g1 <- df_samp[samp_cells[[1]], pw]
+          g2 <- df_samp[samp_cells[[2]], pw]
+          as.integer(wilcox.test(g1, g2)$p.value < 0.05)
+        }, integer(1))
+      }, error = function(e) {
+        # On error, return all zeros with correct pathway names
+        setNames(integer(length(gsva_cols)), gsva_cols)
       })
     },
     mc.cores = ncores
