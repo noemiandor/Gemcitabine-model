@@ -69,31 +69,12 @@ rownames(dt)=dt$Sequencing.IDs
 # setwd("/mnt/ix1/Shared_Folders/lab_crd/HighPloidy_CostBenefits/data/BreastCancerOrthotopicModels/SUM-159")
 setwd("~/Projects/PMO/HighPloidy_DoubleEdgedSword/data/BreastCancerOrthotopicModels/SUM-159")
 
-#############################
-#### scRNA-seq results ######
-f=list.files("A03_Numbat")#, full.names = T)#, pattern = "tsv", recursive = T)
-f=grep("15",f,invert = T, value = T)
-f=grep("Cell-Culture",f,invert = T, value = T)
-f=grep("_Numbat",f,invert = T, value = T)
-cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f, path2karyo="./")
-cn_B=cn; ## make a copy
-
-numbatRun="C4N_chr11"
-origin=unique(cn[[numbatRun]]$cells)
-col =RColorBrewer::brewer.pal(length(origin),"Paired")
-names(col) = origin
-hm=heatmap.2(cn[[numbatRun]]$cn, Colv = NULL, trace = "n", RowSideColors = col[cn[[numbatRun]]$cells])
-legend("topright",names(col),fill = col,cex=0.5)
-print(dt[origin,1:8])
-## ploidy
-segweight=parseLOCUS(colnames(cn[[numbatRun]]$cn))[,"seglength"]
-segweight = segweight/sum(segweight)
-ploidy = apply(sweep(2*cn[[numbatRun]]$cn,2,segweight,"*"),1,sum)
-vioplot::vioplot(ploidy~cn[[numbatRun]]$cells,las=2,horizontal=T, ylab="")
 
 #############################
 #### Karyotyping results ####
 f = list.files("B02_Karyotyping/", pattern = ".csv", recursive = T, full.names = T)
+f=grep("Labcorp",f,invert = T,value = T)
+f=grep("parental",f,invert = T,value = T)
 kn=sapply(f, read.csv, simplify = F)
 kn=do.call(rbind,kn)
 kn$Images.Name=paste0(kn$Dataset.Name,"_",kn$Images.Name)
@@ -129,17 +110,112 @@ for(s in names(samples)){
 ploidy =sapply(samples, function(x) x$ploidy, simplify = F)
 whole_chr_karyo =do.call(rbind,sapply(samples, function(x) x$karyo, simplify = F))
 write.table(whole_chr_karyo, file="~/Downloads/whole_chr_karyo.txt", sep="\t", quote=F)
-par(mai=c(0.5,2,0.5,0.5)); boxplot(ploidy[-c(1:2)],las=2, horizontal = T)
+par(mai=c(0.5,2,0.5,0.5)); boxplot(ploidy,las=2, horizontal = T)
+N2_whole_chr_karyo = whole_chr_karyo[grep("N2",rownames(whole_chr_karyo)),]
+N4_whole_chr_karyo = whole_chr_karyo[grep("N4",rownames(whole_chr_karyo)),]
 
-###############################
-#### Karyotyping arm level ####
-f = list.files("B02_Karyotyping/", pattern = "ArmLevel.xlsx", recursive = T, full.names = T)
-kan=sapply(f, function(x) read.xlsx(x,sheetIndex =1, check.names=F), simplify = F)
-whole_chrarm_karyo=do.call(rbind,kan)
-# whole_chrarm_karyo = read.xlsx("B02_Karyotyping/SUM159-4N-parental/SUM159_4N_Karyotyping_ArmLevel.xlsx",sheetIndex =1, check.names=F);
-whole_chrarm_karyo=whole_chrarm_karyo[apply(!is.na(whole_chrarm_karyo),1,all),]
-ii = which(!colnames(whole_chrarm_karyo) %in% c("Cell","MARKER"))
-heatmap.2(as.matrix(whole_chrarm_karyo[,ii]),trace='n')
+# ###############################
+# #### Karyotyping arm level ####
+# f = list.files("B02_Karyotyping/", pattern = "ArmLevel.xlsx", recursive = T, full.names = T)
+# kan=sapply(f, function(x) read.xlsx(x,sheetIndex =1, check.names=F), simplify = F)
+# whole_chrarm_karyo=do.call(rbind,kan)
+# # whole_chrarm_karyo = read.xlsx("B02_Karyotyping/SUM159-4N-parental/SUM159_4N_Karyotyping_ArmLevel.xlsx",sheetIndex =1, check.names=F);
+# whole_chrarm_karyo=whole_chrarm_karyo[apply(!is.na(whole_chrarm_karyo),1,all),]
+# ii = which(!colnames(whole_chrarm_karyo) %in% c("Cell","MARKER"))
+# heatmap.2(as.matrix(whole_chrarm_karyo[,ii]),trace='n')
+
+
+#############################
+#### scRNA-seq results ######
+f=list.files("A03_Numbat")#, full.names = T)#, pattern = "tsv", recursive = T)
+f=grep("15",f,invert = T, value = T)
+f=grep("Cell-Culture",f,invert = T, value = T)
+f=grep("_Numbat",f,invert = T, value = T)
+f_2N=grep("C2N",f,invert = F, value = T)
+cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f_2N, path2karyo="./", gBandedKaryo2align=N2_whole_chr_karyo, scRNAseqCells2align="2N-Cell-Culture")
+cn_B=cn; ## make a copy
+f_4N=grep("C4N_chr18",f,invert = F, value = T)
+f_4N=grep("C4N_chr11",f_4N,invert = T, value = T)
+cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f_4N, path2karyo="./", gBandedKaryo2align=N4_whole_chr_karyo, scRNAseqCells2align="4N-Cell-Culture", lambda_conflict=0)
+cn_B[names(cn)] = cn
+
+numbatRun="C4N_chr18"
+# numbatRun="C2N_chr2"
+origin=unique(cn[[numbatRun]]$cells)
+col =RColorBrewer::brewer.pal(length(origin),"Paired")
+names(col) = origin
+hm=heatmap.2(cn[[numbatRun]]$cn, Colv = NULL, trace = "n", RowSideColors = col[cn[[numbatRun]]$cells], hclustfun = function(x) hclust(x, method = "ward.D"), margins = c(15,5), col=(rainbow(8))[1:6])
+legend("topright",names(col),fill = col,cex=0.75)
+print(dt[origin,1:8])
+## ploidy
+tmp=colnames(cn[[numbatRun]]$cn)
+segweight=parseLOCUS(sapply(strsplit(tmp,"_"),"[[",1))[,"seglength"]
+segweight = segweight/sum(segweight)
+ploidy = apply(sweep(cn[[numbatRun]]$cn,2,segweight,"*"),1,sum)
+vioplot::vioplot(ploidy~cn[[numbatRun]]$cells,las=2,horizontal=F, xlab="")
+vioplot::vioplot(ploidy~as.numeric(cn[[numbatRun]]$cells=="4N-Cell-Culture"),las=2,horizontal=F, xlab="")
+
+
+# ## LIAYSON ##
+# library(Seurat)
+# library(liayson)
+# library(matlab);
+# library(RColorBrewer)
+# HOST="https://may2021.archive.ensembl.org"
+#   
+# anno=read.table("A03_Numbat/C4N_chr6/C4N_chr6.cell4numbat.anno.txt", header = T);
+# expression_data <- Read10X(data.dir = "A02_cellRanger/4N-Cell-Culture-Count-HM/outs/filtered_feature_bc_matrix")
+# cells <- anno$cell[anno$sample=="4N-Cell-Culture"]
+# object1 <- CreateSeuratObject(counts = expression_data, project = "MyProject", min.cells = 3, min.features = 200)
+# object1 = object1[,cells]
+# 
+# anno=read.table("A03_Numbat/C2N_chr2/C2N_chr2.cell4numbat.anno.txt", header = T);
+# expression_data <- Read10X(data.dir = "A02_cellRanger/2N-Cell-Culture-Count-HM/outs/filtered_feature_bc_matrix")
+# cells <- anno$cell[anno$sample=="2N-Cell-Culture"]
+# object2 <- CreateSeuratObject(counts = expression_data, project = "MyProject", min.cells = 3, min.features = 200)
+# object2 = object2[,cells]
+# 
+# # Merge the two objects: We add cell IDs to make sure every cell name is unique
+# combined_object <- merge(x = object1, y = object2, add.cell.ids = c("4N", "2N"), project = "CombinedAnalysis")
+# combined_object[["RNA"]] <- JoinLayers(combined_object[["RNA"]])
+# print(combined_object)
+# 
+# ## scRNAseq derived population- average copy number assigned to each segment
+# # ii=names(cn[[numbatRun]]$cells) %in% c(colnames(object1), colnames(object2))
+# # segments$CN_Estimate=apply(cn[[numbatRun]]$cn[ii,],2,mean) * 1.25
+# 
+# ## Karyo derived population- average copy number assigned to each segment
+# n2_frac_karyo = length(grep("N2",rownames(whole_chr_karyo)))/nrow(whole_chr_karyo);
+# n2_frac_seq = ncol(object2)/(ncol(object2) + ncol(object1))
+# apply(whole_chr_karyo,2,mean)
+# ## Align segments karyo vs scRNAseq
+# la=alignCNmatrices(whole_chr_karyo, cn[[numbatRun]], arm_level_karyo = F)
+# segments=as.data.frame(parseLOCUS(colnames(la$cn_scRNAseq)))
+# rownames(segments)=paste0(segments$chr,":",segments$startpos,"-",segments$endpos)
+# segments$CN_Estimate=apply(la$cn_karyo,2,mean, na.rm=T)
+# plot(segments$CN_Estimate)
+# lines(segments$CN_Estimate)
+# 
+# ## Now run Liayson
+# epg = as.matrix(combined_object@assays$RNA$counts)
+# rownames(epg) = gsub("GRCh38-","",rownames(epg))
+# epg=epg[grep("GRCm39", rownames(epg), invert = T),]; ## exclude mouse genes
+# eps = aggregateSegmentExpression(epg,as.matrix(segments),host=HOST,mingps = 20,GRCh=38)$eps
+# gpc=apply(epg>0,2,sum); 
+# names(gpc)=colnames(epg)
+# cps=segmentExpression2CopyNumber(eps,gpc,cn=as.matrix(segments)[rownames(eps),"CN_Estimate"],seed = 0.75, nCores = 2, stdOUT="~/Downloads/log.liayson")
+# cps=cps[!apply(is.na(cps),1,all),]
+# ## Plot heatmap
+# origin=sapply(strsplit(colnames(cps),"_"),"[[",1)
+# col =RColorBrewer::brewer.pal(2,"Paired")[1:2]
+# names(col) = unique(origin)
+# hm=heatmap.2((cps),trace = "n", ColSideColors = col[origin], hclustfun = function(x) hclust(x, method = "ward.D2"))
+# legend("topright",names(col),fill = col,cex=1.25)
+# 
+# ## Plot
+# ploidy=apply(cps,2,sum)
+# vioplot::vioplot(ploidy~origin,log="")
+
 
 
 #######################################

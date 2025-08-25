@@ -60,7 +60,7 @@ ggsurvplot(
   ylab = "Survival Probability",
   title = "Kaplan-Meier Survival Curve by Group",
   legend.title = "Group",
-  legend.labs = c("Group A", "Group B") # Rename legend labels
+  legend.labs = c("2N", "4N") # Rename legend labels
 )
 
 

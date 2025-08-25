@@ -70,14 +70,14 @@ getCNVmatrix<-function(path2jointtsvfile, iteration=NA){
   ## The MLE for fold-change in single cells is available in exp_post$phi_mle.
   # see also: https://github.com/kharchenkolab/numbat/issues/147
   ## log2(phi_mle) in exp_post is approximately the copy changes according to  https://github.com/kharchenkolab/numbat/issues/147
-  joint_post<-joint_post %>% left_join(exp_post %>% select(cell,seg,phi_mle),by=c("cell"="cell","seg"="seg")) %>%
+  joint_post<-joint_post %>% left_join(exp_post %>% dplyr::select(cell,seg,phi_mle),by=c("cell"="cell","seg"="seg")) %>%
     mutate(cnv_integer=round(log2(phi_mle)))
   joint_post$cnv_integer[which(joint_post$p_cnv<0.9)]<-0
   
-  cnv_matrix<-joint_post %>% select(cell,region,cnv_Final) %>%
+  cnv_matrix<-joint_post %>% dplyr::select(cell,region,cnv_Final) %>%
     tidyr::pivot_wider(names_from = region, values_from=cnv_Final) 
   
-  cnv_matrix_integer<-joint_post %>% select(cell,region,cnv_integer) %>%
+  cnv_matrix_integer<-joint_post %>% dplyr::select(cell,region,cnv_integer) %>%
     tidyr::pivot_wider(names_from = region, values_from=cnv_integer)  
   
   return(list(cnv_matrix = cnv_matrix, cnv_matrix_integer=cnv_matrix_integer))
@@ -87,7 +87,7 @@ getCNVmatrix<-function(path2jointtsvfile, iteration=NA){
 # DATASETID="Melanoma_GSE174401"
 # DATASETID="HNSC_GSE181919"
 ## Returns Numbat copy number calls in a format that can be used as input to ALFA-K
-NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/4482173/Documents/Project/GBM/data/"){
+NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/4482173/Documents/Project/GBM/data/", gBandedKaryo2align = NULL, scRNAseqCells2align = NULL, lambda_conflict=0.25){
   useLogFC=F
   
   ## patient cohort
@@ -120,13 +120,14 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
     la_unique <- la_unique[order(la_unique$Stage),]
     
     ## Numbat results
-    la=getCNVmatrix(paste0(path2numbat,patient))
-    if(!useLogFC){
-      la=as.data.frame(la$cnv_matrix)
+    laa=getCNVmatrix(paste0(path2numbat,patient))
+    if(!useLogFC || !is.null(gBandedKaryo2align)){
+      la=as.data.frame(laa$cnv_matrix)
     }else{
-      la=as.data.frame(la$cnv_matrix_integer)
+      la=as.data.frame(laa$cnv_matrix_integer)
     }
     rownames(la)=la$cell
+    sample=sample[rownames(la)]
     
     if(ncol(la)==2){
       la1<-as.data.frame(matrix(data = NA,nrow = nrow(la),ncol = 1))
@@ -142,7 +143,7 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
     
     
     ## convert states to integer CNs:
-    if(!useLogFC){
+    if(!useLogFC && is.null(gBandedKaryo2align)){
       #NA/empty values: unchanged copy number (here we include missing values and "loh" encoding in the original tsv files)
       #1: single copy gain (encoded as ‘amp’ in the original tsv files)
       #-1: single copy loss (encoded as ‘del’ in the original tsv files)
@@ -151,19 +152,20 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
       cn[la=="amp"]=1
       cn[la=="bamp"]=2
       cn[la=="del"]=-1
+      
+      
+      
+      
+      ## center to ploidy
+      cn=cn+ploidies[patient];
+      cn[is.na(cn)]=ploidies[patient];
+      cn=as.matrix(cn)
+      # p<-gplots::heatmap.2(cn,trace='n',cexCol = 0.4,symbreaks = F,symkey=F)
+      # pdf(paste0(path2figures,,"/",patient,"ploidy_center.pdf"),width = 5, height= 5)
+      # on.exit(dev.off(), add = TRUE)
+      # print(p)
+      # dev.off()
     }
-    
-    
-    
-    ## center to ploidy
-    cn=cn+ploidies[patient];
-    cn[is.na(cn)]=ploidies[patient];
-    cn=as.matrix(cn)
-    # p<-gplots::heatmap.2(cn,trace='n',cexCol = 0.4,symbreaks = F,symkey=F)
-    # pdf(paste0(path2figures,,"/",patient,"ploidy_center.pdf"),width = 5, height= 5)
-    # on.exit(dev.off(), add = TRUE)
-    # print(p)
-    # dev.off()
     
     anno=parseLOCUS(colnames(cn))
     anno=addChrAnnotation(anno)
@@ -182,11 +184,15 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
     # chrsegments = do.call(rbind,chrsegments)
     # cn=cn[,rownames(chrsegments)]
     # colnames(cn)=chrsegments$chr
-
+    
     ## all other chromosomes have copy number equal to ploidy/2 for all cells (assuming signal is not there because of copy number loss)
     otherchr = setdiff(rownames(anno),colnames(cn))
-    cn_ = matrix(ploidies[patient]/2,nrow(cn),length(otherchr))
-    colnames(cn_)=otherchr
+    if(is.null(gBandedKaryo2align)){
+      cn_ = matrix(ploidies[patient]/2,nrow(cn),length(otherchr))
+    }else{
+      cn_ = matrix("neu",nrow(cn),length(otherchr))
+    }
+    colnames(cn_) <- otherchr
     cn = cbind(cn,cn_)
     # pdf(paste0(path2figures,matlab::filesep,patient,".pdf"))
     # on.exit(dev.off(), add = TRUE)
@@ -194,12 +200,40 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
     # dev.off()
     # graphics.off()
     
+    
+    
     ## Parse cell names for matching to CLONEID DB entries
     ii = grep("2N",sample)
     ii = setdiff(ii, grep("Cell-Culture",sample))
     sample[ii] = paste0(sample[ii],"-HM")
     
-    outputs[[patient]] = list(cn=cn, cells=sample, anno=anno)
+    
+    ## align to karyo if exists
+    theout=list(cn=cn, cells=sample, anno=anno)
+    if(!is.null(gBandedKaryo2align)){
+      jnt=alignCNmatrices(gBandedKaryo2align, theout, arm_level_karyo = F)
+      ii2align=names(theout$cells)[theout$cells==scRNAseqCells2align]
+      
+      ## identify rules of mapping neu, amp, del, loh, etc to absolute copy number bu aligning to copy number distribution from karyotyping: 
+      alg=map_scRNA_to_absolute_cn(jnt$cn_scRNAseq[ii2align,], jnt$cn_karyo, karyo_orig =  gBandedKaryo2align, amp_max_increase = 3, lambda_conflict = lambda_conflict)
+      # alg=map_scRNA_to_absolute_cn(jnt$cn_scRNAseq[ii2align,], jnt$cn_karyo, karyo_orig =  gBandedKaryo2align, amp_max_increase = 3, lambda_conflict = lambda_conflict)
+      tmp=rbind(alg$cn_matrix[sample(ii2align,255),],jnt$cn_karyo)
+      # hm=heatmap.2(t(tmp), Rowv = NULL, trace = "n")
+      
+      # apply rules to all cells:
+      alg$fixed <- apply_cn_rules_to_scRNA(jnt$cn_scRNAseq, alg$rules)
+      # tmp=rbind(alg$fixed[sample(rownames(alg$fixed),255),],jnt$cn_karyo)
+      tmp=rbind(alg$fixed[sample(ii2align,255),],jnt$cn_karyo)
+      col=rep("blue",nrow(tmp))
+      col[rownames(tmp) %in% rownames(jnt$cn_karyo)] = "red"
+      hm=heatmap.2(tmp, Colv = NULL, trace = "n", RowSideColors = col, hclustfun = function(x) hclust(x, method = "ward.D"), margins = c(15,5))
+      
+      theout$alignment=alg
+      
+      theout$cn=alg$fixed
+    }
+    
+    outputs[[patient]] = theout
     
     # ## Read expression data:
     # la=readRDS(paste0(path2numbat,patient,"/",patient,".count.rds"))
@@ -396,13 +430,13 @@ addChrAnnotation <- function(y_mat){
 }
 
 
-alignCNmatrices <- function(cn_karyo, scRNAseq){
+alignCNmatrices <- function(cn_karyo, scRNAseq, arm_level_karyo=T){
   
   a=colnames(cn_karyo)
   b=scRNAseq$anno
   B = scRNAseq$cn
   A = cn_karyo
-
+  
   cat("Original Matrix A dimensions:", dim(A), "\n")
   cat("Original Matrix A colnames:", colnames(A), "\n\n")
   cat("Original Matrix B dimensions:", dim(B), "\n")
@@ -442,6 +476,7 @@ alignCNmatrices <- function(cn_karyo, scRNAseq){
       # Check if corresponding p/q arms exist in the low-res annotation 'a'
       p_exists_in_a <- original_a_col_p %in% a
       q_exists_in_a <- original_a_col_q %in% a
+      whole_exists_in_a <- chr_char %in% a
       
       # If p arm exists, create a target column for it
       if (p_exists_in_a) {
@@ -461,8 +496,17 @@ alignCNmatrices <- function(cn_karyo, scRNAseq){
           original_b_col = b_segment_name # Maps back to the 'whole' column in B
         )
       }
+      # If whole chr exists, create a target column for it
+      if (whole_exists_in_a) {
+        target_wc_name <- paste0(b_segment_name, "_whole")
+        map_list[[length(map_list) + 1]] <- data.table(
+          target_col = target_wc_name,
+          original_a_col = chr_char,
+          original_b_col = b_segment_name # Maps back to the 'whole' column in B
+        )
+      }
       # If neither exists (unlikely for standard chromosomes), skip? Or log warning.
-      if (!p_exists_in_a && !q_exists_in_a) {
+      if (!p_exists_in_a && !q_exists_in_a && !whole_exists_in_a) {
         warning(paste("Segment", b_segment_name, "is 'whole', but neither",
                       original_a_col_p, "nor", original_a_col_q, "found in 'a'. Skipping."))
       }
@@ -496,10 +540,14 @@ alignCNmatrices <- function(cn_karyo, scRNAseq){
     }
   }
   
+  if(!arm_level_karyo){
+    mapping_table$original_a_col = gsub("q","",gsub("p","",mapping_table$original_a_col))
+  }
+  
   # Populate other columns using the mapping table
   # Iterate through unique low-resolution columns needed from A
   a_cols_needed <- unique(mapping_table$original_a_col)
-  for (a_col in a_cols_needed) {
+  for (a_col in unique(a_cols_needed)) {
     # Find all target columns that map to this original A column
     target_cols_for_a <- mapping_table[original_a_col == a_col, target_col]
     
@@ -577,4 +625,484 @@ alignCNmatrices <- function(cn_karyo, scRNAseq){
   # B <- B_new
   # rm(A_new, B_new, mapping_table) # Clean up intermediate objects
   return(list(cn_karyo=A_new, cn_scRNAseq=B_new))
+}
+
+
+
+# ------------------------------------------------------------------------------
+# apply_cn_rules_to_scRNA
+# ------------------------------------------------------------------------------
+# Inputs:
+#   scRNA_df_new : data.frame/matrix [cells x segments] with values in
+#                  {"neu","loh","amp","del","bamp","bdel"} (case-insensitive; extra states ignored)
+#   rules_df     : data.frame with rownames = segment IDs (matching column names in scRNA_df_new),
+#                  columns = c("neu","loh","amp","del","bamp","bdel"), integer CNs per segment
+#
+# Returns:
+#   Integer matrix [cells x segments_in_overlap] with absolute CN per cell and segment.
+#   Segments without rules are dropped (or kept as NA if keep_all_cols=TRUE).
+#
+# Options:
+#   keep_all_cols : if TRUE, keep all columns from scRNA_df_new; columns without rules become NA
+#   verbose       : print a brief summary of how many segments were mapped
+# ------------------------------------------------------------------------------
+apply_cn_rules_to_scRNA <- function(scRNA_df_new,
+                                    rules_df,
+                                    keep_all_cols = FALSE,
+                                    verbose = TRUE) {
+  # coerce inputs
+  if (is.matrix(scRNA_df_new)) scRNA_df_new <- as.data.frame(scRNA_df_new, stringsAsFactors = FALSE)
+  stopifnot(is.data.frame(scRNA_df_new), is.data.frame(rules_df))
+  
+  # required rule columns (any missing will be ignored safely)
+  rule_states <- c("neu","loh","amp","del","bamp","bdel")
+  
+  # align segments
+  segs_rules <- rownames(rules_df)
+  if (is.null(segs_rules)) stop("rules_df must have rownames = segment IDs.")
+  segs_new   <- colnames(scRNA_df_new)
+  if (is.null(segs_new)) stop("scRNA_df_new must have column names = segment IDs.")
+  
+  overlap <- intersect(segs_new, segs_rules)
+  
+  if (length(overlap) == 0L) {
+    stop("No overlapping segments between scRNA_df_new columns and rules_df rownames.")
+  }
+  
+  # decide output columns
+  out_cols <- if (keep_all_cols) segs_new else overlap
+  
+  # helper: standardize state labels (lower-case, trim)
+  norm_states <- function(x) {
+    x <- as.character(x)
+    x <- trimws(x)
+    tolower(x)
+  }
+  
+  # prepare output matrix
+  out <- matrix(NA_integer_, nrow = nrow(scRNA_df_new), ncol = length(out_cols),
+                dimnames = list(rownames(scRNA_df_new), out_cols))
+  
+  # map only for segments with rules; others remain NA (if keep_all_cols=TRUE)
+  for (seg in overlap) {
+    # rule row -> named integer vector
+    rr <- as.integer(rules_df[seg, intersect(colnames(rules_df), rule_states), drop = TRUE])
+    names(rr) <- intersect(colnames(rules_df), rule_states)
+    
+    # column of states
+    v <- norm_states(scRNA_df_new[[seg]])
+    
+    # vectorized mapping
+    mapped <- rep(NA_integer_, length(v))
+    for (st in names(rr)) {
+      mapped[v == st] <- rr[[st]]
+    }
+    # write to output (respecting potential keep_all_cols)
+    out[, seg] <- mapped
+  }
+  
+  if (verbose) {
+    cat(sprintf("[apply_cn_rules_to_scRNA] mapped %d/%d segments (%.1f%% overlap).\n",
+                length(overlap), length(segs_new), 100 * length(overlap) / length(segs_new)))
+    if (keep_all_cols && length(setdiff(segs_new, overlap)) > 0) {
+      cat(sprintf("  %d segments without rules kept as NA (set keep_all_cols=FALSE to drop them).\n",
+                  length(setdiff(segs_new, overlap))))
+    }
+  }
+  out
+}
+
+
+# ------------------------------------------------------------------------------
+# map_scRNA_to_absolute_cn  (supports neu, loh, amp, del, bamp, bdel)
+# ------------------------------------------------------------------------------
+# Inputs:
+#   scRNA_df : data.frame/matrix [cells x segments], values in
+#              {"neu","loh","amp","del","bamp","bdel"} (strings; some may be absent)
+#   karyo_df : data.frame/matrix [metaphases x segments] with integer copy numbers
+#
+# Tunables:
+#   amp_max_increase: max steps above CN0 allowed for "amp" (CN0+1..CN0+K)
+#   lambda_conflict : weight for conflict penalty (small; enforces sign rules)
+#   allow_loh_minus2_if_supported: allow LOH=CN0-2 only if karyotype has mass there
+#   allow_bamp_plus2_if_supported: allow bamp=CN0+2 only if karyotype has mass there
+#   allow_bdel_minus2_if_supported: allow bdel=CN0-2 only if karyotype has mass there
+#
+# Returns list:
+#   $CN0         : global neutral CN
+#   $rules       : data.frame [segments x {neu,loh,amp,del,bamp,bdel}] integer mapping
+#   $cn_matrix   : matrix [cells x segments] with assigned absolute CNs
+#   $diagnostics : data.frame with distances/penalties per segment
+# ------------------------------------------------------------------------------
+map_scRNA_to_absolute_cn <- function(scRNA_df,
+                                     karyo_df,
+                                     karyo_orig,
+                                     amp_max_increase = 3,
+                                     lambda_conflict = 0.25,
+                                     beta_nonneutral = 0,
+                                     allow_loh_minus2_if_supported = TRUE,
+                                     allow_bamp_plus2_if_supported = TRUE,
+                                     allow_bdel_minus2_if_supported = TRUE,
+                                     # existing knobs...
+                                     min_karyo_cells = 5,
+                                     tau_karyo_neutral = 0.85,
+                                     tau_karyo_nonneutral_min = 0.10,
+                                     r_scRNA_sign_dominance = 2.0,
+                                     tau_karyo_side_dominance = 0.60,
+                                     enforce_sign_constraints = TRUE,
+                                     consensus_correct_uninformed = TRUE,
+                                     # NEW per-state informativity knobs
+                                     tau_karyo_side_min = 0.15,
+                                     min_scRNA_state_mass = 0.01) {
+  
+  ## ---- helpers -------------------------------------------------------------
+  
+  to_df <- function(x) {
+    if (is.matrix(x)) x <- as.data.frame(x, stringsAsFactors = FALSE)
+    x
+  }
+  
+  ssum <- function(x) { x <- as.numeric(x); if (!length(x)) return(0); sum(x) }
+  
+  mode_int <- function(v) {
+    v <- suppressWarnings(as.integer(v)); v <- v[!is.na(v)]
+    if (!length(v)) return(integer(0))
+    tb <- table(v, useNA = "no"); tb_num <- as.numeric(tb)
+    mx <- max(tb_num); as.integer(names(tb)[tb_num == mx])
+  }
+  
+  prop_table_int <- function(v) {
+    v <- suppressWarnings(as.integer(v)); v <- v[!is.na(v)]
+    if (!length(v)) return(setNames(numeric(0), character(0)))
+    tb <- table(v, useNA = "no"); counts <- as.numeric(tb)
+    p <- counts / ssum(counts); names(p) <- names(tb); p
+  }
+  
+  # Wasserstein on non-neutral mass (remove CN0 bin and renormalize)
+  w1_nonneutral <- function(kd_full, cd_full, CN0) {
+    idx <- which(names(kd_full) == as.character(CN0))
+    if (length(idx)) { kd_nn <- kd_full[-idx]; cd_nn <- cd_full[-idx] } else { kd_nn <- kd_full; cd_nn <- cd_full }
+    sk <- sum(kd_nn); sc <- sum(cd_nn)
+    if (sk == 0 && sc == 0) return(0)
+    if (sk > 0) kd_nn <- kd_nn / sk
+    if (sc > 0) cd_nn <- cd_nn / sc
+    sum(abs(cumsum(kd_nn - cd_nn)))
+  }
+  
+  # Correct Wasserstein on a discrete integer grid (preserves names)
+  wasserstein1d_discrete <- function(p_dist, q_dist) {
+    p_levels <- as.integer(names(p_dist))
+    q_levels <- as.integer(names(q_dist))
+    all_levels <- sort(unique(c(p_levels, q_levels)))
+    p_vec <- numeric(length(all_levels)); names(p_vec) <- all_levels
+    q_vec <- numeric(length(all_levels)); names(q_vec) <- all_levels
+    if (length(p_dist)) p_vec[match(p_levels, all_levels)] <- as.numeric(p_dist)
+    if (length(q_dist)) q_vec[match(q_levels, all_levels)] <- as.numeric(q_dist)
+    sp <- sum(p_vec); if (sp > 0) p_vec <- p_vec / sp
+    sq <- sum(q_vec); if (sq > 0) q_vec <- q_vec / sq
+    sum(abs(cumsum(p_vec - q_vec)))
+  }
+  
+  build_candidate_dist <- function(state_props, map_cn) {
+    if (!length(state_props)) return(setNames(numeric(0), character(0)))
+    valid_states <- intersect(names(state_props), names(map_cn))
+    if (!length(valid_states)) return(setNames(numeric(0), character(0)))
+    cn_vals <- as.integer(map_cn[valid_states])
+    probs   <- as.numeric(state_props[valid_states])
+    df <- data.frame(cn = cn_vals, p = probs, stringsAsFactors = FALSE)
+    agg <- rowsum(df$p, group = df$cn, reorder = FALSE)
+    cn_names <- rownames(agg); agg_vec <- as.numeric(agg[, 1]); names(agg_vec) <- cn_names
+    tot <- ssum(agg_vec); if (tot > 0) agg_vec <- agg_vec / tot
+    agg_vec
+  }
+  
+  conflict_penalty <- function(state_props, map_cn, CN0) {
+    gp <- function(nm) if (nm %in% names(state_props)) as.numeric(state_props[nm]) else 0
+    p_amp  <- gp("amp");  p_del  <- gp("del")
+    p_loh  <- gp("loh");  p_bamp <- gp("bamp"); p_bdel <- gp("bdel")
+    pen <- 0
+    if (!is.na(map_cn["amp"])  && as.integer(map_cn["amp"])  <= CN0) pen <- pen + p_amp
+    if (!is.na(map_cn["del"])  && as.integer(map_cn["del"])  >= CN0) pen <- pen + p_del
+    if (!is.na(map_cn["bamp"]) && as.integer(map_cn["bamp"]) <= CN0) pen <- pen + 0.75 * p_bamp
+    if (!is.na(map_cn["bdel"]) && as.integer(map_cn["bdel"]) >= CN0) pen <- pen + 0.75 * p_bdel
+    if (!is.na(map_cn["loh"])) {
+      loh_cn <- as.integer(map_cn["loh"])
+      if (loh_cn > CN0)       pen <- pen + 0.5 * p_loh
+      if (loh_cn < (CN0 - 2)) pen <- pen + 0.5 * p_loh
+    }
+    pen
+  }
+  
+  state_proportions <- function(vec) {
+    vec <- as.character(vec); vec <- vec[!is.na(vec)]
+    if (!length(vec)) return(setNames(numeric(0), character(0)))
+    tb <- table(vec, useNA = "no"); counts <- as.numeric(tb)
+    p <- counts / ssum(counts); names(p) <- names(tb); p
+  }
+  
+  ## ---- sanitize inputs & align segments ------------------------------------
+  scRNA_df <- to_df(scRNA_df); karyo_df <- to_df(karyo_df)
+  segs <- intersect(colnames(scRNA_df), colnames(karyo_df))
+  if (length(segs) == 0L) stop("No overlapping segment columns between scRNA_df and karyo_df.")
+  scRNA_df <- scRNA_df[, segs, drop = FALSE]
+  karyo_df <- karyo_df[, segs, drop = FALSE]
+  
+  ## ---- Step A: Global neutral CN0 ------------------------------------------
+  all_karyo_vals <- suppressWarnings(as.integer(unlist(karyo_orig, use.names = FALSE)))
+  all_karyo_vals <- all_karyo_vals[!is.na(all_karyo_vals)]
+  if (!length(all_karyo_vals)) stop("karyo_orig contains no numeric entries to estimate CN0.")
+  modes <- mode_int(all_karyo_vals)
+  if (length(modes) == 1L) {
+    CN0 <- modes
+  } else {
+    global_states <- state_proportions(as.character(unlist(scRNA_df, use.names = FALSE)))
+    best <- Inf; best_m <- modes[1]
+    for (m in modes) {
+      tmp_map <- c(neu = m, loh = m, amp = m + 1, del = max(m - 1, 0), bamp = m + 1, bdel = max(m - 1, 0))
+      sc <- conflict_penalty(global_states, tmp_map, m)
+      if (sc < best) { best <- sc; best_m <- m }
+    }
+    CN0 <- best_m
+  }
+  
+  ## ---- Step B/C: Per-segment grid search -----------------------------------
+  state_names <- c("neu","loh","amp","del","bamp","bdel")
+  rule_mat <- matrix(NA_integer_, nrow = length(segs), ncol = length(state_names),
+                     dimnames = list(segs, state_names))
+  diag_list <- vector("list", length(segs)); names(diag_list) <- segs
+  uninformed_segments <- character(0)
+  
+  CNmax_global <- max(CN0 + amp_max_increase,
+                      suppressWarnings(max(all_karyo_vals, na.rm = TRUE)),
+                      na.rm = TRUE)
+  for (seg in segs) {
+      
+      kd <- prop_table_int(karyo_df[[seg]])
+      sp <- state_proportions(scRNA_df[[seg]])
+      for (s in state_names) if (!(s %in% names(sp))) sp[s] <- 0
+      sp <- sp[state_names]
+      
+      # ---- karyotype/scRNA summaries
+      k_counts <- suppressWarnings(as.integer(karyo_df[[seg]])); k_counts <- k_counts[!is.na(k_counts)]
+      n_k <- length(k_counts)
+      
+      kd_neu <- if (as.character(CN0) %in% names(kd)) kd[as.character(CN0)] else 0
+      kd_nonneutral <- 1 - kd_neu
+      above <- as.integer(names(kd))[as.integer(names(kd)) >  CN0]
+      below <- as.integer(names(kd))[as.integer(names(kd)) <  CN0]
+      kd_amp_side <- if (length(above)) ssum(kd[as.character(above)]) else 0
+      kd_del_side <- if (length(below)) ssum(kd[as.character(below)]) else 0
+      
+      sc_amp  <- as.numeric(sp["amp"])  + as.numeric(sp["bamp"])
+      sc_del  <- as.numeric(sp["del"])  + as.numeric(sp["bdel"])
+      sc_loh  <- as.numeric(sp["loh"])
+      sc_neu  <- as.numeric(sp["neu"])
+      
+      # segment-level informativity (as you had)
+      sc_amp_dom <- sc_amp >= r_scRNA_sign_dominance * max(sc_del, 1e-12)
+      sc_del_dom <- sc_del >= r_scRNA_sign_dominance * max(sc_amp, 1e-12)
+      kd_amp_dom <- kd_amp_side >= tau_karyo_side_dominance
+      kd_del_dom <- kd_del_side >= tau_karyo_side_dominance
+      contradictory_seg <- !((sc_amp_dom && kd_amp_dom) || (sc_del_dom && kd_del_dom) || (sc_neu >= 0.5 && kd_neu >= 0.5))
+      neutral_dominated <- (kd_neu >= tau_karyo_neutral) || (kd_nonneutral < tau_karyo_nonneutral_min)
+      too_few_karyo     <- (n_k < min_karyo_cells)
+      karyo_informable_segment <- !(too_few_karyo || neutral_dominated || contradictory_seg)
+      
+      # ---------- NEW: per-state informativity flags ---------------------------
+      # A state is "informable" only if:
+      #  - the karyotype has enough mass on the relevant side (or for LOH, enough del-side to support CN<CN0),
+      #  - AND scRNA actually exhibits that state in >= min_scRNA_state_mass of cells (otherwise distance can’t learn it),
+      #  - AND the sign isn't contradicted by dominant signal on the opposite side.
+      inf_amp  <- (kd_amp_side >= tau_karyo_side_min) && (as.numeric(sp["amp"])  >= min_scRNA_state_mass) && !(sc_del_dom && kd_amp_dom)
+      inf_bamp <- (kd_amp_side >= tau_karyo_side_min) && (as.numeric(sp["bamp"]) >= min_scRNA_state_mass) && !(sc_del_dom && kd_amp_dom)
+      inf_del  <- (kd_del_side >= tau_karyo_side_min) && (as.numeric(sp["del"])  >= min_scRNA_state_mass) && !(sc_amp_dom && kd_del_dom)
+      inf_bdel <- (kd_del_side >= tau_karyo_side_min) && (as.numeric(sp["bdel"]) >= min_scRNA_state_mass) && !(sc_amp_dom && kd_del_dom)
+      # For LOH, only consider karyotype-informative if there is substantial del-side signal,
+      # otherwise LOH is ambiguous and we use fallback.
+      inf_loh  <- (kd_del_side >= tau_karyo_side_min) && (sc_loh >= min_scRNA_state_mass)
+      
+      # ---------- fallback rule (same semantics you used; use base R 'ceiling') --
+      fallback_map <- c(
+        neu  = CN0,
+        loh  = ceiling((CN0 + 0.1)/2),         # your chosen default
+        amp  = CN0 + 1,
+        del  = max(floor(CN0/2), 0),           # your chosen default
+        bamp = CN0 + 1,
+        bdel = max(floor(CN0/2), 0)
+      )
+      
+      # If the whole segment is not informable → assign all fallback and skip search
+      if (!karyo_informable_segment) {
+        rule_mat[seg, ] <- fallback_map
+        diag_list[[seg]] <- data.frame(
+          segment = seg,
+          neu  = fallback_map["neu"],
+          loh  = fallback_map["loh"],
+          amp  = fallback_map["amp"],
+          del  = fallback_map["del"],
+          bamp = fallback_map["bamp"],
+          bdel = fallback_map["bdel"],
+          distance = NA_real_, penalty = NA_real_,
+          n_karyo = n_k, kd_neutral = kd_neu, kd_amp_side = kd_amp_side, kd_del_side = kd_del_side,
+          sc_amp = sc_amp, sc_del = sc_del,
+          karyo_informed = FALSE,
+          inf_loh = FALSE, inf_amp = FALSE, inf_del = FALSE, inf_bamp = FALSE, inf_bdel = FALSE,
+          fallback_loh = TRUE, fallback_amp = TRUE, fallback_del = TRUE, fallback_bamp = TRUE, fallback_bdel = TRUE,
+          stringsAsFactors = FALSE
+        )
+        next
+      }
+      
+      # ---------- candidate sets (lock non-informable states to fallback) -------
+      amp_candidates   <- if (inf_amp)   (CN0 + 1):(CN0 + max(1, amp_max_increase)) else fallback_map["amp"]
+      amp_candidates   <- amp_candidates[amp_candidates > CN0]
+      bamp_candidates  <- if (inf_bamp)  amp_candidates else fallback_map["bamp"]
+      
+      del_candidates   <- if (inf_del)   unique(c(max(CN0 - 1, 0), max(CN0 - 2, 0), max(CN0 - 3, 0))) else fallback_map["del"]
+      del_candidates   <- del_candidates[del_candidates >= 0]
+      bdel_candidates  <- if (inf_bdel)  del_candidates else fallback_map["bdel"]
+      
+      loh_candidates   <- if (inf_loh)   unique(c(CN0, del_candidates)) else fallback_map["loh"]
+      loh_candidates   <- loh_candidates[loh_candidates >= 0]
+      
+      # --- grid search (only states marked informable can vary) -----------------
+      best_obj <- Inf
+      best_map <- c(neu = CN0, loh = NA_integer_, amp = NA_integer_, del = NA_integer_, bamp = NA_integer_, bdel = NA_integer_)
+      best_parts <- c(distance = NA_real_, penalty = NA_real_)
+      
+      for (loh_val in loh_candidates) {
+        for (amp_val in amp_candidates) {
+          for (del_val in del_candidates) {
+            for (bamp_val in bamp_candidates) {
+              for (bdel_val in bdel_candidates) {
+                
+                if (enforce_sign_constraints) {
+                  if (!(amp_val > CN0 && del_val < CN0 && bamp_val > CN0 && bdel_val < CN0)) next
+                }
+                
+                map_cn <- c(neu = CN0, loh = loh_val, amp = amp_val, del = del_val,
+                            bamp = bamp_val, bdel = bdel_val)
+                
+                cand_dist <- build_candidate_dist(sp, map_cn)
+                
+                CNmax <- max(CN0 + amp_max_increase,
+                             suppressWarnings(max(as.integer(names(cand_dist)), na.rm = TRUE)),
+                             suppressWarnings(max(as.integer(names(kd)), na.rm = TRUE)),
+                             na.rm = TRUE)
+                support <- as.character(0:CNmax)
+                kd_full <- numeric(length(support)); names(kd_full) <- support
+                cd_full <- kd_full
+                if (length(kd))        kd_full[names(kd)]        <- as.numeric(kd)
+                if (length(cand_dist)) cd_full[names(cand_dist)] <- as.numeric(cand_dist)
+                
+                spk <- ssum(kd_full); if (spk > 0) kd_full <- kd_full / spk
+                spc <- ssum(cd_full); if (spc > 0) cd_full <- cd_full / spc
+                
+                dist_total  <- wasserstein1d_discrete(kd_full, cd_full)
+                dist_nonneu <- w1_nonneutral(kd_full, cd_full, CN0)
+                
+                pen_val  <- conflict_penalty(sp, map_cn, CN0)
+                dist_val <- dist_total + beta_nonneutral * dist_nonneu
+                obj <- dist_val + lambda_conflict * pen_val
+                
+                if (obj < best_obj) {
+                  best_obj <- obj
+                  best_map <- map_cn
+                  best_parts <- c(distance = dist_val, penalty = pen_val)
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      # After search, enforce fallback again for any non-informable state (safety net)
+      if (!inf_loh)  best_map["loh"]  <- fallback_map["loh"]
+      if (!inf_amp)  best_map["amp"]  <- fallback_map["amp"]
+      if (!inf_del)  best_map["del"]  <- fallback_map["del"]
+      if (!inf_bamp) best_map["bamp"] <- fallback_map["bamp"]
+      if (!inf_bdel) best_map["bdel"] <- fallback_map["bdel"]
+      
+      rule_mat[seg, ] <- best_map
+      diag_list[[seg]] <- data.frame(
+        segment = seg,
+        neu  = as.integer(best_map["neu"]),
+        loh  = as.integer(best_map["loh"]),
+        amp  = as.integer(best_map["amp"]),
+        del  = as.integer(best_map["del"]),
+        bamp = as.integer(best_map["bamp"]),
+        bdel = as.integer(best_map["bdel"]),
+        distance = as.numeric(best_parts["distance"]),
+        penalty  = as.numeric(best_parts["penalty"]),
+        n_karyo = n_k, kd_neutral = kd_neu, kd_amp_side = kd_amp_side, kd_del_side = kd_del_side,
+        sc_amp = sc_amp, sc_del = sc_del,
+        karyo_informed = TRUE,
+        # per-state informativity + whether fallback was enforced
+        inf_loh = inf_loh, inf_amp = inf_amp, inf_del = inf_del, inf_bamp = inf_bamp, inf_bdel = inf_bdel,
+        fallback_loh = !inf_loh, fallback_amp = !inf_amp, fallback_del = !inf_del, fallback_bamp = !inf_bamp, fallback_bdel = !inf_bdel,
+        stringsAsFactors = FALSE
+      )
+    }
+  
+  diagnostics <- do.call(rbind, diag_list)
+  rules_df <- as.data.frame(rule_mat, stringsAsFactors = FALSE)
+  for (nm in colnames(rules_df)) rules_df[[nm]] <- as.integer(rules_df[[nm]])
+  
+  # ## ---- Stage 2: consensus correction for uninformed segments ---------------
+  # if (consensus_correct_uninformed) {
+  #   informed <- rownames(rules_df)[!is.na(diagnostics$karyo_informed) & diagnostics$karyo_informed]
+  #   uninformed <- rownames(rules_df)[!is.na(diagnostics$karyo_informed) & !diagnostics$karyo_informed]
+  #   
+  #   if (length(uninformed) > 0 && length(informed) > 0) {
+  #     informed_rules <- rules_df[informed, , drop = FALSE]
+  #     modal_vals <- vapply(informed_rules, function(col) {
+  #       tab <- table(col, useNA = "no"); as.integer(names(tab)[which.max(tab)])
+  #     }, integer(1))
+  #     # overwrite only non-neu states; neu already global (CN0)
+  #     for (seg in uninformed) {
+  #       rules_df[seg, c("loh","amp","del","bamp","bdel")] <- modal_vals[c("loh","amp","del","bamp","bdel")]
+  #     }
+  #     if (!"consensus_corrected" %in% names(diagnostics)) diagnostics$consensus_corrected <- FALSE
+  #     diagnostics$consensus_corrected[diagnostics$segment %in% uninformed] <- TRUE
+  #   } else {
+  #     diagnostics$consensus_corrected <- FALSE
+  #   }
+  # } else {
+  #   diagnostics$consensus_corrected <- FALSE
+  # }
+  
+  ## ---- Step D: Apply rules --------------------------------------------------
+  map_column <- function(states_vec, rule_row_df) {
+    if (is.data.frame(rule_row_df)) {
+      rr_vals <- as.integer(as.vector(unlist(rule_row_df[1, , drop = TRUE])))
+      rr_names <- colnames(rule_row_df)
+      rr <- rr_vals; names(rr) <- rr_names
+    } else {
+      rr <- as.integer(as.vector(unlist(rule_row_df)))
+      names(rr) <- names(rule_row_df)
+    }
+    states_vec <- as.character(states_vec)
+    out <- rep(NA_integer_, length(states_vec))
+    if ("neu"  %in% names(rr)) out[states_vec == "neu"]  <- rr[["neu"]]
+    if ("loh"  %in% names(rr)) out[states_vec == "loh"]  <- rr[["loh"]]
+    if ("amp"  %in% names(rr)) out[states_vec == "amp"]  <- rr[["amp"]]
+    if ("del"  %in% names(rr)) out[states_vec == "del"]  <- rr[["del"]]
+    if ("bamp" %in% names(rr)) out[states_vec == "bamp"] <- rr[["bamp"]]
+    if ("bdel" %in% names(rr)) out[states_vec == "bdel"] <- rr[["bdel"]]
+    out
+  }
+  
+  cn_mat <- matrix(NA_integer_, nrow = nrow(scRNA_df), ncol = ncol(scRNA_df),
+                   dimnames = list(rownames(scRNA_df), colnames(scRNA_df)))
+  for (j in seq_along(segs)) {
+    seg <- segs[j]
+    cn_mat[, j] <- map_column(scRNA_df[[seg]], rules_df[seg, , drop = FALSE])
+  }
+  
+  list(
+    CN0 = CN0,
+    rules = rules_df,
+    cn_matrix = cn_mat,
+    diagnostics = diagnostics
+  )
 }
