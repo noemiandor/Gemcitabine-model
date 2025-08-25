@@ -307,6 +307,7 @@ Hamed et al., formulated a compartmental model describing the distribution of ce
 \frac{dG_{2M}}{dt} &= ((1-f_s \cdot C_{dna}) \cdot k_1 \cdot G_{1S} - (1-f_m \cdot C_{dna}) \cdot k_2 \cdot G_{2M} )- k_{d2} \cdot C_{dna} \cdot G_{2M} - k_{NP} \cdot C_{dna} \cdot G_{2M}, \\[1em]
 % \frac{dG_{2M}}{dt} &= (1-\frac{G_{1S}+G_{2M}}{K}) \cdot  ((1-f_s \cdot C_{dna}) \cdot k_1 \cdot G_{1S} - (1-f_m \cdot C_{dna}) \cdot k_2 \cdot G_{2M} )- k_{d2} \cdot C_{in} \cdot G_{2M} - k_{NP} \cdot C_{in} \cdot G_{2M}, \\[1em]
 \end{align*}
+
 \begin{align*} 
 \text{For PACCs:} \\
 \frac{dN_P}{dt} &= k_{NP} \cdot C_{dna} \cdot G_{2M} - k_{d3} \cdot C_{dna} \cdot N_P, \\
@@ -361,8 +362,180 @@ An overview of all model parameters is given in table \ref{parameterTable}. Abov
 \label{parameterTable}
 \end{table}
 
+\newpage
+
+\section*{Expanded Mean-Field System of ODEs model based on the Linear Chain Trick (LCT)}
+
+\textbf{Equations for $G_1$ ($4$ parts, $2$ sub-phases per part):}
+{\footnotesize
+\begin{align}
+\frac{dG_{1,1,1}}{dt} &= 2b_4 d_{1,1,1} G_{2,4,3} - (a_1 d_{1,1,1} + g_{1,1}) G_{1,1,1} \\
+\frac{dG_{1,1,2}}{dt} &= a_1 d_{1,1,1} G_{1,1,1} - (a_1 d_{1,1,2} + g_{1,1}) G_{1,1,2} \\
+\frac{dG_{1,2,1}}{dt} &= a_1 d_{1,1,2} G_{1,1,2} - (a_2 d_{1,2,1} + g_{1,2}) G_{1,2,1} \\
+\frac{dG_{1,2,2}}{dt} &= a_2 d_{1,2,1} G_{1,2,1} - (a_2 d_{1,2,2} + g_{1,2}) G_{1,2,2} \\
+\frac{dG_{1,3,1}}{dt} &= a_2 d_{1,2,2} G_{1,2,2} - (a_3 d_{1,3,1} + g_{1,3}) G_{1,3,1} \\
+\frac{dG_{1,3,2}}{dt} &= a_3 d_{1,3,1} G_{1,3,1} - (a_3 d_{1,3,2} + g_{1,3}) G_{1,3,2} \\
+\frac{dG_{1,4,1}}{dt} &= a_3 d_{1,3,2} G_{1,3,2} - (a_4 d_{1,4,1} + g_{1,4}) G_{1,4,1} \\
+\frac{dG_{1,4,2}}{dt} &= a_4 d_{1,4,1} G_{1,4,1} - (a_4 d_{1,4,2} + g_{1,4}) G_{1,4,2}
+\end{align}}
+
+\textbf{Equations for $G_2$ ($4$ parts, $3$ sub-phases per part):}
+{\footnotesize
+\begin{align}
+\frac{dG_{2,1,1}}{dt} &= a_4 G_{1,4,2} - (b_1 + g_{2,1} + c_1) G_{2,1,1} \\
+\frac{dG_{2,1,2}}{dt} &= (b_1 + c_1) G_{2,1,1} - (b_1 + g_{2,1} + c_1) G_{2,1,2} \\
+\frac{dG_{2,1,3}}{dt} &= (b_1 + c_1) G_{2,1,2} - (b_1 + g_{2,1} + c_1) G_{2,1,3} \\
+\frac{dG_{2,2,1}}{dt} &= (b_1 + c_1) G_{2,1,3} - (b_2 + g_{2,2} + c_2) G_{2,2,1} \\
+\frac{dG_{2,2,2}}{dt} &= (b_2 + c_2) G_{2,2,1} - (b_2 + g_{2,2} + c_2) G_{2,2,2} \\
+\frac{dG_{2,2,3}}{dt} &= (b_2 + c_2) G_{2,2,2} - (b_2 + g_{2,2} + c_2) G_{2,2,3} \\
+\frac{dG_{2,3,1}}{dt} &= (b_2 + c_2) G_{2,2,3} - (b_3 + g_{2,3} + c_3) G_{2,3,1} \\
+\frac{dG_{2,3,2}}{dt} &= (b_3 + c_3) G_{2,3,1} - (b_3 + g_{2,3} + c_3) G_{2,3,2} \\
+\frac{dG_{2,3,3}}{dt} &= (b_3 + c_3) G_{2,3,2} - (b_3 + g_{2,3} + c_3) G_{2,3,3} \\
+\frac{dG_{2,4,1}}{dt} &= (b_3 + c_3) G_{2,3,3} - (b_4 + g_{2,4} + c_4) G_{2,4,1} \\
+\frac{dG_{2,4,2}}{dt} &= (b_4 + c_4) G_{2,4,1} - (b_4 + g_{2,4} + c_4) G_{2,4,2} \\
+\frac{dG_{2,4,3}}{dt} &= (b_4 + c_4) G_{2,4,2} - (b_4 + g_{2,4} + c_4) G_{2,4,3}
+\end{align}}
+
+\textbf{Equations for $NP$ ($4$ parts, $2$ sub-phases per part):}
+{\footnotesize
+\begin{align}
+\frac{dNP_{1,1}}{dt} &= c_4 G_{2,4,3} - g_{3,1} NP_{1,1} \\
+\frac{dNP_{1,2}}{dt} &=  - g_{3,1} NP_{1,2} \\
+\frac{dNP_{2,1}}{dt} &=  - g_{3,2} NP_{2,1} \\
+\frac{dNP_{2,2}}{dt} &=  - g_{3,2} NP_{2,2} \\
+\frac{dNP_{3,1}}{dt} &=  - g_{3,3} NP_{3,1} \\
+\frac{dNP_{3,2}}{dt} &=  - g_{3,3} NP_{3,2} \\
+\frac{dNP_{4,1}}{dt} &=  - g_{3,4} NP_{4,1} \\
+\frac{dNP_{4,2}}{dt} &=  - g_{3,4} NP_{4,2}
+\end{align}}
+
+\textbf{Equations for $A$:}
+{\footnotesize
+\begin{align*}
+\frac{dA}{dt} &= g_{1,1} (G_{1,1,1} + G_{1,1,2}) + g_{1,2} (G_{1,2,1} + G_{1,2,2}) + g_{1,3} (G_{1,3,1} + G_{1,3,2}) + g_{1,4} (G_{1,4,1} + G_{1,4,2}) \\
+&+ g_{2,1} (G_{2,1,1} + G_{2,1,2} + G_{2,1,3}) + g_{2,2} (G_{2,2,1} + G_{2,2,2} + G_{2,2,3}) + g_{2,3} (G_{2,3,1} + G_{2,3,2} + G_{2,3,3}) \\
+&+ g_{2,4} (G_{2,4,1} + G_{2,4,2} + G_{2,4,3}) \\
+&+ g_{3,1} (NP_{1,1} + NP_{1,2}) + g_{3,2} (NP_{2,1} + NP_{2,2}) + g_{3,3} (NP_{3,1} + NP_{3,2}) + g_{3,4} (NP_{4,1} + NP_{4,2}) 
+\end{align*}}
+
+\textbf{Equations for $C_{in}$ and $C_{DNA}$:}
+{\footnotesize
+\begin{align}
+\frac{dC_{in}}{dt} &= -\eta \cdot C_{in} \\
+\frac{dC_{DNA}}{dt} &= \eta \cdot C_{in} - k_{decay} \cdot C_{DNA}.
+\end{align}} 
+
+Where 
+\begin{table}[h!]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|}
+\hline
+\(
+\begin{array}{l}
+a_1 = (1 - f_{s1} \cdot C_{DNA}) \cdot k_1 \\
+a_2 = (1 - f_{s2} \cdot C_{DNA}) \cdot k_1 \\
+a_3 = (1 - f_{s3} \cdot C_{DNA}) \cdot k_1 \\
+a_4 = (1 - f_{s4} \cdot C_{DNA}) \cdot k_1 \\
+b_1 = (1 - f_{m1} \cdot C_{DNA}) \cdot k_2 \\
+b_2 = (1 - f_{m2} \cdot C_{DNA}) \cdot k_2 \\
+b_3 = (1 - f_{m3} \cdot C_{DNA}) \cdot k_2 \\
+b_4 = (1 - f_{m4} \cdot C_{DNA}) \cdot k_2 \\
+c_1 = k_{NP1} \cdot C_{DNA} \\
+c_2 = k_{NP2} \cdot C_{DNA} \\
+c_3 = k_{NP3} \cdot C_{DNA} \\
+c_4 = k_{NP4} \cdot C_{DNA}
+\end{array}
+\)
+&
+\(
+\begin{array}{l}
+g_{1,1} = k_{d_{1,1}} \cdot C_{DNA} \\
+g_{1,2} = k_{d_{1,2}} \cdot C_{DNA} \\
+g_{1,3} = k_{d_{1,3}} \cdot C_{DNA} \\
+g_{1,4} = k_{d_{1,4}} \cdot C_{DNA} \\
+g_{2,1} = k_{d_{2,1}} \cdot C_{DNA} \\
+g_{2,2} = k_{d_{2,2}} \cdot C_{DNA} \\
+g_{2,3} = k_{d_{2,3}} \cdot C_{DNA} \\
+g_{2,4} = k_{d_{2,4}} \cdot C_{DNA} \\
+g_{3,1} = k_{d_{3,1}} \cdot C_{DNA} \\
+g_{3,2} = k_{d_{3,2}} \cdot C_{DNA} \\
+g_{3,3} = k_{d_{3,3}} \cdot C_{DNA} \\
+g_{3,4} = k_{d_{3,4}} \cdot C_{DNA}
+\end{array}
+\)
+&
+\(
+\begin{array}{l}
+d_{1,1,1} = \left(1 - \frac{G_{1,1,1}}{K}\right) \\
+d_{1,1,2} = \left(1 - \frac{G_{1,1,2}}{K}\right) \\
+d_{1,2,1} = \left(1 - \frac{G_{1,2,1}}{K}\right) \\
+d_{1,2,2} = \left(1 - \frac{G_{1,2,2}}{K}\right) \\
+d_{1,3,1} = \left(1 - \frac{G_{1,3,1}}{K}\right) \\
+d_{1,3,2} = \left(1 - \frac{G_{1,3,2}}{K}\right) \\
+d_{1,4,1} = \left(1 - \frac{G_{1,4,1}}{K}\right) \\
+d_{1,4,2} = \left(1 - \frac{G_{1,4,2}}{K}\right)
+\end{array}
+\)
+\\
+\hline
+\end{tabular}
+}
+\caption{Grouped parameter definitions for $a$, $b$, $c$, $g$, and $d$.}
+\end{table}
 
 
+\section*{base model}
+{\footnotesize
+\begin{align}
+\frac{dG_{1}}{dt} &= 2 b d G_{2} - \left(a d + g_1 \right) G_{1}, \\
+\frac{dG_{2}}{dt} &= a G_{1} - (b + g_2 + c) G_{2}, \\
+\frac{dNP}{dt} &= c G_{2} - g_3 NP, \\
+\frac{dA}{dt} &= g_1 G_{1} + g_2 G_{2} + g_3 NP, \\
+\frac{dC_{in}}{dt} &= -\eta \cdot C_{in} \\
+\frac{dC_{DNA}}{dt} &= \eta \cdot C_{in} - k_{decay} \cdot C_{DNA}.
+\end{align}} 
+
+Where 
+\begin{table}[h!]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|}
+\hline
+\(
+\begin{array}{l}
+a = (1-f_s \cdot C_{DNA}) \cdot k_1\\
+b = (1-f_m \cdot C_{DNA}) \cdot k_2\\
+c = k_{NP} \cdot C_{DNA}
+\end{array}
+\)
+&
+\(
+\begin{array}{l}
+g_1 = k_{d1} \cdot C_{DNA}\\
+g_2 = k_{d2} \cdot C_{DNA}\\
+g_3 = k_{d3} \cdot C_{DNA}
+\end{array}
+\)
+&
+\(
+\begin{array}{l}
+d = \left(1 - \frac{G_{1}}{K}\right)
+\end{array}
+\)
+\\
+\hline
+\end{tabular}
+}
+\caption{Grouped parameter definitions for $a$, $b$, $c$, $g$, and $d$.}
+\end{table}
+
+
+%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+
+
+% %%%%%%%%%%%%%%%%%%%%%%
 
 \subsection*{Optimization routine}
 
@@ -389,13 +562,55 @@ The differential drug response observed between 2N and 4N cells can be attribute
 
 \section*{Supplementary Information}
 
- \begin{wrapfigure}{r}{0.9\textwidth}
-\includegraphics[width=0.9\textwidth]{Figs/ODEModelFits.png}
-\caption{\textbf{XX}.
-}
-\label{ODEModelFits}
-\end{wrapfigure}
+%  \begin{wrapfigure}{r}{0.9\textwidth}
+% \includegraphics[width=0.9\textwidth]{Figs/ODEModelFits.png}
+% \caption{\textbf{XX}.
+% }
+% \label{ODEModelFits}
+% \end{wrapfigure}
 
+\clearpage
+\subsection*{Copy-number inference and downstream analyses}
+
+\subsubsection*{1) Mapping Numbat CN states to absolute copy number}
+We inferred segment-wise rules that map Numbat categorical states (\texttt{neu}, \texttt{loh}, \texttt{amp}, \texttt{del}, \texttt{bamp}, \texttt{bdel}) to \emph{integer} copy numbers by aligning the Numbat-derived state distribution with the distribution of metaphase karyotype copy numbers for the same genomic segments.
+
+\paragraph{Neutral baseline (CN$_0$).} A single global CN$_0$ was estimated as the \emph{mode} of all karyotype counts pooled across metaphases/segments; if ties occurred, we selected the mode that minimized a conflict score computed from the pooled Numbat state proportions (penalizing assignments that would imply \texttt{amp}$\leq$CN$_0$, \texttt{del}$\geq$CN$_0$, etc.).
+
+\paragraph{Per-segment optimization.} For each segment we searched over candidate integer assignments:
+\begin{itemize}
+  \item \texttt{amp} $\in \{\text{CN}_0+1, \ldots, \text{CN}_0+K\}$ (user-set $K$, default 3),
+  \item \texttt{del} $\in \{\text{CN}_0-1, \text{CN}_0-2, \text{CN}_0-3\} \cap [0, \infty)$,
+  \item \texttt{bamp} mirrors \texttt{amp}; \texttt{bdel} mirrors \texttt{del},
+  \item \texttt{loh} $\in \{\text{CN}_0\} \cup \{\text{del candidates}\}$ (copy-neutral or copy-loss LOH),
+\end{itemize}
+For any assignment, the Numbat state proportions were collapsed to a candidate \emph{copy-number distribution}; we then minimized
+\[
+\mathcal{L} \;=\; W_1(\hat p_\text{karyo}, \hat p_\text{cand}) \;+\; \beta \, W_1\!\left(\hat p_{\text{karyo}\setminus \text{CN}_0}, \hat p_{\text{cand}\setminus \text{CN}_0}\right) \;+\; \lambda\,\Phi,
+\]
+where $W_1$ is the 1-D Wasserstein (earth-mover) distance on the integer CN grid, the second term compares \emph{non-neutral mass} only, and $\Phi$ is a conflict penalty derived from the Numbat proportions (discouraging \texttt{amp} assignments $\leq$CN$_0$, etc.). Defaults: $\beta=0$ unless specified; $\lambda=0.25$.
+
+\paragraph{Per-state informativity \& fallback.} Within a segment, each state was considered \emph{karyotype-informative} only if (i) the karyotype had sufficient mass on the relevant side of CN$_0$ ($\geq \tau$, default 0.15) and (ii) the state appeared in $\geq 1\%$ of Numbat cells for that segment; otherwise that state was \emph{fixed to a fallback} and excluded from the search. Fallbacks used conservative values that generalize across ploidies:
+\begin{itemize}
+  \item \texttt{amp}=\texttt{bamp}=CN$_0+1$,
+  \item \texttt{del}=\texttt{bdel}=$\lfloor \text{CN}_0/2 \rfloor$,
+  \item \texttt{loh}=$\lceil (\text{CN}_0+0.1)/2 \rceil$,
+  \item \texttt{neu}=CN$_0$.
+\end{itemize}
+Thus, even in a karyotype-informed segment, only states meeting informativity criteria were learned; all others defaulted deterministically.
+
+\paragraph{Outputs.} The procedure returns (i) CN$_0$; (ii) a segment $\times$ state \emph{rule matrix} of integers; (iii) a per-cell $\times$ segment \emph{absolute CN matrix} obtained by applying those rules to the Numbat states; and (iv) diagnostics, including which states per segment were optimized versus fallback.
+
+\subsubsection*{2) Applying rules to independent Numbat calls}
+Rules were learned from Numbat calls obtained in the 4N SUM-159 cell line. 
+These segment-wise rules were then applied to Numbat state matrices derived from 4N murine tumors to infer absolute copy number (CN) per cell and segment. 
+Because \texttt{neu} is globally anchored at CN$_0$, absolute CN values are directly comparable across segments and across independent Numbat runs.
+
+\subsubsection*{3) Cluster selection consistent with sample-of-origin}
+We performed hierarchical clustering (Euclidean distance on the per-cell CN matrix; Ward.D linkage) and evaluated candidate cuts $K \in [2,\,K_\text{max}]$. For each $K$, we computed the \emph{normalized mutual information (NMI)} between cluster labels and sample-of-origin labels and selected the cut with maximum NMI (ties broken by minimum \emph{weighted within-cluster entropy} of sample labels and then smaller $K$). Cluster composition was visualized as \emph{stacked bar plots} (one bar per cluster; segment heights equal sample proportions within that cluster).
+
+\subsubsection*{4) Enrichment of samples within clusters}
+For each (cluster, sample) pair we formed a $2\times 2$ table (in-cluster vs out-of-cluster $\times$ is-sample vs other) and ran a one-sided Fisher’s exact test (\texttt{alternative=``greater''}) to test for \emph{over-representation} of that sample in the cluster. P-values were adjusted across all pairs by Benjamini--Hochberg FDR. We report odds ratios and FDR, and display results as a heatmap of $-\log_{10}(\text{FDR})$ with significance annotations.
 
 \clearpage
 
