@@ -11,10 +11,182 @@ chrarms=x[ , .(length = sum(chromEnd - chromStart)),by = .(chrom, arm = substrin
 chrwhole=grpstats(as.matrix(chrarms$length),chrarms$chrom, "sum")$sum
 rownames(chrwhole)=gsub("chrY","chr24",gsub("chrX","chr23",rownames(chrwhole)))
 
+# ===================== clustering-by-origin utilities ======================
+
+# tiny entropy helper (natural log)
+.entropy <- function(p) { p <- p[p > 0]; if (!length(p)) return(0); -sum(p * log(p)) }
+
+# score a clustering against sample labels
+.score_cut <- function(labels, clusters) {
+  S <- factor(labels)
+  C <- factor(clusters)
+  tab <- table(S, C)
+  P   <- prop.table(tab)                 # joint p(s,c)
+  ps  <- rowSums(P)                      # p(s)
+  pc  <- colSums(P)                      # p(c)
+  
+  # Mutual information
+  MI <- sum(ifelse(P > 0, P * log(P / (ps %o% pc)), 0))
+  HS <- .entropy(ps)
+  HC <- .entropy(pc)
+  
+  # Normalized MI (symmetric): balances intra- and inter- variability
+  NMI <- if (HS > 0 && HC > 0) MI / sqrt(HS * HC) else 0
+  
+  # Weighted within-cluster entropy of sample origin
+  w_intra_entropy <- sum(pc * apply(tab, 2, function(col) .entropy(col / sum(col))))
+  
+  data.frame(N = length(S), K = nlevels(C), MI = MI, HS = HS, HC = HC,
+             NMI = NMI, IntraEntropy = w_intra_entropy, check.names = FALSE)
+}
+
+# choose best cut across a range of K by maximizing NMI (tie-break: min IntraEntropy)
+choose_best_cut <- function(hc_or_dend, sample_labels, k_range = 2:20) {
+  hc <- if (inherits(hc_or_dend, "dendrogram")) stats::as.hclust(hc_or_dend) else hc_or_dend
+  
+  res <- lapply(k_range, function(k) {
+    cl <- cutree(hc, k = k)
+    cbind(K = k, .score_cut(sample_labels, cl))
+  })
+  scores <- do.call(rbind, res)
+  
+  # best by NMI; tie-break with lower IntraEntropy, then fewer clusters
+  ord <- with(scores, order(-NMI, IntraEntropy, K))
+  best_row <- scores[ord[1], ]
+  best_k   <- best_row$K
+  best_cl  <- cutree(hc, k = best_k)
+  
+  list(k = best_k, clusters = best_cl, scores = scores[order(scores$K), ])
+}
+
+# ------------------------------------------------------------
+# Barplot B: distribution of each sample across clusters
+#   - one bar per sample
+#   - stacks = clusters (proportion within each sample)
+#   - bars ordered by diversity (Shannon entropy of cluster composition)
+# ------------------------------------------------------------
+plot_sample_distribution <- function(clusters, sample_labels, cluster_colors = NULL) {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) stop("Please install ggplot2")
+  stopifnot(length(clusters) == length(sample_labels))
+  
+  df <- data.frame(sample = factor(sample_labels), cluster = factor(clusters))
+  prop <- as.data.frame(prop.table(table(df$sample, df$cluster), 1))
+  colnames(prop) <- c("sample", "cluster", "prop")
+  
+  # compute entropy per sample
+  ent <- tapply(prop$prop, prop$sample, .entropy)
+  prop$sample <- factor(prop$sample, levels = names(sort(ent, decreasing = TRUE)))
+  
+  # optional: order clusters by global size
+  cl_sizes <- sort(table(df$cluster), decreasing = TRUE)
+  prop$cluster <- factor(prop$cluster, levels = names(cl_sizes))
+  
+  p <- ggplot2::ggplot(prop, ggplot2::aes(x = sample, y = prop, fill = cluster)) +
+    ggplot2::geom_bar(stat = "identity", width = 0.85) +
+    ggplot2::ylab("Proportion of cells in sample") +
+    ggplot2::xlab("Sample (ordered by diversity)") +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.02))) +
+    ggplot2::theme_classic(base_size = 12) +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
+  
+  if (!is.null(cluster_colors)) {
+    lev <- levels(prop$cluster)
+    p <- p + ggplot2::scale_fill_manual(values = cluster_colors[lev], drop = FALSE)
+  }
+  p
+}
+
+
+# ------------------------------------------------------------
+# Barplot: distribution of each sample across clusters
+#   - one bar per sample
+#   - stacks are clusters (proportion within each sample)
+# ------------------------------------------------------------
+plot_sample_distribution <- function(clusters, sample_labels) {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Please install ggplot2")
+  }
+  stopifnot(length(clusters) == length(sample_labels))
+
+  df <- data.frame(
+    sample  = factor(sample_labels),
+    cluster = factor(clusters)
+  )
+
+  # proportions of clusters within each sample (rows sum to 1)
+  prop <- as.data.frame(prop.table(table(df$sample, df$cluster), 1))
+  colnames(prop) <- c("sample", "cluster", "prop")
+
+  # order samples by their dominant cluster proportion (just for a nicer look)
+  dom <- aggregate(prop ~ sample, prop[ave(prop$prop, prop$sample, FUN = max) == prop$prop, ], max)
+  prop$sample <- factor(prop$sample, levels = dom$sample[order(-dom$prop)])
+
+  # optional: order clusters by global size
+  cl_sizes <- sort(table(df$cluster), decreasing = TRUE)
+  prop$cluster <- factor(prop$cluster, levels = names(cl_sizes))
+
+  ggplot2::ggplot(prop, ggplot2::aes(x = sample, y = prop, fill = cluster)) +
+    ggplot2::geom_bar(stat = "identity", width = 0.85) +
+    ggplot2::ylab("Proportion of cells in sample") +
+    ggplot2::xlab("Sample") +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.02))) +
+    ggplot2::theme_classic(base_size = 12) +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1),
+                   legend.position = "right")
+}
+
+# stacked bar plot: one bar per cluster, fill by sample origin proportion
+plot_cluster_composition <- function(clusters, sample_labels, sample_colors = NULL) {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) stop("Please install ggplot2")
+  stopifnot(length(clusters) == length(sample_labels))
+  
+  df <- data.frame(cluster = factor(clusters), sample = factor(sample_labels))
+  prop <- as.data.frame(prop.table(table(df$cluster, df$sample), 1))
+  colnames(prop) <- c("cluster", "sample", "prop")
+  
+  # compute entropy per cluster
+  ent <- tapply(prop$prop, prop$cluster, .entropy)
+  prop$cluster <- factor(prop$cluster, levels = names(sort(ent, decreasing = TRUE)))
+  
+  p <- ggplot2::ggplot(prop, ggplot2::aes(x = cluster, y = prop, fill = sample)) +
+    ggplot2::geom_bar(stat = "identity", width = 0.85) +
+    ggplot2::ylab("Proportion of cells in cluster") +
+    ggplot2::xlab("Cluster (ordered by diversity)") +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.02))) +
+    ggplot2::theme_classic(base_size = 12)
+  
+  if (!is.null(sample_colors)) {
+    lev <- levels(prop$sample)
+    p <- p + ggplot2::scale_fill_manual(values = sample_colors[lev], drop = FALSE)
+  }
+  p
+}
+
+plot_sample_distribution <- function(clusters, sample_labels, cluster_colors = NULL) {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) stop("Please install ggplot2")
+  df <- data.frame(sample = factor(sample_labels), cluster = factor(clusters))
+  prop <- as.data.frame(prop.table(table(df$sample, df$cluster), 1))
+  colnames(prop) <- c("sample", "cluster", "prop")
+  
+  gg <- ggplot2::ggplot(prop, ggplot2::aes(x = sample, y = prop, fill = cluster)) +
+    ggplot2::geom_bar(stat = "identity") +
+    ggplot2::ylab("Proportion of cells in sample") +
+    ggplot2::xlab("Sample") +
+    ggplot2::theme_classic(base_size = 12) +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
+  
+  if (!is.null(cluster_colors)) {
+    gg <- gg + ggplot2::scale_fill_manual(values = cluster_colors)
+  }
+  gg
+}
+
 # weighted Manhattan distance for an *entire* matrix
-chrWeightedDist <- function(mat) {
+chrWeightedDist <- function(mat, w=NULL) {
   # vector of chromosome weights
-  w <- chrwhole[paste0("chr", 1:22), 1]
+  if(is.null(w)){
+    w <- chrwhole[paste0("chr", 1:22), 1]
+  }
   mat.w <- sweep(mat, 2, w, `*`)         # weight every column
   dist(mat.w, method = "manhattan") / sum(w)
 }
@@ -136,10 +308,13 @@ cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f_2N, path2karyo="./", gBande
 cn_B=cn; ## make a copy
 f_4N=grep("C4N_chr18",f,invert = F, value = T)
 f_4N=grep("C4N_chr11",f_4N,invert = T, value = T)
-cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f_4N, path2karyo="./", gBandedKaryo2align=N4_whole_chr_karyo, scRNAseqCells2align="4N-Cell-Culture", lambda_conflict=0)
+cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f_4N, path2karyo="./", mergeRun2C4N.tumor_chr6 = T, gBandedKaryo2align=N4_whole_chr_karyo, scRNAseqCells2align="4N-Cell-Culture", lambda_conflict=0)
+# cn_=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi="C4N.tumor_chr6", path2karyo="./")
 cn_B[names(cn)] = cn
 
+
 numbatRun="C4N_chr18"
+# numbatRun="C4N.tumor_chr6"
 # numbatRun="C2N_chr2"
 origin=unique(cn[[numbatRun]]$cells)
 col =RColorBrewer::brewer.pal(length(origin),"Paired")
@@ -149,12 +324,48 @@ legend("topright",names(col),fill = col,cex=0.75)
 print(dt[origin,1:8])
 ## ploidy
 tmp=colnames(cn[[numbatRun]]$cn)
-segweight=parseLOCUS(sapply(strsplit(tmp,"_"),"[[",1))[,"seglength"]
-segweight = segweight/sum(segweight)
-ploidy = apply(sweep(cn[[numbatRun]]$cn,2,segweight,"*"),1,sum)
+loci=parseLOCUS(sapply(strsplit(tmp,"_"),"[[",1))
+segweight = loci[,"seglength"]/sum(loci[,"seglength"])
+cn_wholechr = grpstats(t(cn[[numbatRun]]$cn), loci[,"chr"],"mean")$mean
+ploidy = apply(sweep(cn[[numbatRun]]$cn,2,segweight,"*"),1,sum, na.rm=T)
+ploidy = apply(cn_wholechr,2,sum, na.rm=T)
 vioplot::vioplot(ploidy~cn[[numbatRun]]$cells,las=2,horizontal=F, xlab="")
 vioplot::vioplot(ploidy~as.numeric(cn[[numbatRun]]$cells=="4N-Cell-Culture"),las=2,horizontal=F, xlab="")
 
+## Cluster and enrichment analysis:
+# D <- chrWeightedDist(cn[[numbatRun]]$cn, loci[,"seglength"])
+D <- dist(cn[[numbatRun]]$cn, method = "manhattan")
+dend <- hclust(D, method = "ward.D")
+sample_origin <- cn[[numbatRun]]$cells[dend$order]
+best <- choose_best_cut(dend, sample_labels = sample_origin,
+                        k_range = 7:min(7, nrow(cn[[numbatRun]]$cn) - 1))
+head(best$scores[order(-best$scores$NMI), ], 5)  # top scoring cuts
+# -----------------------------------------------------------------
+# Create a consistent cluster color palette
+# -----------------------------------------------------------------
+uniq_clusters <- sort(unique(best$clusters))
+cluster_colors <- setNames(rainbow(length(uniq_clusters)), uniq_clusters)
+hm <- gplots::heatmap.2(
+  cn[[numbatRun]]$cn,
+  Rowv = as.dendrogram(dend),    # or just Rowv = dend
+  Colv = NA,                     # don't cluster columns
+  dendrogram = "row",            # draw only the row dendrogram
+  reorderfun = function(d, w) d, # keep *exact* input dendrogram order
+  trace = "n",
+  RowSideColors = col[cn[[numbatRun]]$cells],
+  margins = c(15, 5),
+  col = (rainbow(8))[1:6],
+  colRow = cluster_colors[best$clusters[names(cn[[numbatRun]]$cells)]]
+)
+legend("topright",names(col),fill = col,cex=0.75)
+p1 <- plot_cluster_composition(best$clusters, sample_origin[names(best$clusters)], col)
+p2 <- plot_sample_distribution(best$clusters, sample_origin[names(best$clusters)], cluster_colors)
+print(p1)
+print(p2)
+# Fisher's test:
+enr <- fisher_cluster_enrichment(best$clusters, sample_origin[names(best$clusters)])
+enr$padj_table
+plot_enrichment_heatmap(enr, cluster_rows = FALSE, cluster_cols = TRUE)
 
 # ## LIAYSON ##
 # library(Seurat)

@@ -1,3 +1,90 @@
+# Map each laa2 segment to the best-overlapping laa segment (by bp overlap).
+# - idx[j] is the 1-based column index in laa$cnv_matrix that best matches
+#   col j of laa2$cnv_matrix. Entries can repeat (many-to-one mapping).
+# - If a laa2 segment has no overlap with any laa segment on the same chr,
+#   idx[j] is NA (you can decide how to handle that).
+#
+# Tie-breakers:
+#   1) maximum overlap length (bp)
+#   2) maximum Jaccard (overlap / union)
+#   3) first in order (stable)
+#
+# You can require a minimum overlap (bp) and/or a minimum fraction of the laa2
+# segment covered by the chosen laa segment.
+map_segments_acrossNumbatRuns <- function(laa_cnv_matrix,
+                                          laa2_cnv_matrix,
+                                          min_overlap_bp = 1,
+                                          min_frac_laa2 = 0) {
+  
+  parse_seg <- function(x) {
+    chr <- sub(":.*$", "", x)
+    pos <- sub("^.*:", "", x)
+    # keep only the first numeric start-end pair even if suffixes exist (e.g., "_q")
+    pos <- sub("^([0-9]+)-([0-9]+).*$", "\\1-\\2", pos)
+    start <- as.numeric(sub("-.*$", "", pos))
+    end   <- as.numeric(sub("^.*-", "", pos))
+    if (anyNA(start) || anyNA(end)) stop("Failed to parse segment names.")
+    if (any(end < start)) stop("Found segments with end < start.")
+    data.frame(chr = chr, start = start, end = end, stringsAsFactors = FALSE)
+  }
+  
+  seg_laa  <- colnames(laa_cnv_matrix)
+  seg_laa2 <- colnames(laa2_cnv_matrix)
+  if (is.null(seg_laa) || is.null(seg_laa2)) stop("Both matrices need column names.")
+  
+  g1 <- parse_seg(seg_laa)
+  g2 <- parse_seg(seg_laa2)
+  
+  n2  <- nrow(g2)
+  idx <- rep(NA_integer_, n2)
+  
+  for (j in seq_len(n2)) {
+    chrj <- g2$chr[j]
+    s2   <- g2$start[j]
+    e2   <- g2$end[j]
+    len2 <- e2 - s2 + 1
+    
+    on_chr <- which(g1$chr == chrj)
+    if (!length(on_chr)) next
+    
+    # overlap lengths with all laa segments on same chr
+    ov <- pmax(0, pmin(g1$end[on_chr], e2) - pmax(g1$start[on_chr], s2) + 1)
+    
+    # enforce minimum overlap
+    if (all(ov < min_overlap_bp)) next
+    
+    # candidates above threshold
+    cand_mask <- ov >= min_overlap_bp
+    cand_idx  <- on_chr[cand_mask]
+    ov_cand   <- ov[cand_mask]
+    
+    # also require coverage of laa2 by chosen laa ≥ min_frac_laa2
+    frac2 <- ov_cand / len2
+    keep  <- frac2 >= min_frac_laa2
+    if (!any(keep)) next
+    
+    cand_idx  <- cand_idx[keep]
+    ov_cand   <- ov_cand[keep]
+    
+    # tie-break: 1) max overlap
+    max_ov <- max(ov_cand)
+    cand_idx2 <- cand_idx[ov_cand == max_ov]
+    
+    if (length(cand_idx2) > 1) {
+      # 2) max Jaccard (ov / union)
+      len1 <- g1$end[cand_idx2] - g1$start[cand_idx2] + 1
+      jacc <- ov_cand[ov_cand == max_ov] / (len1 + len2 - max_ov)
+      cand_idx2 <- cand_idx2[which.max(jacc)]
+    }
+    
+    idx[j] <- cand_idx2[1]
+  }
+  
+  names(idx) <- seg_laa2
+  idx
+}
+
+
 
 ## Extracts cell-by-segment matrix of copy number states from Numbat results
 getCNVmatrix<-function(path2jointtsvfile, iteration=NA){
@@ -87,7 +174,7 @@ getCNVmatrix<-function(path2jointtsvfile, iteration=NA){
 # DATASETID="Melanoma_GSE174401"
 # DATASETID="HNSC_GSE181919"
 ## Returns Numbat copy number calls in a format that can be used as input to ALFA-K
-NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/4482173/Documents/Project/GBM/data/", gBandedKaryo2align = NULL, scRNAseqCells2align = NULL, lambda_conflict=0.25){
+NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/4482173/Documents/Project/GBM/data/", mergeRun2C4N.tumor_chr6 = F, gBandedKaryo2align = NULL, scRNAseqCells2align = NULL, lambda_conflict=0.25, CN0=NULL){
   useLogFC=F
   
   ## patient cohort
@@ -120,27 +207,49 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
     la_unique <- la_unique[order(la_unique$Stage),]
     
     ## Numbat results
-    laa=getCNVmatrix(paste0(path2numbat,patient))
-    if(!useLogFC || !is.null(gBandedKaryo2align)){
-      la=as.data.frame(laa$cnv_matrix)
+    if(mergeRun2C4N.tumor_chr6){
+      laa=getCNVmatrix(paste0(path2numbat,"C4N.tumor_chr6"))
+      laa$cnv_matrix = as.data.frame(laa$cnv_matrix)
+      rownames(laa$cnv_matrix)=laa$cnv_matrix$cell
+      laa$cnv_matrix = laa$cnv_matrix[,-1]
+      
+      laa2=getCNVmatrix(paste0(path2numbat,patient))
+      laa2$cnv_matrix = as.data.frame(laa2$cnv_matrix)
+      rownames(laa2$cnv_matrix)=laa2$cnv_matrix$cell
+      laa2$cnv_matrix = laa2$cnv_matrix[,-1]
+      
+      idx <- map_segments_acrossNumbatRuns(laa$cnv_matrix, laa2$cnv_matrix,
+                                           min_overlap_bp = 1,   # tweak if you want stricter
+                                           min_frac_laa2 = 0.0)  # e.g., 0.5 requires ≥50% coverage
+      laa2$cnv_matrix = laa2$cnv_matrix[,!is.na(idx)]
+      idx=idx[!is.na(idx)]
+      # rbind(colnames(laa2$cnv_matrix),colnames(laa$cnv_matrix)[idx])
+      laa2$cnv_matrix[rownames(laa$cnv_matrix),] = laa$cnv_matrix[,idx]
+      
+      cn = laa2$cnv_matrix
+      sample=sample[rownames(cn)]
     }else{
-      la=as.data.frame(laa$cnv_matrix_integer)
+      laa=getCNVmatrix(paste0(path2numbat,patient))
+      if(!useLogFC || !is.null(gBandedKaryo2align)){
+        la=as.data.frame(laa$cnv_matrix)
+      }else{
+        la=as.data.frame(laa$cnv_matrix_integer)
+      }
+      rownames(la)=la$cell
+      sample=sample[rownames(la)]
+      
+      if(ncol(la)==2){
+        la1<-as.data.frame(matrix(data = NA,nrow = nrow(la),ncol = 1))
+        la1$V1<-la[,2]
+        colnames(la1)<-colnames(la)[2]
+        rownames(la1)<-rownames(la)
+        cn=la1
+        la<-la1
+      }else{
+        la=la[,-1]
+        cn=la
+      }
     }
-    rownames(la)=la$cell
-    sample=sample[rownames(la)]
-    
-    if(ncol(la)==2){
-      la1<-as.data.frame(matrix(data = NA,nrow = nrow(la),ncol = 1))
-      la1$V1<-la[,2]
-      colnames(la1)<-colnames(la)[2]
-      rownames(la1)<-rownames(la)
-      cn=la1
-      la<-la1
-    }else{
-      la=la[,-1]
-      cn=la
-    }
-    
     
     ## convert states to integer CNs:
     if(!useLogFC && is.null(gBandedKaryo2align)){
@@ -215,7 +324,7 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
       ii2align=names(theout$cells)[theout$cells==scRNAseqCells2align]
       
       ## identify rules of mapping neu, amp, del, loh, etc to absolute copy number bu aligning to copy number distribution from karyotyping: 
-      alg=map_scRNA_to_absolute_cn(jnt$cn_scRNAseq[ii2align,], jnt$cn_karyo, karyo_orig =  gBandedKaryo2align, amp_max_increase = 3, lambda_conflict = lambda_conflict)
+      alg=map_scRNA_to_absolute_cn(jnt$cn_scRNAseq[ii2align,], jnt$cn_karyo, karyo_orig =  jnt$cn_karyo, amp_max_increase = 3, lambda_conflict = lambda_conflict, CN0=CN0)
       # alg=map_scRNA_to_absolute_cn(jnt$cn_scRNAseq[ii2align,], jnt$cn_karyo, karyo_orig =  gBandedKaryo2align, amp_max_increase = 3, lambda_conflict = lambda_conflict)
       tmp=rbind(alg$cn_matrix[sample(ii2align,255),],jnt$cn_karyo)
       # hm=heatmap.2(t(tmp), Rowv = NULL, trace = "n")
@@ -265,11 +374,7 @@ addChrAnnotation <- function(y_mat){
   
   # A. Get Chromosome Arm Boundaries from x
   x[, arm := substr(name, 1, 1)]
-  x[, chr_std := chrom] # Use existing 'chr' column name if already standardized
-  # Handle potential numeric chr names in x if necessary (our example uses 'chr' prefix)
-  # x[grep("^\\d+$", chrom), chr_std := paste0("chr", chrom)]
-  # x[chrom == "X", chr_std := "chrX"]
-  # x[chrom == "Y", chr_std := "chrY"]
+  x[, chr_std := chrom]
   
   # Calculate boundaries for p and q arms for all chromosomes in x
   arm_boundaries <- x[arm %in% c('p', 'q'),
@@ -286,148 +391,115 @@ addChrAnnotation <- function(y_mat){
   arm_boundaries[is.infinite(q_end), q_end := NA]
   
   # B. Initial Processing of y (Assign Arms)
-  # Prepare x_arms for overlap (only p and q bands)
   x_arms <- x[arm %in% c('p', 'q')]
   setkey(x_arms, chr_std, chromStart, chromEnd)
   
-  # Prepare y
   y <- as.data.table(y_mat)
   y[, y_id := .I]
   if (!any(grepl("^chr", y$chr))) {
     y[, chr_std_y := paste0("chr", chr)]
   } else {
-    y[, chr_std_y := as.character(chr)] # Ensure character
+    y[, chr_std_y := as.character(chr)]
   }
   y[chr == 23, chr_std_y := "chrX"]
   y[chr == 24, chr_std_y := "chrY"]
   setkey(y, chr_std_y, startpos, endpos)
   
-  # Find overlaps
   overlaps <- foverlaps(y, x_arms,
                         by.x = c("chr_std_y", "startpos", "endpos"),
                         by.y = c("chr_std", "chromStart", "chromEnd"),
                         type = "any", mult = "all", nomatch = NULL)
   
-  # Initialize y with 'unknown' arm - will be overwritten if overlaps found
   y[, arm := "unknown"]
   
   if (!is.null(overlaps) && nrow(overlaps) > 0) {
-    # Calculate overlap length
     overlaps[, overlap_len := pmax(0, pmin(endpos, chromEnd) - pmax(startpos, chromStart))]
     
-    # Aggregate overlap length by original segment and arm
-    arm_overlaps <- overlaps[, .(total_overlap = sum(overlap_len)), by = .(y_id, arm)] # Use arm from x_arms
+    arm_overlaps <- overlaps[, .(total_overlap = sum(overlap_len)), by = .(y_id, arm)]
     
-    # Reshape data
     arm_summary <- dcast(arm_overlaps, y_id ~ arm, value.var = "total_overlap", fill = 0)
     
-    # Ensure p and q columns exist
     if (!"p" %in% names(arm_summary)) arm_summary[, p := 0]
     if (!"q" %in% names(arm_summary)) arm_summary[, q := 0]
     
-    # Assign Arm Classification
     arm_summary[, arm_assigned := fifelse(p > 0 & q > 0, "whole",
                                           fifelse(p > 0, "p",
                                                   fifelse(q > 0, "q", "unknown")))]
     
-    # Merge assigned arm back to y
-    # Need to handle potential duplicates in y_id if merge creates them (shouldn't with y_id)
     y <- merge(y, arm_summary[, .(y_id, arm_assigned)], by = "y_id", all.x = TRUE)
     
-    # Update the 'arm' column, keeping 'unknown' for those with no p/q overlap found
     y[!is.na(arm_assigned), arm := arm_assigned]
-    y[, arm_assigned := NULL] # Remove temporary merge column
+    y[, arm_assigned := NULL]
     
   } else {
     warning("No overlaps found between y segments and p/q arms in x. Initial arms set to 'unknown'.")
   }
   
-  
-  # C. Identify and Create Missing Arm Placeholders
-  # Find which chromosome arms are represented in the processed y
-  # Using original numeric 'chr' column for grouping
-  y_arm_presence <- y[, .(has_p = any(arm %in% c('p', 'whole')),
-                          has_q = any(arm %in% c('q', 'whole'))),
-                      by = .(chr, chr_std_y)] # Keep both chr formats
-  
-  
-  # List to store the placeholders for missing arms
+  # C. Identify and Create Missing Arm Placeholders (Corrected Logic)
   missing_arms_list <- list()
+  all_ref_chrs <- unique(arm_boundaries$chr_std)
   
-  # Iterate through chromosomes present in y
-  for (i in 1:nrow(y_arm_presence)) {
-    current_chr_num <- y_arm_presence$chr[i]
-    current_chr_std <- y_arm_presence$chr_std_y[i]
-    has_p_coverage <- y_arm_presence$has_p[i]
-    has_q_coverage <- y_arm_presence$has_q[i]
+  for (current_chr_std in all_ref_chrs) {
+    is_chr_in_y <- current_chr_std %in% y$chr_std_y
+    has_p_coverage <- FALSE
+    has_q_coverage <- FALSE
     
-    # Look up boundaries for this chromosome
+    if (is_chr_in_y) {
+      has_p_coverage <- any(y[chr_std_y == current_chr_std, arm] %in% c('p', 'whole'))
+      has_q_coverage <- any(y[chr_std_y == current_chr_std, arm] %in% c('q', 'whole'))
+    }
+    
     boundaries <- arm_boundaries[chr_std == current_chr_std]
     
-    if (nrow(boundaries) == 1) { # Ensure boundaries were found
-      # Check if p arm is missing
+    chr_num_str <- sub("chr", "", current_chr_std)
+    if (chr_num_str == "X") {
+      current_chr_num <- 23
+    } else if (chr_num_str == "Y") {
+      current_chr_num <- 24
+    } else {
+      current_chr_num <- as.integer(chr_num_str)
+    }
+    if (is.na(current_chr_num)) next 
+    
+    if (nrow(boundaries) == 1) {
       if (!has_p_coverage && !is.na(boundaries$p_start) && !is.na(boundaries$p_end)) {
-        message(paste("Creating placeholder for missing 'p' arm on chromosome", current_chr_num))
+        message(paste("Creating placeholder for missing 'p' arm on chromosome", chr_num_str))
         p_placeholder <- data.table(
-          chr = current_chr_num,
-          startpos = boundaries$p_start,
-          endpos = boundaries$p_end,
-          seglength = boundaries$p_end - boundaries$p_start,
+          chr = current_chr_num, startpos = boundaries$p_start,
+          endpos = boundaries$p_end, seglength = boundaries$p_end - boundaries$p_start,
           arm = "p"
-          # y_id = NA, # Or assign a unique negative ID? Let's omit for now.
-          # chr_std_y = current_chr_std # Keep consistent? Added below if needed.
         )
         missing_arms_list[[length(missing_arms_list) + 1]] <- p_placeholder
       }
-      
-      # Check if q arm is missing
       if (!has_q_coverage && !is.na(boundaries$q_start) && !is.na(boundaries$q_end)) {
-        message(paste("Creating placeholder for missing 'q' arm on chromosome", current_chr_num))
+        message(paste("Creating placeholder for missing 'q' arm on chromosome", chr_num_str))
         q_placeholder <- data.table(
-          chr = current_chr_num,
-          startpos = boundaries$q_start,
-          endpos = boundaries$q_end,
-          seglength = boundaries$q_end - boundaries$q_start,
+          chr = current_chr_num, startpos = boundaries$q_start,
+          endpos = boundaries$q_end, seglength = boundaries$q_end - boundaries$q_start,
           arm = "q"
         )
         missing_arms_list[[length(missing_arms_list) + 1]] <- q_placeholder
       }
     } else {
-      warning(paste("Could not find arm boundary information in 'x' for chromosome:", current_chr_std))
+      warning(paste("Could not find arm boundary information for chromosome:", current_chr_std))
     }
   }
   
   # D. Append Placeholders
-  # Remove temporary columns from y before binding
   y[, c("y_id", "chr_std_y") := NULL]
   
   if (length(missing_arms_list) > 0) {
-    # Combine all placeholders
     missing_arms_dt <- rbindlist(missing_arms_list)
-    
-    # Ensure column order consistency (optional, but good practice)
-    # setcolorder(missing_arms_dt, names(y)) # This might fail if columns aren't exact matches yet
-    
-    # Append to the original y data
-    # Use fill=TRUE to handle potential missing columns (like y_id if it wasn't removed)
     y_final <- rbindlist(list(y, missing_arms_dt), use.names = TRUE, fill = TRUE)
     message(paste("Appended", nrow(missing_arms_dt), "placeholder arm segments."))
   } else {
-    y_final <- y # No placeholders to add
+    y_final <- y
     message("No missing arms found to append.")
   }
   
-  # Clean up potential NA values from fill=TRUE if necessary (e.g., y_id column if kept)
-  # y_final[is.na(y_id), y_id := -seq_len(.N)] # Example: assign negative IDs
-  
-  # --- Display Final Result ---
-  print(y_final)
-  
-  # Display Arm Boundaries for reference
-  print("Calculated Arm Boundaries:")
-  print(arm_boundaries)
   return(y_final)
 }
+
 
 
 alignCNmatrices <- function(cn_karyo, scRNAseq, arm_level_karyo=T){
@@ -753,7 +825,7 @@ map_scRNA_to_absolute_cn <- function(scRNA_df,
                                      consensus_correct_uninformed = TRUE,
                                      # NEW per-state informativity knobs
                                      tau_karyo_side_min = 0.15,
-                                     min_scRNA_state_mass = 0.01) {
+                                     min_scRNA_state_mass = 0.01, CN0=NULL) {
   
   ## ---- helpers -------------------------------------------------------------
   
@@ -850,19 +922,21 @@ map_scRNA_to_absolute_cn <- function(scRNA_df,
   ## ---- Step A: Global neutral CN0 ------------------------------------------
   all_karyo_vals <- suppressWarnings(as.integer(unlist(karyo_orig, use.names = FALSE)))
   all_karyo_vals <- all_karyo_vals[!is.na(all_karyo_vals)]
-  if (!length(all_karyo_vals)) stop("karyo_orig contains no numeric entries to estimate CN0.")
-  modes <- mode_int(all_karyo_vals)
-  if (length(modes) == 1L) {
-    CN0 <- modes
-  } else {
-    global_states <- state_proportions(as.character(unlist(scRNA_df, use.names = FALSE)))
-    best <- Inf; best_m <- modes[1]
-    for (m in modes) {
-      tmp_map <- c(neu = m, loh = m, amp = m + 1, del = max(m - 1, 0), bamp = m + 1, bdel = max(m - 1, 0))
-      sc <- conflict_penalty(global_states, tmp_map, m)
-      if (sc < best) { best <- sc; best_m <- m }
+  if(is.null(CN0)){
+    if (!length(all_karyo_vals)) stop("karyo_orig contains no numeric entries to estimate CN0.")
+    modes <- mode_int(all_karyo_vals)
+    if (length(modes) == 1L) {
+      CN0 <- modes
+    } else {
+      global_states <- state_proportions(as.character(unlist(scRNA_df, use.names = FALSE)))
+      best <- Inf; best_m <- modes[1]
+      for (m in modes) {
+        tmp_map <- c(neu = m, loh = m, amp = m + 1, del = max(m - 1, 0), bamp = m + 1, bdel = max(m - 1, 0))
+        sc <- conflict_penalty(global_states, tmp_map, m)
+        if (sc < best) { best <- sc; best_m <- m }
+      }
+      CN0 <- best_m
     }
-    CN0 <- best_m
   }
   
   ## ---- Step B/C: Per-segment grid search -----------------------------------
@@ -876,173 +950,173 @@ map_scRNA_to_absolute_cn <- function(scRNA_df,
                       suppressWarnings(max(all_karyo_vals, na.rm = TRUE)),
                       na.rm = TRUE)
   for (seg in segs) {
-      
-      kd <- prop_table_int(karyo_df[[seg]])
-      sp <- state_proportions(scRNA_df[[seg]])
-      for (s in state_names) if (!(s %in% names(sp))) sp[s] <- 0
-      sp <- sp[state_names]
-      
-      # ---- karyotype/scRNA summaries
-      k_counts <- suppressWarnings(as.integer(karyo_df[[seg]])); k_counts <- k_counts[!is.na(k_counts)]
-      n_k <- length(k_counts)
-      
-      kd_neu <- if (as.character(CN0) %in% names(kd)) kd[as.character(CN0)] else 0
-      kd_nonneutral <- 1 - kd_neu
-      above <- as.integer(names(kd))[as.integer(names(kd)) >  CN0]
-      below <- as.integer(names(kd))[as.integer(names(kd)) <  CN0]
-      kd_amp_side <- if (length(above)) ssum(kd[as.character(above)]) else 0
-      kd_del_side <- if (length(below)) ssum(kd[as.character(below)]) else 0
-      
-      sc_amp  <- as.numeric(sp["amp"])  + as.numeric(sp["bamp"])
-      sc_del  <- as.numeric(sp["del"])  + as.numeric(sp["bdel"])
-      sc_loh  <- as.numeric(sp["loh"])
-      sc_neu  <- as.numeric(sp["neu"])
-      
-      # segment-level informativity (as you had)
-      sc_amp_dom <- sc_amp >= r_scRNA_sign_dominance * max(sc_del, 1e-12)
-      sc_del_dom <- sc_del >= r_scRNA_sign_dominance * max(sc_amp, 1e-12)
-      kd_amp_dom <- kd_amp_side >= tau_karyo_side_dominance
-      kd_del_dom <- kd_del_side >= tau_karyo_side_dominance
-      contradictory_seg <- !((sc_amp_dom && kd_amp_dom) || (sc_del_dom && kd_del_dom) || (sc_neu >= 0.5 && kd_neu >= 0.5))
-      neutral_dominated <- (kd_neu >= tau_karyo_neutral) || (kd_nonneutral < tau_karyo_nonneutral_min)
-      too_few_karyo     <- (n_k < min_karyo_cells)
-      karyo_informable_segment <- !(too_few_karyo || neutral_dominated || contradictory_seg)
-      
-      # ---------- NEW: per-state informativity flags ---------------------------
-      # A state is "informable" only if:
-      #  - the karyotype has enough mass on the relevant side (or for LOH, enough del-side to support CN<CN0),
-      #  - AND scRNA actually exhibits that state in >= min_scRNA_state_mass of cells (otherwise distance can’t learn it),
-      #  - AND the sign isn't contradicted by dominant signal on the opposite side.
-      inf_amp  <- (kd_amp_side >= tau_karyo_side_min) && (as.numeric(sp["amp"])  >= min_scRNA_state_mass) && !(sc_del_dom && kd_amp_dom)
-      inf_bamp <- (kd_amp_side >= tau_karyo_side_min) && (as.numeric(sp["bamp"]) >= min_scRNA_state_mass) && !(sc_del_dom && kd_amp_dom)
-      inf_del  <- (kd_del_side >= tau_karyo_side_min) && (as.numeric(sp["del"])  >= min_scRNA_state_mass) && !(sc_amp_dom && kd_del_dom)
-      inf_bdel <- (kd_del_side >= tau_karyo_side_min) && (as.numeric(sp["bdel"]) >= min_scRNA_state_mass) && !(sc_amp_dom && kd_del_dom)
-      # For LOH, only consider karyotype-informative if there is substantial del-side signal,
-      # otherwise LOH is ambiguous and we use fallback.
-      inf_loh  <- (kd_del_side >= tau_karyo_side_min) && (sc_loh >= min_scRNA_state_mass)
-      
-      # ---------- fallback rule (same semantics you used; use base R 'ceiling') --
-      fallback_map <- c(
-        neu  = CN0,
-        loh  = ceiling((CN0 + 0.1)/2),         # your chosen default
-        amp  = CN0 + 1,
-        del  = max(floor(CN0/2), 0),           # your chosen default
-        bamp = CN0 + 1,
-        bdel = max(floor(CN0/2), 0)
+    
+    kd <- prop_table_int(karyo_df[[seg]])
+    sp <- state_proportions(scRNA_df[[seg]])
+    for (s in state_names) if (!(s %in% names(sp))) sp[s] <- 0
+    sp <- sp[state_names]
+    
+    # ---- karyotype/scRNA summaries
+    k_counts <- suppressWarnings(as.integer(karyo_df[[seg]])); k_counts <- k_counts[!is.na(k_counts)]
+    n_k <- length(k_counts)
+    
+    kd_neu <- if (as.character(CN0) %in% names(kd)) kd[as.character(CN0)] else 0
+    kd_nonneutral <- 1 - kd_neu
+    above <- as.integer(names(kd))[as.integer(names(kd)) >  CN0]
+    below <- as.integer(names(kd))[as.integer(names(kd)) <  CN0]
+    kd_amp_side <- if (length(above)) ssum(kd[as.character(above)]) else 0
+    kd_del_side <- if (length(below)) ssum(kd[as.character(below)]) else 0
+    
+    sc_amp  <- as.numeric(sp["amp"])  + as.numeric(sp["bamp"])
+    sc_del  <- as.numeric(sp["del"])  + as.numeric(sp["bdel"])
+    sc_loh  <- as.numeric(sp["loh"])
+    sc_neu  <- as.numeric(sp["neu"])
+    
+    # segment-level informativity (as you had)
+    sc_amp_dom <- sc_amp >= r_scRNA_sign_dominance * max(sc_del, 1e-12)
+    sc_del_dom <- sc_del >= r_scRNA_sign_dominance * max(sc_amp, 1e-12)
+    kd_amp_dom <- kd_amp_side >= tau_karyo_side_dominance
+    kd_del_dom <- kd_del_side >= tau_karyo_side_dominance
+    contradictory_seg <- !((sc_amp_dom && kd_amp_dom) || (sc_del_dom && kd_del_dom) || (sc_neu >= 0.5 && kd_neu >= 0.5))
+    neutral_dominated <- (kd_neu >= tau_karyo_neutral) || (kd_nonneutral < tau_karyo_nonneutral_min)
+    too_few_karyo     <- (n_k < min_karyo_cells)
+    karyo_informable_segment <- !(too_few_karyo || neutral_dominated || contradictory_seg)
+    
+    # ---------- NEW: per-state informativity flags ---------------------------
+    # A state is "informable" only if:
+    #  - the karyotype has enough mass on the relevant side (or for LOH, enough del-side to support CN<CN0),
+    #  - AND scRNA actually exhibits that state in >= min_scRNA_state_mass of cells (otherwise distance can’t learn it),
+    #  - AND the sign isn't contradicted by dominant signal on the opposite side.
+    inf_amp  <- (kd_amp_side >= tau_karyo_side_min) && (as.numeric(sp["amp"])  >= min_scRNA_state_mass) && !(sc_del_dom && kd_amp_dom)
+    inf_bamp <- (kd_amp_side >= tau_karyo_side_min) && (as.numeric(sp["bamp"]) >= min_scRNA_state_mass) && !(sc_del_dom && kd_amp_dom)
+    inf_del  <- (kd_del_side >= tau_karyo_side_min) && (as.numeric(sp["del"])  >= min_scRNA_state_mass) && !(sc_amp_dom && kd_del_dom)
+    inf_bdel <- (kd_del_side >= tau_karyo_side_min) && (as.numeric(sp["bdel"]) >= min_scRNA_state_mass) && !(sc_amp_dom && kd_del_dom)
+    # For LOH, only consider karyotype-informative if there is substantial del-side signal,
+    # otherwise LOH is ambiguous and we use fallback.
+    inf_loh  <- (kd_del_side >= tau_karyo_side_min) && (sc_loh >= min_scRNA_state_mass)
+    
+    # ---------- fallback rule (same semantics you used; use base R 'ceiling') --
+    fallback_map <- c(
+      neu  = CN0,
+      loh  = ceiling((CN0 + 0.1)/2),         # your chosen default
+      amp  = CN0 + 1,
+      del  = max(floor(CN0/2), 0),           # your chosen default
+      bamp = CN0 + 1,
+      bdel = max(floor(CN0/2), 0)
+    )
+    
+    # If the whole segment is not informable → assign all fallback and skip search
+    if (!karyo_informable_segment) {
+      rule_mat[seg, ] <- fallback_map
+      diag_list[[seg]] <- data.frame(
+        segment = seg,
+        neu  = fallback_map["neu"],
+        loh  = fallback_map["loh"],
+        amp  = fallback_map["amp"],
+        del  = fallback_map["del"],
+        bamp = fallback_map["bamp"],
+        bdel = fallback_map["bdel"],
+        distance = NA_real_, penalty = NA_real_,
+        n_karyo = n_k, kd_neutral = kd_neu, kd_amp_side = kd_amp_side, kd_del_side = kd_del_side,
+        sc_amp = sc_amp, sc_del = sc_del,
+        karyo_informed = FALSE,
+        inf_loh = FALSE, inf_amp = FALSE, inf_del = FALSE, inf_bamp = FALSE, inf_bdel = FALSE,
+        fallback_loh = TRUE, fallback_amp = TRUE, fallback_del = TRUE, fallback_bamp = TRUE, fallback_bdel = TRUE,
+        stringsAsFactors = FALSE
       )
-      
-      # If the whole segment is not informable → assign all fallback and skip search
-      if (!karyo_informable_segment) {
-        rule_mat[seg, ] <- fallback_map
-        diag_list[[seg]] <- data.frame(
-          segment = seg,
-          neu  = fallback_map["neu"],
-          loh  = fallback_map["loh"],
-          amp  = fallback_map["amp"],
-          del  = fallback_map["del"],
-          bamp = fallback_map["bamp"],
-          bdel = fallback_map["bdel"],
-          distance = NA_real_, penalty = NA_real_,
-          n_karyo = n_k, kd_neutral = kd_neu, kd_amp_side = kd_amp_side, kd_del_side = kd_del_side,
-          sc_amp = sc_amp, sc_del = sc_del,
-          karyo_informed = FALSE,
-          inf_loh = FALSE, inf_amp = FALSE, inf_del = FALSE, inf_bamp = FALSE, inf_bdel = FALSE,
-          fallback_loh = TRUE, fallback_amp = TRUE, fallback_del = TRUE, fallback_bamp = TRUE, fallback_bdel = TRUE,
-          stringsAsFactors = FALSE
-        )
-        next
-      }
-      
-      # ---------- candidate sets (lock non-informable states to fallback) -------
-      amp_candidates   <- if (inf_amp)   (CN0 + 1):(CN0 + max(1, amp_max_increase)) else fallback_map["amp"]
-      amp_candidates   <- amp_candidates[amp_candidates > CN0]
-      bamp_candidates  <- if (inf_bamp)  amp_candidates else fallback_map["bamp"]
-      
-      del_candidates   <- if (inf_del)   unique(c(max(CN0 - 1, 0), max(CN0 - 2, 0), max(CN0 - 3, 0))) else fallback_map["del"]
-      del_candidates   <- del_candidates[del_candidates >= 0]
-      bdel_candidates  <- if (inf_bdel)  del_candidates else fallback_map["bdel"]
-      
-      loh_candidates   <- if (inf_loh)   unique(c(CN0, del_candidates)) else fallback_map["loh"]
-      loh_candidates   <- loh_candidates[loh_candidates >= 0]
-      
-      # --- grid search (only states marked informable can vary) -----------------
-      best_obj <- Inf
-      best_map <- c(neu = CN0, loh = NA_integer_, amp = NA_integer_, del = NA_integer_, bamp = NA_integer_, bdel = NA_integer_)
-      best_parts <- c(distance = NA_real_, penalty = NA_real_)
-      
-      for (loh_val in loh_candidates) {
-        for (amp_val in amp_candidates) {
-          for (del_val in del_candidates) {
-            for (bamp_val in bamp_candidates) {
-              for (bdel_val in bdel_candidates) {
-                
-                if (enforce_sign_constraints) {
-                  if (!(amp_val > CN0 && del_val < CN0 && bamp_val > CN0 && bdel_val < CN0)) next
-                }
-                
-                map_cn <- c(neu = CN0, loh = loh_val, amp = amp_val, del = del_val,
-                            bamp = bamp_val, bdel = bdel_val)
-                
-                cand_dist <- build_candidate_dist(sp, map_cn)
-                
-                CNmax <- max(CN0 + amp_max_increase,
-                             suppressWarnings(max(as.integer(names(cand_dist)), na.rm = TRUE)),
-                             suppressWarnings(max(as.integer(names(kd)), na.rm = TRUE)),
-                             na.rm = TRUE)
-                support <- as.character(0:CNmax)
-                kd_full <- numeric(length(support)); names(kd_full) <- support
-                cd_full <- kd_full
-                if (length(kd))        kd_full[names(kd)]        <- as.numeric(kd)
-                if (length(cand_dist)) cd_full[names(cand_dist)] <- as.numeric(cand_dist)
-                
-                spk <- ssum(kd_full); if (spk > 0) kd_full <- kd_full / spk
-                spc <- ssum(cd_full); if (spc > 0) cd_full <- cd_full / spc
-                
-                dist_total  <- wasserstein1d_discrete(kd_full, cd_full)
-                dist_nonneu <- w1_nonneutral(kd_full, cd_full, CN0)
-                
-                pen_val  <- conflict_penalty(sp, map_cn, CN0)
-                dist_val <- dist_total + beta_nonneutral * dist_nonneu
-                obj <- dist_val + lambda_conflict * pen_val
-                
-                if (obj < best_obj) {
-                  best_obj <- obj
-                  best_map <- map_cn
-                  best_parts <- c(distance = dist_val, penalty = pen_val)
-                }
+      next
+    }
+    
+    # ---------- candidate sets (lock non-informable states to fallback) -------
+    amp_candidates   <- if (inf_amp)   (CN0 + 1):(CN0 + max(1, amp_max_increase)) else fallback_map["amp"]
+    amp_candidates   <- amp_candidates[amp_candidates > CN0]
+    bamp_candidates  <- if (inf_bamp)  amp_candidates else fallback_map["bamp"]
+    
+    del_candidates   <- if (inf_del)   unique(c(max(CN0 - 1, 0), max(CN0 - 2, 0), max(CN0 - 3, 0))) else fallback_map["del"]
+    del_candidates   <- del_candidates[del_candidates >= 0]
+    bdel_candidates  <- if (inf_bdel)  del_candidates else fallback_map["bdel"]
+    
+    loh_candidates   <- if (inf_loh)   unique(c(CN0, del_candidates)) else fallback_map["loh"]
+    loh_candidates   <- loh_candidates[loh_candidates >= 0]
+    
+    # --- grid search (only states marked informable can vary) -----------------
+    best_obj <- Inf
+    best_map <- c(neu = CN0, loh = NA_integer_, amp = NA_integer_, del = NA_integer_, bamp = NA_integer_, bdel = NA_integer_)
+    best_parts <- c(distance = NA_real_, penalty = NA_real_)
+    
+    for (loh_val in loh_candidates) {
+      for (amp_val in amp_candidates) {
+        for (del_val in del_candidates) {
+          for (bamp_val in bamp_candidates) {
+            for (bdel_val in bdel_candidates) {
+              
+              if (enforce_sign_constraints) {
+                if (!(amp_val > CN0 && del_val < CN0 && bamp_val > CN0 && bdel_val < CN0)) next
+              }
+              
+              map_cn <- c(neu = CN0, loh = loh_val, amp = amp_val, del = del_val,
+                          bamp = bamp_val, bdel = bdel_val)
+              
+              cand_dist <- build_candidate_dist(sp, map_cn)
+              
+              CNmax <- max(CN0 + amp_max_increase,
+                           suppressWarnings(max(as.integer(names(cand_dist)), na.rm = TRUE)),
+                           suppressWarnings(max(as.integer(names(kd)), na.rm = TRUE)),
+                           na.rm = TRUE)
+              support <- as.character(0:CNmax)
+              kd_full <- numeric(length(support)); names(kd_full) <- support
+              cd_full <- kd_full
+              if (length(kd))        kd_full[names(kd)]        <- as.numeric(kd)
+              if (length(cand_dist)) cd_full[names(cand_dist)] <- as.numeric(cand_dist)
+              
+              spk <- ssum(kd_full); if (spk > 0) kd_full <- kd_full / spk
+              spc <- ssum(cd_full); if (spc > 0) cd_full <- cd_full / spc
+              
+              dist_total  <- wasserstein1d_discrete(kd_full, cd_full)
+              dist_nonneu <- w1_nonneutral(kd_full, cd_full, CN0)
+              
+              pen_val  <- conflict_penalty(sp, map_cn, CN0)
+              dist_val <- dist_total + beta_nonneutral * dist_nonneu
+              obj <- dist_val + lambda_conflict * pen_val
+              
+              if (obj < best_obj) {
+                best_obj <- obj
+                best_map <- map_cn
+                best_parts <- c(distance = dist_val, penalty = pen_val)
               }
             }
           }
         }
       }
-      
-      # After search, enforce fallback again for any non-informable state (safety net)
-      if (!inf_loh)  best_map["loh"]  <- fallback_map["loh"]
-      if (!inf_amp)  best_map["amp"]  <- fallback_map["amp"]
-      if (!inf_del)  best_map["del"]  <- fallback_map["del"]
-      if (!inf_bamp) best_map["bamp"] <- fallback_map["bamp"]
-      if (!inf_bdel) best_map["bdel"] <- fallback_map["bdel"]
-      
-      rule_mat[seg, ] <- best_map
-      diag_list[[seg]] <- data.frame(
-        segment = seg,
-        neu  = as.integer(best_map["neu"]),
-        loh  = as.integer(best_map["loh"]),
-        amp  = as.integer(best_map["amp"]),
-        del  = as.integer(best_map["del"]),
-        bamp = as.integer(best_map["bamp"]),
-        bdel = as.integer(best_map["bdel"]),
-        distance = as.numeric(best_parts["distance"]),
-        penalty  = as.numeric(best_parts["penalty"]),
-        n_karyo = n_k, kd_neutral = kd_neu, kd_amp_side = kd_amp_side, kd_del_side = kd_del_side,
-        sc_amp = sc_amp, sc_del = sc_del,
-        karyo_informed = TRUE,
-        # per-state informativity + whether fallback was enforced
-        inf_loh = inf_loh, inf_amp = inf_amp, inf_del = inf_del, inf_bamp = inf_bamp, inf_bdel = inf_bdel,
-        fallback_loh = !inf_loh, fallback_amp = !inf_amp, fallback_del = !inf_del, fallback_bamp = !inf_bamp, fallback_bdel = !inf_bdel,
-        stringsAsFactors = FALSE
-      )
     }
+    
+    # After search, enforce fallback again for any non-informable state (safety net)
+    if (!inf_loh)  best_map["loh"]  <- fallback_map["loh"]
+    if (!inf_amp)  best_map["amp"]  <- fallback_map["amp"]
+    if (!inf_del)  best_map["del"]  <- fallback_map["del"]
+    if (!inf_bamp) best_map["bamp"] <- fallback_map["bamp"]
+    if (!inf_bdel) best_map["bdel"] <- fallback_map["bdel"]
+    
+    rule_mat[seg, ] <- best_map
+    diag_list[[seg]] <- data.frame(
+      segment = seg,
+      neu  = as.integer(best_map["neu"]),
+      loh  = as.integer(best_map["loh"]),
+      amp  = as.integer(best_map["amp"]),
+      del  = as.integer(best_map["del"]),
+      bamp = as.integer(best_map["bamp"]),
+      bdel = as.integer(best_map["bdel"]),
+      distance = as.numeric(best_parts["distance"]),
+      penalty  = as.numeric(best_parts["penalty"]),
+      n_karyo = n_k, kd_neutral = kd_neu, kd_amp_side = kd_amp_side, kd_del_side = kd_del_side,
+      sc_amp = sc_amp, sc_del = sc_del,
+      karyo_informed = TRUE,
+      # per-state informativity + whether fallback was enforced
+      inf_loh = inf_loh, inf_amp = inf_amp, inf_del = inf_del, inf_bamp = inf_bamp, inf_bdel = inf_bdel,
+      fallback_loh = !inf_loh, fallback_amp = !inf_amp, fallback_del = !inf_del, fallback_bamp = !inf_bamp, fallback_bdel = !inf_bdel,
+      stringsAsFactors = FALSE
+    )
+  }
   
   diagnostics <- do.call(rbind, diag_list)
   rules_df <- as.data.frame(rule_mat, stringsAsFactors = FALSE)
@@ -1105,4 +1179,136 @@ map_scRNA_to_absolute_cn <- function(scRNA_df,
     cn_matrix = cn_mat,
     diagnostics = diagnostics
   )
+}
+
+
+# ---------------------------------------------------------------
+# Fisher enrichment of samples within clusters (one-sided "greater")
+# ---------------------------------------------------------------
+fisher_cluster_enrichment <- function(clusters,
+                                      samples,
+                                      p_adjust_method = "BH",
+                                      alternative = "greater") {
+  stopifnot(length(clusters) == length(samples))
+  C <- factor(clusters)
+  S <- factor(samples)
+  clv <- levels(C)
+  sv  <- levels(S)
+  
+  # holders
+  pmat   <- matrix(NA_real_, nrow = length(clv), ncol = length(sv),
+                   dimnames = list(cluster = clv, sample = sv))
+  ormat  <- pmat
+  amat   <- pmat  # counts of target (a) for convenience
+  
+  # long results
+  res <- vector("list", length(clv) * length(sv))
+  k <- 1L
+  
+  for (cl in clv) {
+    in_cl  <- (C == cl)
+    out_cl <- !in_cl
+    for (sm in sv) {
+      is_sm   <- (S == sm)
+      not_sm  <- !is_sm
+      
+      a <- sum(in_cl  & is_sm)   # in cluster & is sample
+      b <- sum(in_cl  & not_sm)  # in cluster & not sample
+      c <- sum(out_cl & is_sm)   # out cluster & is sample
+      d <- sum(out_cl & not_sm)  # out cluster & not sample
+      
+      tbl <- matrix(c(a, b, c, d), nrow = 2, byrow = TRUE,
+                    dimnames = list(in_cluster = c("yes","no"),
+                                    is_sample  = c("yes","no")))
+      
+      ft <- suppressWarnings(fisher.test(tbl, alternative = alternative))
+      p  <- unname(ft$p.value)
+      or <- unname(if (is.finite(ft$estimate)) ft$estimate else NA_real_)
+      
+      pmat[cl, sm]  <- p
+      ormat[cl, sm] <- or
+      amat[cl, sm]  <- a
+      
+      res[[k]] <- data.frame(
+        cluster = cl, sample = sm,
+        a_inCl_isSm = a, b_inCl_notSm = b, c_outCl_isSm = c, d_outCl_notSm = d,
+        odds_ratio = or, p_value = p,
+        stringsAsFactors = FALSE
+      )
+      k <- k + 1L
+    }
+  }
+  
+  res <- do.call(rbind, res)
+  res$padj <- p.adjust(res$p_value, method = p_adjust_method)
+  
+  # wide adjusted p-value table
+  padj_mat <- matrix(res$padj, nrow = length(clv), ncol = length(sv),
+                     byrow = TRUE, dimnames = list(cluster = clv, sample = sv))
+  
+  list(
+    table_long   = res[order(res$cluster, res$sample), ],
+    p_table      = pmat,
+    padj_table   = padj_mat,
+    odds_ratio   = ormat,
+    count_inCell = amat
+  )
+}
+
+
+# ---------------------------------------------------------------
+# Plot enrichment FDRs (clusters × samples) as a heatmap
+# ---------------------------------------------------------------
+plot_enrichment_heatmap <- function(enr,
+                                    padj_caps_at = 1e-10,          # avoid -log10(0)
+                                    star_levels = c(0.05, 0.01, 0.001),
+                                    cluster_rows = FALSE,
+                                    cluster_cols = TRUE) {
+  
+  if (is.null(enr$padj_table)) stop("enr$padj_table not found.")
+  
+  padj <- as.matrix(enr$padj_table)
+  padj[is.na(padj)] <- 1
+  
+  # transform: larger == more significant
+  logp <- -log10(pmax(padj, padj_caps_at))
+  
+  # stars
+  sig <- matrix("", nrow = nrow(padj), ncol = ncol(padj),
+                dimnames = dimnames(padj))
+  sig[padj <= star_levels[1]] <- "*"
+  sig[padj <= star_levels[2]] <- "**"
+  sig[padj <= star_levels[3]] <- "***"
+  
+  pal <- colorRampPalette(c("white", "#d0e1f9", "#74a9cf", "#2b8cbe", "#045a8d"))
+  
+  if (requireNamespace("pheatmap", quietly = TRUE)) {
+    pheatmap::pheatmap(logp,
+                       cluster_rows = cluster_rows,
+                       cluster_cols = cluster_cols,
+                       color = pal(100),
+                       display_numbers = sig,
+                       number_color = "black",
+                       fontsize_number = 9,
+                       border_color = NA,
+                       main = "-log10(FDR) Fisher enrichment (clusters × samples)",
+                       angle_col = 45
+    )
+  } else if (requireNamespace("gplots", quietly = TRUE)) {
+    gplots::heatmap.2(logp,
+                      Rowv = if (cluster_rows) TRUE else NA,
+                      Colv = if (cluster_cols) TRUE else NA,
+                      trace = "n",
+                      col = pal(100),
+                      margins = c(8, 8),
+                      density.info = "none",
+                      key = TRUE,
+                      main = "-log10(FDR) Fisher enrichment (clusters × samples)",
+                      cellnote = sig, notecol = "black", notecex = 0.9
+    )
+  } else {
+    stop("Please install either 'pheatmap' or 'gplots' to draw the heatmap.")
+  }
+  
+  invisible(list(logp = logp, stars = sig))
 }
