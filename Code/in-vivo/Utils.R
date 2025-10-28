@@ -182,6 +182,9 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
   samples=list.dirs(path2numbat,recursive = F,full.names = F)
   ploidies=rep(2,length(samples))
   names(ploidies) =samples
+  ploidies[['C4N.tumor_chr6']]=2.5
+  ploidies[['C2N_chr23']]=2.5
+  ploidies[['C2N_chr2']]=2.5
   if(!is.null(mpoi)){
     ploidies = ploidies[mpoi]
   }
@@ -253,20 +256,25 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
     
     ## convert states to integer CNs:
     if(!useLogFC && is.null(gBandedKaryo2align)){
-      #NA/empty values: unchanged copy number (here we include missing values and "loh" encoding in the original tsv files)
-      #1: single copy gain (encoded as ‘amp’ in the original tsv files)
-      #-1: single copy loss (encoded as ‘del’ in the original tsv files)
-      #2: duplicate copies, (coded as 'bamp' in the original tsv files). Be careful when trying to find cellular karyotypes, we should double the number of copies and not just add 2 copies.
+      # #NA/empty values: unchanged copy number (here we include missing values and "loh" encoding in the original tsv files)
+      # #1: single copy gain (encoded as ‘amp’ in the original tsv files)
+      # #-1: single copy loss (encoded as ‘del’ in the original tsv files)
+      # #2: duplicate copies, (coded as 'bamp' in the original tsv files). Be careful when trying to find cellular karyotypes, we should double the number of copies and not just add 2 copies.
       cn[T]=0
       cn[la=="amp"]=1
       cn[la=="bamp"]=2
       cn[la=="del"]=-1
+      cn[la=="loh"]=-1
+      cn=cn+ploidies[patient];
       
-      
-      
+      # cn[T]=1
+      # cn[la=="amp"]=(1+2)/2
+      # cn[la=="bamp"]=2
+      # cn[la=="del"]=0.5
+      # cn[la=="loh"]=0.5
+      # cn=cn*ploidies[patient];
       
       ## center to ploidy
-      cn=cn+ploidies[patient];
       cn[is.na(cn)]=ploidies[patient];
       cn=as.matrix(cn)
       # p<-gplots::heatmap.2(cn,trace='n',cexCol = 0.4,symbreaks = F,symkey=F)
@@ -297,7 +305,7 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
     ## all other chromosomes have copy number equal to ploidy/2 for all cells (assuming signal is not there because of copy number loss)
     otherchr = setdiff(rownames(anno),colnames(cn))
     if(is.null(gBandedKaryo2align)){
-      cn_ = matrix(ploidies[patient]/2,nrow(cn),length(otherchr))
+      cn_ = matrix(NA,nrow(cn),length(otherchr))
     }else{
       cn_ = matrix("neu",nrow(cn),length(otherchr))
     }
@@ -318,7 +326,7 @@ NumbatPostProcess <- function(DATASETID="CNV", mpoi=NULL, path2karyo="/Users/448
     
     
     ## align to karyo if exists
-    theout=list(cn=cn, cells=sample, anno=anno)
+    theout=list(cn=cn, cells=sample, anno=anno, cnv_matrix_integer = laa$cnv_matrix_integer)
     if(!is.null(gBandedKaryo2align)){
       jnt=alignCNmatrices(gBandedKaryo2align, theout, arm_level_karyo = F)
       ii2align=names(theout$cells)[theout$cells==scRNAseqCells2align]
@@ -1311,4 +1319,301 @@ plot_enrichment_heatmap <- function(enr,
   }
   
   invisible(list(logp = logp, stars = sig))
+}
+
+
+MAPadjustment_of_CNbyExpression <- function(id, segments, anno, segWidthNumGenes=100){
+  ## ------------------------------
+  ## 0) Packages
+  ## ------------------------------
+  suppressPackageStartupMessages({
+    library(Seurat)
+    library(Matrix)
+    library(ggplot2)
+    library(GenomicRanges)
+    ok_ensdb <- requireNamespace("EnsDb.Hsapiens.v86", quietly = TRUE)
+    if (!ok_ensdb) {
+      message("EnsDb.Hsapiens.v86 not installed; will try biomaRt for annotations.")
+      library(biomaRt)
+    }
+  })
+  
+  
+  ## ------------------------------
+  ## 1) Read 10x and get per-gene expression
+  ## ------------------------------
+  # Define the path to the Cell Ranger output directory
+  data_dir <- paste0("A02_cellRanger/",id,"/outs/filtered_feature_bc_matrix/")
+  
+  counts <- Read10X(data.dir = data_dir)
+  
+  # If multiple feature types are present, keep RNA; otherwise 'counts' is already a dgCMatrix
+  if (is.list(counts)) counts <- counts$`Gene Expression` %||% counts[[1]]
+  
+  seu <- CreateSeuratObject(counts = counts, project = id, min.cells = 1, min.features = 0)
+  cells_to_keep = intersect(names(seu$orig.ident), anno$cell)
+  seu <- subset(seu, cells = cells_to_keep)
+  
+  seu <- NormalizeData(seu, verbose = FALSE)
+  expr_vec <- Matrix::rowMeans(seu@assays$RNA$data)   # log1p(CPM) mean across cells
+  gene_ids <- rownames(seu)                         # typically Ensembl IDs
+  gene_ids=gsub("GRCh38-","",gene_ids)
+  gene_ids_clean <- sub("\\..*$","", gene_ids)      # drop version suffix if present
+  
+  ## ------------------------------
+  ## 2) Gene annotations
+  ## ------------------------------
+  get_gene_annot <- function(ids, use_ensdb = TRUE){
+    mart <- biomaRt::useEnsembl(biomart = "genes", dataset = "hsapiens_gene_ensembl")
+    ann <- biomaRt::getBM(
+      attributes = c("ensembl_gene_id","hgnc_symbol","chromosome_name","start_position","end_position"),
+      filters    = "ensembl_gene_id",
+      values     = ids,
+      mart       = mart
+    )
+    names(ann) <- c("gene_id","gene_name","chr","start","end")
+    ann$chr <- toupper(ann$chr)
+    ann <- subset(ann, chr %in% c(as.character(1:22),"X","Y","MT"))
+    ann <- ann[!duplicated(ann$gene_id), ]
+    ann
+  }
+  
+  ann <- get_gene_annot(gene_ids_clean, use_ensdb = TRUE)
+  ann$expr <- expr_vec[match(ann$gene_id, gene_ids)]
+  ann <- ann[!is.na(ann$expr), ]
+  
+  ## ------------------------------
+  ## 3) Parse named segments (with copy numbers)
+  ## ------------------------------
+  parse_segments <- function(seg_vec){
+    seg_df <- do.call(rbind, lapply(names(seg_vec), function(s){
+      parts <- strsplit(s, ":", fixed = TRUE)[[1]]
+      chr <- parts[1]
+      if (chr == "23") chr <- "X"
+      if (chr == "24") chr <- "Y"
+      rng <- strsplit(parts[2], "-", fixed = TRUE)[[1]]
+      start <- as.numeric(rng[1])
+      end   <- as.numeric(rng[2])
+      if (is.na(start) || is.na(end)) stop("Failed to parse range in: ", s)
+      data.frame(chr=toupper(chr), start=as.integer(start), end=as.integer(end))
+    }))
+    seg_df$cn <- as.numeric(seg_vec)
+    seg_df
+  }
+  
+  seg_df <- parse_segments(segments)
+  
+  ## ------------------------------
+  ## 4) Overlap genes with segments
+  ## ------------------------------
+  seg_gr <- GRanges(seqnames = seg_df$chr, ranges = IRanges(start = seg_df$start, end = seg_df$end))
+  gene_gr <- GRanges(seqnames = ann$chr, ranges = IRanges(start = ann$start, end = ann$end))
+  ol <- findOverlaps(gene_gr, seg_gr, ignore.strand = TRUE)
+  keep_idx <- unique(queryHits(ol))
+  ann_keep <- ann[keep_idx, ]
+  
+  ## ------------------------------
+  ## 5) Build concatenated genome x-axis
+  ## ------------------------------
+  ord_levels <- c(as.character(1:22), "X", "Y")
+  ann_keep$chr <- factor(ann_keep$chr, levels = ord_levels)
+  chr_span <- tapply(seg_df$end, factor(seg_df$chr, levels = ord_levels), max, na.rm = TRUE)
+  chr_span[is.infinite(chr_span)] <- NA
+  chr_span <- chr_span[!is.na(chr_span)]
+  chr_span <- chr_span[order(match(names(chr_span), ord_levels))]
+  cum_off <- c(0, cumsum(as.numeric(chr_span))[-length(chr_span)])
+  names(cum_off) <- names(chr_span)
+  
+  ann_plot <- ann_keep[ann_keep$chr %in% names(chr_span), ]
+  ann_plot$offset <- cum_off[as.character(ann_plot$chr)]
+  ann_plot$x <- ann_plot$start + ann_plot$offset
+  
+  ## ------------------------------
+  ## 5b) Rolling 40-gene average
+  ## ------------------------------
+  ann_plot <- ann_plot[order(ann_plot$chr, ann_plot$start), ]
+  by_chr <- split(ann_plot, ann_plot$chr)
+  rolled <- lapply(by_chr, function(df){
+    df <- df[order(df$start), ]
+    df$expr_roll40 <- zoo::rollapply(df$expr, width = segWidthNumGenes, FUN = mean,
+                                     align = "center", partial = TRUE, na.rm = TRUE)
+    df
+  })
+  ann_roll <- do.call(rbind, rolled)
+  
+  ## ------------------------------
+  ## 6) Prepare CN data on same x-axis
+  ## ------------------------------
+  seg_df <- seg_df[seg_df$chr %in% names(chr_span), ]
+  seg_df$offset <- cum_off[as.character(seg_df$chr)]
+  seg_df$xstart <- seg_df$start + seg_df$offset
+  seg_df$xend   <- seg_df$end + seg_df$offset
+  
+  ## ------------------------------
+  ## 7) Scale CNs for plotting with separate axis
+  ## ------------------------------
+  expr_range <- range(ann_roll$expr_roll40, na.rm = TRUE)
+  cn_range   <- range(seg_df$cn, na.rm = TRUE)
+  
+  # linear rescale CNs into expression-space range for plotting
+  scale_factor <- diff(expr_range) / diff(cn_range)
+  cn_shift     <- expr_range[1] - cn_range[1] * scale_factor
+  seg_df$cn_scaled <- seg_df$cn * scale_factor + cn_shift
+  
+  ## ------------------------------
+  ## 8) Plot
+  ## ------------------------------
+  chr_bounds <- data.frame(
+    chr = names(chr_span),
+    start = c(0, cumsum(as.numeric(chr_span))[-length(chr_span)]),
+    end = cumsum(as.numeric(chr_span))
+  )
+  chr_bounds$mid <- (chr_bounds$start + chr_bounds$end)/2
+  
+  p <- ggplot() +
+    geom_line(data = ann_roll, aes(x = x, y = expr_roll40, color = chr), linewidth = 0.4) +
+    geom_segment(data = seg_df, aes(x = xstart, xend = xend, y = cn_scaled, yend = cn_scaled),
+                 inherit.aes = FALSE, color = "black", linewidth = 1.0, alpha = 0.8) +
+    geom_vline(xintercept = chr_bounds$end, linewidth = 0.2, alpha = 0.5) +
+    scale_x_continuous(labels = NULL, breaks = chr_bounds$mid, minor_breaks = NULL) +
+    scale_y_continuous(
+      name = "Expression (rolling mean)",
+      sec.axis = sec_axis(~ (. - cn_shift) / scale_factor, name = "Copy number")
+    ) +
+    labs(
+      x = "Genomic position (chr stitched in order)",
+      title = "Gene expression (left) and copy number (right) across segments"
+    ) +
+    theme_bw(base_size = 11) +
+    theme(
+      panel.grid.minor = element_blank(),
+      panel.grid.major.x = element_blank(),
+      legend.position = "none"
+    ) +
+    annotate(
+      "text",
+      x = chr_bounds$mid,
+      y = max(ann_roll$expr_roll40, na.rm = TRUE),
+      label = chr_bounds$chr,
+      vjust = -0.5,
+      size = 3
+    )
+  
+  print(p)
+  ggsave(paste0("~/Downloads/",id,"gene_expression_segments_concatenated.png"), p, width = 14, height = 5, dpi = 300)
+  
+  ## ------------------------------
+  ## 9) Correlation between expression and copy number
+  ## ------------------------------
+  seg_gr <- GRanges(seqnames = seg_df$chr, ranges = IRanges(start = seg_df$start, end = seg_df$end))
+  gene_gr <- GRanges(seqnames = ann_roll$chr, ranges = IRanges(start = ann_roll$start, end = ann_roll$end))
+  hits <- findOverlaps(gene_gr, seg_gr, ignore.strand = TRUE)
+  if (length(hits) > 0) {
+    ann_roll$seg_id <- NA
+    ann_roll$seg_id[queryHits(hits)] <- subjectHits(hits)
+    seg_expr <- aggregate(expr_roll40 ~ seg_id, data = ann_roll, FUN = mean, na.rm = TRUE)
+    seg_expr$cn <- seg_df$cn[as.numeric(as.character(seg_expr$seg_id))]
+    cor_val <- cor(seg_expr$expr_roll40, seg_expr$cn, method = "pearson", use = "complete.obs")
+    message(sprintf("Correlation between expression and copy number: %.3f", cor_val))
+  } else {
+    message("No overlapping segments found for correlation computation.")
+    cor_val <- NA
+  }
+  
+  ## ------------------------------
+  ## 9) Bayesian shrinkage / MAP adjustment of CN by expression
+  ## ------------------------------
+  # Segment-level expression: mean of rolling expression of genes inside each segment
+  seg_gr_forMap <- GRanges(seqnames = seg_df$chr, ranges = IRanges(start = seg_df$start, end = seg_df$end))
+  gene_gr_roll  <- GRanges(seqnames = ann_roll$chr, ranges = IRanges(start = ann_roll$start, end = ann_roll$end))
+  hits <- findOverlaps(gene_gr_roll, seg_gr_forMap, ignore.strand = TRUE)
+  
+  seg_expr <- data.frame(seg_id = seq_len(nrow(seg_df)), expr_mean = NA_real_)
+  if (length(hits) > 0) {
+    ann_roll$seg_id <- NA_integer_
+    ann_roll$seg_id[queryHits(hits)] <- subjectHits(hits)
+    tmp <- aggregate(expr_roll40 ~ seg_id, data = ann_roll[!is.na(ann_roll$seg_id), ], FUN = mean, na.rm = TRUE)
+    seg_expr$expr_mean[match(tmp$seg_id, seg_expr$seg_id)] <- tmp$expr_roll40
+  }
+  
+  # Masks for availability
+  valid_expr <- !is.na(seg_expr$expr_mean)
+  valid_cn   <- !is.na(seg_df$cn)
+  valid_both <- valid_expr & valid_cn
+  valid_any  <- valid_expr | valid_cn
+  
+  # Robust regression only on segments with both CN and expression
+  seg_cn_prior_fit <- seg_df$cn[valid_both]
+  seg_expr_y_fit   <- log1p(seg_expr$expr_mean[valid_both])   # y for fit
+  seg_cn_x_fit     <- log1p(seg_cn_prior_fit)                  # x for fit
+  
+  # y = log1p(expr), x = log1p(cn_prior)
+  fit <- MASS::rlm(seg_expr_y_fit ~ seg_cn_x_fit, psi = psi.huber, k = 1.5)
+  alpha <- unname(coef(fit)[1]); beta <- unname(coef(fit)[2])
+  sigma_e2 <- summary(fit)$sigma^2
+  
+  # Expression-implied CN for all segments that have expression (even if prior CN is NA)
+  seg_expr_y_all <- log1p(seg_expr$expr_mean[valid_expr])
+  cn_expr_est_all <- exp((seg_expr_y_all - alpha)/beta) - 1
+  
+  # Delta-method variance for those segments
+  sigma_expr2_all <- ((1/beta) * (1 + cn_expr_est_all))^2 * sigma_e2
+  
+  # Empirical prior variance using only segments where both are available
+  diffs_fit <- seg_cn_prior_fit - (exp((seg_expr_y_fit - alpha)/beta) - 1)
+  sigma_c2 <- stats::var(diffs_fit, na.rm = TRUE)
+  if (!is.finite(sigma_c2) || sigma_c2 <= 0) sigma_c2 <- max(stats::var(seg_cn_prior_fit), 1e-4)
+  
+  # Prepare containers for MAP over all segments
+  cn_map_all <- rep(NA_real_, nrow(seg_df))
+  
+  # 1) Both CN & expression -> shrinkage
+  if (any(valid_both)) {
+    w_prior <- 1 / sigma_c2
+    # map sigma_expr2 for the 'both' indices
+    sigma_expr2_both <- sigma_expr2_all[match(which(valid_both), which(valid_expr))]
+    w_expr  <- 1 / sigma_expr2_both
+    cn_prior_both <- seg_df$cn[valid_both]
+    cn_expr_both  <- cn_expr_est_all[match(which(valid_both), which(valid_expr))]
+    cn_map_both <- (w_prior * cn_prior_both + w_expr * cn_expr_both) / (w_prior + w_expr)
+    cn_map_all[valid_both] <- cn_map_both
+  }
+  
+  # 2) Only expression (no prior) -> use expression-implied CN
+  only_expr_idx <- which(valid_expr & !valid_cn)
+  if (length(only_expr_idx)) {
+    cn_map_all[only_expr_idx] <- cn_expr_est_all[match(only_expr_idx, which(valid_expr))]
+  }
+  
+  # 3) Only prior (no expression) -> keep prior
+  only_prior_idx <- which(valid_cn & !valid_expr)
+  if (length(only_prior_idx)) {
+    cn_map_all[only_prior_idx] <- seg_df$cn[only_prior_idx]
+  }
+  
+  # Bound to plausible range
+  cn_map_all <- pmin(pmax(cn_map_all, 1), 6)
+  
+  # Assemble output table in original segment order
+  adjusted <- data.frame(
+    segment = paste0(seg_df$chr, ":", seg_df$start, "-", seg_df$end),
+    chr = seg_df$chr,
+    start = seg_df$start,
+    end = seg_df$end,
+    cn_prior = seg_df$cn,
+    expr_mean = NA_real_,
+    cn_expr_est = NA_real_,
+    sigma_expr2 = NA_real_,
+    cn_map = cn_map_all,
+    stringsAsFactors = FALSE
+  )
+  # Fill expression-based columns wherever expression exists
+  adjusted$expr_mean[valid_expr]   = seg_expr$expr_mean[valid_expr]
+  adjusted$cn_expr_est[valid_expr] = cn_expr_est_all
+  adjusted$sigma_expr2[valid_expr] = sigma_expr2_all
+  
+  # Return both the plot and the adjusted CN table
+  return(list(plot = p, correlation = cor_val, 
+              adjusted_cn = adjusted,
+              regression = list(alpha = alpha, beta = beta, sigma_e2 = sigma_e2, sigma_c2 = sigma_c2)))
 }

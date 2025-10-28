@@ -1,3 +1,5 @@
+library(MASS)
+library(matlab)
 library(xlsx)
 library(gplots)
 library(data.table)
@@ -107,24 +109,24 @@ plot_sample_distribution <- function(clusters, sample_labels) {
     stop("Please install ggplot2")
   }
   stopifnot(length(clusters) == length(sample_labels))
-
+  
   df <- data.frame(
     sample  = factor(sample_labels),
     cluster = factor(clusters)
   )
-
+  
   # proportions of clusters within each sample (rows sum to 1)
   prop <- as.data.frame(prop.table(table(df$sample, df$cluster), 1))
   colnames(prop) <- c("sample", "cluster", "prop")
-
+  
   # order samples by their dominant cluster proportion (just for a nicer look)
   dom <- aggregate(prop ~ sample, prop[ave(prop$prop, prop$sample, FUN = max) == prop$prop, ], max)
   prop$sample <- factor(prop$sample, levels = dom$sample[order(-dom$prop)])
-
+  
   # optional: order clusters by global size
   cl_sizes <- sort(table(df$cluster), decreasing = TRUE)
   prop$cluster <- factor(prop$cluster, levels = names(cl_sizes))
-
+  
   ggplot2::ggplot(prop, ggplot2::aes(x = sample, y = prop, fill = cluster)) +
     ggplot2::geom_bar(stat = "identity", width = 0.85) +
     ggplot2::ylab("Proportion of cells in sample") +
@@ -304,33 +306,154 @@ f=grep("15",f,invert = T, value = T)
 f=grep("Cell-Culture",f,invert = T, value = T)
 f=grep("_Numbat",f,invert = T, value = T)
 f_2N=grep("C2N",f,invert = F, value = T)
-cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f_2N, path2karyo="./", gBandedKaryo2align=N2_whole_chr_karyo, scRNAseqCells2align="2N-Cell-Culture")
+# cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f_2N, path2karyo="./", gBandedKaryo2align=N2_whole_chr_karyo, scRNAseqCells2align="2N-Cell-Culture")
+cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f_2N, path2karyo="./")
 cn_B=cn; ## make a copy
-f_4N=grep("C4N_chr18",f,invert = F, value = T)
+f_4N=grep("C4N",f,invert = F, value = T)
 f_4N=grep("C4N_chr11",f_4N,invert = T, value = T)
-cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f_4N, path2karyo="./", mergeRun2C4N.tumor_chr6 = T, gBandedKaryo2align=N4_whole_chr_karyo, scRNAseqCells2align="4N-Cell-Culture", lambda_conflict=0)
-# cn_=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi="C4N.tumor_chr6", path2karyo="./")
+# cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi=f_4N, path2karyo="./", mergeRun2C4N.tumor_chr6 = T, gBandedKaryo2align=N4_whole_chr_karyo, scRNAseqCells2align="4N-Cell-Culture", lambda_conflict=0)
+cn=NumbatPostProcess(DATASETID="A03_Numbat/", mpoi="C4N.tumor_chr6", path2karyo="./")
 cn_B[names(cn)] = cn
 
 
-numbatRun="C4N_chr18"
+
+## adjust Numbat derived copy number to better match with expression
 # numbatRun="C4N.tumor_chr6"
-# numbatRun="C2N_chr2"
-origin=unique(cn[[numbatRun]]$cells)
+toexclude=c("2N−A1−RR−HM-Count-HM","2N-Cell-Culture-Count-HM")
+numbatRun="C2N_chr23"
+anno=read.table("2Ncells_TumorPlusCellLine.anno.txt",sep="\t", header=T)
+pattern="2N"
+# if(numbatRun=="C4N.tumor_chr6"){
+# anno=read.table("4Ncells_TumorOnly.anno.txt",sep="\t", header=T)
+# pattern="4N"
+expvscn=list()
+for(id in list.files("A02_cellRanger",pattern=pattern)){
+  anno_=anno
+  anno_$sample = paste0(anno_$sample,"-Count-HM")
+  anno_=anno_[anno_$sample==id & anno_$cell %in% rownames(cn_B[[numbatRun]]$cn),]
+  anno_$sample = gsub("-","_",anno_$sample)
+  if(nrow(anno_)==0) {
+    next
+  }
+  thiscn = cn_B[[numbatRun]]$cn
+  
+  if(id %in% toexclude){
+    ii = which(!rownames(thiscn) %in% anno_$cell)
+    cn_B[[numbatRun]]$cells = cn_B[[numbatRun]]$cells[ii]
+    thiscn = thiscn[ii,]
+    cn_B[[numbatRun]]$cn = thiscn
+  }else{
+    thiscn=thiscn[anno_$cell,]
+    segcn=apply(thiscn,2,mean)
+    expvscn[[id]]=MAPadjustment_of_CNbyExpression(id=id, segments= segcn, anno_,segWidthNumGenes = 400)
+    
+    ## multiply by adjustment factor
+    tmp=expvscn[[id]]$adjusted_cn
+    ii = which(is.na(tmp$cn_prior))
+    tmp$cn_prior[ii] = tmp$cn_map[ii]
+    thiscn[,ii] = repmat(tmp$cn_map[ii],nrow(thiscn),1)
+    
+    ## assign corrected CN across all cells
+    thiscn = sweep(thiscn, MARGIN = 2, STATS = tmp$cn_prior/tmp$cn_map,FUN = "/")
+    cn_B[[numbatRun]]$cn[anno_$cell,] = thiscn
+  }
+}
+
+
+## compare corr expression vs. copy number before vs. after correction
+corrAfterCorrection = sapply(expvscn, function (x) x$correlation)
+corrBeforeCorrection = sapply(expvscn, function (x) x$correlation)
+par(mai=c(2,1,1,1)); barplot(rbind(corrBeforeCorrection,corrAfterCorrection),beside = T, las=2, ylab="Pearson R(expression, copy number)")
+
+cn_B[[numbatRun]]$cn=round(cn_B[[numbatRun]]$cn)
+# }
+
+## start visualizing results
+origin=unique(cn_B[[numbatRun]]$cells)
+origin = origin[origin %in% rownames(dt)]
+ii = which(cn_B[[numbatRun]]$cells %in% origin)
+cn_B[[numbatRun]]$cn = cn_B[[numbatRun]]$cn[ii,]
+cn_B[[numbatRun]]$cells = cn_B[[numbatRun]]$cells[ii]
+## plots
 col =RColorBrewer::brewer.pal(length(origin),"Paired")
 names(col) = origin
-hm=heatmap.2(cn[[numbatRun]]$cn, Colv = NULL, trace = "n", RowSideColors = col[cn[[numbatRun]]$cells], hclustfun = function(x) hclust(x, method = "ward.D"), margins = c(15,5), col=(rainbow(8))[1:6])
+ii=order(parseLOCUS(colnames(cn_B[[numbatRun]]$cn))[,"chr"])
+X=cn_B[[numbatRun]]$cn[,ii]
+hc <- hclust(dist(X), method = "ward.D")  
+cl =cutree(hc,k = length(origin))
+pdf(paste0("~/Downloads/",numbatRun,".pdf"))
+hm=heatmap.2(X, Rowv = as.dendrogram(hc), Colv = NULL,  trace = "n",colRow = cl, RowSideColors = col[cn_B[[numbatRun]]$cells], hclustfun = function(x) hclust(x, method = "ward.D"), margins = c(15,5), col=(rainbow(8))[1:6])
 legend("topright",names(col),fill = col,cex=0.75)
 print(dt[origin,1:8])
 ## ploidy
-tmp=colnames(cn[[numbatRun]]$cn)
+tmp=colnames(cn_B[[numbatRun]]$cn)
 loci=parseLOCUS(sapply(strsplit(tmp,"_"),"[[",1))
 segweight = loci[,"seglength"]/sum(loci[,"seglength"])
-cn_wholechr = grpstats(t(cn[[numbatRun]]$cn), loci[,"chr"],"mean")$mean
-ploidy = apply(sweep(cn[[numbatRun]]$cn,2,segweight,"*"),1,sum, na.rm=T)
-ploidy = apply(cn_wholechr,2,sum, na.rm=T)
-vioplot::vioplot(ploidy~cn[[numbatRun]]$cells,las=2,horizontal=F, xlab="")
-vioplot::vioplot(ploidy~as.numeric(cn[[numbatRun]]$cells=="4N-Cell-Culture"),las=2,horizontal=F, xlab="")
+cn_wholechr = grpstats(t(cn_B[[numbatRun]]$cn), loci[,"chr"],"mean")$mean
+ploidy = apply(sweep(cn_B[[numbatRun]]$cn,2,segweight,"*"),1,sum, na.rm=T)
+# ploidy = apply(cn_wholechr,2,sum, na.rm=T)
+vioplot::vioplot(ploidy~cn_B[[numbatRun]]$cells,las=2,horizontal=F, xlab="")
+vioplot::vioplot(ploidy~as.numeric(cn_B[[numbatRun]]$cells=="4N-Cell-Culture"),las=2,horizontal=F, xlab="")
+
+################################
+## cluster enrichment analysis##
+################################
+clusters <- sort(unique(cl))
+p_mat <- matrix(NA_real_, nrow = length(origin), ncol = length(origin), dimnames = list(origin, paste0("Cluster_", clusters)))
+for (o in origin) {
+  is_o <- cn_B[[numbatRun]]$cells == o
+  for (cval in clusters) {
+    in_c <- cl == cval
+    a <- sum(in_c & is_o)             # origin o inside cluster c
+    b <- sum(in_c & !is_o)            # other origins inside cluster c
+    c <- sum(!in_c & is_o)            # origin o outside cluster c
+    d <- sum(!in_c & !is_o)           # other origins outside cluster c
+    tbl <- matrix(c(a,b,c,d), nrow = 2, byrow = TRUE)
+    p_mat[o, paste0("Cluster_", cval)] <- fisher.test(tbl, alternative = "greater")$p.value
+  }
+}
+rownames(p_mat) = dt[rownames(p_mat),'harvest']
+pheatmap::pheatmap(log(p_mat+1E-5),margins = c(15,15),symkey = F,symm = F,key.title = "log p value")
+dev.off()
+
+#####################
+## save to cloneid ##
+SPRES=0.00001
+OUTDIR="A04_CLONEID_input"
+dir.create(OUTDIR)
+for(x in origin){
+  cloneid = dt[x,'harvest']
+  if(is.na(cloneid)){
+    next
+  }
+  OUTDIR_=paste0(OUTDIR,filesep,x)
+  dir.create(OUTDIR_)
+  ii=which(cn_B[[numbatRun]]$cells == x)
+  print(paste("Saving",x,"to CLONEID.Perspective"))
+  
+  dm=cn_B[[numbatRun]]$cn[ii,]
+  ii=order(parseLOCUS(colnames(dm))[,"chr"])
+  dm = dm[,ii]
+  
+  ## Visualize
+  png(paste0(OUTDIR_,filesep,cloneid,"_heatmap.png"),width = 800,height = 700)
+  hm=heatmap.2(as.matrix(dm), Colv = NULL,  trace = "n", hclustfun = function(x) hclust(x, method = "ward.D"), margins = c(15,5), col=(rainbow(8))[1:6])
+  dev.off()
+  
+  write.table(dm, file=paste0(OUTDIR_,filesep,cloneid,".sps.cbs"),sep="\t",quote = F)
+  
+  # sps = 1/ncol(dm)+rnorm(ncol(dm),sd = SPRES); ##fraction each cell makes up out of total SP size
+  # colnames(dm) = paste0("SP_",sps,"_",colnames(dm))
+  # dm$CN_Estimate = apply(dm,1,mean)
+  # dm = cbind(parseLOCUS(rownames(dm)), dm)
+  # write.table(cbind(rownames(dm),dm), file=paste0(OUTDIR_, filesep,lineage_id,".sps.cbs"), col.names = c("LOCUS", colnames(dm)),sep="\t",quote=F,row.names = F)
+  # 
+  # spstatsFile=paste0(OUTDIR_, filesep,lineage_id,".spstats")
+  # write.table(as.matrix(sps), spstatsFile,sep="\t",quote=F,row.names = F, col.names = "Mean Weighted")
+  # 
+  # out=try(viewPerspective(spstatsFile = spstatsFile,whichP = "GenomePerspective",suffix = ".sps.cbs"))
+}
+
 
 ## Cluster and enrichment analysis:
 # D <- chrWeightedDist(cn[[numbatRun]]$cn, loci[,"seglength"])
