@@ -537,6 +537,83 @@ d = \left(1 - \frac{G_{1}}{K}\right)
 
 % %%%%%%%%%%%%%%%%%%%%%%
 
+\subsection*{Delay-aware cytotoxicity term for gemcitabine (without cell cycle state awareness)}
+
+To reflect the delayed, distributed nature of cytotoxicity observed in
+our in vitro gemcitabine timecourse experiments, we introduce a compact
+mechanistic ``exposure--damage--death'' module that (i) captures uptake and
+persistence of drug action and (ii) produces a delayed onset and gradual offset
+of killing after drug exposure.
+
+
+\paragraph{Active drug variable (uptake/activation and persistence).}
+Let $C(t)$ denote the extracellular gemcitabine exposure profile (known from
+the assay protocol; in vitro this is a step-on/step-off input at a specified
+dose). We use the same definition of DNA-incorporated (active) drug,
+$C_{\mathrm{dna}}(t)$, as introduced in the gemcitabine draft, and model its
+buildup and decay as
+\begin{equation}
+\frac{d C_{\mathrm{dna}}}{dt} = \eta\, C(t) - k_{\mathrm{decay}}\, C_{\mathrm{dna}}.
+\label{eq:gem_cdna_simple}
+\end{equation}
+This single state variable provides a minimal representation of (i) the time
+required for drug action to become manifest (through the conversion rate
+$\eta$) and (ii) persistence of the lethal signal after washout (through
+$k_{\mathrm{decay}}$). Importantly, Eq.~\eqref{eq:gem_cdna_simple} produces a
+smoothed, delayed response even when $C(t)$ is a sharp step input.
+
+\paragraph{Distributed delay from damage to death commitment.}
+Empirically, cells are not killed synchronously even at fixed dose: time-to-death
+is spread over many hours to days, reflecting heterogeneity in cell-cycle phase
+and in the time required to commit to cell death after damage. To capture this
+\emph{without} explicitly tracking cell-cycle states, we introduce a short
+transit chain (linear chain trick) driven by $C_{\mathrm{dna}}(t)$:
+\begin{align}
+\frac{d Z_1}{dt} &= k_{\mathrm{tr}}\left(C_{\mathrm{dna}} - Z_1\right), \label{eq:gem_transit1_simple}\\
+\frac{d Z_i}{dt} &= k_{\mathrm{tr}}\left(Z_{i-1} - Z_i\right), \qquad i=2,\dots,n.
+\label{eq:gem_transit_simple}
+\end{align}
+The terminal variable $Z_n(t)$ is an effective ``death-commitment'' signal.
+For $n\ge 2$, this construction induces a gamma-distributed latency from
+$C_{\mathrm{dna}}$ to lethal commitment, yielding a broad, realistic killing
+profile (onset, peak width, and tail) while adding only two degrees of freedom:
+the number of stages $n$ and the transit rate $k_{\mathrm{tr}}$.
+
+\paragraph{Embedding into $\Phi(C)$ (kill operator).}
+We define the instantaneous gemcitabine-induced kill rate as
+\begin{equation}
+\kappa_{\mathrm{Gem}}(t) = k_{\mathrm{kill}}\, Z_n(t),
+\label{eq:gem_killrate_simple}
+\end{equation}
+and insert it into Eq.~(3) via
+\begin{equation}
+\Phi_{\mathrm{Gem}}(t)\equiv \Phi\!\left(C(t)\right)
+= \mathrm{diag}\!\left(\kappa_{\mathrm{Gem},1}(t), \kappa_{\mathrm{Gem},2}(t), \dots \right).
+\label{eq:gem_phi_simple}
+\end{equation}
+In the simplest instantiation, $\kappa_{\mathrm{Gem},j}(t)\equiv
+\kappa_{\mathrm{Gem}}(t)$ is shared across all states. In a ploidy-structured
+model, we allow minimal state dependence by scaling only the potency,
+\begin{equation}
+\kappa_{\mathrm{Gem},p}(t) = k_{\mathrm{kill},p}\, Z_n(t), \qquad p\in\{\text{2N,4N}\},
+\label{eq:gem_ploidy_scaling_simple}
+\end{equation}
+while keeping $(\eta, k_{\mathrm{decay}}, n, k_{\mathrm{tr}})$ shared to avoid
+over-parameterization.
+
+\paragraph{Calibration from in vitro timecourse data.}
+Eqs.~\eqref{eq:gem_cdna_simple}--\eqref{eq:gem_phi_simple} are calibrated by
+fitting jointly to the time-resolved live/dead readouts from the IncuCyte
+assays (e.g., viable and dead object counts over time across doses and
+replicates). Conceptually, $(\eta, k_{\mathrm{decay}})$ govern onset/offset of
+drug action, $(n,k_{\mathrm{tr}})$ govern the spread of time-to-death, and
+$k_{\mathrm{kill}}$ (or $k_{\mathrm{kill},p}$) sets overall cytotoxic potency.
+This calibrated, delay-aware $\Phi_{\mathrm{Gem}}(t)$ then serves as the drug
+action module for in vivo gemcitabine modeling and for informing mechanistic
+forms of $\Phi(C)$ beyond a static Hill function.
+
+
+
 \subsection*{Optimization routine}
 
 Supplementary Figure \ref{ODEModelFits}.
