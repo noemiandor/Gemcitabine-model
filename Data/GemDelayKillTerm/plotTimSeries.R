@@ -1,6 +1,6 @@
 # plot_plate_counts.R
 # Run from within dest_root (e.g., setwd("GemDelayKillTerm"))
-
+setwd( "~/Repositories/Gemcitabine-model/Data/GemDelayKillTerm")
 suppressPackageStartupMessages({
   library(arrow)
   library(data.table)
@@ -196,7 +196,7 @@ p <- ggplot(dt_plot, aes(x = time_days, y = count, color = phenotype, group = ph
     hjust = 0, vjust = 1, size = 2.0, lineheight = 0.9
   ) +
   scale_x_continuous(name = "Time (days)") +
-  scale_y_continuous(name = "Cell count") + scale_y_log10() + 
+  scale_y_continuous(name = "Cell count") + #scale_y_log10() + 
   labs(
     color = NULL,
     title = "IncuCyte cell counts by well (Alive / Dead / Transitional)",
