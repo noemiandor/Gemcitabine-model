@@ -586,5 +586,320 @@ alignCNmatrices <- function(cn_karyo, scRNAseq){
   # A <- A_new
   # B <- B_new
   # rm(A_new, B_new, mapping_table) # Clean up intermediate objects
-  return(list(cn_karyo=A_new, cn_scRNAseq=B_new))
+return(list(cn_karyo=A_new, cn_scRNAseq=B_new))
+}
+
+
+## -----------------------------
+## Shared helpers for in-vivo scRNA workflows
+## -----------------------------
+
+load_in_vivo_config <- function(config_path) {
+  if (!requireNamespace("yaml", quietly = TRUE)) {
+    stop("Package 'yaml' is required to read in_vivo_config.yaml.", call. = FALSE)
+  }
+  if (missing(config_path) || is.null(config_path) || !nzchar(config_path)) {
+    stop("A config_path must be provided.", call. = FALSE)
+  }
+
+  config_path <- normalizePath(config_path, mustWork = TRUE)
+  config <- yaml::read_yaml(config_path)
+
+  if (is.null(config$Results_root) || !nzchar(config$Results_root)) {
+    stop("Config must define a non-empty 'Results_root'.", call. = FALSE)
+  }
+
+  if (!grepl("^/", config$Results_root)) {
+    config$Results_root <- normalizePath(
+      file.path(dirname(config_path), config$Results_root),
+      mustWork = FALSE
+    )
+  } else {
+    config$Results_root <- normalizePath(config$Results_root, mustWork = FALSE)
+  }
+
+  attr(config, "config_path") <- config_path
+  config
+}
+
+get_results_root <- function(config) {
+  root <- config$Results_root
+  if (is.null(root) || !nzchar(root)) {
+    stop("Config does not contain 'Results_root'.", call. = FALSE)
+  }
+  normalizePath(root, mustWork = FALSE)
+}
+
+results_path <- function(config, ...) {
+  file.path(get_results_root(config), ...)
+}
+
+.ensure_dir <- function(path) {
+  if (!dir.exists(path)) {
+    dir.create(path, recursive = TRUE, showWarnings = FALSE)
+  }
+  invisible(path)
+}
+
+sort_maybe_numeric <- function(x) {
+  x <- as.character(x)
+  ux <- unique(x)
+  nums <- suppressWarnings(as.numeric(ux))
+  if (!any(is.na(nums))) ux[order(nums)] else sort(ux)
+}
+
+save_plot_pdf_png <- function(plot_obj, file_stub, width = 9, height = 7, dpi = 300) {
+  ggplot2::ggsave(paste0(file_stub, ".pdf"), plot_obj, width = width, height = height)
+  ggplot2::ggsave(paste0(file_stub, ".png"), plot_obj, width = width, height = height, dpi = dpi)
+}
+
+resolve_col_case_insensitive <- function(df, candidates) {
+  nms <- names(df)
+  for (cand in candidates) {
+    idx <- which(tolower(nms) == tolower(cand))
+    if (length(idx) > 0) return(nms[idx[1]])
+  }
+  NA_character_
+}
+
+infer_in_vivo_sample_type <- function(sample_values) {
+  sample_values <- as.character(sample_values)
+  out <- rep(NA_character_, length(sample_values))
+  keep <- !is.na(sample_values) & nzchar(sample_values)
+
+  out[keep & grepl("^2N", sample_values)] <- "2N-tumor"
+  out[keep & grepl("^4N", sample_values)] <- "4N-tumor"
+  out[keep & grepl("^A5", sample_values)] <- "4N-tumor"
+  out[keep & grepl("^A6", sample_values)] <- "4N-tumor"
+  out[keep & sample_values == "2N-Cell-Culture"] <- "2N-cellline"
+  out[keep & sample_values == "4N-Cell-Culture"] <- "4N-cellline"
+
+  out
+}
+
+write_stackfig_outputs <- function(
+  obj,
+  output_dir,
+  group_col_candidates = c("sample_type", "sample.type", "SampleType", "sampleType"),
+  fallback_sample_col_candidates = c("sample", "Sample"),
+  cluster_col_candidates = c("cluster", "clusters", "Cluster", "seurat_clusters"),
+  group_label = "sample_type",
+  cluster_label = "cluster",
+  group_title = "Cluster Proportion Within Each sample_type",
+  cluster_title = "sample_type Proportion Within Each Cluster",
+  group_by_cluster_stub = "stack_sample_type_by_cluster",
+  cluster_by_group_stub = "stack_cluster_by_sample_type",
+  width = 10,
+  height = 6,
+  dpi = 300
+) {
+  obj_slots <- tryCatch(methods::slotNames(obj), error = function(e) character(0))
+  if (!inherits(obj, "Seurat") && !("meta.data" %in% obj_slots)) {
+    stop("`obj` must be a Seurat-like object with a meta.data slot.", call. = FALSE)
+  }
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' is required for stack figures.", call. = FALSE)
+  }
+  if (!requireNamespace("scales", quietly = TRUE)) {
+    stop("Package 'scales' is required for stack figures.", call. = FALSE)
+  }
+
+  .ensure_dir(output_dir)
+
+  meta <- obj@meta.data
+  if (nrow(meta) == 0) {
+    stop("No cells in meta.data.", call. = FALSE)
+  }
+
+  group_col <- resolve_col_case_insensitive(meta, group_col_candidates)
+  if (!is.na(group_col)) {
+    group_vals <- as.character(meta[[group_col]])
+  } else {
+    sample_col <- resolve_col_case_insensitive(meta, fallback_sample_col_candidates)
+    if (is.na(sample_col)) {
+      stop("Cannot find a grouping column or fallback sample column in meta.data.", call. = FALSE)
+    }
+    group_vals <- infer_in_vivo_sample_type(meta[[sample_col]])
+  }
+
+  cluster_col <- resolve_col_case_insensitive(meta, cluster_col_candidates)
+  if (is.na(cluster_col)) {
+    cluster_vals <- as.character(Seurat::Idents(obj))
+  } else {
+    cluster_vals <- as.character(meta[[cluster_col]])
+  }
+
+  group_vals[is.na(group_vals) | group_vals == ""] <- "NA"
+  cluster_vals[is.na(cluster_vals) | cluster_vals == ""] <- "NA"
+
+  preferred_group_levels <- c("2N-cellline", "4N-cellline", "2N-tumor", "4N-tumor")
+  observed_group_levels <- unique(group_vals)
+  group_levels <- c(
+    intersect(preferred_group_levels, observed_group_levels),
+    setdiff(observed_group_levels, preferred_group_levels)
+  )
+  cluster_levels <- sort_maybe_numeric(cluster_vals)
+
+  plot_df <- data.frame(
+    group = factor(group_vals, levels = group_levels),
+    cluster = factor(cluster_vals, levels = cluster_levels),
+    stringsAsFactors = FALSE
+  )
+
+  tab_group_cluster <- as.data.frame(
+    table(group = plot_df$group, cluster = plot_df$cluster),
+    stringsAsFactors = FALSE
+  )
+  names(tab_group_cluster)[names(tab_group_cluster) == "Freq"] <- "count"
+  tab_group_cluster$proportion <- with(
+    tab_group_cluster,
+    count / ave(count, group, FUN = sum)
+  )
+  names(tab_group_cluster)[names(tab_group_cluster) == "group"] <- group_label
+  names(tab_group_cluster)[names(tab_group_cluster) == "cluster"] <- cluster_label
+
+  utils::write.csv(
+    tab_group_cluster,
+    file = file.path(output_dir, paste0(group_label, "_", cluster_label, "_proportion.csv")),
+    row.names = FALSE
+  )
+
+  p1 <- ggplot2::ggplot(
+    tab_group_cluster,
+    ggplot2::aes(
+      x = !!rlang::sym(group_label),
+      y = proportion,
+      fill = !!rlang::sym(cluster_label)
+    )
+  ) +
+    ggplot2::geom_col(width = 0.85) +
+    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1), expand = c(0, 0)) +
+    ggplot2::labs(
+      title = group_title,
+      x = group_label,
+      y = "Proportion",
+      fill = cluster_label
+    ) +
+    ggplot2::theme_classic(base_size = 12) +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
+
+  save_plot_pdf_png(
+    p1,
+    file.path(output_dir, group_by_cluster_stub),
+    width = width,
+    height = height,
+    dpi = dpi
+  )
+
+  tab_cluster_group <- as.data.frame(
+    table(cluster = plot_df$cluster, group = plot_df$group),
+    stringsAsFactors = FALSE
+  )
+  names(tab_cluster_group)[names(tab_cluster_group) == "Freq"] <- "count"
+  tab_cluster_group$proportion <- with(
+    tab_cluster_group,
+    count / ave(count, cluster, FUN = sum)
+  )
+  names(tab_cluster_group)[names(tab_cluster_group) == "cluster"] <- cluster_label
+  names(tab_cluster_group)[names(tab_cluster_group) == "group"] <- group_label
+
+  utils::write.csv(
+    tab_cluster_group,
+    file = file.path(output_dir, paste0(cluster_label, "_", group_label, "_proportion.csv")),
+    row.names = FALSE
+  )
+
+  p2 <- ggplot2::ggplot(
+    tab_cluster_group,
+    ggplot2::aes(
+      x = !!rlang::sym(cluster_label),
+      y = proportion,
+      fill = !!rlang::sym(group_label)
+    )
+  ) +
+    ggplot2::geom_col(width = 0.85) +
+    ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1), expand = c(0, 0)) +
+    ggplot2::labs(
+      title = cluster_title,
+      x = cluster_label,
+      y = "Proportion",
+      fill = group_label
+    ) +
+    ggplot2::theme_classic(base_size = 12) +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
+
+  save_plot_pdf_png(
+    p2,
+    file.path(output_dir, cluster_by_group_stub),
+    width = width,
+    height = height,
+    dpi = dpi
+  )
+
+  invisible(
+    list(
+      group_cluster = tab_group_cluster,
+      cluster_group = tab_cluster_group
+    )
+  )
+}
+
+assert_required_column <- function(df, col_name) {
+  if (!(col_name %in% colnames(df))) {
+    stop("Required metadata column is missing: ", col_name, call. = FALSE)
+  }
+}
+
+configure_future_for_seurat <- function(max_size_gb = 30) {
+  max_size_bytes <- as.numeric(max_size_gb) * 1024^3
+  current_max <- getOption("future.globals.maxSize")
+  if (is.null(current_max) || is.na(current_max) || current_max < max_size_bytes) {
+    options(future.globals.maxSize = max_size_bytes)
+  }
+  if (requireNamespace("future", quietly = TRUE)) {
+    future::plan(future::sequential)
+  }
+}
+
+maybe_join_layers <- function(obj, assay = "RNA") {
+  if (!("JoinLayers" %in% getNamespaceExports("Seurat"))) return(obj)
+  if (!(assay %in% names(obj@assays))) return(obj)
+  tryCatch(
+    Seurat::JoinLayers(obj, assay = assay),
+    error = function(e) obj
+  )
+}
+
+get_assay_data_slot <- function(obj, assay = "RNA", slot_name = "data") {
+  tryCatch(
+    Seurat::GetAssayData(obj, assay = assay, slot = slot_name),
+    error = function(e1) {
+      tryCatch(
+        Seurat::GetAssayData(obj, assay = assay, layer = slot_name),
+        error = function(e2) NULL
+      )
+    }
+  )
+}
+
+get_assay_matrix <- function(obj, assay = "RNA", slot_name = "counts") {
+  get_assay_data_slot(obj, assay = assay, slot_name = slot_name)
+}
+
+resolve_lfc_col <- function(df) {
+  candidates <- c("avg_log2FC", "avg_logFC", "log2FC", "logFC")
+  for (x in candidates) {
+    if (x %in% colnames(df)) return(x)
+  }
+  stop("Cannot find logFC column in DEG result.", call. = FALSE)
+}
+
+safe_jaccard <- function(a, b) {
+  a <- unique(as.character(a))
+  b <- unique(as.character(b))
+  a <- a[!is.na(a) & a != ""]
+  b <- b[!is.na(b) & b != ""]
+  denom <- length(union(a, b))
+  if (denom == 0) return(NA_real_)
+  length(intersect(a, b)) / denom
 }
