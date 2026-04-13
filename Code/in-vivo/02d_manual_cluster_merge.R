@@ -549,11 +549,11 @@ out_objects <- .ensure_dir(file.path(output_root, "objects"))
   write_table_csv(merged_count_df, file.path(out_summary, "manual_merge_group_cell_counts.csv"))
 
   message("Writing UMAP plots.")
-  p_umap_original <- DimPlot(obj, reduction = "umap", group.by = base_cluster_col, label = FALSE, repel = FALSE, pt.size = 0.30, raster = TRUE) +
+  p_umap_original <- DimPlot(obj, reduction = "umap", group.by = base_cluster_col, label = FALSE, repel = FALSE, pt.size = 0.30, raster = FALSE) +
     labs(title = paste("Base clusters:", base_cluster_col))
   save_plot_pdf_png(p_umap_original, file.path(out_plots, "umap_base_clusters"), width = 9, height = 7)
 
-  p_umap_merged <- DimPlot(obj, reduction = "umap", group.by = "manual_merge_test", label = FALSE, repel = FALSE, pt.size = 0.30, raster = TRUE) +
+  p_umap_merged <- DimPlot(obj, reduction = "umap", group.by = "manual_merge_test", label = FALSE, repel = FALSE, pt.size = 0.30, raster = FALSE) +
     labs(title = "Manual Merge Test: 0/1/7 -> 0 and 10/11/12 -> 10")
   save_plot_pdf_png(p_umap_merged, file.path(out_plots, "umap_manual_merge_test"), width = 9, height = 7)
 
@@ -561,11 +561,11 @@ out_objects <- .ensure_dir(file.path(output_root, "objects"))
   focus_cells <- rownames(obj@meta.data)[as.character(obj@meta.data[[base_cluster_col]]) %in% focus_clusters]
   focus_obj <- subset(obj, cells = focus_cells)
 
-  p_focus_original <- DimPlot(focus_obj, reduction = "umap", group.by = base_cluster_col, label = TRUE, repel = TRUE, pt.size = 0.35) +
+  p_focus_original <- DimPlot(focus_obj, reduction = "umap", group.by = base_cluster_col, label = TRUE, repel = TRUE, pt.size = 0.35, raster = FALSE) +
     labs(title = "Focus UMAP: refined clusters 0, 1, 7, 10, 11, 12")
   save_plot_pdf_png(p_focus_original, file.path(out_plots, "umap_focus_original_clusters"), width = 8, height = 6)
 
-  p_focus_merged <- DimPlot(focus_obj, reduction = "umap", group.by = "manual_merge_test", label = TRUE, repel = TRUE, pt.size = 0.35) +
+  p_focus_merged <- DimPlot(focus_obj, reduction = "umap", group.by = "manual_merge_test", label = TRUE, repel = TRUE, pt.size = 0.35, raster = FALSE) +
     labs(title = "Focus UMAP: manual merged groups")
   save_plot_pdf_png(p_focus_merged, file.path(out_plots, "umap_focus_manual_merge_test"), width = 8, height = 6)
 

@@ -74,6 +74,9 @@ deg_min_pct <- 0.10
 deg_logfc_threshold <- 0
 deg_padj_cutoff <- 0.05
 deg_lfc_cutoff_for_ora <- 0.25
+deg_abs_delta_pct_cutoff_for_ora <- 0.05
+deg_top_n_up_for_ora <- 50L
+deg_top_n_down_for_ora <- 50L
 min_hallmark_size <- 15
 max_hallmark_size <- 500
 ora_min_overlap <- 3
@@ -90,6 +93,88 @@ clean_gene_symbols <- function(genes) {
   g <- sub("\\.[0-9]+$", "", g)
   g[g == ""] <- NA_character_
   g
+}
+
+normalize_ora_gene_key <- function(x) {
+  x <- as.character(x)
+  x <- trimws(x)
+  x <- sub("^GRCh[0-9]+[-_]", "", x, ignore.case = TRUE)
+  x <- sub("^GRCm39[-_]", "", x, ignore.case = TRUE)
+  x <- sub("^hg38[-_]", "", x, ignore.case = TRUE)
+  x <- sub("\\.[0-9]+$", "", x)
+  x <- toupper(x)
+  x[x == ""] <- NA_character_
+  x
+}
+
+resolve_deg_gene_label <- function(df) {
+  gene_symbol <- if ("gene_symbol" %in% colnames(df)) as.character(df$gene_symbol) else rep(NA_character_, nrow(df))
+  gene <- if ("gene" %in% colnames(df)) as.character(df$gene) else rownames(df)
+  out <- ifelse(!is.na(gene_symbol) & gene_symbol != "", gene_symbol, gene)
+  out[is.na(out) | out == ""] <- gene[is.na(out) | out == ""]
+  out
+}
+
+prepare_deg_table_for_ora <- function(df, lfc_col) {
+  df <- as.data.frame(df, stringsAsFactors = FALSE)
+  df$gene_label <- resolve_deg_gene_label(df)
+  df$gene_key <- normalize_ora_gene_key(df$gene_label)
+  df$gene_symbol <- clean_gene_symbols(df$gene_label)
+  missing_gene_symbol <- is.na(df$gene_symbol) | df$gene_symbol == ""
+  df$gene_symbol[missing_gene_symbol] <- df$gene_key[missing_gene_symbol]
+  df$lfc_value <- as.numeric(df[[lfc_col]])
+  df$p_val_adj_num <- as.numeric(df$p_val_adj)
+  df$delta_pct <- as.numeric(df$pct.1) - as.numeric(df$pct.2)
+  df$abs_logfc <- abs(df$lfc_value)
+  df$abs_delta_pct <- abs(df$delta_pct)
+
+  df <- df %>%
+    dplyr::filter(
+      !is.na(gene_key),
+      !is.na(gene_symbol),
+      !is.na(lfc_value),
+      !is.na(p_val_adj_num),
+      !is.na(delta_pct)
+    ) %>%
+    dplyr::arrange(dplyr::desc(abs_logfc), p_val_adj_num)
+
+  df %>%
+    dplyr::group_by(gene_key) %>%
+    dplyr::slice(1) %>%
+    dplyr::ungroup()
+}
+
+select_deg_top50_each_for_ora <- function(
+  df,
+  lfc_col,
+  padj_max,
+  abs_logfc_min,
+  abs_delta_pct_min,
+  top_n_up,
+  top_n_down
+) {
+  filtered <- prepare_deg_table_for_ora(df, lfc_col) %>%
+    dplyr::filter(
+      p_val_adj_num < padj_max,
+      abs_logfc >= abs_logfc_min,
+      abs_delta_pct >= abs_delta_pct_min
+    )
+
+  up_tbl <- filtered %>%
+    dplyr::filter(lfc_value > 0) %>%
+    dplyr::arrange(dplyr::desc(lfc_value), p_val_adj_num) %>%
+    dplyr::slice_head(n = top_n_up) %>%
+    dplyr::mutate(direction = "up")
+
+  down_tbl <- filtered %>%
+    dplyr::filter(lfc_value < 0) %>%
+    dplyr::arrange(lfc_value, p_val_adj_num) %>%
+    dplyr::slice_head(n = top_n_down) %>%
+    dplyr::mutate(direction = "down")
+
+  dplyr::bind_rows(up_tbl, down_tbl) %>%
+    dplyr::arrange(dplyr::desc(abs_logfc), p_val_adj_num) %>%
+    dplyr::distinct(gene_key, .keep_all = TRUE)
 }
 
 beautify_hallmark_name <- function(x) {
@@ -217,13 +302,17 @@ make_merge_mapping_table <- function(original_clusters, rules) {
 }
 
 summarize_cluster_annotation <- function(cluster_id, n_cells, deg_df, ora_df, top_n = 3L) {
-  up_genes_n <- if (is.null(deg_df) || nrow(deg_df) == 0) 0L else nrow(deg_df)
+  deg_genes_n <- if (is.null(deg_df) || nrow(deg_df) == 0) 0L else nrow(deg_df)
+  up_genes_n <- if (is.null(deg_df) || nrow(deg_df) == 0 || !("direction" %in% colnames(deg_df))) 0L else sum(deg_df$direction == "up", na.rm = TRUE)
+  down_genes_n <- if (is.null(deg_df) || nrow(deg_df) == 0 || !("direction" %in% colnames(deg_df))) 0L else sum(deg_df$direction == "down", na.rm = TRUE)
 
   if (is.null(ora_df) || nrow(ora_df) == 0) {
     return(data.frame(
       cluster = as.character(cluster_id),
       n_cells = n_cells,
+      n_deg_for_ora = deg_genes_n,
       n_up_deg_for_ora = up_genes_n,
+      n_down_deg_for_ora = down_genes_n,
       n_significant_hallmarks = 0L,
       annotation_primary = NA_character_,
       annotation_secondary = NA_character_,
@@ -258,7 +347,9 @@ summarize_cluster_annotation <- function(cluster_id, n_cells, deg_df, ora_df, to
   data.frame(
     cluster = as.character(cluster_id),
     n_cells = n_cells,
+    n_deg_for_ora = deg_genes_n,
     n_up_deg_for_ora = up_genes_n,
+    n_down_deg_for_ora = down_genes_n,
     n_significant_hallmarks = nrow(ora_sig),
     annotation_primary = labels[1],
     annotation_secondary = labels[2],
@@ -400,7 +491,9 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
         n_cells = merged_count_df$n_cells[match(cluster_id, merged_count_df$cluster)],
         tested_genes = 0L,
         sig_genes = 0L,
+        deg_for_ora = 0L,
         up_genes_for_ora = 0L,
+        down_genes_for_ora = 0L,
         stringsAsFactors = FALSE
       )
       annotation_summary_list[[cluster_id]] <- summarize_cluster_annotation(
@@ -440,6 +533,16 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
         call. = FALSE
       )
     }
+    required_ora_cols <- c("pct.1", "pct.2")
+    missing_ora_cols <- setdiff(required_ora_cols, colnames(de))
+    if (length(missing_ora_cols) > 0) {
+      stop(
+        "DEG result for cluster_final ", cluster_id,
+        " is missing required columns for top50_each ORA selection: ",
+        paste(missing_ora_cols, collapse = ", "),
+        call. = FALSE
+      )
+    }
 
     de <- de[order(de$p_val_adj, -abs(de[[lfc_col]])), , drop = FALSE]
     rownames(de) <- NULL
@@ -447,20 +550,23 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
       write_csv(de, deg_markers_file)
     }
 
-    sig_up <- de %>%
-      dplyr::filter(
-        !is.na(p_val_adj),
-        p_val_adj < deg_padj_cutoff,
-        !is.na(gene_symbol),
-        .data[[lfc_col]] >= deg_lfc_cutoff_for_ora
-      ) %>%
-      dplyr::arrange(p_val_adj, dplyr::desc(.data[[lfc_col]]), gene_symbol) %>%
-      dplyr::distinct(gene_symbol, .keep_all = TRUE)
+    ora_deg <- select_deg_top50_each_for_ora(
+      df = de,
+      lfc_col = lfc_col,
+      padj_max = deg_padj_cutoff,
+      abs_logfc_min = deg_lfc_cutoff_for_ora,
+      abs_delta_pct_min = deg_abs_delta_pct_cutoff_for_ora,
+      top_n_up = deg_top_n_up_for_ora,
+      top_n_down = deg_top_n_down_for_ora
+    )
 
-    write_csv(sig_up, file.path(deg_dir_cluster, paste0("cluster_", cluster_id, "_vs_rest_up_for_Hallmark_ORA.csv")))
+    write_csv(
+      ora_deg,
+      file.path(deg_dir_cluster, paste0("cluster_", cluster_id, "_vs_rest_top50_each_for_Hallmark_ORA.csv"))
+    )
 
     ora_res <- run_ora_hypergeom(
-      query_genes = sig_up$gene_symbol,
+      query_genes = ora_deg$gene_symbol,
       universe_genes = universe_genes,
       pathways = hallmark_sets,
       min_size = min_hallmark_size,
@@ -489,14 +595,16 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
       n_cells = merged_count_df$n_cells[match(cluster_id, merged_count_df$cluster)],
       tested_genes = nrow(de),
       sig_genes = sum(!is.na(de$p_val_adj) & de$p_val_adj < deg_padj_cutoff),
-      up_genes_for_ora = nrow(sig_up),
+      deg_for_ora = nrow(ora_deg),
+      up_genes_for_ora = sum(ora_deg$direction == "up", na.rm = TRUE),
+      down_genes_for_ora = sum(ora_deg$direction == "down", na.rm = TRUE),
       stringsAsFactors = FALSE
     )
 
     annotation_summary_list[[cluster_id]] <- summarize_cluster_annotation(
       cluster_id = cluster_id,
       n_cells = merged_count_df$n_cells[match(cluster_id, merged_count_df$cluster)],
-      deg_df = sig_up,
+      deg_df = ora_deg,
       ora_df = ora_res,
       top_n = top_terms_per_cluster
     )
@@ -522,6 +630,22 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
   saveRDS(obj, file.path(out_objects, "integrated_sct_cca_seurat_cluster_final_annotation.rds"))
 
   message("Writing summary plots.")
+  write_stackfig_outputs(
+    obj = obj,
+    output_dir = out_plots,
+    group_col_candidates = c("sample_type", "sample.type", "SampleType", "sampleType"),
+    fallback_sample_col_candidates = c("sample", "Sample"),
+    cluster_col_candidates = c(analysis_cluster_col),
+    group_label = "sample_type",
+    cluster_label = analysis_cluster_col,
+    group_title = "cluster_final proportion within each sample_type",
+    cluster_title = "sample_type proportion within each cluster_final",
+    group_by_cluster_stub = "stack_sample_type_by_cluster_final",
+    cluster_by_group_stub = "stack_cluster_final_by_sample_type",
+    width = 10,
+    height = 6
+  )
+
   if (nrow(ora_all_df) > 0) {
     heatmap_df <- ora_all_df %>%
       dplyr::mutate(score = -log10(pmax(p_adj, 1e-300)))
@@ -566,19 +690,19 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
   }
 
   if ("umap" %in% names(obj@reductions)) {
-    p1 <- DimPlot(obj, reduction = "umap", group.by = analysis_cluster_col, label = TRUE, repel = TRUE, raster = TRUE) +
+    p1 <- DimPlot(obj, reduction = "umap", group.by = analysis_cluster_col, label = TRUE, repel = TRUE, raster = FALSE) +
       labs(title = "cluster_final for annotation")
     ggsave(file.path(out_plots, "umap_cluster_final.pdf"), p1, width = 9, height = 7)
     ggsave(file.path(out_plots, "umap_cluster_final.png"), p1, width = 9, height = 7, dpi = 300)
 
-    p2 <- DimPlot(obj, reduction = "umap", group.by = "cluster_final_annotation_primary", label = TRUE, repel = TRUE, raster = TRUE) +
+    p2 <- DimPlot(obj, reduction = "umap", group.by = "cluster_final_annotation_primary", label = TRUE, repel = TRUE, raster = FALSE) +
       labs(title = "Primary Hallmark annotation by cluster_final")
     ggsave(file.path(out_plots, "umap_cluster_final_annotation_primary.pdf"), p2, width = 11, height = 7)
     ggsave(file.path(out_plots, "umap_cluster_final_annotation_primary.png"), p2, width = 11, height = 7, dpi = 300)
   }
 
   summary_lines <- c(
-    "02d cluster annotation completed.",
+    "02e cluster annotation completed.",
     paste0("Input object: ", input_rds),
     paste0("Output root: ", output_root),
     paste0("Base cluster column: ", base_cluster_col),
@@ -586,6 +710,19 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
     paste0("cluster_final count: ", length(merged_levels)),
     paste0("cluster_final labels: ", paste(merged_levels, collapse = ", ")),
     paste0("Hard-coded merge rules: ", paste(paste(names(merge_rules), "->", unname(merge_rules)), collapse = "; ")),
+    paste0(
+      "Hallmark ORA DEG rule: top ", deg_top_n_up_for_ora, " up + top ", deg_top_n_down_for_ora,
+      " down genes after p_adj < ", deg_padj_cutoff,
+      ", abs(logFC) >= ", deg_lfc_cutoff_for_ora,
+      ", abs(pct.1 - pct.2) >= ", deg_abs_delta_pct_cutoff_for_ora,
+      " (aligned to 02a top50_each)."
+    ),
+    "Stack figure outputs:",
+    "  03_plots/stack_sample_type_by_cluster_final.pdf(.png)",
+    "  03_plots/stack_cluster_final_by_sample_type.pdf(.png)",
+    "",
+    "UMAP rendering:",
+    "  All UMAP outputs are written with raster = FALSE (no point downsampling).",
     "",
     "Interpretation reminder:",
     "  Clusters 1 and 7 are absorbed into 0 for downstream annotation.",
@@ -593,5 +730,5 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
   )
   writeLines(summary_lines, con = file.path(out_summary, "run_summary.txt"))
 
-message("02d cluster annotation finished.")
+message("02e cluster annotation finished.")
 message("Output root: ", output_root)

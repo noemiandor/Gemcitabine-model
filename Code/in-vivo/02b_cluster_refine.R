@@ -440,7 +440,7 @@ out_cells <- .ensure_dir(file.path(output_root, "selected_cells"))
     group.by = "seurat_clusters",
     label = TRUE,
     repel = TRUE,
-    raster = TRUE,
+    raster = FALSE,
     pt.size = 0.30
   ) + labs(title = "Original seurat_clusters")
   save_plot_pdf_png(p_umap_original, file.path(out_plots, "umap_original_seurat_clusters"), width = 9, height = 7)
@@ -451,7 +451,7 @@ out_cells <- .ensure_dir(file.path(output_root, "selected_cells"))
     group.by = "seurat_cluster_refine",
     label = TRUE,
     repel = TRUE,
-    raster = TRUE,
+    raster = FALSE,
     pt.size = 0.30
   ) + labs(title = "Refined clusters: seurat_cluster_refine")
   save_plot_pdf_png(p_umap_refined, file.path(out_plots, "umap_seurat_cluster_refine"), width = 9, height = 7)
@@ -464,6 +464,7 @@ out_cells <- .ensure_dir(file.path(output_root, "selected_cells"))
     group.by = "seurat_clusters",
     label = TRUE,
     repel = TRUE,
+    raster = FALSE,
     pt.size = 0.35
   ) + labs(title = "Focus UMAP: region clusters 0,3,6,10,11,12 and candidates 4,9")
   save_plot_pdf_png(p_focus_original, file.path(out_plots, "umap_focus_original_clusters"), width = 8.5, height = 6.5)
@@ -474,6 +475,7 @@ out_cells <- .ensure_dir(file.path(output_root, "selected_cells"))
     group.by = "seurat_cluster_refine",
     label = TRUE,
     repel = TRUE,
+    raster = FALSE,
     pt.size = 0.35
   ) + labs(title = "Focus UMAP: refined 4c and 9c")
   save_plot_pdf_png(p_focus_refined, file.path(out_plots, "umap_focus_seurat_cluster_refine"), width = 8.5, height = 6.5)

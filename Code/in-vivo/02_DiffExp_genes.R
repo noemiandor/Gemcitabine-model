@@ -453,7 +453,8 @@ DimPlot(
   object    = obj,
   reduction = "umap",
   group.by  = "seurat_clusters",
-  pt.size   = 0.5
+  pt.size   = 0.5,
+  raster    = FALSE
 ) + ggtitle("UMAP colored by Cluster")
 dev.off()
 
@@ -472,7 +473,8 @@ p_cluster <- DimPlot(
   tumor,
   reduction = "umap",
   group.by = "seurat_clusters",
-  pt.size = 0.4
+  pt.size = 0.4,
+  raster = FALSE
 ) + ggtitle("Tumor only UMAP - by cluster")
 
 ggsave(
@@ -486,7 +488,8 @@ p_type <- DimPlot(
   tumor,
   reduction = "umap",
   group.by = "sample_type",
-  pt.size = 0.4
+  pt.size = 0.4,
+  raster = FALSE
 ) + ggtitle("Tumor only UMAP - 2N-tumor vs 4N-tumor")
 
 ggsave(
@@ -542,7 +545,8 @@ p_ploidy <- DimPlot(
   obj_sub,
   reduction = "umap",
   group.by = "ploidy",
-  pt.size = 0.4
+  pt.size = 0.4,
+  raster = FALSE
 ) + ggtitle("CellLine + Dose0 tumor subset: 2N vs 4N")
 
 ggsave(
@@ -556,7 +560,8 @@ p_type <- DimPlot(
   obj_sub,
   reduction = "umap",
   group.by = "sample_type",
-  pt.size = 0.4
+  pt.size = 0.4,
+  raster = FALSE
 ) + ggtitle("CellLine + Dose0 tumor subset: sample_type")
 
 ggsave(
@@ -572,7 +577,8 @@ p_cluster <- DimPlot(
   group.by = "seurat_clusters",
   label = TRUE,
   repel = TRUE,
-  pt.size = 0.4
+  pt.size = 0.4,
+  raster = FALSE
 ) + ggtitle("CellLine + Dose0 tumor subset: clusters")
 
 ggsave(

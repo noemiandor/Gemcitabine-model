@@ -456,8 +456,8 @@ saveRDS(integrated, file.path(output_dir, "integrated_sct_cca_seurat.rds"))
 writeLines(capture.output(sessionInfo()), con = file.path(output_dir, "sessionInfo_01_data.txt"))
 
 pdf(file.path(output_dir, "umap_overview.pdf"), width = 9, height = 7)
-print(Seurat::DimPlot(integrated, reduction = "umap", group.by = "sample"))
-print(Seurat::DimPlot(integrated, reduction = "umap", group.by = "seurat_clusters", label = TRUE))
+print(Seurat::DimPlot(integrated, reduction = "umap", group.by = "sample", raster = FALSE))
+print(Seurat::DimPlot(integrated, reduction = "umap", group.by = "seurat_clusters", label = TRUE, raster = FALSE))
 dev.off()
 
 message("Writing stack figures ...")

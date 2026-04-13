@@ -577,7 +577,7 @@ out_objects <- .ensure_dir(file.path(output_root, "objects"))
     group.by = base_cluster_col,
     label = TRUE,
     repel = TRUE,
-    raster = TRUE,
+    raster = FALSE,
     pt.size = 0.30
   ) + labs(title = paste("UMAP by", base_cluster_col))
   save_plot_pdf_png(p_cluster, file.path(out_plots, "umap_by_refined_cluster"), width = 9, height = 7)

@@ -444,16 +444,16 @@ pc_corr_plot_df$PC <- factor(pc_corr_plot_df$PC, levels = rev(colnames(pca_use))
 
 message("Building diagnostic plots.")
 
-plot_umap_cluster <- DimPlot(seu, reduction = "umap", group.by = "seurat_clusters")
+plot_umap_cluster <- DimPlot(seu, reduction = "umap", group.by = "seurat_clusters", raster = FALSE)
 save_plot_both(plot_umap_cluster, "umap_by_cluster", output_dir)
 
-plot_umap_phase <- DimPlot(seu, reduction = "umap", group.by = "Phase")
+plot_umap_phase <- DimPlot(seu, reduction = "umap", group.by = "Phase", raster = FALSE)
 save_plot_both(plot_umap_phase, "umap_by_phase", output_dir)
 
-plot_umap_s <- FeaturePlot(seu, reduction = "umap", features = "S.Score")
+plot_umap_s <- FeaturePlot(seu, reduction = "umap", features = "S.Score", raster = FALSE)
 save_plot_both(plot_umap_s, "umap_S_Score", output_dir)
 
-plot_umap_g2m <- FeaturePlot(seu, reduction = "umap", features = "G2M.Score")
+plot_umap_g2m <- FeaturePlot(seu, reduction = "umap", features = "G2M.Score", raster = FALSE)
 save_plot_both(plot_umap_g2m, "umap_G2M_Score", output_dir)
 
 plot_vln_s_cluster <- VlnPlot(seu, features = "S.Score", group.by = "seurat_clusters", pt.size = 0) +
