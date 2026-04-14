@@ -75,8 +75,11 @@ deg_logfc_threshold <- 0
 deg_padj_cutoff <- 0.05
 deg_lfc_cutoff_for_ora <- 0.25
 deg_abs_delta_pct_cutoff_for_ora <- 0.05
-deg_top_n_up_for_ora <- 50L
-deg_top_n_down_for_ora <- 50L
+deg_top_n_for_ora <- 100L
+ora_annotation_fdr_cutoff <- 0.05
+annotation_weight_expression <- 1 / 3
+annotation_weight_detection <- 1 / 3
+annotation_weight_overlap <- 1 / 3
 min_hallmark_size <- 15
 max_hallmark_size <- 500
 ora_min_overlap <- 3
@@ -144,14 +147,13 @@ prepare_deg_table_for_ora <- function(df, lfc_col) {
     dplyr::ungroup()
 }
 
-select_deg_top50_each_for_ora <- function(
+select_deg_top_up_for_ora <- function(
   df,
   lfc_col,
   padj_max,
   abs_logfc_min,
   abs_delta_pct_min,
-  top_n_up,
-  top_n_down
+  top_n
 ) {
   filtered <- prepare_deg_table_for_ora(df, lfc_col) %>%
     dplyr::filter(
@@ -160,19 +162,11 @@ select_deg_top50_each_for_ora <- function(
       abs_delta_pct >= abs_delta_pct_min
     )
 
-  up_tbl <- filtered %>%
+  filtered %>%
     dplyr::filter(lfc_value > 0) %>%
     dplyr::arrange(dplyr::desc(lfc_value), p_val_adj_num) %>%
-    dplyr::slice_head(n = top_n_up) %>%
-    dplyr::mutate(direction = "up")
-
-  down_tbl <- filtered %>%
-    dplyr::filter(lfc_value < 0) %>%
-    dplyr::arrange(lfc_value, p_val_adj_num) %>%
-    dplyr::slice_head(n = top_n_down) %>%
-    dplyr::mutate(direction = "down")
-
-  dplyr::bind_rows(up_tbl, down_tbl) %>%
+    dplyr::slice_head(n = top_n) %>%
+    dplyr::mutate(direction = "up") %>%
     dplyr::arrange(dplyr::desc(abs_logfc), p_val_adj_num) %>%
     dplyr::distinct(gene_key, .keep_all = TRUE)
 }
@@ -237,6 +231,146 @@ run_ora_hypergeom <- function(query_genes, universe_genes, pathways, min_size = 
   out
 }
 
+safe_scale01 <- function(x) {
+  x <- as.numeric(x)
+  out <- rep(0, length(x))
+  keep <- is.finite(x)
+  if (!any(keep)) {
+    return(out)
+  }
+
+  rng <- range(x[keep], na.rm = TRUE)
+  if (!all(is.finite(rng)) || diff(rng) == 0) {
+    out[keep] <- 1
+    return(out)
+  }
+
+  out[keep] <- (x[keep] - rng[1]) / diff(rng)
+  out
+}
+
+arrange_ora_for_annotation <- function(ora_df) {
+  if (is.null(ora_df) || nrow(ora_df) == 0) {
+    return(ora_df)
+  }
+
+  df <- as.data.frame(ora_df, stringsAsFactors = FALSE)
+  primary <- if ("annotation_score" %in% colnames(df)) as.numeric(df$annotation_score) else rep(NA_real_, nrow(df))
+  secondary <- if ("expression_score_raw" %in% colnames(df)) as.numeric(df$expression_score_raw) else rep(NA_real_, nrow(df))
+  tertiary <- if ("detection_score_raw" %in% colnames(df)) as.numeric(df$detection_score_raw) else rep(NA_real_, nrow(df))
+  quaternary <- if ("overlap_score_raw" %in% colnames(df)) as.numeric(df$overlap_score_raw) else rep(NA_real_, nrow(df))
+
+  primary[!is.finite(primary)] <- -Inf
+  secondary[!is.finite(secondary)] <- -Inf
+  tertiary[!is.finite(tertiary)] <- -Inf
+  quaternary[!is.finite(quaternary)] <- -Inf
+
+  df[order(-primary, -secondary, -tertiary, -quaternary, df$pathway), , drop = FALSE]
+}
+
+score_ora_for_annotation <- function(
+  ora_df,
+  deg_df,
+  weight_expression = annotation_weight_expression,
+  weight_detection = annotation_weight_detection,
+  weight_overlap = annotation_weight_overlap,
+  fdr_cutoff = ora_annotation_fdr_cutoff
+) {
+  if (is.null(ora_df) || nrow(ora_df) == 0) {
+    return(data.frame())
+  }
+
+  ora_df <- as.data.frame(ora_df, stringsAsFactors = FALSE)
+  ora_df <- ora_df[!is.na(ora_df$p_adj) & ora_df$p_adj < fdr_cutoff, , drop = FALSE]
+  if (nrow(ora_df) == 0) {
+    return(data.frame())
+  }
+  deg_df <- as.data.frame(deg_df, stringsAsFactors = FALSE)
+
+  if (!("gene_key" %in% colnames(deg_df))) {
+    deg_df$gene_key <- normalize_ora_gene_key(deg_df$gene_symbol)
+  }
+  if (!("lfc_value" %in% colnames(deg_df))) {
+    lfc_col <- resolve_lfc_col(deg_df)
+    deg_df$lfc_value <- as.numeric(deg_df[[lfc_col]])
+  }
+  if (!("abs_logfc" %in% colnames(deg_df))) {
+    deg_df$abs_logfc <- abs(as.numeric(deg_df$lfc_value))
+  }
+  if (!("delta_pct" %in% colnames(deg_df))) {
+    deg_df$delta_pct <- as.numeric(deg_df$pct.1) - as.numeric(deg_df$pct.2)
+  }
+  if (!("abs_delta_pct" %in% colnames(deg_df))) {
+    deg_df$abs_delta_pct <- abs(as.numeric(deg_df$delta_pct))
+  }
+
+  overlap_stats <- lapply(seq_len(nrow(ora_df)), function(i) {
+    overlap_genes <- ora_df$overlap_genes[i]
+    overlap_symbols <- if (is.na(overlap_genes) || overlap_genes == "") {
+      character(0)
+    } else {
+      trimws(unlist(strsplit(overlap_genes, ";", fixed = TRUE)))
+    }
+    overlap_keys <- normalize_ora_gene_key(overlap_symbols)
+    overlap_keys <- unique(overlap_keys[!is.na(overlap_keys)])
+
+    if (length(overlap_keys) == 0) {
+      return(data.frame(
+        marker_mean_abs_logfc = NA_real_,
+        marker_mean_pct1 = NA_real_,
+        marker_mean_abs_delta_pct = NA_real_,
+        n_overlap_up = 0L,
+        n_overlap_down = 0L,
+        stringsAsFactors = FALSE
+      ))
+    }
+
+    overlap_deg <- deg_df[deg_df$gene_key %in% overlap_keys, , drop = FALSE]
+    overlap_deg <- overlap_deg[!duplicated(overlap_deg$gene_key), , drop = FALSE]
+
+    data.frame(
+      marker_mean_abs_logfc = if (nrow(overlap_deg) > 0) mean(overlap_deg$abs_logfc, na.rm = TRUE) else NA_real_,
+      marker_mean_pct1 = if (nrow(overlap_deg) > 0) mean(as.numeric(overlap_deg$pct.1), na.rm = TRUE) else NA_real_,
+      marker_mean_abs_delta_pct = if (nrow(overlap_deg) > 0) mean(overlap_deg$abs_delta_pct, na.rm = TRUE) else NA_real_,
+      n_overlap_up = sum(overlap_deg$direction == "up", na.rm = TRUE),
+      n_overlap_down = sum(overlap_deg$direction == "down", na.rm = TRUE),
+      stringsAsFactors = FALSE
+    )
+  })
+
+  overlap_stats_df <- bind_rows(overlap_stats)
+  ora_df <- cbind(ora_df, overlap_stats_df)
+
+  ora_df$overlap_query_fraction <- ifelse(ora_df$query_size > 0, ora_df$overlap / ora_df$query_size, NA_real_)
+  ora_df$overlap_set_fraction <- ifelse(ora_df$set_size > 0, ora_df$overlap / ora_df$set_size, NA_real_)
+  overlap_fraction_mat <- cbind(ora_df$overlap_query_fraction, ora_df$overlap_set_fraction)
+  ora_df$overlap_score_raw <- rowMeans(overlap_fraction_mat, na.rm = TRUE)
+  ora_df$overlap_score_raw[!is.finite(ora_df$overlap_score_raw)] <- NA_real_
+
+  ora_df$expression_score_raw <- ora_df$marker_mean_abs_logfc
+  ora_df$detection_score_raw <- ora_df$marker_mean_pct1
+
+  ora_df$expression_score_scaled <- safe_scale01(ora_df$expression_score_raw)
+  ora_df$detection_score_scaled <- safe_scale01(ora_df$detection_score_raw)
+  ora_df$overlap_score_scaled <- safe_scale01(ora_df$overlap_score_raw)
+
+  total_weight <- weight_expression + weight_detection + weight_overlap
+  if (!is.finite(total_weight) || total_weight <= 0) {
+    stop("Annotation score weights must sum to a positive finite value.", call. = FALSE)
+  }
+
+  ora_df$annotation_score <- (
+    weight_expression * ora_df$expression_score_scaled +
+      weight_detection * ora_df$detection_score_scaled +
+      weight_overlap * ora_df$overlap_score_scaled
+  ) / total_weight
+
+  ora_df <- arrange_ora_for_annotation(ora_df)
+  ora_df$annotation_rank <- seq_len(nrow(ora_df))
+  rownames(ora_df) <- NULL
+  ora_df
+}
+
 plot_ora_top <- function(ora_df, out_pdf, out_png, title, top_n = 15) {
   if (is.null(ora_df) || nrow(ora_df) == 0) {
     pdf(out_pdf, width = 10, height = 5)
@@ -264,18 +398,27 @@ plot_ora_top <- function(ora_df, out_pdf, out_png, title, top_n = 15) {
     return(invisible(NULL))
   }
 
-  df_sig <- df[df$p_adj < 0.05, , drop = FALSE]
-  if (nrow(df_sig) > 0) {
-    df <- df_sig
+  use_annotation_score <- "annotation_score" %in% colnames(df) && any(is.finite(df$annotation_score))
+  if (use_annotation_score) {
+    df <- arrange_ora_for_annotation(df)
+    df$plot_value <- df$annotation_score
+    y_label <- "Integrated annotation score"
+  } else {
+    df_sig <- df[df$p_adj < 0.05, , drop = FALSE]
+    if (nrow(df_sig) > 0) {
+      df <- df_sig
+    }
+    df <- df[order(df$p_adj, df$p_value, -df$overlap, df$pathway), , drop = FALSE]
+    df$plot_value <- -log10(pmax(df$p_adj, 1e-300))
+    y_label <- "-log10(FDR)"
   }
   df <- head(df, top_n)
-  df$score <- -log10(pmax(df$p_adj, 1e-300))
   df$hallmark_label <- factor(df$hallmark_label, levels = rev(df$hallmark_label))
 
-  p <- ggplot(df, aes(x = hallmark_label, y = score)) +
+  p <- ggplot(df, aes(x = hallmark_label, y = plot_value)) +
     geom_col(fill = "#2c7fb8", width = 0.8) +
     coord_flip() +
-    labs(title = title, x = NULL, y = "-log10(FDR)") +
+    labs(title = title, x = NULL, y = y_label) +
     theme_classic(base_size = 11)
 
   ggsave(out_pdf, p, width = 10, height = max(5, 0.28 * nrow(df)))
@@ -318,6 +461,9 @@ summarize_cluster_annotation <- function(cluster_id, n_cells, deg_df, ora_df, to
       annotation_secondary = NA_character_,
       annotation_tertiary = NA_character_,
       annotation_multi = NA_character_,
+      top_hallmark_1_annotation_score = NA_real_,
+      top_hallmark_2_annotation_score = NA_real_,
+      top_hallmark_3_annotation_score = NA_real_,
       top_hallmark_1_fdr = NA_real_,
       top_hallmark_2_fdr = NA_real_,
       top_hallmark_3_fdr = NA_real_,
@@ -331,18 +477,20 @@ summarize_cluster_annotation <- function(cluster_id, n_cells, deg_df, ora_df, to
     dplyr::arrange(p_adj, dplyr::desc(overlap), pathway)
 
   note <- if (nrow(ora_sig) > 0) {
-    "annotation based on significant Hallmark ORA"
+    "annotation based on integrated score combining marker strength, marker detection fraction, and overlap degree after Hallmark FDR filtering"
   } else {
-    "no Hallmark passes FDR < 0.05; top nominal terms are listed"
+    paste0("no Hallmark passes FDR < ", ora_annotation_fdr_cutoff, "; no annotation assigned")
   }
 
-  ora_use <- if (nrow(ora_sig) > 0) ora_sig else ora_df %>% dplyr::arrange(p_adj, dplyr::desc(overlap), pathway)
+  ora_use <- arrange_ora_for_annotation(ora_df)
   ora_use <- head(ora_use, top_n)
 
   labels <- ora_use$hallmark_label
   padj_values <- ora_use$p_adj
+  annotation_scores <- if ("annotation_score" %in% colnames(ora_use)) ora_use$annotation_score else rep(NA_real_, nrow(ora_use))
   labels <- c(labels, rep(NA_character_, max(0, top_n - length(labels))))
   padj_values <- c(padj_values, rep(NA_real_, max(0, top_n - length(padj_values))))
+  annotation_scores <- c(annotation_scores, rep(NA_real_, max(0, top_n - length(annotation_scores))))
 
   data.frame(
     cluster = as.character(cluster_id),
@@ -355,6 +503,9 @@ summarize_cluster_annotation <- function(cluster_id, n_cells, deg_df, ora_df, to
     annotation_secondary = labels[2],
     annotation_tertiary = labels[3],
     annotation_multi = paste(labels[!is.na(labels)], collapse = "; "),
+    top_hallmark_1_annotation_score = annotation_scores[1],
+    top_hallmark_2_annotation_score = annotation_scores[2],
+    top_hallmark_3_annotation_score = annotation_scores[3],
     top_hallmark_1_fdr = padj_values[1],
     top_hallmark_2_fdr = padj_values[2],
     top_hallmark_3_fdr = padj_values[3],
@@ -538,7 +689,7 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
     if (length(missing_ora_cols) > 0) {
       stop(
         "DEG result for cluster_final ", cluster_id,
-        " is missing required columns for top50_each ORA selection: ",
+        " is missing required columns for top100-up ORA selection: ",
         paste(missing_ora_cols, collapse = ", "),
         call. = FALSE
       )
@@ -550,19 +701,18 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
       write_csv(de, deg_markers_file)
     }
 
-    ora_deg <- select_deg_top50_each_for_ora(
+    ora_deg <- select_deg_top_up_for_ora(
       df = de,
       lfc_col = lfc_col,
       padj_max = deg_padj_cutoff,
       abs_logfc_min = deg_lfc_cutoff_for_ora,
       abs_delta_pct_min = deg_abs_delta_pct_cutoff_for_ora,
-      top_n_up = deg_top_n_up_for_ora,
-      top_n_down = deg_top_n_down_for_ora
+      top_n = deg_top_n_for_ora
     )
 
     write_csv(
       ora_deg,
-      file.path(deg_dir_cluster, paste0("cluster_", cluster_id, "_vs_rest_top50_each_for_Hallmark_ORA.csv"))
+      file.path(deg_dir_cluster, paste0("cluster_", cluster_id, "_vs_rest_top100_up_for_Hallmark_ORA.csv"))
     )
 
     ora_res <- run_ora_hypergeom(
@@ -573,11 +723,47 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
       max_size = max_hallmark_size,
       min_overlap = ora_min_overlap
     )
+    ora_res <- score_ora_for_annotation(
+      ora_df = ora_res,
+      deg_df = ora_deg,
+      weight_expression = annotation_weight_expression,
+      weight_detection = annotation_weight_detection,
+      weight_overlap = annotation_weight_overlap,
+      fdr_cutoff = ora_annotation_fdr_cutoff
+    )
 
     if (nrow(ora_res) > 0) {
       ora_res$cluster <- as.character(cluster_id)
       ora_res <- ora_res %>%
-        dplyr::select(cluster, pathway, hallmark_label, set_size, query_size, overlap, gene_ratio, bg_ratio, odds_ratio, p_value, p_adj, overlap_genes)
+        dplyr::select(
+          cluster,
+          annotation_rank,
+          pathway,
+          hallmark_label,
+          set_size,
+          query_size,
+          overlap,
+          overlap_query_fraction,
+          overlap_set_fraction,
+          overlap_score_raw,
+          marker_mean_abs_logfc,
+          marker_mean_pct1,
+          marker_mean_abs_delta_pct,
+          n_overlap_up,
+          n_overlap_down,
+          expression_score_raw,
+          detection_score_raw,
+          expression_score_scaled,
+          detection_score_scaled,
+          overlap_score_scaled,
+          annotation_score,
+          gene_ratio,
+          bg_ratio,
+          odds_ratio,
+          p_value,
+          p_adj,
+          overlap_genes
+        )
       ora_all_list[[cluster_id]] <- ora_res
     }
 
@@ -597,7 +783,7 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
       sig_genes = sum(!is.na(de$p_val_adj) & de$p_val_adj < deg_padj_cutoff),
       deg_for_ora = nrow(ora_deg),
       up_genes_for_ora = sum(ora_deg$direction == "up", na.rm = TRUE),
-      down_genes_for_ora = sum(ora_deg$direction == "down", na.rm = TRUE),
+      down_genes_for_ora = 0L,
       stringsAsFactors = FALSE
     )
 
@@ -627,8 +813,6 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
   obj@meta.data[["cluster_final_annotation_primary"]] <- unname(primary_map[as.character(obj@meta.data[[analysis_cluster_col]])])
   obj@meta.data[["cluster_final_annotation_multi"]] <- unname(multi_map[as.character(obj@meta.data[[analysis_cluster_col]])])
 
-  saveRDS(obj, file.path(out_objects, "integrated_sct_cca_seurat_cluster_final_annotation.rds"))
-
   message("Writing summary plots.")
   write_stackfig_outputs(
     obj = obj,
@@ -647,15 +831,28 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
   )
 
   if (nrow(ora_all_df) > 0) {
-    heatmap_df <- ora_all_df %>%
-      dplyr::mutate(score = -log10(pmax(p_adj, 1e-300)))
+    use_annotation_heatmap <- "annotation_score" %in% colnames(ora_all_df) && any(is.finite(ora_all_df$annotation_score))
+    heatmap_df <- if (use_annotation_heatmap) {
+      ora_all_df %>% dplyr::mutate(score = annotation_score)
+    } else {
+      ora_all_df %>% dplyr::mutate(score = -log10(pmax(p_adj, 1e-300)))
+    }
 
-    top_pathways <- heatmap_df %>%
-      dplyr::group_by(hallmark_label) %>%
-      dplyr::summarise(best_fdr = min(p_adj, na.rm = TRUE), .groups = "drop") %>%
-      dplyr::arrange(best_fdr, hallmark_label) %>%
-      dplyr::slice_head(n = 20L) %>%
-      dplyr::pull(hallmark_label)
+    top_pathways <- if (use_annotation_heatmap) {
+      heatmap_df %>%
+        dplyr::group_by(hallmark_label) %>%
+        dplyr::summarise(best_score = max(score, na.rm = TRUE), .groups = "drop") %>%
+        dplyr::arrange(dplyr::desc(best_score), hallmark_label) %>%
+        dplyr::slice_head(n = 20L) %>%
+        dplyr::pull(hallmark_label)
+    } else {
+      heatmap_df %>%
+        dplyr::group_by(hallmark_label) %>%
+        dplyr::summarise(best_fdr = min(p_adj, na.rm = TRUE), .groups = "drop") %>%
+        dplyr::arrange(best_fdr, hallmark_label) %>%
+        dplyr::slice_head(n = 20L) %>%
+        dplyr::pull(hallmark_label)
+    }
 
     heatmap_use <- heatmap_df %>%
       dplyr::filter(hallmark_label %in% top_pathways) %>%
@@ -683,7 +880,11 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
         cluster_rows = TRUE,
         cluster_cols = FALSE,
         border_color = NA,
-        main = "cluster_final Hallmark annotation (-log10 FDR)"
+        main = if (use_annotation_heatmap) {
+          "cluster_final Hallmark annotation (integrated score)"
+        } else {
+          "cluster_final Hallmark annotation (-log10 FDR)"
+        }
       )
       dev.off()
     }
@@ -711,11 +912,18 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
     paste0("cluster_final labels: ", paste(merged_levels, collapse = ", ")),
     paste0("Hard-coded merge rules: ", paste(paste(names(merge_rules), "->", unname(merge_rules)), collapse = "; ")),
     paste0(
-      "Hallmark ORA DEG rule: top ", deg_top_n_up_for_ora, " up + top ", deg_top_n_down_for_ora,
-      " down genes after p_adj < ", deg_padj_cutoff,
+      "Hallmark ORA DEG rule: top ", deg_top_n_for_ora, " up genes after p_adj < ", deg_padj_cutoff,
       ", abs(logFC) >= ", deg_lfc_cutoff_for_ora,
       ", abs(pct.1 - pct.2) >= ", deg_abs_delta_pct_cutoff_for_ora,
-      " (aligned to 02a top50_each)."
+      "."
+    ),
+    paste0(
+      "Annotation rule: integrated score = ",
+      annotation_weight_expression, " * marker_strength + ",
+      annotation_weight_detection, " * marker_detection_fraction + ",
+      annotation_weight_overlap, " * overlap_degree + ",
+      "only among Hallmark ORA terms with FDR < ", ora_annotation_fdr_cutoff,
+      " after within-cluster min-max scaling."
     ),
     "Stack figure outputs:",
     "  03_plots/stack_sample_type_by_cluster_final.pdf(.png)",
@@ -729,6 +937,9 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
     "  Clusters 11 and 12 are absorbed into 10 for downstream annotation."
   )
   writeLines(summary_lines, con = file.path(out_summary, "run_summary.txt"))
+
+  message("Saving annotated Seurat object.")
+  saveRDS(obj, file.path(out_objects, "integrated_sct_cca_seurat_cluster_final_annotation.rds"))
 
 message("02e cluster annotation finished.")
 message("Output root: ", output_root)
