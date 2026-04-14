@@ -83,6 +83,23 @@ ora_min_overlap <- 3
 top_terms_per_cluster <- 3L
 top_plot_terms <- 15L
 future_globals_maxsize_gb <- 30
+future_plan_strategy <- Sys.getenv("SEURAT_FUTURE_PLAN", unset = "auto")
+future_workers_env <- trimws(Sys.getenv("SEURAT_FUTURE_WORKERS", unset = ""))
+
+parse_optional_positive_integer <- function(x, source_name) {
+  if (is.null(x) || length(x) == 0) return(NULL)
+  x <- trimws(as.character(x)[1])
+  if (!nzchar(x)) return(NULL)
+  value <- suppressWarnings(as.integer(x))
+  if (is.na(value) || value < 1L) {
+    stop(source_name, " must be a positive integer when set.", call. = FALSE)
+  }
+  value
+}
+
+future_workers_config <- parse_optional_positive_integer(config$Seurat_future_workers, "Config field 'Seurat_future_workers'")
+future_workers_override <- parse_optional_positive_integer(future_workers_env, "Environment variable SEURAT_FUTURE_WORKERS")
+future_workers <- if (!is.null(future_workers_override)) future_workers_override else future_workers_config
 
 clean_gene_symbols <- function(genes) {
   g <- as.character(genes)
@@ -388,7 +405,16 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
     stop("RNA assay is missing in Seurat object.", call. = FALSE)
   }
 
-  configure_future_for_seurat(max_size_gb = future_globals_maxsize_gb)
+  future_plan_info <- configure_future_for_seurat(
+    max_size_gb = future_globals_maxsize_gb,
+    strategy = future_plan_strategy,
+    workers = future_workers
+  )
+  message(
+    "Configured Seurat future plan: ",
+    future_plan_info$strategy,
+    " (workers=", future_plan_info$workers, ")."
+  )
   DefaultAssay(obj) <- "RNA"
   obj <- maybe_join_layers(obj, assay = "RNA")
 

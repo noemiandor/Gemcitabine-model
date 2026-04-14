@@ -850,15 +850,72 @@ assert_required_column <- function(df, col_name) {
   }
 }
 
-configure_future_for_seurat <- function(max_size_gb = 30) {
+configure_future_for_seurat <- function(max_size_gb = 30, strategy = "sequential", workers = NULL) {
   max_size_bytes <- as.numeric(max_size_gb) * 1024^3
   current_max <- getOption("future.globals.maxSize")
   if (is.null(current_max) || is.na(current_max) || current_max < max_size_bytes) {
     options(future.globals.maxSize = max_size_bytes)
   }
-  if (requireNamespace("future", quietly = TRUE)) {
-    future::plan(future::sequential)
+
+  strategy <- tolower(trimws(as.character(strategy)[1]))
+  valid_strategies <- c("auto", "sequential", "multisession", "multicore")
+  if (!(strategy %in% valid_strategies)) {
+    stop(
+      "Invalid future strategy '", strategy,
+      "'. Valid values: ", paste(valid_strategies, collapse = ", "),
+      call. = FALSE
+    )
   }
+
+  if (!is.null(workers)) {
+    workers <- suppressWarnings(as.integer(workers)[1])
+    if (is.na(workers) || workers < 1L) {
+      stop("'workers' must be a positive integer.", call. = FALSE)
+    }
+  }
+
+  if (!requireNamespace("future", quietly = TRUE)) {
+    if (strategy != "sequential") {
+      stop("Package 'future' is required for parallel Seurat execution.", call. = FALSE)
+    }
+    return(invisible(list(strategy = "sequential", workers = 1L, max_size_gb = as.numeric(max_size_gb))))
+  }
+
+  resolved_strategy <- strategy
+  if (resolved_strategy == "auto") {
+    supports_multicore <- FALSE
+    if (.Platform$OS.type != "windows") {
+      supports_multicore <- tryCatch(
+        isTRUE(future::supportsMulticore()),
+        error = function(e) FALSE
+      )
+    }
+    in_rstudio <- nzchar(Sys.getenv("RSTUDIO")) ||
+      nzchar(Sys.getenv("RSTUDIO_SESSION_PORT")) ||
+      identical(Sys.getenv("TERM_PROGRAM"), "RStudio")
+    resolved_strategy <- if (supports_multicore && !in_rstudio) "multicore" else "multisession"
+  }
+
+  if (resolved_strategy == "sequential") {
+    future::plan(future::sequential)
+    return(invisible(list(strategy = resolved_strategy, workers = 1L, max_size_gb = as.numeric(max_size_gb))))
+  }
+
+  if (is.null(workers)) {
+    detected_workers <- suppressWarnings(as.integer(tryCatch(future::availableCores(), error = function(e) 2L))[1])
+    if (is.na(detected_workers) || detected_workers < 1L) {
+      detected_workers <- 2L
+    }
+    workers <- max(1L, detected_workers - 1L)
+  }
+
+  if (resolved_strategy == "multisession") {
+    future::plan(future::multisession, workers = workers)
+  } else if (resolved_strategy == "multicore") {
+    future::plan(future::multicore, workers = workers)
+  }
+
+  invisible(list(strategy = resolved_strategy, workers = workers, max_size_gb = as.numeric(max_size_gb)))
 }
 
 maybe_join_layers <- function(obj, assay = "RNA") {
