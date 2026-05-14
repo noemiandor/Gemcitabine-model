@@ -637,53 +637,95 @@ Gemcitabine dose & 2N correction & 4N correction \\
 
 
 
-\subsection*{Copy-number inference and downstream analyses}
+\subsection{In-vivo experiments} \label{invivo}
 
-\subsubsection*{1) Mapping Numbat CN states to absolute copy number}
-We inferred segment-wise rules that map Numbat categorical states (\texttt{neu}, \texttt{loh}, \texttt{amp}, \texttt{del}, \texttt{bamp}, \texttt{bdel}) to \emph{integer} copy numbers by aligning the Numbat-derived state distribution with the distribution of metaphase karyotype copy numbers for the same genomic segments.
-
-\paragraph{Neutral baseline (CN$_0$).} A single global CN$_0$ was estimated as the \emph{mode} of all karyotype counts pooled across metaphases/segments; if ties occurred, we selected the mode that minimized a conflict score computed from the pooled Numbat state proportions (penalizing assignments that would imply \texttt{amp}$\leq$CN$_0$, \texttt{del}$\geq$CN$_0$, etc.).
-
-\paragraph{Per-segment optimization.} For each segment we searched over candidate integer assignments:
+This study utilized near-diploid (2N) and near-tetraploid (4N) variants of the SUM159 triple-negative breast cancer cell line (\texttt{SUM159\_NLS\_2N\_A6M} and \texttt{SUM159\_NLS\_4N\_A4M}, respectively). For the \textit{in vivo} experiments, 1~$\times$~10$^6$ cells were injected orthotopically into mice. A total of 40 mice were used, divided into two main groups based on the injected cell line:
 \begin{itemize}
-  \item \texttt{amp} $\in \{\text{CN}_0+1, \ldots, \text{CN}_0+K\}$ (user-set $K$, default 3),
-  \item \texttt{del} $\in \{\text{CN}_0-1, \text{CN}_0-2, \text{CN}_0-3\} \cap [0, \infty)$,
-  \item \texttt{bamp} mirrors \texttt{amp}; \texttt{bdel} mirrors \texttt{del},
-  \item \texttt{loh} $\in \{\text{CN}_0\} \cup \{\text{del candidates}\}$ (copy-neutral or copy-loss LOH),
+    \item \textbf{2N group:} 20 mice were injected with the near-diploid cell line.
+    \item \textbf{4N group:} 20 mice were injected with the near-tetraploid cell line.
 \end{itemize}
-For any assignment, the Numbat state proportions were collapsed to a candidate \emph{copy-number distribution}; we then minimized
+Within each group, mice were further randomized into four Gemcitabine treatment arms (n=5 mice per arm): 0~mg/kg (vehicle), 30~mg/kg, 60~mg/kg, or 120~mg/kg. Tumors were harvested at specified endpoints.
+
+\subsection{In-vivo derived scRNA-seq analysis}
+
+Single-cell RNA sequencing was performed on a subset of 18 tumors, including 2 metastatic lesions ans 16 primary tumors selected to include all vehicle-treated tumors and representative samples from high-dose groups exhibiting treatment failure. No tumor cells had high enough quality among the two metastatic lesions.
+
+The two cell lines (\texttt{SUM159\_NLS\_2N\_A6M} and \texttt{SUM159\_NLS\_4N\_A4M}) were also sequenced, yielding a total of 20 scRNA-Seq datasets.
+
+
+\subsubsection{Single-Cell RNA-seq Data Preprocessing and Quality Control}
+Raw sequencing data was processed using the 10x Genomics Cell Ranger pipeline to generate feature-barcode matrices. As the experiment was conducted using an orthotropic mouse model, raw data was aligned to a combined human (GRCh38) and mouse (mm10) reference genome. Each cell was then classified as either human (tumor) or mouse (tumor microenvironment) based on the species to which the majority of its UMIs aligned. Only cells unambiguously assigned to one species were retained. 
+
+For each sample, further quality control was performed independently. Low-quality cells were identified and removed based on standard metrics, including the number of unique molecular identifiers (UMIs), the number of detected genes, and the percentage of mitochondrial gene expression. Specifically, cells with an unusually low or high number of detected genes, or with a mitochondrial gene content exceeding 10\%, were excluded from downstream analysis to remove empty droplets, cellular debris, and stressed or dying cells. Following filtering, the gene expression data for each sample was normalized using the \texttt{SCTransform} method in the Seurat R package (v4), which stabilizes variance and identifies high-variance features.
+
+\subsubsection{Copy number analysis}
+
+\paragraph{Numbat:} Single-cell copy number profiles were inferred using Numbat. For the diploid setting, 2N tumor cells was analyzed together with a 10\% spike-in of 2N cell line cells, whereas for the tetraploid setting, 4N cells were analyzed with a 10\% spike-in of 4N cell line cells. Reads mapped to the human reference genome (GRCh38) were retrieved from 10x Genomics BAM files and used to compute phased allele counts at single-cell resolution, using haplotype information from the 1000 Genomes Project as the reference panel. Copy number states were estimated by jointly modeling allele-specific counts and gene expression matrices within the Numbat framework, using the following parameters: $t$=1e-5, $initial$ $k$=3, $min$ $genes$=10, $max$ $entropy$=0.5. Chromosome 2 was specified as the diploid reference for 2N cells, and Chromosome 13 was specified as the diploid reference for 4N cells. A diploid reference derived from the Human Cell Atlas was applied in both settings.
+
+\paragraph{Bayesian Shrinkage Adjustment of Segmental Copy Number by Expression:}
+
+For each genomic segment \(i\) with an a~priori copy number estimate \(c_i^{(0)}\), we refined copy number values by integrating expression data derived from matched RNA profiles. Gene-level normalized expression values were first smoothed using a 400-gene rolling mean across genomic coordinates. Each gene was then assigned to the segment(s) it overlapped, and the mean rolling expression per segment (\(e_i\)) was computed. To relate expression and copy number on a genome-wide scale, we fit a robust linear model
 \[
-\mathcal{L} \;=\; W_1(\hat p_\text{karyo}, \hat p_\text{cand}) \;+\; \beta \, W_1\!\left(\hat p_{\text{karyo}\setminus \text{CN}_0}, \hat p_{\text{cand}\setminus \text{CN}_0}\right) \;+\; \lambda\,\Phi,
+\log(1 + e_i) = \alpha + \beta \log(1 + c_i^{(0)}) + \varepsilon_i,
 \]
-where $W_1$ is the 1-D Wasserstein (earth-mover) distance on the integer CN grid, the second term compares \emph{non-neutral mass} only, and $\Phi$ is a conflict penalty derived from the Numbat proportions (discouraging \texttt{amp} assignments $\leq$CN$_0$, etc.). Defaults: $\beta=0$ unless specified; $\lambda=0.25$.
+using Huber weighting to down-weight outlier segments (\texttt{MASS::rlm} with \(\psi = \text{psi.huber}, k=1.5\)).  
+For each segment, the expression-implied copy number was obtained by inverting the fitted relationship:
+\[
+\hat{c}^{\text{expr}}_i = \exp\left(\frac{\log(1 + e_i) - \alpha}{\beta}\right) - 1.
+\]
+Uncertainty of this estimate was approximated using the delta method,
+\[
+\sigma_{\text{expr},i}^2 \approx \left[\frac{1}{\beta}(1 + \hat{c}^{\text{expr}}_i)\right]^2 \sigma_\varepsilon^2,
+\]
+where \(\sigma_\varepsilon^2\) is the residual variance of the regression.  
+An empirical prior variance \(\sigma_c^2\) was computed from the deviation between prior and expression-implied copy numbers, \( \sigma_c^2 = \mathrm{Var}(c_i^{(0)} - \hat{c}^{\text{expr}}_i) \).  
+For each segment, the maximum a~posteriori (MAP) adjusted copy number was then obtained by Bayesian shrinkage toward the prior:
+\[
+\hat{c}^{\text{MAP}}_i = \frac{\sigma_{\text{expr},i}^{-2} \hat{c}^{\text{expr}}_i + \sigma_c^{-2} c_i^{(0)}}{\sigma_{\text{expr},i}^{-2} + \sigma_c^{-2}}.
+\]
+This formulation balances expression-derived evidence against the genomic prior according to their respective uncertainties.  
+To prevent biologically implausible values, adjusted copy numbers were truncated to the range \([1,6]\).  
+The procedure returns both the fitted regression parameters (\(\alpha, \beta, \sigma_\varepsilon^2, \sigma_c^2\)) and a per-segment table containing prior, expression-implied, and MAP-adjusted copy numbers for downstream analysis.
 
-\paragraph{Per-state informativity \& fallback.} Within a segment, each state was considered \emph{karyotype-informative} only if (i) the karyotype had sufficient mass on the relevant side of CN$_0$ ($\geq \tau$, default 0.15) and (ii) the state appeared in $\geq 1\%$ of Numbat cells for that segment; otherwise that state was \emph{fixed to a fallback} and excluded from the search. Fallbacks used conservative values that generalize across ploidies:
-\begin{itemize}
-  \item \texttt{amp}=\texttt{bamp}=CN$_0+1$,
-  \item \texttt{del}=\texttt{bdel}=$\lfloor \text{CN}_0/2 \rfloor$,
-  \item \texttt{loh}=$\lceil (\text{CN}_0+0.1)/2 \rceil$,
-  \item \texttt{neu}=CN$_0$.
-\end{itemize}
-Thus, even in a karyotype-informed segment, only states meeting informativity criteria were learned; all others defaulted deterministically.
+XX: we did the same for 2N and 4N cells, I do not think it works so well in 2N cells because sequencing saturation is lower. need to include Xiaoqing's saturation analysis
 
-\paragraph{Outputs.} The procedure returns (i) CN$_0$; (ii) a segment $\times$ state \emph{rule matrix} of integers; (iii) a per-cell $\times$ segment \emph{absolute CN matrix} obtained by applying those rules to the Numbat states; and (iv) diagnostics, including which states per segment were optimized versus fallback.
 
-\subsubsection*{2) Applying rules to independent Numbat calls}
-Rules were learned from Numbat calls obtained in the 4N SUM-159 cell line. 
-These segment-wise rules were then applied to Numbat state matrices derived from 4N murine tumors to infer absolute copy number (CN) per cell and segment. 
-Because \texttt{neu} is globally anchored at CN$_0$, absolute CN values are directly comparable across segments and across independent Numbat runs.
-
-\subsubsection*{3) Cluster selection consistent with sample-of-origin}
-We performed hierarchical clustering (Euclidean distance on the per-cell CN matrix; Ward.D linkage) and evaluated candidate cuts $K \in [2,\,K_\text{max}]$. For each $K$, we computed the \emph{normalized mutual information (NMI)} between cluster labels and sample-of-origin labels and selected the cut with maximum NMI (ties broken by minimum \emph{weighted within-cluster entropy} of sample labels and then smaller $K$). Cluster composition was visualized as \emph{stacked bar plots} (one bar per cluster; segment heights equal sample proportions within that cluster).
-
-\subsubsection*{4) Enrichment of samples within clusters}
-For each (cluster, sample) pair we formed a $2\times 2$ table (in-cluster vs out-of-cluster $\times$ is-sample vs other) and ran a one-sided Fisher’s exact test (\texttt{alternative=``greater''}) to test for \emph{over-representation} of that sample in the cluster. P-values were adjusted across all pairs by Benjamini--Hochberg FDR. We report odds ratios and FDR, and display results as a heatmap of $-\log_{10}(\text{FDR})$ with significance annotations.
-
-\clearpage
 
 \clearpage
 
-\bibliography{references_Zotero}
-\bibliographystyle{nihunsrt}
+
+
+
+\subsubsection{Integration of scRNA-seq Datasets}
+To create a unified dataset and correct for technical batch effects arising from separate sequencing runs and experimental conditions (2N vs. 4N tumors; variable Gemcitabine doses), the normalized data from all samples were integrated. We employed the Canonical Correlation Analysis (CCA) integration workflow within the Seurat v4 toolkit. This method identifies shared sources of variation between datasets, or ``anchors,'' which are then used to harmonize the datasets into a single, integrated analytical object. The integration allows for direct comparison of cells across all experimental conditions by minimizing technical variability while preserving biological differences.
+
+
+\subsubsection{Unsupervised Clustering and Dimensionality Reduction}
+After integration, we performed dimensionality reduction on the combined dataset to identify the major axes of variation in the data. Principal component analysis (PCA) was conducted on the integrated gene expression matrix. The top 30 principal components (PCs), which captured the majority of the biological variance, were selected for downstream analysis. These PCs were then used to construct a shared nearest neighbor (SNN) graph, which identifies cells with similar transcriptional profiles. The Louvain algorithm was subsequently applied to the SNN graph to partition the cells into unsupervised clusters. For visualization and exploration of the cellular landscape, Uniform Manifold Approximation and Projection (UMAP) was run on the selected PCs to generate a two-dimensional embedding of the single-cell data.
+
+\subsubsection{Cell Type Annotation and Cell Cycle Scoring}
+The unsupervised clusters were first separated into human (tumor) and mouse (tumor microenvironment, TME) populations based on their species of origin. To identify specific cell types within the TME, the mouse cell clusters were analyzed for the expression of canonical marker genes. For example, immune cell populations such as neutrophils, T-cells, and macrophages were identified by their expression of established lineage markers.
+
+To investigate proliferative states, cell cycle phase was computationally inferred for all cells (both human and mouse). Using the \texttt{CellCycleScoring} function in Seurat, cells were assigned scores based on their expression of G2/M and S phase-specific gene sets. Each cell was then assigned a phase (G1, S, or G2/M), providing a quantitative measure of cell cycle activity across all experimental conditions.
+
+
+\subsubsection{Differential Expression and Pathway Analysis in Tumor Cells}
+To identify transcriptional programs associated with Gemcitabine treatment and ploidy, differential gene expression (DGE) analysis was performed on the human tumor cell population. We used the Wilcoxon Rank-Sum test implemented in the Seurat \texttt{FindMarkers} function to compare gene expression between dose conditions (e.g., 120~mg/kg vs. vehicle) within each ploidy lineage (2N and 4N) separately. Genes were considered significantly differentially expressed with an adjusted p-value of $<$ 0.05 after Bonferroni correction.
+
+To assess specific biological states, we scored each cell for the expression of curated gene sets related to chromosomal instability (CIN) and hypoxia using the \texttt{AddModuleScore} function. These scores were then compared across ploidy and dose groups. Broader pathway-level changes were assessed using Gene Set Enrichment Analysis (GSEA) on the ranked list of differentially expressed genes to identify enrichment of pathways from the MSigDB Hallmark collection. Finally, to find pathways directly correlated with ploidy, we fit linear models between continuous ploidy values and pathway module scores \color{blue} within and across 2N- and 4N- groups \color{black}.
+
+\subsubsection{Analysis of the Tumor Microenvironment (TME)}
+To investigate how tumor ploidy shapes the TME, we focused on the mouse cell population. First, we performed a compositional analysis by calculating the relative proportion of each annotated TME cell type (e.g., neutrophils, T-cells) within 2N-derived versus 4N-derived tumors. The significance of changes in cell proportions was assessed using a chi-squared test. 
+
+Second, to identify functional differences in TME components, we performed DGE analysis specifically on the neutrophil population, comparing cells isolated from 2N tumors to those from 4N tumors. This analysis, using the Wilcoxon Rank-Sum test, aimed to reveal differences in the transcriptional state of neutrophils that are sculpted by the ploidy of the surrounding tumor.
+
+\subsubsection{Modeling Cell Cycle Activity}
+To test the hypothesis that Gemcitabine dose and tumor ploidy collectively predict cell cycle activity, we utilized the cell cycle phase assignments (G1, S, G2/M) for the human tumor cells. We fit a multinomial logistic regression model, which is appropriate for a categorical outcome with more than two levels. \color{blue} The model was specified as \texttt{CellCyclePhase \textasciitilde{} Ploidy\_Group + Gem\_Dose}, where \texttt{Ploidy\_Group} was a continuous variable quantified from each tumor's karyotype (Section XX) and \texttt{Gem\_Dose} was also a continuous variable. The significance of the coefficients for each predictor was evaluated (p $<$ 0.05) to determine if dose and ploidy are significant predictors of the probability of a cell being in a given phase of the cell cycle. The same analysis was repeated using tumor diameter as outcome variable instead of cell cycle state.\color{black}
+
+
+
+
+
+
 
 \end{document}
