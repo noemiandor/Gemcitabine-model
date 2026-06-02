@@ -677,6 +677,29 @@ infer_in_vivo_sample_type <- function(sample_values) {
   out
 }
 
+standardize_in_vivo_dose <- function(dose_values) {
+  dose_chr <- trimws(as.character(dose_values))
+  dose_chr[dose_chr %in% c("0", "0mg", "0 mg/kg", "0mg/kg")] <- "0mg/kg"
+  dose_chr[dose_chr %in% c("30", "30mg", "30 mg/kg", "30mg/kg")] <- "30mg/kg"
+  dose_chr[dose_chr %in% c("120", "120mg", "120 mg/kg", "120mg/kg")] <- "120mg/kg"
+  dose_chr[dose_chr == ""] <- NA_character_
+  dose_chr
+}
+
+sanitize_path_component <- function(x, prefix = NULL) {
+  x <- as.character(x)
+  x <- trimws(x)
+  x[is.na(x) | x == ""] <- "NA"
+  x <- gsub("[^A-Za-z0-9._-]+", "_", x)
+  x <- gsub("_+", "_", x)
+  x <- gsub("^_|_$", "", x)
+  x[x == ""] <- "NA"
+  if (!is.null(prefix) && nzchar(prefix)) {
+    x <- paste0(prefix, x)
+  }
+  x
+}
+
 write_stackfig_outputs <- function(
   obj,
   output_dir,
@@ -689,6 +712,9 @@ write_stackfig_outputs <- function(
   cluster_title = "sample_type Proportion Within Each Cluster",
   group_by_cluster_stub = "stack_sample_type_by_cluster",
   cluster_by_group_stub = "stack_cluster_by_sample_type",
+  group_fill_colors = NULL,
+  cluster_order_by_group_sum = NULL,
+  cluster_order_tiebreak_groups = NULL,
   width = 10,
   height = 6,
   dpi = 300
@@ -803,6 +829,42 @@ write_stackfig_outputs <- function(
   names(tab_cluster_group)[names(tab_cluster_group) == "cluster"] <- cluster_label
   names(tab_cluster_group)[names(tab_cluster_group) == "group"] <- group_label
 
+  if (!is.null(cluster_order_by_group_sum) && length(cluster_order_by_group_sum) > 0) {
+    cluster_stats_df <- data.frame(
+      cluster_chr = as.character(tab_cluster_group[[cluster_label]]),
+      group_chr = as.character(tab_cluster_group[[group_label]]),
+      proportion = tab_cluster_group$proportion,
+      stringsAsFactors = FALSE
+    )
+
+    split_cluster_stats <- split(cluster_stats_df, cluster_stats_df$cluster_chr)
+    cluster_order_stats <- do.call(
+      rbind,
+      lapply(names(split_cluster_stats), function(cluster_i) {
+        sub_df <- split_cluster_stats[[cluster_i]]
+        data.frame(
+          cluster_chr = cluster_i,
+          primary_score = sum(sub_df$proportion[sub_df$group_chr %in% cluster_order_by_group_sum], na.rm = TRUE),
+          tiebreak_score = if (!is.null(cluster_order_tiebreak_groups) && length(cluster_order_tiebreak_groups) > 0) {
+            sum(sub_df$proportion[sub_df$group_chr %in% cluster_order_tiebreak_groups], na.rm = TRUE)
+          } else {
+            0
+          },
+          stringsAsFactors = FALSE
+        )
+      })
+    )
+
+    base_cluster_levels <- cluster_levels
+    cluster_order_stats$base_rank <- match(cluster_order_stats$cluster_chr, base_cluster_levels)
+    cluster_levels <- cluster_order_stats$cluster_chr[
+      order(-cluster_order_stats$primary_score, -cluster_order_stats$tiebreak_score, cluster_order_stats$base_rank)
+    ]
+  }
+
+  tab_cluster_group[[cluster_label]] <- factor(tab_cluster_group[[cluster_label]], levels = cluster_levels)
+  tab_cluster_group[[group_label]] <- factor(tab_cluster_group[[group_label]], levels = group_levels)
+
   utils::write.csv(
     tab_cluster_group,
     file = file.path(output_dir, paste0(cluster_label, "_", group_label, "_proportion.csv")),
@@ -827,6 +889,13 @@ write_stackfig_outputs <- function(
     ) +
     ggplot2::theme_classic(base_size = 12) +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
+
+  if (!is.null(group_fill_colors)) {
+    valid_group_colors <- group_fill_colors[intersect(names(group_fill_colors), group_levels)]
+    if (length(valid_group_colors) > 0) {
+      p2 <- p2 + ggplot2::scale_fill_manual(values = valid_group_colors, drop = FALSE)
+    }
+  }
 
   save_plot_pdf_png(
     p2,
@@ -959,4 +1028,1263 @@ safe_jaccard <- function(a, b) {
   denom <- length(union(a, b))
   if (denom == 0) return(NA_real_)
   length(intersect(a, b)) / denom
+}
+
+write_table_csv <- function(df, file_path) {
+  readr::write_csv(as.data.frame(df, stringsAsFactors = FALSE), file_path)
+}
+
+clean_gene_symbols <- function(genes) {
+  g <- as.character(genes)
+  g <- trimws(g)
+  g <- sub("^GRCh[0-9]+[-_]", "", g, ignore.case = TRUE)
+  g <- sub("^GRCm39[-_]", "", g, ignore.case = TRUE)
+  g <- sub("^hg38[-_]", "", g, ignore.case = TRUE)
+  g <- sub("\\.[0-9]+$", "", g)
+  g[g == ""] <- NA_character_
+  g
+}
+
+prepare_obj_for_markers <- function(obj, assay = "RNA") {
+  if (!(assay %in% names(obj@assays))) {
+    stop("Assay not found in Seurat object: ", assay, call. = FALSE)
+  }
+  DefaultAssay(obj) <- assay
+  obj <- maybe_join_layers(obj, assay = assay)
+  assay_data <- get_assay_data_slot(obj, assay = assay, slot_name = "data")
+  if (is.null(assay_data) || nrow(assay_data) == 0 || ncol(assay_data) == 0) {
+    message(assay, " data slot is empty. Running NormalizeData.")
+    obj <- Seurat::NormalizeData(obj, assay = assay, verbose = FALSE)
+  }
+  obj
+}
+
+run_seurat_cluster_markers <- function(obj, cluster_id, assay, min_pct, logfc_threshold) {
+  message("Running DEG for cluster ", cluster_id, " vs rest.")
+  de <- Seurat::FindMarkers(
+    object = obj,
+    ident.1 = cluster_id,
+    assay = assay,
+    slot = "data",
+    min.pct = min_pct,
+    logfc.threshold = logfc_threshold,
+    verbose = FALSE
+  )
+  de$gene <- rownames(de)
+  de$gene_symbol <- clean_gene_symbols(de$gene)
+  lfc_col <- resolve_lfc_col(de)
+  de <- de[order(de$p_val_adj, -abs(de[[lfc_col]])), , drop = FALSE]
+  rownames(de) <- NULL
+  de$cluster <- as.character(cluster_id)
+  front_cols <- c("cluster", "gene", "gene_symbol")
+  de[, c(front_cols, setdiff(colnames(de), front_cols)), drop = FALSE]
+}
+
+resolve_deg_workers <- function(requested_workers, n_tasks) {
+  requested_workers <- suppressWarnings(as.integer(requested_workers))
+  if (is.na(requested_workers) || requested_workers < 1L) requested_workers <- 1L
+  max(1L, min(requested_workers, n_tasks))
+}
+
+run_seurat_cluster_markers_parallel <- function(
+  obj,
+  cluster_levels,
+  assay,
+  min_pct,
+  logfc_threshold,
+  workers
+) {
+  workers <- resolve_deg_workers(workers, length(cluster_levels))
+  if (.Platform$OS.type != "unix" && workers > 1L) {
+    warning("Forked DEG parallelization is only available on Unix-like systems. Falling back to 1 worker.")
+    workers <- 1L
+  }
+
+  message(
+    "Running DEG across ",
+    length(cluster_levels),
+    " clusters with Seurat::FindMarkers using ",
+    workers,
+    " forked worker(s)."
+  )
+
+  run_one <- function(cluster_id) {
+    tryCatch(
+      list(
+        cluster = as.character(cluster_id),
+        markers = run_seurat_cluster_markers(
+          obj = obj,
+          cluster_id = cluster_id,
+          assay = assay,
+          min_pct = min_pct,
+          logfc_threshold = logfc_threshold
+        ),
+        error = NULL
+      ),
+      error = function(e) {
+        list(
+          cluster = as.character(cluster_id),
+          markers = NULL,
+          error = conditionMessage(e)
+        )
+      }
+    )
+  }
+
+  marker_results <- if (workers > 1L) {
+    parallel::mclapply(
+      X = cluster_levels,
+      FUN = run_one,
+      mc.cores = workers,
+      mc.preschedule = FALSE
+    )
+  } else {
+    lapply(cluster_levels, run_one)
+  }
+
+  names(marker_results) <- cluster_levels
+  attr(marker_results, "workers") <- workers
+  marker_results
+}
+
+default_deg_similarity_feature_specs <- function() {
+  list(
+    list(
+      name = "all_ranked",
+      type = "all",
+      description = "All genes retained with signed avg_log2FC."
+    ),
+    list(
+      name = "lenient",
+      type = "filtered",
+      padj_max = 0.05,
+      abs_log2fc_min = 0.25,
+      abs_delta_pct_min = 0.05,
+      description = "padj < 0.05, abs(avg_log2FC) >= 0.25, abs(pct.1 - pct.2) >= 0.05."
+    ),
+    list(
+      name = "moderate",
+      type = "filtered",
+      padj_max = 0.01,
+      abs_log2fc_min = 0.50,
+      abs_delta_pct_min = 0.10,
+      description = "padj < 0.01, abs(avg_log2FC) >= 0.50, abs(pct.1 - pct.2) >= 0.10."
+    ),
+    list(
+      name = "strict",
+      type = "filtered",
+      padj_max = 0.001,
+      abs_log2fc_min = 1.00,
+      abs_delta_pct_min = 0.20,
+      description = "padj < 0.001, abs(avg_log2FC) >= 1.00, abs(pct.1 - pct.2) >= 0.20."
+    ),
+    list(
+      name = "top50_each",
+      type = "top_n",
+      padj_max = 0.05,
+      abs_log2fc_min = 0.25,
+      abs_delta_pct_min = 0.05,
+      top_n_up = 50L,
+      top_n_down = 50L,
+      description = "After lenient filtering, keep top 50 up and top 50 down genes by avg_log2FC."
+    ),
+    list(
+      name = "top30_each",
+      type = "top_n",
+      padj_max = 0.05,
+      abs_log2fc_min = 0.25,
+      abs_delta_pct_min = 0.05,
+      top_n_up = 30L,
+      top_n_down = 30L,
+      description = "After lenient filtering, keep top 30 up and top 30 down genes by avg_log2FC."
+    ),
+    list(
+      name = "top20_each",
+      type = "top_n",
+      padj_max = 0.05,
+      abs_log2fc_min = 0.25,
+      abs_delta_pct_min = 0.05,
+      top_n_up = 20L,
+      top_n_down = 20L,
+      description = "After lenient filtering, keep top 20 up and top 20 down genes by avg_log2FC."
+    ),
+    list(
+      name = "top10_each",
+      type = "top_n",
+      padj_max = 0.05,
+      abs_log2fc_min = 0.25,
+      abs_delta_pct_min = 0.05,
+      top_n_up = 10L,
+      top_n_down = 10L,
+      description = "After lenient filtering, keep top 10 up and top 10 down genes by avg_log2FC."
+    )
+  )
+}
+
+normalize_gene_key <- function(x) {
+  x <- clean_gene_symbols(x)
+  x <- toupper(x)
+  x[x == ""] <- NA_character_
+  x
+}
+
+resolve_gene_label <- function(df) {
+  gene_symbol <- if ("gene_symbol" %in% colnames(df)) as.character(df$gene_symbol) else rep(NA_character_, nrow(df))
+  gene <- if ("gene" %in% colnames(df)) as.character(df$gene) else rep(NA_character_, nrow(df))
+  out <- ifelse(!is.na(gene_symbol) & gene_symbol != "", gene_symbol, gene)
+  out[is.na(out) | out == ""] <- gene[is.na(out) | out == ""]
+  out
+}
+
+collapse_deg_table <- function(df) {
+  df$gene_label <- resolve_gene_label(df)
+  df$gene_key <- normalize_gene_key(df$gene_label)
+  lfc_col <- resolve_lfc_col(df)
+  df$avg_log2FC <- as.numeric(df[[lfc_col]])
+  df$delta_pct <- as.numeric(df$pct.1) - as.numeric(df$pct.2)
+  df$abs_log2fc <- abs(df$avg_log2FC)
+  df$abs_delta_pct <- abs(df$delta_pct)
+  df$p_val_adj_num <- as.numeric(df$p_val_adj)
+
+  df <- dplyr::filter(df, !is.na(gene_key), !is.na(avg_log2FC), !is.na(p_val_adj_num))
+  df <- dplyr::arrange(df, dplyr::desc(abs_log2fc), p_val_adj_num)
+  df <- dplyr::group_by(df, gene_key)
+  df <- dplyr::slice(df, 1)
+  dplyr::ungroup(df)
+}
+
+read_cluster_deg <- function(cluster_dir, deg_subdir = NULL, marker_file = NULL) {
+  cluster_name <- basename(cluster_dir)
+  cluster_id <- sub("^cluster_", "", cluster_name)
+  if (!is.null(marker_file)) {
+    deg_path <- file.path(cluster_dir, marker_file)
+  } else if (!is.null(deg_subdir) && nzchar(deg_subdir)) {
+    deg_path <- file.path(cluster_dir, deg_subdir, paste0(cluster_name, "_vs_rest_markers.csv"))
+  } else {
+    deg_path <- file.path(cluster_dir, paste0(cluster_name, "_vs_rest_markers.csv"))
+  }
+
+  if (!file.exists(deg_path)) {
+    stop("Missing DEG file: ", deg_path, call. = FALSE)
+  }
+
+  df <- readr::read_csv(deg_path, show_col_types = FALSE)
+  required_cols <- c("pct.1", "pct.2", "p_val_adj")
+  missing_cols <- setdiff(required_cols, colnames(df))
+  if (length(missing_cols) > 0) {
+    stop("Missing required DEG columns in ", deg_path, ": ", paste(missing_cols, collapse = ", "), call. = FALSE)
+  }
+  resolve_lfc_col(df)
+
+  df <- collapse_deg_table(df)
+  df$cluster <- cluster_id
+  df
+}
+
+filter_feature_table <- function(df, spec) {
+  if (spec$type == "all") {
+    keep <- rep(TRUE, nrow(df))
+  } else {
+    keep <- df$p_val_adj_num < spec$padj_max &
+      df$abs_log2fc >= spec$abs_log2fc_min &
+      df$abs_delta_pct >= spec$abs_delta_pct_min
+  }
+
+  filtered <- df[keep, , drop = FALSE]
+
+  if (spec$type == "top_n") {
+    up_tbl <- dplyr::filter(filtered, avg_log2FC > 0)
+    up_tbl <- dplyr::arrange(up_tbl, dplyr::desc(avg_log2FC), p_val_adj_num)
+    up_tbl <- dplyr::slice_head(up_tbl, n = spec$top_n_up)
+    down_tbl <- dplyr::filter(filtered, avg_log2FC < 0)
+    down_tbl <- dplyr::arrange(down_tbl, avg_log2FC, p_val_adj_num)
+    down_tbl <- dplyr::slice_head(down_tbl, n = spec$top_n_down)
+    filtered <- dplyr::bind_rows(up_tbl, down_tbl)
+    filtered <- dplyr::arrange(filtered, dplyr::desc(abs_log2fc), p_val_adj_num)
+    filtered <- dplyr::distinct(filtered, gene_key, .keep_all = TRUE)
+  }
+
+  filtered
+}
+
+make_feature_object <- function(df, spec) {
+  feature_tbl <- filter_feature_table(df, spec)
+  up_tbl <- dplyr::filter(feature_tbl, avg_log2FC > 0)
+  down_tbl <- dplyr::filter(feature_tbl, avg_log2FC < 0)
+
+  signed_vec <- feature_tbl$avg_log2FC
+  names(signed_vec) <- feature_tbl$gene_key
+
+  list(
+    table = feature_tbl,
+    up = unique(up_tbl$gene_key),
+    down = unique(down_tbl$gene_key),
+    signed_vec = signed_vec
+  )
+}
+
+safe_directional_jaccard <- function(f1, f2) {
+  same_up <- safe_jaccard(f1$up, f2$up)
+  same_down <- safe_jaccard(f1$down, f2$down)
+  cross_up_down <- safe_jaccard(f1$up, f2$down)
+  cross_down_up <- safe_jaccard(f1$down, f2$up)
+
+  if (all(is.na(c(same_up, same_down, cross_up_down, cross_down_up)))) {
+    return(NA_real_)
+  }
+
+  0.5 * dplyr::coalesce(same_up, 0) +
+    0.5 * dplyr::coalesce(same_down, 0) -
+    0.5 * dplyr::coalesce(cross_up_down, 0) -
+    0.5 * dplyr::coalesce(cross_down_up, 0)
+}
+
+make_union_vectors <- function(v1, v2) {
+  genes <- union(names(v1), names(v2))
+  if (length(genes) == 0) {
+    return(list(x = numeric(0), y = numeric(0)))
+  }
+  x <- stats::setNames(rep(0, length(genes)), genes)
+  y <- stats::setNames(rep(0, length(genes)), genes)
+  x[names(v1)] <- v1
+  y[names(v2)] <- v2
+  list(x = unname(x), y = unname(y))
+}
+
+safe_cosine <- function(v1, v2) {
+  vv <- make_union_vectors(v1, v2)
+  x <- vv$x
+  y <- vv$y
+  if (length(x) == 0) return(NA_real_)
+  denom <- sqrt(sum(x^2)) * sqrt(sum(y^2))
+  if (!is.finite(denom) || denom == 0) return(NA_real_)
+  sum(x * y) / denom
+}
+
+safe_spearman <- function(v1, v2) {
+  vv <- make_union_vectors(v1, v2)
+  x <- vv$x
+  y <- vv$y
+  if (length(x) < 3) return(NA_real_)
+  if (length(unique(x)) < 2 || length(unique(y)) < 2) return(NA_real_)
+  suppressWarnings(stats::cor(x, y, method = "spearman", use = "pairwise.complete.obs"))
+}
+
+compute_pair_metrics <- function(cluster_ids, feature_map, threshold_name) {
+  out <- list()
+  idx <- 1L
+
+  for (i in seq_len(length(cluster_ids))) {
+    for (j in seq(i, length(cluster_ids))) {
+      c1 <- cluster_ids[i]
+      c2 <- cluster_ids[j]
+
+      if (c1 == c2) {
+        directional_jaccard <- 1
+        signed_lfc_cosine <- 1
+        signed_lfc_spearman <- 1
+      } else {
+        f1 <- feature_map[[c1]]
+        f2 <- feature_map[[c2]]
+        directional_jaccard <- safe_directional_jaccard(f1, f2)
+        signed_lfc_cosine <- safe_cosine(f1$signed_vec, f2$signed_vec)
+        signed_lfc_spearman <- safe_spearman(f1$signed_vec, f2$signed_vec)
+      }
+
+      out[[idx]] <- data.frame(
+        threshold = threshold_name,
+        cluster_1 = c1,
+        cluster_2 = c2,
+        directional_jaccard = directional_jaccard,
+        signed_lfc_cosine = signed_lfc_cosine,
+        signed_lfc_spearman = signed_lfc_spearman,
+        stringsAsFactors = FALSE
+      )
+      idx <- idx + 1L
+    }
+  }
+
+  dplyr::bind_rows(out)
+}
+
+pair_to_matrix <- function(pair_df, cluster_ids, metric_name) {
+  mat <- matrix(
+    NA_real_,
+    nrow = length(cluster_ids),
+    ncol = length(cluster_ids),
+    dimnames = list(cluster_ids, cluster_ids)
+  )
+  for (i in seq_len(nrow(pair_df))) {
+    c1 <- as.character(pair_df$cluster_1[i])
+    c2 <- as.character(pair_df$cluster_2[i])
+    value <- as.numeric(pair_df[[metric_name]][i])
+    mat[c1, c2] <- value
+    mat[c2, c1] <- value
+  }
+  diag(mat) <- 1
+  mat
+}
+
+write_matrix_csv <- function(mat, file_path, row_id = "cluster") {
+  df <- as.data.frame(mat, check.names = FALSE)
+  df <- tibble::rownames_to_column(df, row_id)
+  readr::write_csv(df, file_path)
+}
+
+plot_similarity_heatmap <- function(mat, title, file_pdf, na_to_zero = FALSE, width = 8, height = 7) {
+  mat_plot <- mat
+  if (isTRUE(na_to_zero)) {
+    mat_plot[is.na(mat_plot)] <- 0
+  }
+
+  grDevices::pdf(file_pdf, width = width, height = height)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  heatmap_args <- list(
+    mat = mat_plot,
+    color = grDevices::colorRampPalette(c("#1f4e79", "white", "#b03a2e"))(101),
+    breaks = seq(-1, 1, length.out = 102),
+    border_color = NA,
+    main = title
+  )
+  if (!isTRUE(na_to_zero)) {
+    heatmap_args$na_col <- "grey90"
+  }
+  do.call(pheatmap::pheatmap, heatmap_args)
+  invisible(mat_plot)
+}
+
+manual_merge_rules_from_map <- function(merge_map) {
+  if (is.null(merge_map) || length(merge_map) == 0) {
+    stop("`merge_map` must be a non-empty named list.", call. = FALSE)
+  }
+  merge_names <- names(merge_map)
+  if (is.null(merge_names) || any(is.na(merge_names) | merge_names == "")) {
+    stop("`merge_map` must be a named list.", call. = FALSE)
+  }
+
+  source_clusters <- as.character(unlist(merge_map, use.names = FALSE))
+  source_clusters <- source_clusters[!is.na(source_clusters) & source_clusters != ""]
+  if (length(source_clusters) != length(unique(source_clusters))) {
+    dup <- unique(source_clusters[duplicated(source_clusters)])
+    stop("Duplicate source cluster(s) in merge_map: ", paste(dup, collapse = ", "), call. = FALSE)
+  }
+
+  target_clusters <- rep(as.character(merge_names), lengths(merge_map))
+  stats::setNames(target_clusters, source_clusters)
+}
+
+build_manual_merge_labels <- function(cluster_vec, merge_map, cluster_order = NULL) {
+  cluster_vec <- as.character(cluster_vec)
+  rules <- manual_merge_rules_from_map(merge_map)
+
+  out <- cluster_vec
+  idx <- cluster_vec %in% names(rules)
+  out[idx] <- unname(rules[cluster_vec[idx]])
+
+  original_order <- if (!is.null(cluster_order)) as.character(cluster_order) else sort_maybe_numeric(cluster_vec)
+  merged_level_order <- unique(vapply(
+    original_order,
+    function(cl) {
+      if (cl %in% names(rules)) unname(rules[[cl]]) else cl
+    },
+    character(1)
+  ))
+  merged_level_order <- c(merged_level_order, setdiff(unique(out), merged_level_order))
+
+  factor(out, levels = merged_level_order)
+}
+
+make_manual_merge_mapping_table <- function(original_clusters, merge_map) {
+  original_clusters <- sort_maybe_numeric(original_clusters)
+  rules <- manual_merge_rules_from_map(merge_map)
+  merged_group <- ifelse(original_clusters %in% names(rules), unname(rules[original_clusters]), original_clusters)
+
+  data.frame(
+    original_cluster = original_clusters,
+    merged_group = merged_group,
+    merge_status = ifelse(
+      original_clusters %in% names(rules),
+      ifelse(original_clusters == merged_group, "anchor", "absorbed"),
+      "retained"
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
+make_internal_pair_df_from_merge_map <- function(merge_map) {
+  pair_list <- lapply(names(merge_map), function(merge_name) {
+    members <- as.character(merge_map[[merge_name]])
+    if (length(members) < 2) return(NULL)
+    cmb <- utils::combn(members, 2)
+    data.frame(
+      merged_group = merge_name,
+      group_1 = cmb[1, ],
+      group_2 = cmb[2, ],
+      stringsAsFactors = FALSE
+    )
+  })
+  out <- dplyr::bind_rows(pair_list)
+  if (is.null(out) || nrow(out) == 0) {
+    out <- data.frame(
+      merged_group = character(0),
+      group_1 = character(0),
+      group_2 = character(0),
+      stringsAsFactors = FALSE
+    )
+  }
+  out
+}
+
+run_markers_vs_rest_default <- function(
+  obj,
+  ident_col,
+  groups,
+  out_dir,
+  min_pct = 0.10,
+  logfc_threshold = 0.25,
+  assay = "RNA",
+  top_n = 20L
+) {
+  .ensure_dir(out_dir)
+  if (length(groups) == 0) {
+    stop("`groups` must contain at least one cluster/group.", call. = FALSE)
+  }
+  if (!(ident_col %in% colnames(obj@meta.data))) {
+    stop("Metadata column is missing: ", ident_col, call. = FALSE)
+  }
+
+  obj <- Seurat::SetIdent(obj, value = obj@meta.data[[ident_col]])
+  all_markers <- list()
+  top_markers <- list()
+  marker_tables <- list()
+
+  for (grp in as.character(groups)) {
+    marker_file <- file.path(out_dir, paste0("markers_", grp, "_vs_rest.csv"))
+    top_file <- file.path(out_dir, paste0("top_positive_markers_", grp, "_vs_rest.csv"))
+
+    if (file.exists(marker_file)) {
+      message("[markers vs rest] Reusing existing DEG file: ", marker_file)
+      de <- readr::read_csv(marker_file, show_col_types = FALSE)
+      de <- as.data.frame(de, stringsAsFactors = FALSE)
+    } else {
+      message("[markers vs rest] ", ident_col, " = ", grp)
+      de <- Seurat::FindMarkers(
+        object = obj,
+        ident.1 = grp,
+        assay = assay,
+        slot = "data",
+        min.pct = min_pct,
+        logfc.threshold = logfc_threshold,
+        verbose = FALSE
+      )
+      de <- tibble::rownames_to_column(as.data.frame(de, stringsAsFactors = FALSE), "gene")
+      de$gene_symbol <- clean_gene_symbols(de$gene)
+    }
+    if (!("gene" %in% colnames(de))) {
+      de$gene <- rownames(de)
+    }
+    if (!("gene_symbol" %in% colnames(de))) {
+      de$gene_symbol <- clean_gene_symbols(de$gene)
+    }
+    lfc_col <- resolve_lfc_col(de)
+    de$group <- grp
+    de$comparison <- paste0(grp, "_vs_rest")
+    de <- de[, c("group", "comparison", "gene", "gene_symbol", setdiff(colnames(de), c("group", "comparison", "gene", "gene_symbol"))), drop = FALSE]
+
+    if (!file.exists(marker_file)) {
+      write_table_csv(de, marker_file)
+    }
+
+    if (file.exists(top_file)) {
+      top_pos <- readr::read_csv(top_file, show_col_types = FALSE)
+      top_pos <- as.data.frame(top_pos, stringsAsFactors = FALSE)
+    } else {
+      top_pos <- de |>
+        dplyr::filter(!is.na(p_val_adj), p_val_adj < 0.05, .data[[lfc_col]] > 0) |>
+        dplyr::arrange(dplyr::desc(.data[[lfc_col]]), p_val_adj, gene) |>
+        dplyr::slice_head(n = top_n) |>
+        dplyr::mutate(rank_within_group = dplyr::row_number())
+
+      write_table_csv(top_pos, top_file)
+    }
+
+    all_markers[[grp]] <- de
+    top_markers[[grp]] <- top_pos
+    marker_tables[[grp]] <- list(full = de, top_positive = top_pos, lfc_col = lfc_col)
+  }
+
+  list(
+    full = dplyr::bind_rows(all_markers),
+    top_positive = dplyr::bind_rows(top_markers),
+    by_group = marker_tables
+  )
+}
+
+run_pairwise_markers_default <- function(
+  obj,
+  ident_col,
+  pair_df,
+  out_dir,
+  min_pct = 0.10,
+  logfc_threshold = 0.25,
+  assay = "RNA"
+) {
+  .ensure_dir(out_dir)
+  required_cols <- c("group_1", "group_2")
+  missing_cols <- setdiff(required_cols, colnames(pair_df))
+  if (length(missing_cols) > 0) {
+    stop("pair_df is missing required column(s): ", paste(missing_cols, collapse = ", "), call. = FALSE)
+  }
+  if (nrow(pair_df) == 0) {
+    return(invisible(list(summary = data.frame(), by_pair = list())))
+  }
+
+  obj <- Seurat::SetIdent(obj, value = obj@meta.data[[ident_col]])
+  summary_rows <- list()
+  pair_tables <- list()
+
+  for (i in seq_len(nrow(pair_df))) {
+    g1 <- as.character(pair_df$group_1[i])
+    g2 <- as.character(pair_df$group_2[i])
+    pair_name <- paste0(g1, "_vs_", g2)
+    marker_file <- file.path(out_dir, paste0("markers_", pair_name, ".csv"))
+    if (file.exists(marker_file)) {
+      message("[pairwise markers] Reusing existing DEG file: ", marker_file)
+      de <- readr::read_csv(marker_file, show_col_types = FALSE)
+      de <- as.data.frame(de, stringsAsFactors = FALSE)
+    } else {
+      message("[pairwise markers] ", ident_col, " : ", pair_name)
+      de <- Seurat::FindMarkers(
+        object = obj,
+        ident.1 = g1,
+        ident.2 = g2,
+        assay = assay,
+        slot = "data",
+        min.pct = min_pct,
+        logfc.threshold = logfc_threshold,
+        verbose = FALSE
+      )
+      de <- tibble::rownames_to_column(as.data.frame(de, stringsAsFactors = FALSE), "gene")
+      de$gene_symbol <- clean_gene_symbols(de$gene)
+    }
+    if (!("gene" %in% colnames(de))) {
+      de$gene <- rownames(de)
+    }
+    if (!("gene_symbol" %in% colnames(de))) {
+      de$gene_symbol <- clean_gene_symbols(de$gene)
+    }
+    lfc_col <- resolve_lfc_col(de)
+    if (!file.exists(marker_file)) {
+      write_table_csv(de, marker_file)
+    }
+
+    n_sig <- sum(!is.na(de$p_val_adj) & de$p_val_adj < 0.05)
+    n_sig_abs025 <- sum(!is.na(de$p_val_adj) & de$p_val_adj < 0.05 & abs(de[[lfc_col]]) >= 0.25)
+    top_up_gene <- de |>
+      dplyr::filter(!is.na(p_val_adj), p_val_adj < 0.05, .data[[lfc_col]] > 0) |>
+      dplyr::arrange(dplyr::desc(.data[[lfc_col]]), p_val_adj, gene) |>
+      dplyr::slice_head(n = 1) |>
+      dplyr::pull(gene)
+    top_down_gene <- de |>
+      dplyr::filter(!is.na(p_val_adj), p_val_adj < 0.05, .data[[lfc_col]] < 0) |>
+      dplyr::arrange(.data[[lfc_col]], p_val_adj, gene) |>
+      dplyr::slice_head(n = 1) |>
+      dplyr::pull(gene)
+
+    summary_rows[[pair_name]] <- data.frame(
+      ident_col = ident_col,
+      group_1 = g1,
+      group_2 = g2,
+      n_sig = n_sig,
+      n_sig_abs_log2fc_0.25 = n_sig_abs025,
+      median_abs_log2fc = if (nrow(de) > 0) median(abs(de[[lfc_col]]), na.rm = TRUE) else NA_real_,
+      top_up_gene = ifelse(length(top_up_gene) == 0, NA_character_, top_up_gene[1]),
+      top_down_gene = ifelse(length(top_down_gene) == 0, NA_character_, top_down_gene[1]),
+      stringsAsFactors = FALSE
+    )
+    pair_tables[[pair_name]] <- de
+  }
+
+  summary_df <- dplyr::bind_rows(summary_rows)
+  write_table_csv(summary_df, file.path(out_dir, "pairwise_marker_summary.csv"))
+  invisible(list(summary = summary_df, by_pair = pair_tables))
+}
+
+extract_top_positive_genes <- function(marker_tbl, n_top = 50L) {
+  lfc_col <- resolve_lfc_col(marker_tbl)
+  marker_tbl |>
+    dplyr::filter(!is.na(p_val_adj), p_val_adj < 0.05, .data[[lfc_col]] > 0) |>
+    dplyr::arrange(dplyr::desc(.data[[lfc_col]]), p_val_adj, gene) |>
+    dplyr::slice_head(n = n_top) |>
+    dplyr::pull(gene) |>
+    unique()
+}
+
+build_marker_overlap_summary <- function(original_markers, merged_markers, merge_map, n_top = 50L) {
+  out <- list()
+  idx <- 1L
+
+  for (merge_name in names(merge_map)) {
+    merged_tbl <- merged_markers$by_group[[merge_name]]$full
+    merged_genes <- extract_top_positive_genes(merged_tbl, n_top = n_top)
+
+    source_clusters <- as.character(merge_map[[merge_name]])
+    source_gene_sets <- lapply(source_clusters, function(cl) {
+      extract_top_positive_genes(original_markers$by_group[[cl]]$full, n_top = n_top)
+    })
+    names(source_gene_sets) <- source_clusters
+
+    union_genes <- unique(unlist(source_gene_sets, use.names = FALSE))
+    intersect_genes <- if (length(source_gene_sets) > 0) Reduce(intersect, source_gene_sets) else character(0)
+
+    compare_sets <- c(source_gene_sets, list(union_of_sources = union_genes, intersect_of_sources = intersect_genes))
+    for (ref_name in names(compare_sets)) {
+      ref_genes <- compare_sets[[ref_name]]
+      out[[idx]] <- data.frame(
+        merged_group = merge_name,
+        reference_set = ref_name,
+        merged_top_n = length(merged_genes),
+        reference_top_n = length(ref_genes),
+        overlap_n = length(intersect(merged_genes, ref_genes)),
+        jaccard = safe_jaccard(merged_genes, ref_genes),
+        stringsAsFactors = FALSE
+      )
+      idx <- idx + 1L
+    }
+  }
+
+  dplyr::bind_rows(out)
+}
+
+make_manual_merge_feature_object <- function(marker_tbl, spec) {
+  spec_use <- spec
+  if (is.null(spec_use$type)) spec_use$type <- "top_n"
+  feature_tbl <- collapse_deg_table(marker_tbl)
+  feature_tbl <- filter_feature_table(feature_tbl, spec_use)
+  signed_vec <- feature_tbl$avg_log2FC
+  names(signed_vec) <- feature_tbl$gene_key
+
+  list(
+    table = feature_tbl,
+    signed_vec = signed_vec
+  )
+}
+
+build_manual_merge_cosine_summary <- function(
+  original_markers,
+  merged_markers,
+  original_groups,
+  merged_groups,
+  merge_map,
+  spec
+) {
+  original_groups <- as.character(original_groups)
+  merged_groups <- as.character(merged_groups)
+  original_feature_map <- stats::setNames(
+    lapply(original_groups, function(grp) make_manual_merge_feature_object(original_markers$by_group[[grp]]$full, spec)),
+    original_groups
+  )
+  merged_feature_map <- stats::setNames(
+    lapply(merged_groups, function(grp) make_manual_merge_feature_object(merged_markers$by_group[[grp]]$full, spec)),
+    merged_groups
+  )
+
+  rows <- list()
+  idx <- 1L
+  for (merge_name in merged_groups) {
+    for (original_name in original_groups) {
+      merged_feature <- merged_feature_map[[merge_name]]
+      original_feature <- original_feature_map[[original_name]]
+
+      rows[[idx]] <- data.frame(
+        merged_group = merge_name,
+        original_cluster = original_name,
+        is_source_cluster = original_name %in% as.character(merge_map[[merge_name]]),
+        merged_n_features = nrow(merged_feature$table),
+        original_n_features = nrow(original_feature$table),
+        signed_lfc_cosine = safe_cosine(merged_feature$signed_vec, original_feature$signed_vec),
+        stringsAsFactors = FALSE
+      )
+      idx <- idx + 1L
+    }
+  }
+
+  dplyr::bind_rows(rows)
+}
+
+cosine_summary_to_matrix <- function(cosine_df, merged_groups, original_groups) {
+  mat <- matrix(
+    NA_real_,
+    nrow = length(merged_groups),
+    ncol = length(original_groups),
+    dimnames = list(as.character(merged_groups), as.character(original_groups))
+  )
+
+  for (i in seq_len(nrow(cosine_df))) {
+    mat[
+      as.character(cosine_df$merged_group[i]),
+      as.character(cosine_df$original_cluster[i])
+    ] <- as.numeric(cosine_df$signed_lfc_cosine[i])
+  }
+
+  mat
+}
+
+plot_cosine_heatmap <- function(mat, title_text, file_stub) {
+  plot_df <- as.data.frame(as.table(mat), stringsAsFactors = FALSE)
+  colnames(plot_df) <- c("merged_group", "original_cluster", "signed_lfc_cosine")
+  plot_df$merged_group <- factor(plot_df$merged_group, levels = rev(rownames(mat)))
+  plot_df$original_cluster <- factor(plot_df$original_cluster, levels = colnames(mat))
+
+  p <- ggplot2::ggplot(plot_df, ggplot2::aes(x = original_cluster, y = merged_group, fill = signed_lfc_cosine)) +
+    ggplot2::geom_tile(color = "white", linewidth = 0.3) +
+    ggplot2::geom_text(
+      ggplot2::aes(label = ifelse(is.na(signed_lfc_cosine), "NA", sprintf("%.2f", signed_lfc_cosine))),
+      size = 3
+    ) +
+    ggplot2::scale_fill_gradient2(
+      low = "#1f4e79",
+      mid = "white",
+      high = "#b03a2e",
+      midpoint = 0,
+      limits = c(-1, 1),
+      na.value = "grey90"
+    ) +
+    ggplot2::theme_bw(base_size = 11) +
+    ggplot2::labs(
+      title = title_text,
+      x = "Original cluster",
+      y = "Merged group",
+      fill = "Cosine"
+    )
+
+  save_plot_pdf_png(
+    p,
+    file_stub,
+    width = max(8, 0.8 * ncol(mat) + 3),
+    height = max(4, 0.8 * nrow(mat) + 2)
+  )
+  invisible(p)
+}
+
+extract_features_for_dotplot <- function(top_marker_df, group_col = "group", n_per_group = 5L) {
+  top_marker_df |>
+    dplyr::group_by(.data[[group_col]]) |>
+    dplyr::arrange(rank_within_group, .by_group = TRUE) |>
+    dplyr::slice_head(n = n_per_group) |>
+    dplyr::ungroup() |>
+    dplyr::pull(gene) |>
+    unique()
+}
+
+plot_dotplot_safe <- function(obj, features, group.by, title_text, file_stub, assay = "RNA") {
+  features <- unique(features[!is.na(features) & features != ""])
+  if (length(features) == 0) {
+    message("Skipping dotplot for ", group.by, " because no features were selected.")
+    return(invisible(NULL))
+  }
+  p <- Seurat::DotPlot(obj, features = features, group.by = group.by, assay = assay) +
+    Seurat::RotatedAxis() +
+    ggplot2::labs(title = title_text)
+  save_plot_pdf_png(p, file_stub, width = max(8, 0.32 * length(features) + 3), height = 6)
+  invisible(p)
+}
+
+normalize_ora_gene_key <- function(x) {
+  normalize_gene_key(x)
+}
+
+resolve_deg_gene_label <- function(df) {
+  gene_symbol <- if ("gene_symbol" %in% colnames(df)) as.character(df$gene_symbol) else rep(NA_character_, nrow(df))
+  gene <- if ("gene" %in% colnames(df)) as.character(df$gene) else rownames(df)
+  out <- ifelse(!is.na(gene_symbol) & gene_symbol != "", gene_symbol, gene)
+  out[is.na(out) | out == ""] <- gene[is.na(out) | out == ""]
+  out
+}
+
+prepare_deg_table_for_ora <- function(df, lfc_col) {
+  df <- as.data.frame(df, stringsAsFactors = FALSE)
+  df$gene_label <- resolve_deg_gene_label(df)
+  df$gene_key <- normalize_ora_gene_key(df$gene_label)
+  df$gene_symbol <- clean_gene_symbols(df$gene_label)
+  missing_gene_symbol <- is.na(df$gene_symbol) | df$gene_symbol == ""
+  df$gene_symbol[missing_gene_symbol] <- df$gene_key[missing_gene_symbol]
+  df$lfc_value <- as.numeric(df[[lfc_col]])
+  df$p_val_adj_num <- as.numeric(df$p_val_adj)
+  df$delta_pct <- as.numeric(df$pct.1) - as.numeric(df$pct.2)
+  df$abs_logfc <- abs(df$lfc_value)
+  df$abs_delta_pct <- abs(df$delta_pct)
+
+  df <- df |>
+    dplyr::filter(
+      !is.na(gene_key),
+      !is.na(gene_symbol),
+      !is.na(lfc_value),
+      !is.na(p_val_adj_num),
+      !is.na(delta_pct)
+    ) |>
+    dplyr::arrange(dplyr::desc(abs_logfc), p_val_adj_num)
+
+  df |>
+    dplyr::group_by(gene_key) |>
+    dplyr::slice(1) |>
+    dplyr::ungroup()
+}
+
+select_deg_top_up_for_ora <- function(
+  df,
+  lfc_col,
+  padj_max,
+  abs_logfc_min,
+  abs_delta_pct_min,
+  top_n
+) {
+  filtered <- prepare_deg_table_for_ora(df, lfc_col) |>
+    dplyr::filter(
+      p_val_adj_num < padj_max,
+      abs_logfc >= abs_logfc_min,
+      abs_delta_pct >= abs_delta_pct_min
+    )
+
+  filtered |>
+    dplyr::filter(lfc_value > 0) |>
+    dplyr::arrange(dplyr::desc(lfc_value), p_val_adj_num) |>
+    dplyr::slice_head(n = top_n) |>
+    dplyr::mutate(direction = "up") |>
+    dplyr::arrange(dplyr::desc(abs_logfc), p_val_adj_num) |>
+    dplyr::distinct(gene_key, .keep_all = TRUE)
+}
+
+beautify_hallmark_name <- function(x) {
+  x <- as.character(x)
+  x <- sub("^HALLMARK_", "", x)
+  x <- gsub("_", " ", x)
+  tools::toTitleCase(tolower(x))
+}
+
+get_hallmark_sets <- function(species = "Homo sapiens") {
+  df_h <- tryCatch(
+    msigdbr::msigdbr(species = species, collection = "H"),
+    error = function(e) msigdbr::msigdbr(species = species, category = "H")
+  )
+  sets <- split(df_h$gene_symbol, df_h$gs_name)
+  lapply(sets, unique)
+}
+
+run_ora_hypergeom <- function(query_genes, universe_genes, pathways, min_size = 15, max_size = 500, min_overlap = 3) {
+  query <- unique(stats::na.omit(as.character(query_genes)))
+  universe <- unique(stats::na.omit(as.character(universe_genes)))
+  if (length(query) == 0 || length(universe) == 0) return(data.frame())
+  query <- intersect(query, universe)
+  if (length(query) == 0) return(data.frame())
+
+  out <- lapply(names(pathways), function(pw_name) {
+    pw_genes <- unique(intersect(as.character(pathways[[pw_name]]), universe))
+    M <- length(pw_genes)
+    if (M < min_size || M > max_size) return(NULL)
+    overlap <- intersect(query, pw_genes)
+    k <- length(overlap)
+    if (k < min_overlap) return(NULL)
+
+    U <- length(universe)
+    N <- length(query)
+    pval <- stats::phyper(q = k - 1, m = M, n = U - M, k = N, lower.tail = FALSE)
+    odds <- suppressWarnings((k / max(1, N - k)) / (M / max(1, U - M)))
+
+    data.frame(
+      pathway = pw_name,
+      hallmark_label = beautify_hallmark_name(pw_name),
+      set_size = M,
+      query_size = N,
+      overlap = k,
+      gene_ratio = sprintf("%d/%d", k, N),
+      bg_ratio = sprintf("%d/%d", M, U),
+      odds_ratio = odds,
+      p_value = pval,
+      p_adj = NA_real_,
+      overlap_genes = paste(sort(overlap), collapse = ";"),
+      stringsAsFactors = FALSE
+    )
+  })
+
+  out <- do.call(rbind, out)
+  if (is.null(out) || nrow(out) == 0) return(data.frame())
+  out$p_adj <- stats::p.adjust(out$p_value, method = "BH")
+  out <- out[order(out$p_adj, out$p_value, -out$overlap), , drop = FALSE]
+  rownames(out) <- NULL
+  out
+}
+
+safe_scale01 <- function(x) {
+  x <- as.numeric(x)
+  out <- rep(0, length(x))
+  keep <- is.finite(x)
+  if (!any(keep)) return(out)
+
+  rng <- range(x[keep], na.rm = TRUE)
+  if (!all(is.finite(rng)) || diff(rng) == 0) {
+    out[keep] <- 1
+    return(out)
+  }
+
+  out[keep] <- (x[keep] - rng[1]) / diff(rng)
+  out
+}
+
+arrange_ora_for_annotation <- function(ora_df) {
+  if (is.null(ora_df) || nrow(ora_df) == 0) return(ora_df)
+
+  df <- as.data.frame(ora_df, stringsAsFactors = FALSE)
+  primary <- if ("annotation_score" %in% colnames(df)) as.numeric(df$annotation_score) else rep(NA_real_, nrow(df))
+  secondary <- if ("expression_score_raw" %in% colnames(df)) as.numeric(df$expression_score_raw) else rep(NA_real_, nrow(df))
+  tertiary <- if ("detection_score_raw" %in% colnames(df)) as.numeric(df$detection_score_raw) else rep(NA_real_, nrow(df))
+  quaternary <- if ("overlap_score_raw" %in% colnames(df)) as.numeric(df$overlap_score_raw) else rep(NA_real_, nrow(df))
+
+  primary[!is.finite(primary)] <- -Inf
+  secondary[!is.finite(secondary)] <- -Inf
+  tertiary[!is.finite(tertiary)] <- -Inf
+  quaternary[!is.finite(quaternary)] <- -Inf
+
+  df[order(-primary, -secondary, -tertiary, -quaternary, df$pathway), , drop = FALSE]
+}
+
+score_ora_for_annotation <- function(
+  ora_df,
+  deg_df,
+  weight_expression = 1 / 3,
+  weight_detection = 1 / 3,
+  weight_overlap = 1 / 3,
+  fdr_cutoff = 0.05
+) {
+  if (is.null(ora_df) || nrow(ora_df) == 0) return(data.frame())
+
+  ora_df <- as.data.frame(ora_df, stringsAsFactors = FALSE)
+  ora_df <- ora_df[!is.na(ora_df$p_adj) & ora_df$p_adj < fdr_cutoff, , drop = FALSE]
+  if (nrow(ora_df) == 0) return(data.frame())
+  deg_df <- as.data.frame(deg_df, stringsAsFactors = FALSE)
+
+  if (!("gene_key" %in% colnames(deg_df))) {
+    deg_df$gene_key <- normalize_ora_gene_key(deg_df$gene_symbol)
+  }
+  if (!("lfc_value" %in% colnames(deg_df))) {
+    lfc_col <- resolve_lfc_col(deg_df)
+    deg_df$lfc_value <- as.numeric(deg_df[[lfc_col]])
+  }
+  if (!("abs_logfc" %in% colnames(deg_df))) {
+    deg_df$abs_logfc <- abs(as.numeric(deg_df$lfc_value))
+  }
+  if (!("delta_pct" %in% colnames(deg_df))) {
+    deg_df$delta_pct <- as.numeric(deg_df$pct.1) - as.numeric(deg_df$pct.2)
+  }
+  if (!("abs_delta_pct" %in% colnames(deg_df))) {
+    deg_df$abs_delta_pct <- abs(as.numeric(deg_df$delta_pct))
+  }
+  if (!("direction" %in% colnames(deg_df))) {
+    deg_df$direction <- ifelse(deg_df$lfc_value > 0, "up", ifelse(deg_df$lfc_value < 0, "down", "flat"))
+  }
+
+  overlap_stats <- lapply(seq_len(nrow(ora_df)), function(i) {
+    overlap_genes <- ora_df$overlap_genes[i]
+    overlap_symbols <- if (is.na(overlap_genes) || overlap_genes == "") {
+      character(0)
+    } else {
+      trimws(unlist(strsplit(overlap_genes, ";", fixed = TRUE)))
+    }
+    overlap_keys <- normalize_ora_gene_key(overlap_symbols)
+    overlap_keys <- unique(overlap_keys[!is.na(overlap_keys)])
+
+    if (length(overlap_keys) == 0) {
+      return(data.frame(
+        marker_mean_abs_logfc = NA_real_,
+        marker_mean_pct1 = NA_real_,
+        marker_mean_abs_delta_pct = NA_real_,
+        n_overlap_up = 0L,
+        n_overlap_down = 0L,
+        stringsAsFactors = FALSE
+      ))
+    }
+
+    overlap_deg <- deg_df[deg_df$gene_key %in% overlap_keys, , drop = FALSE]
+    overlap_deg <- overlap_deg[!duplicated(overlap_deg$gene_key), , drop = FALSE]
+
+    data.frame(
+      marker_mean_abs_logfc = if (nrow(overlap_deg) > 0) mean(overlap_deg$abs_logfc, na.rm = TRUE) else NA_real_,
+      marker_mean_pct1 = if (nrow(overlap_deg) > 0) mean(as.numeric(overlap_deg$pct.1), na.rm = TRUE) else NA_real_,
+      marker_mean_abs_delta_pct = if (nrow(overlap_deg) > 0) mean(overlap_deg$abs_delta_pct, na.rm = TRUE) else NA_real_,
+      n_overlap_up = sum(overlap_deg$direction == "up", na.rm = TRUE),
+      n_overlap_down = sum(overlap_deg$direction == "down", na.rm = TRUE),
+      stringsAsFactors = FALSE
+    )
+  })
+
+  overlap_stats_df <- dplyr::bind_rows(overlap_stats)
+  ora_df <- cbind(ora_df, overlap_stats_df)
+
+  ora_df$overlap_query_fraction <- ifelse(ora_df$query_size > 0, ora_df$overlap / ora_df$query_size, NA_real_)
+  ora_df$overlap_set_fraction <- ifelse(ora_df$set_size > 0, ora_df$overlap / ora_df$set_size, NA_real_)
+  overlap_fraction_mat <- cbind(ora_df$overlap_query_fraction, ora_df$overlap_set_fraction)
+  ora_df$overlap_score_raw <- rowMeans(overlap_fraction_mat, na.rm = TRUE)
+  ora_df$overlap_score_raw[!is.finite(ora_df$overlap_score_raw)] <- NA_real_
+
+  ora_df$expression_score_raw <- ora_df$marker_mean_abs_logfc
+  ora_df$detection_score_raw <- ora_df$marker_mean_pct1
+
+  ora_df$expression_score_scaled <- safe_scale01(ora_df$expression_score_raw)
+  ora_df$detection_score_scaled <- safe_scale01(ora_df$detection_score_raw)
+  ora_df$overlap_score_scaled <- safe_scale01(ora_df$overlap_score_raw)
+
+  total_weight <- weight_expression + weight_detection + weight_overlap
+  if (!is.finite(total_weight) || total_weight <= 0) {
+    stop("Annotation score weights must sum to a positive finite value.", call. = FALSE)
+  }
+
+  ora_df$annotation_score <- (
+    weight_expression * ora_df$expression_score_scaled +
+      weight_detection * ora_df$detection_score_scaled +
+      weight_overlap * ora_df$overlap_score_scaled
+  ) / total_weight
+
+  ora_df <- arrange_ora_for_annotation(ora_df)
+  ora_df$annotation_rank <- seq_len(nrow(ora_df))
+  rownames(ora_df) <- NULL
+  ora_df
+}
+
+plot_ora_top <- function(ora_df, out_pdf, out_png, title, top_n = 15) {
+  if (is.null(ora_df) || nrow(ora_df) == 0) {
+    grDevices::pdf(out_pdf, width = 10, height = 5)
+    graphics::plot.new()
+    graphics::text(0.5, 0.5, paste0(title, "\nNo Hallmark ORA results"))
+    grDevices::dev.off()
+    grDevices::png(out_png, width = 3000, height = 1500, res = 300)
+    graphics::plot.new()
+    graphics::text(0.5, 0.5, paste0(title, "\nNo Hallmark ORA results"))
+    grDevices::dev.off()
+    return(invisible(NULL))
+  }
+
+  df <- ora_df
+  df <- df[is.finite(df$p_adj) & !is.na(df$p_adj), , drop = FALSE]
+  if (nrow(df) == 0) {
+    grDevices::pdf(out_pdf, width = 10, height = 5)
+    graphics::plot.new()
+    graphics::text(0.5, 0.5, paste0(title, "\nNo valid Hallmark ORA rows"))
+    grDevices::dev.off()
+    grDevices::png(out_png, width = 3000, height = 1500, res = 300)
+    graphics::plot.new()
+    graphics::text(0.5, 0.5, paste0(title, "\nNo valid Hallmark ORA rows"))
+    grDevices::dev.off()
+    return(invisible(NULL))
+  }
+
+  use_annotation_score <- "annotation_score" %in% colnames(df) && any(is.finite(df$annotation_score))
+  if (use_annotation_score) {
+    df <- arrange_ora_for_annotation(df)
+    df$plot_value <- df$annotation_score
+    y_label <- "Integrated annotation score"
+  } else {
+    df_sig <- df[df$p_adj < 0.05, , drop = FALSE]
+    if (nrow(df_sig) > 0) df <- df_sig
+    df <- df[order(df$p_adj, df$p_value, -df$overlap, df$pathway), , drop = FALSE]
+    df$plot_value <- -log10(pmax(df$p_adj, 1e-300))
+    y_label <- "-log10(FDR)"
+  }
+  df <- head(df, top_n)
+  df$hallmark_label <- factor(df$hallmark_label, levels = rev(df$hallmark_label))
+
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = hallmark_label, y = plot_value)) +
+    ggplot2::geom_col(fill = "#2c7fb8", width = 0.8) +
+    ggplot2::coord_flip() +
+    ggplot2::labs(title = title, x = NULL, y = y_label) +
+    ggplot2::theme_classic(base_size = 11)
+
+  ggplot2::ggsave(out_pdf, p, width = 10, height = max(5, 0.28 * nrow(df)))
+  ggplot2::ggsave(out_png, p, width = 10, height = max(5, 0.28 * nrow(df)), dpi = 300)
+  invisible(df)
+}
+
+summarize_cluster_annotation <- function(cluster_id, n_cells, deg_df, ora_df, top_n = 3L, fdr_cutoff = 0.05) {
+  deg_genes_n <- if (is.null(deg_df) || nrow(deg_df) == 0) 0L else nrow(deg_df)
+  up_genes_n <- if (is.null(deg_df) || nrow(deg_df) == 0 || !("direction" %in% colnames(deg_df))) {
+    0L
+  } else {
+    sum(deg_df$direction == "up", na.rm = TRUE)
+  }
+  down_genes_n <- if (is.null(deg_df) || nrow(deg_df) == 0 || !("direction" %in% colnames(deg_df))) {
+    0L
+  } else {
+    sum(deg_df$direction == "down", na.rm = TRUE)
+  }
+
+  empty_row <- function(note) {
+    data.frame(
+      cluster = as.character(cluster_id),
+      n_cells = n_cells,
+      n_deg_for_ora = deg_genes_n,
+      n_up_deg_for_ora = up_genes_n,
+      n_down_deg_for_ora = down_genes_n,
+      n_significant_hallmarks = 0L,
+      annotation_primary = NA_character_,
+      annotation_secondary = NA_character_,
+      annotation_tertiary = NA_character_,
+      annotation_multi = NA_character_,
+      top_hallmark_1_annotation_score = NA_real_,
+      top_hallmark_2_annotation_score = NA_real_,
+      top_hallmark_3_annotation_score = NA_real_,
+      top_hallmark_1_fdr = NA_real_,
+      top_hallmark_2_fdr = NA_real_,
+      top_hallmark_3_fdr = NA_real_,
+      note = note,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  if (is.null(ora_df) || nrow(ora_df) == 0) {
+    return(empty_row("no Hallmark ORA result"))
+  }
+
+  ora_sig <- ora_df |>
+    dplyr::filter(!is.na(p_adj), p_adj < fdr_cutoff) |>
+    dplyr::arrange(p_adj, dplyr::desc(overlap), pathway)
+
+  if (nrow(ora_sig) == 0) {
+    return(empty_row(paste0("no Hallmark passes FDR < ", fdr_cutoff, "; no annotation assigned")))
+  }
+
+  note <- paste0(
+    "annotation based on integrated score combining marker strength, marker detection fraction, and overlap degree after Hallmark FDR < ",
+    fdr_cutoff,
+    " filtering"
+  )
+
+  ora_use <- arrange_ora_for_annotation(ora_df)
+  ora_use <- head(ora_use, top_n)
+
+  labels <- ora_use$hallmark_label
+  padj_values <- ora_use$p_adj
+  annotation_scores <- if ("annotation_score" %in% colnames(ora_use)) ora_use$annotation_score else rep(NA_real_, nrow(ora_use))
+  labels <- c(labels, rep(NA_character_, max(0, top_n - length(labels))))
+  padj_values <- c(padj_values, rep(NA_real_, max(0, top_n - length(padj_values))))
+  annotation_scores <- c(annotation_scores, rep(NA_real_, max(0, top_n - length(annotation_scores))))
+
+  data.frame(
+    cluster = as.character(cluster_id),
+    n_cells = n_cells,
+    n_deg_for_ora = deg_genes_n,
+    n_up_deg_for_ora = up_genes_n,
+    n_down_deg_for_ora = down_genes_n,
+    n_significant_hallmarks = nrow(ora_sig),
+    annotation_primary = labels[1],
+    annotation_secondary = labels[2],
+    annotation_tertiary = labels[3],
+    annotation_multi = paste(labels[!is.na(labels)], collapse = "; "),
+    top_hallmark_1_annotation_score = annotation_scores[1],
+    top_hallmark_2_annotation_score = annotation_scores[2],
+    top_hallmark_3_annotation_score = annotation_scores[3],
+    top_hallmark_1_fdr = padj_values[1],
+    top_hallmark_2_fdr = padj_values[2],
+    top_hallmark_3_fdr = padj_values[3],
+    note = note,
+    stringsAsFactors = FALSE
+  )
 }

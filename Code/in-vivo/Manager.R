@@ -2,7 +2,58 @@ library(xlsx)
 library(gplots)
 library(data.table)
 devtools::source_url("https://github.com/noemiandor/Utils/blob/master/grpstats.R?raw=TRUE")
-source("/Users/4482173/Library/CloudStorage/OneDrive-MoffittCancerCenter/GitHub/Gemcitabine-model/Code/in-vivo/Utils.R")
+resolve_in_vivo_script_dir <- function() {
+  cmd_args <- commandArgs(trailingOnly = FALSE)
+  file_match <- grep("--file=", cmd_args, value = TRUE)
+  candidate_files <- character(0)
+  if (length(file_match) > 0) {
+    candidate_files <- c(candidate_files, sub("--file=", "", file_match[1]))
+  }
+
+  frame_files <- vapply(
+    sys.frames(),
+    function(x) {
+      if (!is.null(x$ofile)) x$ofile else NA_character_
+    },
+    character(1)
+  )
+  candidate_files <- c(candidate_files, frame_files[!is.na(frame_files)])
+
+  if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
+    active_path <- tryCatch(rstudioapi::getActiveDocumentContext()$path, error = function(e) "")
+    if (nzchar(active_path)) candidate_files <- c(candidate_files, active_path)
+  }
+
+  candidate_files <- candidate_files[!is.na(candidate_files) & nzchar(candidate_files)]
+  candidate_dirs <- unique(dirname(normalizePath(candidate_files, mustWork = FALSE)))
+  cwd <- normalizePath(getwd(), mustWork = FALSE)
+  cwd_parts <- strsplit(cwd, .Platform$file.sep, fixed = TRUE)[[1]]
+  parent_dirs <- vapply(
+    seq_along(cwd_parts),
+    function(i) {
+      paste(c(cwd_parts[seq_len(length(cwd_parts) - i + 1)]), collapse = .Platform$file.sep)
+    },
+    character(1)
+  )
+  parent_dirs <- parent_dirs[nzchar(parent_dirs)]
+  parent_dirs <- if (grepl("^/", cwd)) paste0("/", sub("^/+", "", parent_dirs)) else parent_dirs
+  candidate_dirs <- unique(c(
+    candidate_dirs,
+    cwd,
+    file.path(cwd, "Code", "in-vivo"),
+    parent_dirs,
+    file.path(parent_dirs, "Code", "in-vivo")
+  ))
+
+  utils_paths <- file.path(candidate_dirs, "Utils.R")
+  hit <- candidate_dirs[file.exists(utils_paths)]
+  if (length(hit) > 0) return(normalizePath(hit[1], mustWork = TRUE))
+  stop("Cannot locate Code/in-vivo/Utils.R from script path or working directory: ", cwd, call. = FALSE)
+}
+
+script_dir <- resolve_in_vivo_script_dir()
+project_root <- normalizePath(file.path(script_dir, "..", ".."), mustWork = FALSE)
+source(file.path(script_dir, "Utils.R"))
 #################################
 ## Expected chromosome lengths ##
 x <- fread("http://hgdownload.cse.ucsc.edu/goldenpath/hg19/database/cytoBand.txt.gz", 
@@ -57,9 +108,7 @@ chrWeightedCorrDist <- function(mat) {
 
 
 
-setwd("/Users/4482173/Library/CloudStorage/OneDrive-MoffittCancerCenter/GitHub/Gemcitabine-model/Code/in-vivo")
-source("Utils.R")
-dt=read.xlsx("../../Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx", sheetIndex = 1)
+dt=read.xlsx(file.path(project_root, "Data", "in-vivo", "dt_Gem_VT_20241223_v4.xlsx"), sheetIndex = 1)
 dt <- rbind(setNames(data.frame(matrix(NA, nrow = 2, ncol = ncol(dt))), names(dt)),dt)
 dt$harvest[1:2] = c("SUM-159_NLS_2N_A7M_K_harvest","SUM-159_NLS_4N_A5M_K_harvest")
 dt$Sequencing.IDs[1:2] = c("2N-Cell-Culture","4N-Cell-Culture")
@@ -232,4 +281,3 @@ dev.off()
 ## rerun numbat for 4N.
 ## annotate cell representation or % on combined heatmap
 save.image('/Users/4482173/Documents/Project/BreastCancerOrthotopicModels/Results/Manager/Manager.RData')
-

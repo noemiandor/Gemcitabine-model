@@ -1,26 +1,55 @@
 #!/usr/bin/env Rscript
 
-script_path <- NULL
-cmd_args <- commandArgs(trailingOnly = FALSE)
-file_arg <- "--file="
-file_match <- grep(file_arg, cmd_args, value = TRUE)
-if (length(file_match) > 0) {
-  script_path <- normalizePath(sub(file_arg, "", file_match[1]), mustWork = FALSE)
-}
-if (is.null(script_path) || !nzchar(script_path)) {
+resolve_in_vivo_script_dir <- function() {
+  cmd_args <- commandArgs(trailingOnly = FALSE)
+  file_match <- grep("--file=", cmd_args, value = TRUE)
+  candidate_files <- character(0)
+  if (length(file_match) > 0) {
+    candidate_files <- c(candidate_files, sub("--file=", "", file_match[1]))
+  }
+
   frame_files <- vapply(
     sys.frames(),
     function(x) {
-      if (!is.null(x$ofile)) normalizePath(x$ofile, mustWork = FALSE) else NA_character_
+      if (!is.null(x$ofile)) x$ofile else NA_character_
     },
     character(1)
   )
-  frame_files <- frame_files[!is.na(frame_files)]
-  if (length(frame_files) > 0) {
-    script_path <- frame_files[length(frame_files)]
+  candidate_files <- c(candidate_files, frame_files[!is.na(frame_files)])
+
+  if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
+    active_path <- tryCatch(rstudioapi::getActiveDocumentContext()$path, error = function(e) "")
+    if (nzchar(active_path)) candidate_files <- c(candidate_files, active_path)
   }
+
+  candidate_files <- candidate_files[!is.na(candidate_files) & nzchar(candidate_files)]
+  candidate_dirs <- unique(dirname(normalizePath(candidate_files, mustWork = FALSE)))
+  cwd <- normalizePath(getwd(), mustWork = FALSE)
+  cwd_parts <- strsplit(cwd, .Platform$file.sep, fixed = TRUE)[[1]]
+  parent_dirs <- vapply(
+    seq_along(cwd_parts),
+    function(i) {
+      paste(c(cwd_parts[seq_len(length(cwd_parts) - i + 1)]), collapse = .Platform$file.sep)
+    },
+    character(1)
+  )
+  parent_dirs <- parent_dirs[nzchar(parent_dirs)]
+  parent_dirs <- if (grepl("^/", cwd)) paste0("/", sub("^/+", "", parent_dirs)) else parent_dirs
+  candidate_dirs <- unique(c(
+    candidate_dirs,
+    cwd,
+    file.path(cwd, "Code", "in-vivo"),
+    parent_dirs,
+    file.path(parent_dirs, "Code", "in-vivo")
+  ))
+
+  utils_paths <- file.path(candidate_dirs, "Utils.R")
+  hit <- candidate_dirs[file.exists(utils_paths)]
+  if (length(hit) > 0) return(normalizePath(hit[1], mustWork = TRUE))
+  stop("Cannot locate Code/in-vivo/Utils.R from script path or working directory: ", cwd, call. = FALSE)
 }
-script_dir <- if (!is.null(script_path) && nzchar(script_path)) dirname(script_path) else getwd()
+
+script_dir <- resolve_in_vivo_script_dir()
 source(file.path(script_dir, "Utils.R"))
 config <- load_in_vivo_config(file.path(script_dir, "in_vivo_config.yaml"))
 results_root <- get_results_root(config)
@@ -44,6 +73,24 @@ out_dir_pdf <- file.path(output_root, "DE_Plots")
 .ensure_dir(output_root)
 .ensure_dir(out_dir_de)
 .ensure_dir(out_dir_pdf)
+
+read_deg_csv_with_rownames <- function(file_path) {
+  df <- utils::read.csv(file_path, row.names = 1, check.names = FALSE)
+  as.data.frame(df, stringsAsFactors = FALSE)
+}
+
+cached_find_markers <- function(output_file, label, object, ...) {
+  .ensure_dir(dirname(output_file))
+  if (file.exists(output_file)) {
+    message("Reusing existing DEG file for ", label, ": ", output_file)
+    return(read_deg_csv_with_rownames(output_file))
+  }
+
+  message("Running DEG for ", label)
+  markers <- FindMarkers(object = object, ...)
+  utils::write.csv(markers, file = output_file)
+  markers
+}
 
 # 2. Read in Seurat object
 obj <- readRDS(file.path(results_root, "01_data", "integrated_sct_cca_seurat.rds"))
@@ -164,18 +211,16 @@ for (nm in names(comparisons1)) {
   grp <- comparisons1[[nm]]
   # Subset to only the two sample types being compared
   so <- subset(obj, subset = sample_type %in% grp)
-  markers <- FindMarkers(
+  deg_file <- file.path(out_dir_de, paste0("DE_sampletype_", nm, ".csv"))
+  markers <- cached_find_markers(
+    output_file  = deg_file,
+    label        = paste0("sample_type ", nm),
     object       = so,
     ident.1      = grp[1],
     ident.2      = grp[2],
     min.pct      = 0.1,
     logfc.threshold = 0.25,
     test.use     = "wilcox"
-  )
-  # save table
-  write.csv(
-    markers,
-    file = file.path(out_dir_de, paste0("DE_sampletype_", nm, ".csv"))
   )
   
   # Volcano
@@ -254,17 +299,16 @@ for (stype in c("2N-tumor","4N-tumor")) {
   for (cmb in combos) {
     nm <- paste0(gsub("-","",stype),"_", gsub("mg/kg","",cmb[1]),
                  "_vs_", gsub("mg/kg","",cmb[2]))
-    markers <- FindMarkers(
+    deg_file <- file.path(out_dir_de, paste0("DE_dose_", nm, ".csv"))
+    markers <- cached_find_markers(
+      output_file     = deg_file,
+      label           = paste0("dose ", nm),
       object          = so,
       ident.1         = cmb[1],
       ident.2         = cmb[2],
       min.pct         = 0.1,
       logfc.threshold = 0.25,
       test.use        = "wilcox"
-    )
-    write.csv(
-      markers,
-      file = file.path(out_dir_de, paste0("DE_dose_", nm, ".csv"))
     )
     # Volcano
     
@@ -308,18 +352,17 @@ for (d in levels(obj$Dose)) {
   # Drop unused levels of sample_type so that only tumor levels remain
   so_d$sample_type <- droplevels(so_d$sample_type)
   Idents(so_d) <- so_d$sample_type
-  markers_dt <- FindMarkers(
+  nm_dt <- paste0("tumorType_", gsub("mg/kg","",d))
+  deg_file <- file.path(out_dir_de, paste0("DE_", nm_dt, ".csv"))
+  markers_dt <- cached_find_markers(
+    output_file     = deg_file,
+    label           = paste0("tumor type at dose ", d),
     object          = so_d,
     ident.1         = "2N-tumor",
     ident.2         = "4N-tumor",
     min.pct         = 0.1,
     logfc.threshold = 0.25,
     test.use        = "wilcox"
-  )
-  nm_dt <- paste0("tumorType_", gsub("mg/kg","",d))
-  write.csv(
-    markers_dt,
-    file = file.path(out_dir_de, paste0("DE_", nm_dt, ".csv"))
   )
   # Volcano plot
   p_dt <- EnhancedVolcano(
@@ -399,18 +442,17 @@ for (cl in clusters) {
     next
   }
   Idents(so) <- so$sample_type
-  markers <- FindMarkers(
+  nm <- paste0("cluster", cl)
+  deg_file <- file.path(out_dir_de, paste0("DE_cluster_", nm, ".csv"))
+  markers <- cached_find_markers(
+    output_file     = deg_file,
+    label           = paste0("cluster sample_type ", nm),
     object          = so,
     ident.1         = "2N-tumor",
     ident.2         = "4N-tumor",
     min.pct         = 0.1,
     logfc.threshold = 0.25,
     test.use        = "wilcox"
-  )
-  nm <- paste0("cluster", cl)
-  write.csv(
-    markers,
-    file = file.path(out_dir_de, paste0("DE_cluster_", nm, ".csv"))
   )
   # Volcano
   p1<-EnhancedVolcano(
@@ -526,7 +568,10 @@ obj_sub$ploidy <- factor(obj_sub$ploidy, levels = c("2N", "4N"))
 Idents(obj_sub) <- "ploidy"
 
 
-de_2N_vs_4N <- FindMarkers(
+de_2N_vs_4N_file <- file.path(out_dir_de, "DE_2N_vs_4N_in_CellLinePlusDose0Tumor.csv")
+de_2N_vs_4N <- cached_find_markers(
+  output_file = de_2N_vs_4N_file,
+  label = "2N vs 4N in CellLinePlusDose0Tumor",
   object = obj_sub,
   ident.1 = "2N",
   ident.2 = "4N",
@@ -587,11 +632,7 @@ ggsave(
   width = 8, height = 6
 )
 
-# 可选保存DE结果
-# write.csv(
-#   de_2N_vs_4N,
-#   file.path(out_dir_de, "DE_2N_vs_4N_in_CellLinePlusDose0Tumor.csv")
-# )
+# DE result is cached at out_dir_de/DE_2N_vs_4N_in_CellLinePlusDose0Tumor.csv.
 
 
 

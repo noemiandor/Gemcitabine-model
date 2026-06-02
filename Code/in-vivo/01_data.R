@@ -1,26 +1,55 @@
 #!/usr/bin/env Rscript
 
-script_path <- NULL
-cmd_args <- commandArgs(trailingOnly = FALSE)
-file_arg <- "--file="
-file_match <- grep(file_arg, cmd_args, value = TRUE)
-if (length(file_match) > 0) {
-  script_path <- normalizePath(sub(file_arg, "", file_match[1]), mustWork = FALSE)
-}
-if (is.null(script_path) || !nzchar(script_path)) {
+resolve_in_vivo_script_dir <- function() {
+  cmd_args <- commandArgs(trailingOnly = FALSE)
+  file_match <- grep("--file=", cmd_args, value = TRUE)
+  candidate_files <- character(0)
+  if (length(file_match) > 0) {
+    candidate_files <- c(candidate_files, sub("--file=", "", file_match[1]))
+  }
+
   frame_files <- vapply(
     sys.frames(),
     function(x) {
-      if (!is.null(x$ofile)) normalizePath(x$ofile, mustWork = FALSE) else NA_character_
+      if (!is.null(x$ofile)) x$ofile else NA_character_
     },
     character(1)
   )
-  frame_files <- frame_files[!is.na(frame_files)]
-  if (length(frame_files) > 0) {
-    script_path <- frame_files[length(frame_files)]
+  candidate_files <- c(candidate_files, frame_files[!is.na(frame_files)])
+
+  if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
+    active_path <- tryCatch(rstudioapi::getActiveDocumentContext()$path, error = function(e) "")
+    if (nzchar(active_path)) candidate_files <- c(candidate_files, active_path)
   }
+
+  candidate_files <- candidate_files[!is.na(candidate_files) & nzchar(candidate_files)]
+  candidate_dirs <- unique(dirname(normalizePath(candidate_files, mustWork = FALSE)))
+  cwd <- normalizePath(getwd(), mustWork = FALSE)
+  cwd_parts <- strsplit(cwd, .Platform$file.sep, fixed = TRUE)[[1]]
+  parent_dirs <- vapply(
+    seq_along(cwd_parts),
+    function(i) {
+      paste(c(cwd_parts[seq_len(length(cwd_parts) - i + 1)]), collapse = .Platform$file.sep)
+    },
+    character(1)
+  )
+  parent_dirs <- parent_dirs[nzchar(parent_dirs)]
+  parent_dirs <- if (grepl("^/", cwd)) paste0("/", sub("^/+", "", parent_dirs)) else parent_dirs
+  candidate_dirs <- unique(c(
+    candidate_dirs,
+    cwd,
+    file.path(cwd, "Code", "in-vivo"),
+    parent_dirs,
+    file.path(parent_dirs, "Code", "in-vivo")
+  ))
+
+  utils_paths <- file.path(candidate_dirs, "Utils.R")
+  hit <- candidate_dirs[file.exists(utils_paths)]
+  if (length(hit) > 0) return(normalizePath(hit[1], mustWork = TRUE))
+  stop("Cannot locate Code/in-vivo/Utils.R from script path or working directory: ", cwd, call. = FALSE)
 }
-script_dir <- if (!is.null(script_path) && nzchar(script_path)) dirname(script_path) else getwd()
+
+script_dir <- resolve_in_vivo_script_dir()
 source(file.path(script_dir, "Utils.R"))
 config <- load_in_vivo_config(file.path(script_dir, "in_vivo_config.yaml"))
 results_root <- get_results_root(config)
