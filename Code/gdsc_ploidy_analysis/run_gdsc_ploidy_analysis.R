@@ -1,0 +1,162 @@
+options(stringsAsFactors = FALSE)
+
+suppressPackageStartupMessages({
+  library(EnrichIntersect)
+  library(xlsx)
+  library(plyr)
+})
+
+`%||%` <- function(x, y) {
+  if (is.null(x) || length(x) == 0) y else x
+}
+
+script_dir <- function() {
+  args <- commandArgs(trailingOnly = FALSE)
+  needle <- "--file="
+  hit <- grep(needle, args, value = TRUE)
+  if (length(hit) > 0) {
+    return(dirname(normalizePath(sub(needle, "", hit[1]))))
+  }
+  normalizePath(getwd())
+}
+
+base_dir <- script_dir()
+source(file.path(base_dir, "annotate_from_pubchem.R"))
+data_dir <- file.path(base_dir, "data")
+out_dir <- file.path(base_dir, "output")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+gdsc_file <- file.path(data_dir, "GDSC2_fitted_dose_response_24Jul22.txt")
+ploidy_file <- file.path(data_dir, "ploidyAcrossCellLines_V1.txt")
+cmap_file <- file.path(data_dir, "small_molecule_20200407234909.csv")
+custom_file <- file.path(base_dir, "custom_set_candidate.tsv")
+
+stopifnot(file.exists(gdsc_file), file.exists(ploidy_file), file.exists(cmap_file), file.exists(custom_file))
+
+dr <- read.table(gdsc_file, sep = "\t", header = TRUE)
+dr$CELL_LINE_NAME <- toupper(gsub("-", "", dr$CELL_LINE_NAME))
+
+appCL <- read.table(ploidy_file, sep = "\t", check.names = FALSE, header = TRUE)
+appCL <- appCL[!is.na(appCL$ploidy), ]
+appCL <- appCL[!duplicated(appCL$`Cell iname`), ]
+rownames(appCL) <- appCL$`Cell iname`
+
+R <- list()
+metric <- "Z_SCORE"
+
+pdf(file.path(out_dir, "drugsVsPloidyCorr.pdf"), width = 15, height = 7)
+par(mfrow = c(3, 7))
+for (can in c("allcancers", unique(dr$TCGA_DESC))) {
+  dr_sub <- dr
+  if (can != "allcancers") {
+    dr_sub <- dr[dr$TCGA_DESC == can, ]
+  }
+  ii <- intersect(dr_sub$CELL_LINE_NAME, rownames(appCL))
+  if (length(ii) < 10) {
+    next
+  }
+
+  r <- list()
+  for (drug in unique(dr_sub$DRUG_NAME)) {
+    dr_drug <- dr_sub[dr_sub$DRUG_NAME == drug, ]
+    dr_drug <- dr_drug[!duplicated(dr_drug$CELL_LINE_NAME), ]
+    rownames(dr_drug) <- dr_drug$CELL_LINE_NAME
+    if (sum(!is.na(dr_drug[ii, metric])) < 10) {
+      next
+    }
+    r[[drug]] <- cor(dr_drug[ii, metric], appCL[ii, "ploidy"], use = "pairwise.complete.obs")
+    if (abs(r[[drug]]) > 0.6) {
+      plot(dr_drug[ii, metric], appCL[ii, "ploidy"], main = paste(can, drug))
+    }
+  }
+  R[[can]] <- sort(unlist(r))
+}
+dev.off()
+save(R, file = file.path(out_dir, "drugsVsPloidyCorr.RData"))
+
+coxIn <- data.frame(drug = unique(unlist(sapply(R, names))), stringsAsFactors = FALSE)
+coxIn$drugName <- coxIn$drug
+coxIn <- annotate_from_pubchem(coxIn, cmap_file)
+coxIn$group <- coxIn$drugCategory_Pubchem
+
+custom.set <- read.table(custom_file, sep = "\t", header = TRUE, quote = "", comment.char = "", check.names = FALSE, stringsAsFactors = FALSE)
+rownames(custom.set) <- toupper(custom.set$drug)
+
+coxIn <- coxIn[, intersect(c("drug", "drugName", "group"), colnames(coxIn))]
+coxIn <- coxIn[!duplicated(coxIn$drug), ]
+rownames(coxIn) <- toupper(coxIn$drug)
+
+ii <- intersect(rownames(custom.set), rownames(coxIn[is.na(coxIn$group) | coxIn$group == "," | coxIn$group == "", , drop = FALSE]))
+coxIn[ii, "group"] <- custom.set[ii, "group"]
+
+save(coxIn, file = file.path(out_dir, "coxIn.RData"))
+
+coxIn_other <- coxIn[is.na(coxIn$group), , drop = FALSE]
+coxIn_other$group <- "NOTCLASSIFIED"
+coxIn <- coxIn[!is.na(coxIn$group), , drop = FALSE]
+
+tmp <- strsplit(coxIn$group, "; ", fixed = TRUE)
+coxIn$group <- vapply(tmp, function(x) x[length(x)], character(1))
+coxIn$group <- gsub("Cytotoxic medicines", "Cytotoxic", gsub(";", "", gsub(",", "", coxIn$group)))
+coxIn$group[grep("Alkylating", coxIn$group)] <- "Alkylating"
+coxIn$group[grep("Topoisomerase", coxIn$group)] <- "Cytotoxic"
+coxIn$group[grep("Tubulin", coxIn$group)] <- "Cytotoxic"
+coxIn$group[grep("Antimitotic", coxIn$group)] <- "Cytotoxic"
+coxIn$group[grep("Antineoplastic Agents", coxIn$group)] <- "Antineoplastic Agents"
+coxIn$group <- toupper(coxIn$group)
+coxIn$group <- gsub("(ANTI-)INFLAMMATORY", "IMMUNOSUPPRESSIVE AGENTS", coxIn$group, fixed = TRUE)
+coxIn$group[coxIn$group %in% c("PARP INHIBITORS", "SIGNAL TRANSDUCTION INHIBITORS", "JAK INHIBITORS", "ENZYME INHIBITORS", "TARGETED THERAPIES")] <- "SIGNALING"
+coxIn <- coxIn[nchar(coxIn$group) > 0, , drop = FALSE]
+
+fr <- plyr::count(coxIn$group)
+coxIn <- coxIn[coxIn$group %in% fr$x[fr$freq > 1], , drop = FALSE]
+coxIn <- coxIn[, c("drug", "group"), drop = FALSE]
+coxIn$drug <- toupper(coxIn$drug)
+rownames(coxIn) <- coxIn$drug
+
+for (can in names(R)) {
+  names(R[[can]]) <- toupper(names(R[[can]]))
+}
+R_ <- sapply(R, function(x) x[names(x) %in% coxIn$drug])
+
+x <- sapply(names(R_), function(can) matrix(R_[[can]], dimnames = list(names(R_[[can]]), can)))
+lowpIsSens <- highpIsSens <- list()
+# Stabilize the permutation-based enrichment step for reproducibility testing.
+set.seed(1)
+for (can in names(x)) {
+  lowpIsSens[[can]] <- try(enrichment(x[[can]], coxIn, permute.n = 300, normalize = FALSE, pvalue.cutoff = 0.05)$pvalue)
+  highpIsSens[[can]] <- try(enrichment(-x[[can]], coxIn, permute.n = 300, normalize = FALSE, pvalue.cutoff = 0.1)$pvalue)
+}
+
+groups <- unique(coxIn$group)
+lowpIsSens <- sapply(lowpIsSens, function(x) as.data.frame(x)[groups, ])
+highpIsSens <- sapply(highpIsSens, function(x) as.data.frame(x)[groups, ])
+rownames(lowpIsSens) <- rownames(highpIsSens) <- groups
+lowpIsSens <- lowpIsSens[, order(lowpIsSens["SIGNALING", ])]
+lowpIsSens <- lowpIsSens[, order(lowpIsSens["CYTOTOXIC", ])]
+highpIsSens <- highpIsSens[, order(highpIsSens["CYTOTOXIC", ])]
+highpIsSens <- highpIsSens[, order(highpIsSens["SIGNALING", ])]
+
+write.xlsx(t(lowpIsSens), file = file.path(out_dir, "drugsVsPloidyCorr.xlsx"), sheetName = "lowpIsSens")
+write.xlsx(t(highpIsSens), file = file.path(out_dir, "drugsVsPloidyCorr.xlsx"), sheetName = "highpIsSens", append = TRUE)
+
+tmp <- sort(unique(coxIn$group))
+col <- rainbow(length(tmp) * 1.3)[1:length(tmp)]
+names(col) <- tmp
+pdf(file.path(out_dir, "ploidyVsDrugSensitivity.pdf"), width = 3, height = 6)
+for (sheet in colnames(lowpIsSens)) {
+  plot_vals <- R_[[sheet]][abs(R_[[sheet]]) >= 0.1]
+  try(barplot(
+    plot_vals,
+    col = col[coxIn[names(plot_vals), "group"]],
+    main = sheet,
+    horiz = TRUE,
+    las = 2,
+    cex.lab = 0.7,
+    cex.names = 0.35,
+    xlab = "Pearson r between ploidy and drug sensitivity (IC50)"
+  ))
+}
+dev.off()
+
+message("Analysis completed. Outputs written to: ", out_dir)
