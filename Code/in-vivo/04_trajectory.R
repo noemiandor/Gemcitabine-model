@@ -77,6 +77,40 @@ suppressPackageStartupMessages({
   library(tibble)
 })
 
+trajectory_character_cols <- c(
+  "cell",
+  "group_1",
+  "group_2",
+  "Dose",
+  "ploidy",
+  "Ploidy",
+  "TN",
+  "Dose_DEG",
+  "trajectory_context",
+  "trajectory_group",
+  "trajectory_analysis_group",
+  "trajectory_shape_group",
+  "trajectory_tn_scope",
+  "trajectory_ploidy_scope",
+  "trajectory_branch",
+  "cluster_final",
+  "clusters",
+  "sample",
+  "sample_type",
+  "cluster_final_annotation_primary"
+)
+
+coerce_trajectory_character_cols <- function(df) {
+  for (col in intersect(trajectory_character_cols, colnames(df))) {
+    df[[col]] <- as.character(df[[col]])
+  }
+  df
+}
+
+read_trajectory_csv <- function(path, ...) {
+  coerce_trajectory_character_cols(readr::read_csv(path, show_col_types = FALSE, ...))
+}
+
 Sys.setenv(
   OMP_NUM_THREADS = "1",
   OPENBLAS_NUM_THREADS = "1",
@@ -2225,7 +2259,15 @@ paga_edge_files <- paga_edge_files[file.exists(paga_edge_files)]
 if (length(paga_edge_files) > 0) {
   paga_edges_all <- dplyr::bind_rows(lapply(paga_edge_files, function(path) {
     group_name <- paga_run_summary_df$analysis_group[match(dirname(path), paga_run_summary_df$paga_dir)]
-    readr::read_csv(path, show_col_types = FALSE) %>%
+    read_trajectory_csv(
+      path,
+      col_types = readr::cols(
+        group_1 = readr::col_character(),
+        group_2 = readr::col_character(),
+        connectivity = readr::col_double(),
+        above_threshold = readr::col_logical()
+      )
+    ) %>%
       dplyr::mutate(analysis_group = group_name, paga_dir = dirname(path), .before = 1)
   }))
   write_table_csv(paga_edges_all, file.path(out_summary, "paga_edges_all_trajectory_analyses.csv"))
@@ -2235,7 +2277,7 @@ paga_metric_files <- paga_metric_files[file.exists(paga_metric_files)]
 if (length(paga_metric_files) > 0) {
   paga_metrics_all <- dplyr::bind_rows(lapply(paga_metric_files, function(path) {
     group_name <- paga_run_summary_df$analysis_group[match(dirname(path), paga_run_summary_df$paga_dir)]
-    readr::read_csv(path, show_col_types = FALSE) %>%
+    read_trajectory_csv(path) %>%
       dplyr::mutate(analysis_group = group_name, paga_dir = dirname(path), .before = 1)
   }))
   write_table_csv(paga_metrics_all, file.path(out_summary, "paga_cell_metrics_all_trajectory_analyses.csv"))
@@ -2315,7 +2357,7 @@ metric_files <- file.path(run_summary_df$dose_dir, "scvelo_cell_metrics.csv")
 metric_files <- metric_files[file.exists(metric_files)]
 if (length(metric_files) > 0) {
   metric_df <- dplyr::bind_rows(lapply(metric_files, function(path) {
-    readr::read_csv(path, show_col_types = FALSE)
+    read_trajectory_csv(path)
   }))
   metric_join_cols <- unique(c(
     "cell",

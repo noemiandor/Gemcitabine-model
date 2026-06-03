@@ -77,6 +77,40 @@ suppressPackageStartupMessages({
   library(tibble)
 })
 
+trajectory_character_cols <- c(
+  "cell",
+  "group_1",
+  "group_2",
+  "Dose",
+  "ploidy",
+  "Ploidy",
+  "TN",
+  "Dose_DEG",
+  "trajectory_context",
+  "trajectory_group",
+  "trajectory_analysis_group",
+  "trajectory_shape_group",
+  "trajectory_tn_scope",
+  "trajectory_ploidy_scope",
+  "trajectory_branch",
+  "cluster_final",
+  "clusters",
+  "sample",
+  "sample_type",
+  "cluster_final_annotation_primary"
+)
+
+coerce_trajectory_character_cols <- function(df) {
+  for (col in intersect(trajectory_character_cols, colnames(df))) {
+    df[[col]] <- as.character(df[[col]])
+  }
+  df
+}
+
+read_trajectory_csv <- function(path, ...) {
+  coerce_trajectory_character_cols(readr::read_csv(path, show_col_types = FALSE, ...))
+}
+
 Sys.setenv(
   OMP_NUM_THREADS = "1",
   OPENBLAS_NUM_THREADS = "1",
@@ -260,19 +294,6 @@ save_both <- function(plot_obj, file_stub, width = 9, height = 7, dpi = 300) {
   ggsave(paste0(file_stub, ".png"), plot_obj, width = width, height = height, dpi = dpi)
 }
 
-find_velocity_files <- function(root_dir) {
-  if (is.null(root_dir) || !nzchar(root_dir) || !dir.exists(root_dir)) {
-    return(character(0))
-  }
-  list.files(
-    root_dir,
-    pattern = "\\.(loom|h5ad)$",
-    full.names = TRUE,
-    recursive = TRUE,
-    ignore.case = TRUE
-  )
-}
-
 find_first_existing_file <- function(paths) {
   paths <- paths[!is.na(paths) & nzchar(paths)]
   hit <- paths[file.exists(paths)]
@@ -338,24 +359,31 @@ infer_trajectory_context_from_ids <- function(values) {
   ifelse(!is.na(values_lower) & grepl("cell-culture", values_lower, fixed = TRUE), "CellLine", "Tumor")
 }
 
-find_cellranger_loom <- function(sample_dir, sample_folder, extra_dirs = character(0)) {
+find_sample_loom_in_root <- function(loom_root, sample_folder) {
+  if (is.null(loom_root) || !nzchar(loom_root) || !dir.exists(loom_root)) {
+    return(NA_character_)
+  }
   sample_name <- basename(sample_folder)
-  candidates <- c(
-    file.path(extra_dirs, paste0(sample_name, ".loom")),
-    file.path(extra_dirs, sample_name, paste0(sample_name, ".loom")),
-    file.path(sample_dir, "velocyto", paste0(sample_name, ".loom")),
-    file.path(sample_dir, "outs", "velocyto", paste0(sample_name, ".loom"))
+  direct_candidates <- c(
+    file.path(loom_root, paste0(sample_name, ".loom")),
+    file.path(loom_root, sample_name, paste0(sample_name, ".loom")),
+    file.path(loom_root, "velocyto_loom", sample_name, paste0(sample_name, ".loom"))
   )
-  loom <- find_first_existing_file(candidates)
-  if (!is.na(loom)) return(loom)
+  loom <- find_first_existing_file(direct_candidates)
+  if (!is.na(loom)) {
+    return(loom)
+  }
 
-  search_dirs <- c(file.path(sample_dir, "velocyto"), file.path(sample_dir, "outs", "velocyto"), extra_dirs)
-  search_dirs <- search_dirs[dir.exists(search_dirs)]
-  if (length(search_dirs) == 0) return(NA_character_)
-  loom_hits <- unlist(lapply(search_dirs, function(path) {
-    list.files(path, pattern = "\\.loom$", full.names = TRUE, recursive = TRUE, ignore.case = TRUE)
-  }), use.names = FALSE)
-  find_first_existing_file(loom_hits)
+  loom_hits <- list.files(loom_root, pattern = "\\.loom$", full.names = TRUE, recursive = TRUE, ignore.case = TRUE)
+  if (length(loom_hits) == 0) {
+    return(NA_character_)
+  }
+  exact <- loom_hits[basename(loom_hits) == paste0(sample_name, ".loom")]
+  if (length(exact) > 0) {
+    in_sample_dir <- exact[basename(dirname(exact)) == sample_name]
+    return(normalizePath(if (length(in_sample_dir) > 0) in_sample_dir[1] else exact[1], mustWork = FALSE))
+  }
+  NA_character_
 }
 
 build_cellranger_sample_manifest <- function(
@@ -364,9 +392,7 @@ build_cellranger_sample_manifest <- function(
   sample_folder_col,
   dose_col,
   ploidy_col,
-  velocyto_work_root,
-  velocyto_output_root,
-  velocyto_run_tag
+  velocyto_output_root
 ) {
   if (!(sample_folder_col %in% colnames(meta_all))) {
     return(data.frame())
@@ -391,16 +417,6 @@ build_cellranger_sample_manifest <- function(
 
   sample_df$cellranger_dir <- file.path(cellranger_root, sample_df$sample_folder)
   sample_df$velocyto_output_dir <- file.path(velocyto_output_root, sanitize_path_component(sample_df$sample_folder))
-  sample_df$velocyto_work_sample_root <- file.path(
-    velocyto_work_root,
-    sanitize_path_component(sample_df$sample_folder)
-  )
-  sample_df$velocyto_run_tag <- sanitize_path_component(velocyto_run_tag)[1]
-  sample_df$velocyto_writable_sample_dir <- file.path(
-    sample_df$velocyto_work_sample_root,
-    sample_df$velocyto_run_tag,
-    basename(sample_df$sample_folder)
-  )
   sample_df$cellranger_dir_exists <- dir.exists(sample_df$cellranger_dir)
   sample_df$bam_file <- vapply(sample_df$cellranger_dir, find_cellranger_bam, character(1))
   sample_df$bam_exists <- !is.na(sample_df$bam_file) & file.exists(sample_df$bam_file)
@@ -408,154 +424,11 @@ build_cellranger_sample_manifest <- function(
   sample_df$barcodes_exists <- !is.na(sample_df$barcodes_file) & file.exists(sample_df$barcodes_file)
   sample_df$velocyto_loom_file <- vapply(
     seq_len(nrow(sample_df)),
-    function(i) find_cellranger_loom(
-      sample_df$cellranger_dir[i],
-      sample_df$sample_folder[i],
-      extra_dirs = c(
-        sample_df$velocyto_output_dir[i],
-        sample_df$velocyto_work_sample_root[i],
-        file.path(sample_df$velocyto_writable_sample_dir[i], "velocyto")
-      )
-    ),
+    function(i) find_sample_loom_in_root(velocyto_output_root, sample_df$sample_folder[i]),
     character(1)
   )
   sample_df$velocyto_loom_exists <- !is.na(sample_df$velocyto_loom_file) & file.exists(sample_df$velocyto_loom_file)
   sample_df
-}
-
-write_velocyto_runner <- function(
-  run_script,
-  velocyto_bin,
-  samtools_bin,
-  samtools_threads,
-  source_sample_dir,
-  bam_file,
-  barcodes_file,
-  writable_sample_dir,
-  gtf_file,
-  output_dir,
-  log_file
-) {
-  .ensure_dir(dirname(run_script))
-  if (
-    !is.null(gtf_file) && nzchar(gtf_file) && file.exists(gtf_file) &&
-      !is.na(bam_file) && nzchar(bam_file) && file.exists(bam_file) &&
-      !is.na(barcodes_file) && nzchar(barcodes_file) && file.exists(barcodes_file) &&
-      !is.na(samtools_bin) && nzchar(samtools_bin) && file.exists(samtools_bin)
-  ) {
-    command_lines <- c(
-      paste(
-        "export PATH=",
-        shQuote(dirname(samtools_bin)),
-        ":$PATH",
-        sep = ""
-      ),
-      paste(
-        "mkdir -p",
-        shQuote(output_dir),
-        shQuote(dirname(writable_sample_dir))
-      ),
-      paste(
-        "mkdir -p",
-        shQuote(writable_sample_dir),
-        shQuote(file.path(writable_sample_dir, "outs"))
-      ),
-      paste(
-        "find",
-        shQuote(file.path(source_sample_dir, "outs")),
-        "-mindepth 1 -maxdepth 1 -exec ln -s {}",
-        shQuote(file.path(writable_sample_dir, "outs")),
-        "\\;"
-      ),
-      paste(
-        "if [ ! -e",
-        shQuote(file.path(writable_sample_dir, "outs", "filtered_feature_bc_matrix", "barcodes.tsv")),
-        "] && [ ! -e",
-        shQuote(file.path(writable_sample_dir, "outs", "filtered_feature_bc_matrix", "barcodes.tsv.gz")),
-        "]; then mkdir -p",
-        shQuote(file.path(writable_sample_dir, "outs", "filtered_feature_bc_matrix")),
-        "; ln -sf",
-        shQuote(barcodes_file),
-        shQuote(file.path(writable_sample_dir, "outs", "filtered_feature_bc_matrix")),
-        "; fi"
-      ),
-      paste(
-        "ln -sf",
-        shQuote(bam_file),
-        shQuote(file.path(writable_sample_dir, "outs", "possorted_genome_bam.bam"))
-      ),
-      paste(
-        "chmod u+rwx",
-        shQuote(writable_sample_dir)
-      ),
-      paste(
-        shQuote(velocyto_bin),
-        "run10x",
-        "--samtools-threads",
-        as.character(samtools_threads),
-        shQuote(writable_sample_dir),
-        shQuote(gtf_file),
-        ">",
-        shQuote(log_file),
-        "2>&1"
-      ),
-      paste(
-        "for loom in",
-        paste0(shQuote(file.path(writable_sample_dir, "velocyto")), "/*.loom;"),
-        "do [ -e \"$loom\" ] && cp -f \"$loom\"",
-        shQuote(output_dir),
-        "|| true; done"
-      )
-    )
-  } else {
-    reason <- if (is.null(gtf_file) || !nzchar(gtf_file) || !file.exists(gtf_file)) {
-      "VELOCYTO_GTF is not set or does not exist. Set VELOCYTO_GTF to an uncompressed gene annotation .gtf file before generating loom files."
-    } else if (is.na(samtools_bin) || !nzchar(samtools_bin) || !file.exists(samtools_bin)) {
-      "samtools was not found. Set SAMTOOLS_BIN to an existing samtools executable."
-    } else if (is.na(bam_file) || !nzchar(bam_file) || !file.exists(bam_file)) {
-      paste0("Cell Ranger BAM was not found for sample folder: ", source_sample_dir)
-    } else if (is.na(barcodes_file) || !nzchar(barcodes_file) || !file.exists(barcodes_file)) {
-      paste0("Cell Ranger barcode file was not found for sample folder: ", source_sample_dir)
-    } else {
-      paste0("Cell Ranger inputs were not found for sample folder: ", source_sample_dir)
-    }
-    command_lines <- paste("echo", shQuote(reason), ">&2; exit 2")
-  }
-
-  writeLines(c("#!/usr/bin/env bash", "set -euo pipefail", command_lines), con = run_script)
-  Sys.chmod(run_script, mode = "0755")
-}
-
-prepare_velocyto_runners <- function(sample_manifest, output_dir, velocyto_bin, samtools_bin, samtools_threads, gtf_file) {
-  if (is.null(sample_manifest) || nrow(sample_manifest) == 0) return(sample_manifest)
-
-  sample_manifest$velocyto_samtools_threads <- samtools_threads
-  runner_dir <- .ensure_dir(file.path(output_dir, "velocyto_run10x"))
-  sample_manifest$velocyto_run_script <- file.path(
-    runner_dir,
-    paste0(sanitize_path_component(sample_manifest$sample_folder), "_run_velocyto.sh")
-  )
-  sample_manifest$velocyto_log_file <- file.path(
-    runner_dir,
-    paste0(sanitize_path_component(sample_manifest$sample_folder), "_velocyto.log")
-  )
-
-  for (i in seq_len(nrow(sample_manifest))) {
-    write_velocyto_runner(
-      run_script = sample_manifest$velocyto_run_script[i],
-      velocyto_bin = velocyto_bin,
-      samtools_bin = samtools_bin,
-      samtools_threads = samtools_threads,
-      source_sample_dir = sample_manifest$cellranger_dir[i],
-      bam_file = sample_manifest$bam_file[i],
-      barcodes_file = sample_manifest$barcodes_file[i],
-      writable_sample_dir = sample_manifest$velocyto_writable_sample_dir[i],
-      gtf_file = gtf_file,
-      output_dir = sample_manifest$velocyto_output_dir[i],
-      log_file = sample_manifest$velocyto_log_file[i]
-    )
-  }
-  sample_manifest
 }
 
 resolve_sample_loom_inputs_by_dose <- function(sample_manifest, dose_levels) {
@@ -571,95 +444,6 @@ resolve_sample_loom_inputs_by_dose <- function(sample_manifest, dose_levels) {
   out
 }
 
-resolve_sample_loom_inputs_by_group <- function(sample_manifest, group_df) {
-  out <- stats::setNames(vector("list", nrow(group_df)), group_df$trajectory_group)
-  for (i in seq_len(nrow(group_df))) {
-    if ("trajectory_group" %in% colnames(sample_manifest)) {
-      rows <- sample_manifest[
-        semicolon_contains(sample_manifest$trajectory_group, group_df$trajectory_group[i]),
-        ,
-        drop = FALSE
-      ]
-    } else {
-      rows <- sample_manifest[
-        semicolon_contains(sample_manifest$Dose, group_df$Dose[i]) &
-          semicolon_contains(sample_manifest$ploidy, group_df$ploidy[i]),
-        ,
-        drop = FALSE
-      ]
-    }
-    if (nrow(rows) > 0 && all(rows$velocyto_loom_exists)) {
-      out[[group_df$trajectory_group[i]]] <- normalizePath(rows$velocyto_loom_file, mustWork = FALSE)
-    } else {
-      out[[group_df$trajectory_group[i]]] <- character(0)
-    }
-  }
-  out
-}
-
-resolve_velocity_inputs <- function(dose_levels, manifest_path, velocity_input_root) {
-  dose_levels <- as.character(dose_levels)
-  empty <- stats::setNames(rep(NA_character_, length(dose_levels)), dose_levels)
-
-  if (!is.null(manifest_path) && nzchar(manifest_path) && file.exists(manifest_path)) {
-    manifest <- readr::read_csv(manifest_path, show_col_types = FALSE)
-    required_cols <- c("dose", "input_file")
-    missing_cols <- setdiff(required_cols, colnames(manifest))
-    if (length(missing_cols) > 0) {
-      stop("Velocity manifest is missing required column(s): ", paste(missing_cols, collapse = ", "), call. = FALSE)
-    }
-    manifest$dose <- standardize_in_vivo_dose(manifest$dose)
-    base_dir <- dirname(normalizePath(manifest_path, mustWork = TRUE))
-    for (dose in dose_levels) {
-      rows <- manifest[manifest$dose == dose, , drop = FALSE]
-      if (nrow(rows) >= 1) {
-        input_files <- rows$input_file
-        input_files <- ifelse(grepl("^/", input_files), input_files, file.path(base_dir, input_files))
-        empty[[dose]] <- paste(normalizePath(input_files, mustWork = FALSE), collapse = ",")
-      }
-    }
-    return(empty)
-  }
-
-  files <- find_velocity_files(velocity_input_root)
-  if (length(files) == 0) {
-    return(empty)
-  }
-  files <- normalizePath(files, mustWork = FALSE)
-  if (length(files) == 1) {
-    empty[] <- files[1]
-    return(empty)
-  }
-
-  file_base <- tolower(basename(files))
-  for (dose in dose_levels) {
-    dose_safe <- tolower(sanitize_path_component(gsub("/", "", dose)))
-    dose_num <- sub("mg/kg$", "", dose)
-    idx <- grepl(dose_safe, file_base, fixed = TRUE) |
-      grepl(paste0(dose_num, "mg"), file_base, fixed = TRUE) |
-      grepl(paste0("dose", dose_num), file_base, fixed = TRUE)
-    if (sum(idx) >= 1) {
-      empty[[dose]] <- paste(files[idx], collapse = ",")
-    }
-  }
-  empty
-}
-
-as_velocity_input_list <- function(velocity_inputs) {
-  stats::setNames(
-    lapply(velocity_inputs, function(x) {
-      x <- as.character(x)
-      x <- x[!is.na(x) & nzchar(x)]
-      if (length(x) == 0) return(character(0))
-      x <- unlist(strsplit(x, "[,;]", perl = TRUE), use.names = FALSE)
-      x <- trimws(x)
-      x <- x[nzchar(x)]
-      x
-    }),
-    names(velocity_inputs)
-  )
-}
-
 format_input_files <- function(files) {
   files <- as.character(files)
   files <- files[!is.na(files) & nzchar(files)]
@@ -670,15 +454,6 @@ all_input_files_exist <- function(files) {
   files <- as.character(files)
   files <- files[!is.na(files) & nzchar(files)]
   length(files) > 0 && all(file.exists(files))
-}
-
-prefer_plain_gtf <- function(gtf_path) {
-  gtf_path <- path.expand(as.character(gtf_path)[1])
-  if (grepl("\\.gz$", gtf_path, ignore.case = TRUE)) {
-    plain_gtf <- sub("\\.gz$", "", gtf_path, ignore.case = TRUE)
-    if (file.exists(plain_gtf)) return(plain_gtf)
-  }
-  gtf_path
 }
 
 make_scvelo_input_arg <- function(files) {
@@ -1637,42 +1412,13 @@ input_rds <- cfg_value(
   ))
 )
 output_root <- file.path(results_root, "0401_trajectory")
-default_velocyto_output_root <- resolve_first_existing(c(
-  file.path(getwd(), "Results", "0401_trajectory", "00_inputs", "velocyto_loom"),
-  file.path(output_root, "00_inputs", "velocyto_loom")
-))
+default_velocyto_output_root <- "/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04_trajectory/00_inputs"
 velocyto_output_root <- cfg_value(
   config,
   "Velocyto_output_root",
   "VELOCYTO_OUTPUT_ROOT",
   default = default_velocyto_output_root
 )
-velocyto_work_root <- cfg_value(
-  config,
-  "Velocyto_work_root",
-  "VELOCYTO_WORK_ROOT",
-  default = velocyto_output_root
-)
-velocyto_run_tag <- cfg_value(
-  config,
-  "Velocyto_run_tag",
-  "VELOCYTO_RUN_TAG",
-  default = paste0(
-    "run_",
-    format(Sys.time(), "%Y%m%d_%H%M%S"),
-    "_pid",
-    Sys.getpid(),
-    "_",
-    sample.int(.Machine$integer.max, 1)
-  )
-)
-velocity_input_root <- cfg_value(
-  config,
-  "Velocity_input_root",
-  "VELOCITY_INPUT_ROOT",
-  default = file.path(results_root, "00_velocity_inputs")
-)
-velocity_manifest <- cfg_value(config, "Velocity_input_manifest", "VELOCITY_INPUT_MANIFEST", default = "")
 cell_map_file <- cfg_value(config, "Velocity_cell_map", "VELOCITY_CELL_MAP", default = "")
 cellranger_root <- cfg_value(
   config,
@@ -1686,14 +1432,6 @@ cellranger_sample_folder_col <- cfg_value(
   "CELLRANGER_SAMPLE_FOLDER_COL",
   default = "sample_folder"
 )
-velocyto_gtf <- cfg_value(
-  config,
-  "Velocyto_gtf",
-  "VELOCYTO_GTF",
-  default = "/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/gene/refdata-gex-GRCh38_and_GRCm39-2024-A/genes/genes.gtf"
-)
-velocyto_gtf <- prefer_plain_gtf(velocyto_gtf)
-run_velocyto <- parse_bool(cfg_value(config, "Run_velocyto", "RUN_VELOCYTO", default = "FALSE"), default = FALSE)
 required_python_env <- cfg_value(config, "Scvelo_python_env", "SCVELO_PYTHON_ENV", default = "rna_velocity_py310")
 default_python_bin <- resolve_python_from_env_name(required_python_env)
 if (is.na(default_python_bin)) {
@@ -1701,27 +1439,6 @@ if (is.na(default_python_bin)) {
 }
 python_bin <- cfg_value(config, "Scvelo_python", "SCVELO_PYTHON", default = default_python_bin)
 python_bin <- select_required_python_env(python_bin, required_python_env)
-default_velocyto_bin <- file.path(dirname(python_bin), "velocyto")
-if (!file.exists(default_velocyto_bin)) {
-  default_velocyto_bin <- "velocyto"
-}
-velocyto_bin <- cfg_value(config, "Velocyto_bin", "VELOCYTO_BIN", default = default_velocyto_bin)
-velocyto_bin <- resolve_executable_path(velocyto_bin)
-default_samtools_candidates <- c(
-  file.path(dirname(python_bin), "samtools"),
-  path.expand("~/samtools-1.23.1/install/bin/samtools"),
-  "/home/4482173/samtools-1.23.1/install/bin/samtools",
-  "samtools"
-)
-default_samtools_hit <- default_samtools_candidates[file.exists(default_samtools_candidates)]
-default_samtools_bin <- if (length(default_samtools_hit) > 0) default_samtools_hit[1] else "samtools"
-samtools_bin <- cfg_value(config, "Samtools_bin", "SAMTOOLS_BIN", default = default_samtools_bin)
-samtools_bin <- resolve_executable_path(samtools_bin)
-velocyto_samtools_threads <- parse_int_cfg(
-  cfg_value(config, "Velocyto_samtools_threads", "VELOCYTO_SAMTOOLS_THREADS", default = "62"),
-  62L,
-  "Velocyto_samtools_threads"
-)
 python_script <- file.path(script_dir, "04_trajectory_scvelo.py")
 run_scvelo <- parse_bool(cfg_value(config, "Run_scvelo", "RUN_SCVELO", default = "TRUE"), default = TRUE)
 
@@ -1980,90 +1697,35 @@ trajectory_group_levels <- unique(trajectory_group_df$trajectory_group)
 
 cellranger_sample_manifest <- data.frame()
 if (cellranger_sample_folder_col %in% colnames(meta_all)) {
-  message("Resolving Cell Ranger BAM and velocyto loom paths from metadata column: ", cellranger_sample_folder_col)
+  message("Resolving existing velocyto loom paths from metadata column: ", cellranger_sample_folder_col)
   cellranger_sample_manifest <- build_cellranger_sample_manifest(
     meta_all = meta_all,
     cellranger_root = cellranger_root,
     sample_folder_col = cellranger_sample_folder_col,
     dose_col = dose_col,
     ploidy_col = ploidy_col,
-    velocyto_work_root = velocyto_work_root,
-    velocyto_output_root = velocyto_output_root,
-    velocyto_run_tag = velocyto_run_tag
+    velocyto_output_root = velocyto_output_root
   )
-  cellranger_sample_manifest <- prepare_velocyto_runners(
-    sample_manifest = cellranger_sample_manifest,
-    output_dir = out_inputs,
-    velocyto_bin = velocyto_bin,
-    samtools_bin = samtools_bin,
-    samtools_threads = velocyto_samtools_threads,
-    gtf_file = velocyto_gtf
-  )
-
-  if (run_velocyto && nrow(cellranger_sample_manifest) > 0) {
-    if (!nzchar(velocyto_gtf) || !file.exists(velocyto_gtf)) {
-      stop("Run_velocyto is TRUE, but VELOCYTO_GTF/Velocyto_gtf is not set to an existing uncompressed .gtf file.", call. = FALSE)
-    }
-    if (grepl("\\.gz$", velocyto_gtf, ignore.case = TRUE)) {
-      stop(
-        "This velocyto version cannot read compressed .gtf.gz files. Decompress genes.gtf.gz and set VELOCYTO_GTF to the uncompressed genes.gtf.",
-        call. = FALSE
-      )
-    }
-    if (is.na(velocyto_bin) || !nzchar(velocyto_bin) || !file.exists(velocyto_bin)) {
-      stop("velocyto binary not found: ", velocyto_bin, call. = FALSE)
-    }
-    if (is.na(samtools_bin) || !nzchar(samtools_bin) || !file.exists(samtools_bin)) {
-      stop(
-        "samtools binary not found. Install samtools in the velocity environment, load a samtools module, or set SAMTOOLS_BIN.",
-        call. = FALSE
-      )
-    }
-
-    n_existing_loom <- sum(cellranger_sample_manifest$velocyto_loom_exists, na.rm = TRUE)
-    if (n_existing_loom > 0) {
-      message("Found existing velocyto loom for ", n_existing_loom, " sample folder(s); skipping generation for those samples.")
-    }
-    missing_loom <- cellranger_sample_manifest %>%
-      dplyr::filter(.data$cellranger_dir_exists, !.data$velocyto_loom_exists)
-    if (nrow(missing_loom) > 0) {
-      message("Running velocyto run10x for ", nrow(missing_loom), " sample folder(s).")
-      for (i in seq_len(nrow(missing_loom))) {
-        exit_status <- system2("bash", missing_loom$velocyto_run_script[i])
-        if (!identical(exit_status, 0L)) {
-          stop(
-            "velocyto run10x failed for sample_folder ",
-            missing_loom$sample_folder[i],
-            ". See log: ",
-            missing_loom$velocyto_log_file[i],
-            call. = FALSE
-          )
-        }
-      }
-      cellranger_sample_manifest$velocyto_loom_file <- vapply(
-        seq_len(nrow(cellranger_sample_manifest)),
-        function(i) find_cellranger_loom(
-          cellranger_sample_manifest$cellranger_dir[i],
-          cellranger_sample_manifest$sample_folder[i],
-          extra_dirs = c(
-            cellranger_sample_manifest$velocyto_output_dir[i],
-            cellranger_sample_manifest$velocyto_work_sample_root[i],
-            file.path(cellranger_sample_manifest$velocyto_writable_sample_dir[i], "velocyto")
-          )
-        ),
-        character(1)
-      )
-      cellranger_sample_manifest$velocyto_loom_exists <- !is.na(cellranger_sample_manifest$velocyto_loom_file) &
-        file.exists(cellranger_sample_manifest$velocyto_loom_file)
-    }
+  missing_loom <- cellranger_sample_manifest %>%
+    dplyr::filter(is.na(.data$velocyto_loom_exists) | !.data$velocyto_loom_exists)
+  if (nrow(missing_loom) > 0) {
+    write_table_csv(cellranger_sample_manifest, file.path(out_inputs, "cellranger_sample_bam_manifest.csv"))
+    stop(
+      "Missing existing loom file(s) under ",
+      velocyto_output_root,
+      " for sample_folder(s): ",
+      paste(missing_loom$sample_folder, collapse = ";"),
+      call. = FALSE
+    )
   }
 
   write_table_csv(cellranger_sample_manifest, file.path(out_inputs, "cellranger_sample_bam_manifest.csv"))
 } else {
-  warning(
+  stop(
     "Metadata column '",
     cellranger_sample_folder_col,
-    "' was not found. Cell Ranger BAM/velocyto loom discovery will be skipped."
+    "' was not found. Cannot resolve required existing loom files.",
+    call. = FALSE
   )
 }
 
@@ -2133,36 +1795,19 @@ p_cluster_by_tn <- ggplot(meta_all, aes(x = UMAP_1, y = UMAP_2, color = as.chara
   make_pretty_umap_theme()
 save_both(p_cluster_by_tn, file.path(out_plots, "umap_by_cluster_facet_TN"), width = 10, height = 7)
 
-velocity_inputs <- as_velocity_input_list(resolve_velocity_inputs(
-  dose_levels = dose_levels,
-  manifest_path = velocity_manifest,
-  velocity_input_root = velocity_input_root
-))
-
 sample_loom_inputs <- if (nrow(cellranger_sample_manifest) > 0) {
   resolve_sample_loom_inputs_by_dose(cellranger_sample_manifest, dose_levels)
 } else {
   stats::setNames(vector("list", length(dose_levels)), dose_levels)
 }
-for (dose in dose_levels) {
-  if (length(velocity_inputs[[dose]]) == 0 && length(sample_loom_inputs[[dose]]) > 0) {
-    velocity_inputs[[dose]] <- sample_loom_inputs[[dose]]
-  }
-}
-global_velocity_input_files <- unique(unlist(velocity_inputs, use.names = FALSE))
-global_velocity_input_files <- global_velocity_input_files[!is.na(global_velocity_input_files) & nzchar(global_velocity_input_files)]
-has_single_global_velocity_input <- length(global_velocity_input_files) == 1 &&
-  all(vapply(velocity_inputs, function(files) identical(files, global_velocity_input_files), logical(1)))
 
 velocity_manifest_df <- data.frame(
-  Dose = names(velocity_inputs),
-  velocity_input_file = vapply(velocity_inputs, format_input_files, character(1)),
-  input_exists = vapply(velocity_inputs, all_input_files_exist, logical(1)),
-  n_velocity_input_files = vapply(velocity_inputs, length, integer(1)),
-  source = vapply(names(velocity_inputs), function(dose) {
-    if (length(velocity_inputs[[dose]]) == 0) return("missing")
-    if (identical(velocity_inputs[[dose]], sample_loom_inputs[[dose]])) return("cellranger_sample_loom")
-    "velocity_input_root_or_manifest"
+  Dose = names(sample_loom_inputs),
+  velocity_input_file = vapply(sample_loom_inputs, format_input_files, character(1)),
+  input_exists = vapply(sample_loom_inputs, all_input_files_exist, logical(1)),
+  n_velocity_input_files = vapply(sample_loom_inputs, length, integer(1)),
+  source = vapply(sample_loom_inputs, function(files) {
+    if (length(files) == 0) "missing_existing_sample_loom" else "cellranger_sample_loom"
   }, character(1)),
   stringsAsFactors = FALSE
 )
@@ -2198,56 +1843,50 @@ get_analysis_group_meta <- function(task_row) {
 
 resolve_analysis_group_inputs <- function(group_meta) {
   selected_samples <- character(0)
-  missing_samples <- character(0)
-  available_sample_inputs <- character(0)
-  if (
-    nrow(group_meta) > 0 &&
-      nrow(cellranger_sample_manifest) > 0 &&
-      cellranger_sample_folder_col %in% colnames(group_meta) &&
-      "sample_folder" %in% colnames(cellranger_sample_manifest)
-  ) {
-    selected_samples <- sort(unique(as.character(group_meta[[cellranger_sample_folder_col]])))
-    selected_samples <- selected_samples[!is.na(selected_samples) & nzchar(selected_samples)]
-    manifest_rows <- cellranger_sample_manifest[cellranger_sample_manifest$sample_folder %in% selected_samples, , drop = FALSE]
-    missing_manifest_samples <- setdiff(selected_samples, manifest_rows$sample_folder)
-    missing_loom_idx <- is.na(manifest_rows$velocyto_loom_exists) | !manifest_rows$velocyto_loom_exists
-    missing_loom_samples <- manifest_rows$sample_folder[missing_loom_idx]
-    missing_samples <- sort(unique(c(missing_manifest_samples, missing_loom_samples)))
-    available_sample_inputs <- unique(as.character(manifest_rows$velocyto_loom_file[manifest_rows$velocyto_loom_exists]))
-    available_sample_inputs <- available_sample_inputs[!is.na(available_sample_inputs) & nzchar(available_sample_inputs)]
-    if (length(selected_samples) > 0 && length(missing_samples) == 0 && length(available_sample_inputs) > 0) {
-      return(list(
-        input_files = available_sample_inputs,
-        source = "cellranger_sample_loom",
-        selected_sample_folders = selected_samples,
-        missing_sample_folders = character(0),
-        available_sample_inputs = available_sample_inputs
-      ))
-    }
+  if (nrow(group_meta) == 0) {
+    stop("No cells are available for trajectory analysis group.", call. = FALSE)
+  }
+  if (!(cellranger_sample_folder_col %in% colnames(group_meta))) {
+    stop("Missing sample folder metadata column for loom lookup: ", cellranger_sample_folder_col, call. = FALSE)
+  }
+  if (nrow(cellranger_sample_manifest) == 0 || !("sample_folder" %in% colnames(cellranger_sample_manifest))) {
+    stop("No sample-level loom manifest is available for existing loom lookup.", call. = FALSE)
   }
 
-  fallback_files <- if (isTRUE(has_single_global_velocity_input)) {
-    global_velocity_input_files
-  } else if (length(global_velocity_input_files) > 0) {
-    global_velocity_input_files
-  } else {
-    character(0)
+  selected_samples <- sort(unique(as.character(group_meta[[cellranger_sample_folder_col]])))
+  selected_samples <- selected_samples[!is.na(selected_samples) & nzchar(selected_samples)]
+  manifest_rows <- cellranger_sample_manifest[cellranger_sample_manifest$sample_folder %in% selected_samples, , drop = FALSE]
+  missing_manifest_samples <- setdiff(selected_samples, manifest_rows$sample_folder)
+  missing_loom_idx <- is.na(manifest_rows$velocyto_loom_exists) | !manifest_rows$velocyto_loom_exists
+  missing_loom_samples <- manifest_rows$sample_folder[missing_loom_idx]
+  missing_samples <- sort(unique(c(missing_manifest_samples, missing_loom_samples)))
+  if (length(missing_samples) > 0) {
+    stop(
+      "Missing existing loom file(s) under ",
+      velocyto_output_root,
+      " for trajectory analysis sample_folder(s): ",
+      paste(missing_samples, collapse = ";"),
+      call. = FALSE
+    )
   }
-  fallback_source <- if (length(fallback_files) == 0) {
-    "missing"
-  } else if (isTRUE(has_single_global_velocity_input)) {
-    "global_velocity_input"
-  } else {
-    "combined_dose_velocity_input"
+
+  available_sample_inputs <- unique(as.character(manifest_rows$velocyto_loom_file[manifest_rows$velocyto_loom_exists]))
+  available_sample_inputs <- available_sample_inputs[!is.na(available_sample_inputs) & nzchar(available_sample_inputs)]
+  if (length(available_sample_inputs) == 0) {
+    stop(
+      "No existing loom files found under ",
+      velocyto_output_root,
+      " for trajectory analysis sample_folder(s): ",
+      paste(selected_samples, collapse = ";"),
+      call. = FALSE
+    )
   }
-  if (length(selected_samples) > 0 && length(missing_samples) > 0 && length(fallback_files) == 0) {
-    fallback_source <- "cellranger_sample_loom_incomplete"
-  }
+
   list(
-    input_files = fallback_files,
-    source = fallback_source,
+    input_files = available_sample_inputs,
+    source = "cellranger_sample_loom",
     selected_sample_folders = selected_samples,
-    missing_sample_folders = missing_samples,
+    missing_sample_folders = character(0),
     available_sample_inputs = available_sample_inputs
   )
 }
@@ -2309,7 +1948,15 @@ paga_edge_files <- paga_edge_files[file.exists(paga_edge_files)]
 if (length(paga_edge_files) > 0) {
   paga_edges_all <- dplyr::bind_rows(lapply(paga_edge_files, function(path) {
     group_name <- paga_run_summary_df$analysis_group[match(dirname(path), paga_run_summary_df$paga_dir)]
-    readr::read_csv(path, show_col_types = FALSE) %>%
+    read_trajectory_csv(
+      path,
+      col_types = readr::cols(
+        group_1 = readr::col_character(),
+        group_2 = readr::col_character(),
+        connectivity = readr::col_double(),
+        above_threshold = readr::col_logical()
+      )
+    ) %>%
       dplyr::mutate(analysis_group = group_name, paga_dir = dirname(path), .before = 1)
   }))
   write_table_csv(paga_edges_all, file.path(out_summary, "paga_edges_all_trajectory_analyses.csv"))
@@ -2319,7 +1966,7 @@ paga_metric_files <- paga_metric_files[file.exists(paga_metric_files)]
 if (length(paga_metric_files) > 0) {
   paga_metrics_all <- dplyr::bind_rows(lapply(paga_metric_files, function(path) {
     group_name <- paga_run_summary_df$analysis_group[match(dirname(path), paga_run_summary_df$paga_dir)]
-    readr::read_csv(path, show_col_types = FALSE) %>%
+    read_trajectory_csv(path) %>%
       dplyr::mutate(analysis_group = group_name, paga_dir = dirname(path), .before = 1)
   }))
   write_table_csv(paga_metrics_all, file.path(out_summary, "paga_cell_metrics_all_trajectory_analyses.csv"))
@@ -2367,21 +2014,13 @@ if (nrow(missing_inputs) > 0) {
     "  A .loom or .h5ad containing spliced and unspliced layers.",
     "",
     "Supported ways to provide input:",
-    "  1. Set VELOCITY_INPUT_ROOT to a directory containing one combined .loom/.h5ad, or per-Dose files named with 0mgkg, 30mgkg, 120mgkg.",
-    "  2. Set VELOCITY_INPUT_MANIFEST to a CSV with columns: dose,input_file.",
-    "  3. If cell IDs differ between Seurat and velocity input, set VELOCITY_CELL_MAP to a CSV with columns: seurat_cell,velocity_cell.",
-    "  4. Put existing per-sample loom files under 00_inputs/velocyto_loom/<sample_folder>/<sample_folder>.loom; this is checked before any velocyto generation.",
-    "  5. If Cell Ranger folders are available, set CELLRANGER_ROOT and CELLRANGER_SAMPLE_FOLDER_COL; this script writes velocyto run10x scripts from sample_folder and can use existing per-sample velocyto .loom files.",
-    "  6. To generate missing loom files from Cell Ranger BAMs, set VELOCYTO_GTF to a gene annotation GTF and RUN_VELOCYTO=TRUE.",
+    "  1. Put existing per-sample loom files under the configured per-sample loom root; missing loom files stop 0401_trajectory.R.",
+    "  2. If cell IDs differ between Seurat and velocity input, set VELOCITY_CELL_MAP to a CSV with columns: seurat_cell,velocity_cell.",
     "",
-    paste0("Default searched root: ", velocity_input_root),
     paste0("Per-sample loom root: ", velocyto_output_root),
     paste0("Cell Ranger root: ", cellranger_root),
     paste0("Cell Ranger sample folder metadata column: ", cellranger_sample_folder_col),
-    paste0("Velocyto writable work root: ", velocyto_work_root),
-    paste0("Velocyto output root: ", velocyto_output_root),
-    paste0("samtools binary: ", ifelse(is.na(samtools_bin), "not found", samtools_bin)),
-    paste0("Velocyto samtools threads: ", velocyto_samtools_threads),
+    paste0("Strict existing loom root: ", velocyto_output_root),
     "",
     "Per-analysis Seurat metadata and run_scvelo.sh files have already been written under 01_velocity_groups/."
   )
@@ -2399,7 +2038,7 @@ metric_files <- file.path(run_summary_df$dose_dir, "scvelo_cell_metrics.csv")
 metric_files <- metric_files[file.exists(metric_files)]
 if (length(metric_files) > 0) {
   metric_df <- dplyr::bind_rows(lapply(metric_files, function(path) {
-    readr::read_csv(path, show_col_types = FALSE)
+    read_trajectory_csv(path)
   }))
   metric_join_cols <- unique(c(
     "cell",
@@ -2499,19 +2138,11 @@ summary_lines <- c(
   paste0("Ploidy groups: ", paste(ploidy_levels, collapse = ", ")),
   paste0("Velocity analysis groups: ", paste(trajectory_group_levels, collapse = ", ")),
   paste0("Cluster column: ", cluster_col),
-  paste0("Velocity input root: ", velocity_input_root),
-  paste0("Velocity input manifest: ", ifelse(nzchar(velocity_manifest), velocity_manifest, "not set")),
   paste0("Per-sample loom root: ", velocyto_output_root),
   "Per-sample loom layout: 00_inputs/velocyto_loom/<sample_folder>/<sample_folder>.loom",
   paste0("Cell Ranger root: ", cellranger_root),
   paste0("Cell Ranger sample folder column: ", cellranger_sample_folder_col),
-  paste0("Velocyto binary: ", velocyto_bin),
-  paste0("samtools binary: ", ifelse(is.na(samtools_bin), "not found", samtools_bin)),
-  paste0("Velocyto samtools threads: ", velocyto_samtools_threads),
-  paste0("Velocyto GTF: ", ifelse(nzchar(velocyto_gtf), velocyto_gtf, "not set")),
-  paste0("Velocyto writable work root: ", velocyto_work_root),
-  paste0("Velocyto output root: ", velocyto_output_root),
-  paste0("Run velocyto immediately: ", run_velocyto),
+  paste0("Strict existing loom root: ", velocyto_output_root),
   paste0("Cell map file: ", ifelse(nzchar(cell_map_file), cell_map_file, "not set")),
   paste0("Required Python environment: ", required_python_env),
   paste0("Python binary: ", python_bin),
@@ -2520,7 +2151,6 @@ summary_lines <- c(
   "",
   "Velocity outputs:",
   "  00_inputs/cellranger_sample_bam_manifest.csv",
-  "  00_inputs/velocyto_run10x/*_run_velocyto.sh",
   "  01_velocity_groups/All_cells/cells_metadata_umap.csv",
   "  01_velocity_groups/CellLine/ploidy_all/cells_metadata_umap.csv",
   "  01_velocity_groups/CellLine/2N/cells_metadata_umap.csv",
