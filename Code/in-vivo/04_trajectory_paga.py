@@ -24,6 +24,10 @@ def parse_args():
     parser.add_argument("--min-cells", type=int, default=20)
     parser.add_argument("--paga-threshold", type=float, default=0.03)
     parser.add_argument("--root-clusters", default="", help="Optional comma-separated cluster labels used to root DPT.")
+    parser.add_argument("--expression-matrix", default="", help="Optional Matrix Market expression matrix exported as genes x cells.")
+    parser.add_argument("--expression-genes", default="", help="Optional CSV with one gene column matching expression matrix rows.")
+    parser.add_argument("--expression-cells", default="", help="Optional CSV with one cell column matching expression matrix columns.")
+    parser.add_argument("--expression-source", default="", help="Human-readable expression source, e.g. RNA:data.")
     parser.add_argument("--dpi", type=int, default=300)
     return parser.parse_args()
 
@@ -38,6 +42,8 @@ def import_required():
         import pandas as pd
         import anndata as ad
         import scanpy as sc
+        from scipy import sparse
+        from scipy.io import mmread
     except ImportError as exc:
         raise SystemExit(
             "Missing Python package for PAGA analysis: "
@@ -45,7 +51,7 @@ def import_required():
             "matplotlib, python-igraph, and leidenalg."
         ) from exc
 
-    return plt, np, pd, ad, sc
+    return plt, np, pd, ad, sc, sparse, mmread
 
 
 def parse_comma_arg(value):
@@ -143,11 +149,73 @@ def prepare_obs_columns(adata, columns):
         adata.obs[col] = values.astype("category")
 
 
-def build_adata(meta, pca, umap, args, ad, np):
+def read_first_column_csv(path, expected_name, pd):
+    df = pd.read_csv(path)
+    if df.shape[1] == 0:
+        raise SystemExit(f"{expected_name} file has no columns: {path}")
+    col = expected_name if expected_name in df.columns else df.columns[0]
+    values = df[col].astype(str).tolist()
+    values = [x for x in values if x and x != "nan"]
+    if not values:
+        raise SystemExit(f"{expected_name} file has no usable values: {path}")
+    return values
+
+
+def load_expression_export(args, obs_cells, pd, sparse, mmread):
+    if not args.expression_matrix:
+        return None, None, "not_provided"
+
+    required_paths = {
+        "expression matrix": args.expression_matrix,
+        "expression genes": args.expression_genes,
+        "expression cells": args.expression_cells,
+    }
+    missing = [label for label, path in required_paths.items() if not path or not Path(path).exists()]
+    if missing:
+        raise SystemExit(
+            "Expression export was requested but required file(s) are missing: "
+            + ", ".join(missing)
+        )
+
+    genes = read_first_column_csv(args.expression_genes, "gene", pd)
+    export_cells = read_first_column_csv(args.expression_cells, "cell", pd)
+    expr = mmread(args.expression_matrix)
+    if not sparse.issparse(expr):
+        expr = sparse.csr_matrix(expr)
+    else:
+        expr = expr.tocsr()
+
+    if expr.shape[0] != len(genes):
+        raise SystemExit(
+            f"Expression row count ({expr.shape[0]}) does not match gene count ({len(genes)})."
+        )
+    if expr.shape[1] != len(export_cells):
+        raise SystemExit(
+            f"Expression column count ({expr.shape[1]}) does not match cell count ({len(export_cells)})."
+        )
+
+    cell_to_col = {cell: i for i, cell in enumerate(export_cells)}
+    missing_cells = [cell for cell in obs_cells if cell not in cell_to_col]
+    if missing_cells:
+        preview = ", ".join(missing_cells[:5])
+        raise SystemExit(
+            f"Expression export is missing {len(missing_cells)} metadata cell(s), e.g. {preview}."
+        )
+
+    col_idx = [cell_to_col[cell] for cell in obs_cells]
+    expr = expr[:, col_idx].transpose().tocsr().astype("float32")
+    var = pd.DataFrame({"gene": genes}, index=pd.Index(genes, name=None))
+    return expr, var, args.expression_source or "expression_export"
+
+
+def build_adata(meta, pca, umap, args, ad, np, expression=None, var=None):
     obs = meta.copy()
     obs.index = obs["cell"].astype(str)
     obs.index.name = None
-    adata = ad.AnnData(X=np.zeros((obs.shape[0], 1), dtype="float32"), obs=obs)
+    if expression is None:
+        expression = np.zeros((obs.shape[0], 1), dtype="float32")
+        var = None
+    adata = ad.AnnData(X=expression, obs=obs, var=var)
     adata.obsm["X_pca"] = pca.astype("float32", copy=False)
     adata.obsm[f"X_{args.basis}"] = umap.astype("float32", copy=False)
     adata.obs[args.cluster_col] = adata.obs[args.cluster_col].astype(str).astype("category")
@@ -382,7 +450,7 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    plt, np, pd, ad, sc = import_required()
+    plt, np, pd, ad, sc, sparse, mmread = import_required()
     sc.settings.verbosity = 2
     sc.settings.set_figure_params(
         dpi=args.dpi,
@@ -393,7 +461,14 @@ def main():
     )
 
     meta, pca, umap, pca_cols = load_metadata(args.metadata, args, pd, np)
-    adata = build_adata(meta, pca, umap, args, ad, np)
+    expression, var, expression_source = load_expression_export(
+        args,
+        meta["cell"].astype(str).tolist(),
+        pd,
+        sparse,
+        mmread,
+    )
+    adata = build_adata(meta, pca, umap, args, ad, np, expression=expression, var=var)
     groups = adata.obs[args.cluster_col].cat.categories.astype(str).tolist()
 
     effective_neighbors = min(args.n_neighbors, max(1, adata.n_obs - 1))
@@ -407,6 +482,9 @@ def main():
         "cluster_col": args.cluster_col,
         "pca_prefix": args.pca_prefix,
         "pca_columns": pca_cols,
+        "expression_source": expression_source,
+        "expression_matrix": str(args.expression_matrix) if args.expression_matrix else "",
+        "n_genes": int(adata.n_vars),
         "requested_n_pcs": int(args.n_pcs),
         "effective_n_pcs": int(effective_pcs),
         "requested_n_neighbors": int(args.n_neighbors),
