@@ -106,13 +106,23 @@ cfg_value <- function(config, name, env_name = NULL, default = NULL) {
   default
 }
 
-input_rds <- file.path(
-  results_root,
-  "03_final_cluster",
-  "03_objects",
-  "integrated_sct_cca_seurat_final_reclustered.rds"
+resolve_first_existing <- function(paths) {
+  paths <- paths[!is.na(paths) & nzchar(paths)]
+  hit <- paths[file.exists(paths)]
+  if (length(hit) > 0) normalizePath(hit[1], mustWork = TRUE) else paths[1]
+}
+
+input_rds <- cfg_value(
+  config,
+  "Trajectory_input_rds",
+  "TRAJECTORY_SEURAT_RDS",
+  default = resolve_first_existing(c(
+    file.path(results_root, "03c_cluster_annotation", "04_objects", "integrated_sct_cca_seurat_cluster_final_annotation.rds"),
+    file.path(results_root, "03b_manual_cluster_merge", "objects", "integrated_sct_cca_seurat_final_manual_merge.rds"),
+    file.path(results_root, "03_final_cluster", "03_objects", "integrated_sct_cca_seurat_final_reclustered.rds")
+  ))
 )
-output_root <- file.path(results_root, "0301a_DEGs")
+output_root <- file.path(results_root, "03c_DEGs_round2")
 
 assay_use <- "RNA"
 cluster_col <- "cluster_final"
@@ -130,9 +140,10 @@ sample_folder_col_candidates <- unique(c(
 ))
 
 min_cells_per_group <- 3L
-deg_parallel_workers <- suppressWarnings(as.integer(Sys.getenv("DEG_PARALLEL_WORKERS", unset = "10")))
-if (is.na(deg_parallel_workers) || deg_parallel_workers < 1L) {
-  deg_parallel_workers <- 10L
+deg_parallel_workers_setting <- cfg_value(config, "DEG_parallel_workers", "DEG_PARALLEL_WORKERS", default = "auto")
+deg_worker_memory_factor <- suppressWarnings(as.numeric(cfg_value(config, "DEG_worker_memory_factor", "DEG_WORKER_MEMORY_FACTOR", default = "2.5")))
+if (is.na(deg_worker_memory_factor) || !is.finite(deg_worker_memory_factor) || deg_worker_memory_factor <= 0) {
+  deg_worker_memory_factor <- 2.5
 }
 future_globals_maxsize_gb <- suppressWarnings(as.numeric(Sys.getenv("DEG_FUTURE_GLOBALS_MAXSIZE_GB", unset = "80")))
 if (is.na(future_globals_maxsize_gb) || future_globals_maxsize_gb <= 0) {
@@ -145,6 +156,123 @@ safe_file_component <- function(x) {
   x <- gsub("_+", "_", x)
   x <- gsub("^_|_$", "", x)
   ifelse(nzchar(x), x, "value")
+}
+
+parse_worker_setting <- function(value) {
+  value <- trimws(as.character(value)[1])
+  if (!nzchar(value) || tolower(value) %in% c("auto", "system")) return(NA_integer_)
+  out <- suppressWarnings(as.integer(value))
+  if (is.na(out) || out < 1L) {
+    stop("DEG_parallel_workers/DEG_PARALLEL_WORKERS must be a positive integer or 'auto'.", call. = FALSE)
+  }
+  out
+}
+
+detect_available_cores <- function() {
+  cores <- suppressWarnings(tryCatch(future::availableCores(), error = function(e) NA_integer_))
+  cores <- as.integer(cores[1])
+  if (is.na(cores) || cores < 1L) {
+    cores <- suppressWarnings(as.integer(parallel::detectCores(logical = TRUE)))
+  }
+  if (is.na(cores) || cores < 1L) cores <- 1L
+  cores
+}
+
+detect_available_memory_gb <- function(available_cores) {
+  env_gb <- trimws(Sys.getenv("DEG_AVAILABLE_MEMORY_GB", unset = ""))
+  if (nzchar(env_gb)) {
+    out <- suppressWarnings(as.numeric(env_gb))
+    if (!is.na(out) && is.finite(out) && out > 0) return(out)
+  }
+
+  slurm_mem_node_mb <- trimws(Sys.getenv("SLURM_MEM_PER_NODE", unset = ""))
+  if (nzchar(slurm_mem_node_mb)) {
+    out <- suppressWarnings(as.numeric(slurm_mem_node_mb))
+    if (!is.na(out) && is.finite(out) && out > 0) return(out / 1024)
+  }
+
+  slurm_mem_cpu_mb <- trimws(Sys.getenv("SLURM_MEM_PER_CPU", unset = ""))
+  if (nzchar(slurm_mem_cpu_mb)) {
+    out <- suppressWarnings(as.numeric(slurm_mem_cpu_mb))
+    if (!is.na(out) && is.finite(out) && out > 0) return(out * available_cores / 1024)
+  }
+
+  meminfo <- "/proc/meminfo"
+  if (file.exists(meminfo)) {
+    lines <- readLines(meminfo, warn = FALSE)
+    hit <- grep("^MemAvailable:", lines, value = TRUE)
+    if (length(hit) > 0) {
+      kb <- suppressWarnings(as.numeric(sub("^MemAvailable:\\s*([0-9]+)\\s+kB.*$", "\\1", hit[1])))
+      if (!is.na(kb) && is.finite(kb) && kb > 0) return(kb / 1024^2)
+    }
+  }
+
+  NA_real_
+}
+
+format_numeric_or_na <- function(x, digits = 2) {
+  if (length(x) == 0 || is.na(x) || !is.finite(x)) return("NA")
+  format(round(as.numeric(x), digits), nsmall = digits, trim = TRUE)
+}
+
+plan_deg_workers <- function(worker_setting, tasks, obj, worker_memory_factor) {
+  n_tasks <- length(tasks)
+  available_cores <- detect_available_cores()
+  available_memory_gb <- detect_available_memory_gb(available_cores)
+  obj_size_gb <- as.numeric(utils::object.size(obj)) / 1024^3
+  manual_workers <- parse_worker_setting(worker_setting)
+
+  if (n_tasks == 0) {
+    return(list(
+      workers = 0L,
+      mode = "none",
+      setting = as.character(worker_setting)[1],
+      requested_workers = 0L,
+      available_cores = available_cores,
+      cpu_limited_workers = 0L,
+      available_memory_gb = available_memory_gb,
+      object_size_gb = obj_size_gb,
+      memory_limited_workers = 0L,
+      worker_memory_factor = worker_memory_factor
+    ))
+  }
+
+  if (!is.na(manual_workers)) {
+    return(list(
+      workers = max(1L, min(manual_workers, n_tasks)),
+      mode = "manual",
+      setting = as.character(worker_setting)[1],
+      requested_workers = manual_workers,
+      available_cores = available_cores,
+      cpu_limited_workers = max(1L, min(available_cores, n_tasks)),
+      available_memory_gb = available_memory_gb,
+      object_size_gb = obj_size_gb,
+      memory_limited_workers = NA_integer_,
+      worker_memory_factor = worker_memory_factor
+    ))
+  }
+
+  cpu_limited_workers <- max(1L, available_cores - 1L)
+  memory_limited_workers <- cpu_limited_workers
+  if (!is.na(available_memory_gb) && is.finite(available_memory_gb) && available_memory_gb > 0) {
+    reserved_memory_gb <- max(2, min(16, available_memory_gb * 0.10))
+    usable_memory_gb <- max(1, available_memory_gb - reserved_memory_gb)
+    per_worker_memory_gb <- max(1, obj_size_gb * worker_memory_factor)
+    memory_limited_workers <- max(1L, floor(usable_memory_gb / per_worker_memory_gb))
+  }
+
+  list(
+    workers = max(1L, min(n_tasks, cpu_limited_workers, memory_limited_workers)),
+    mode = "auto",
+    setting = as.character(worker_setting)[1],
+    requested_workers = NA_integer_,
+    available_cores = available_cores,
+    cpu_limited_workers = cpu_limited_workers,
+    available_memory_gb = available_memory_gb,
+    object_size_gb = obj_size_gb,
+    memory_limited_workers = memory_limited_workers,
+    worker_memory_factor = worker_memory_factor
+  )
 }
 
 metadata_levels <- function(meta, col_name, preferred_levels = NULL) {
@@ -231,7 +359,7 @@ add_trajectory_subset_metadata <- function(obj) {
     tried_cols <- unique(tried_cols[tried_cols %in% colnames(meta)])
     bad_cells <- unique(rownames(meta)[is.na(ploidy_values)])
     stop(
-      "Could not infer ploidy for 0301a_DEGs.R. Tried metadata column(s): ",
+      "Could not infer ploidy for 03c_DEGs_round2.R. Tried metadata column(s): ",
       paste(tried_cols, collapse = ", "),
       ". Example unresolved cell(s): ",
       paste(head(bad_cells, 20), collapse = ", "),
@@ -856,14 +984,19 @@ for (i in seq_len(nrow(analysis_group_df))) {
   }
 }
 
-deg_parallel_workers_used <- if (length(deg_tasks) == 0) {
-  0L
-} else {
-  max(1L, min(as.integer(deg_parallel_workers), length(deg_tasks)))
-}
+deg_worker_plan <- plan_deg_workers(
+  worker_setting = deg_parallel_workers_setting,
+  tasks = deg_tasks,
+  obj = obj,
+  worker_memory_factor = deg_worker_memory_factor
+)
+deg_parallel_workers_used <- deg_worker_plan$workers
 message(
   "Prepared ", length(deg_tasks), " DEG tasks. ",
-  "Requested workers: ", deg_parallel_workers,
+  "Worker mode: ", deg_worker_plan$mode,
+  "; available cores: ", deg_worker_plan$available_cores,
+  "; available memory GB: ", format_numeric_or_na(deg_worker_plan$available_memory_gb),
+  "; Seurat object size GB: ", format_numeric_or_na(deg_worker_plan$object_size_gb),
   "; effective workers: ", deg_parallel_workers_used, "."
 )
 comparison_summary <- run_deg_tasks_parallel(
@@ -876,14 +1009,21 @@ comparison_summary_df <- dplyr::bind_rows(comparison_summary)
 write_table_csv(comparison_summary_df, file.path(out_summary, "DEG_comparison_summary.csv"))
 
 run_summary <- c(
-  "0301a DEGs completed.",
+  "03c DEGs round2 completed.",
   paste0("Input object: ", input_rds),
   paste0("Output root: ", output_root),
   paste0("Assay: ", assay_use),
   "DEG method: Seurat::FindMarkers with default thresholds and default test settings.",
   paste0("DEG parallel backend: future::multisession when workers > 1, otherwise sequential."),
-  paste0("DEG parallel workers requested: ", deg_parallel_workers),
+  paste0("DEG parallel worker setting: ", deg_worker_plan$setting),
+  paste0("DEG parallel worker mode: ", deg_worker_plan$mode),
   paste0("DEG parallel workers used: ", deg_parallel_workers_used),
+  paste0("Available CPU cores detected: ", deg_worker_plan$available_cores),
+  paste0("CPU-limited workers: ", deg_worker_plan$cpu_limited_workers),
+  paste0("Available memory GB detected: ", format_numeric_or_na(deg_worker_plan$available_memory_gb)),
+  paste0("Seurat object size GB: ", format_numeric_or_na(deg_worker_plan$object_size_gb)),
+  paste0("Memory-limited workers: ", ifelse(is.na(deg_worker_plan$memory_limited_workers), "NA", deg_worker_plan$memory_limited_workers)),
+  paste0("DEG worker memory factor: ", deg_worker_plan$worker_memory_factor),
   paste0("Future globals max size GB: ", future_globals_maxsize_gb),
   paste0("Minimum cells per group guard: ", min_cells_per_group),
   paste0("Cluster column: ", cluster_col),
@@ -899,5 +1039,5 @@ run_summary <- c(
 )
 writeLines(run_summary, con = file.path(out_summary, "run_summary.txt"))
 
-message("0301a_DEGs finished.")
+message("03c_DEGs_round2 finished.")
 message("Output root: ", output_root)
