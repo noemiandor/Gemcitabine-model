@@ -101,6 +101,18 @@ input_rds <- file.path(
   "integrated_sct_cca_seurat_cluster_refine_manual_merge_test.rds"
 )
 output_root <- file.path(results_root, "03_final_cluster")
+final_output_rds <- file.path(
+  output_root,
+  "03_objects",
+  "integrated_sct_cca_seurat_final_reclustered.rds"
+)
+plot_only_mode <- tolower(Sys.getenv("FINAL_CLUSTER_PLOT_ONLY", unset = "false")) %in%
+  c("1", "true", "yes", "y")
+plot_only_input_rds <- Sys.getenv("FINAL_CLUSTER_PLOT_INPUT_RDS", unset = final_output_rds)
+plot_only_output_root <- Sys.getenv(
+  "FINAL_CLUSTER_PLOT_OUTPUT_ROOT",
+  unset = dirname(dirname(normalizePath(plot_only_input_rds, mustWork = FALSE)))
+)
 
 filter_cluster_col <- "manual_merge_test"
 cluster_col <- "clusters"
@@ -219,6 +231,44 @@ make_observed_levels <- function(values, source_col = NULL, preferred_levels = N
   )
 }
 
+add_derived_tn_ploidy_metadata <- function(meta, overwrite = FALSE) {
+  needs_ploidy <- overwrite || !"Ploidy" %in% colnames(meta)
+  needs_tn <- overwrite || !"TN" %in% colnames(meta)
+  if (!needs_ploidy && !needs_tn) return(meta)
+
+  assert_required_column(meta, "IDs")
+  ids_values <- as.character(meta[["IDs"]])
+  ids_values[is.na(ids_values)] <- ""
+
+  if (needs_ploidy) {
+    ploidy_values <- ifelse(
+      grepl("2N", ids_values, fixed = TRUE),
+      "2N",
+      ifelse(grepl("4N", ids_values, fixed = TRUE), "4N", NA_character_)
+    )
+    if (any(is.na(ploidy_values))) {
+      unresolved_ploidy <- sort(unique(ids_values[is.na(ploidy_values)]))
+      stop(
+        "Ploidy must be either 2N or 4N, but some IDs cannot be parsed: ",
+        paste(utils::head(unresolved_ploidy, 20), collapse = ", "),
+        call. = FALSE
+      )
+    }
+    meta[["Ploidy"]] <- factor(ploidy_values, levels = c("2N", "4N"))
+  }
+
+  if (needs_tn) {
+    tn_values <- ifelse(
+      grepl("Cell-Culture", ids_values, fixed = TRUE),
+      "CellLine",
+      "Tumor"
+    )
+    meta[["TN"]] <- factor(tn_values, levels = c("CellLine", "Tumor"))
+  }
+
+  meta
+}
+
 write_cluster_stack_plots <- function(
   meta,
   group_col,
@@ -303,9 +353,10 @@ write_cluster_stack_plots <- function(
     ggplot2::geom_col(width = 0.85) +
     ggplot2::scale_y_continuous(
       labels = function(x) paste0(round(100 * x), "%"),
-      limits = c(0, 1),
+      breaks = seq(0, 1, 0.25),
       expand = c(0, 0)
     ) +
+    ggplot2::coord_cartesian(ylim = c(0, 1)) +
     ggplot2::labs(
       title = paste0(cluster_label, " percentage by ", group_label),
       x = group_label,
@@ -331,6 +382,238 @@ write_cluster_stack_plots <- function(
   )
 
   invisible(count_df)
+}
+
+write_cluster_composition_stack_plots <- function(
+  meta,
+  group_col,
+  cluster_col,
+  output_dir,
+  summary_dir,
+  file_stub,
+  group_label = group_col,
+  cluster_label = cluster_col,
+  preferred_group_levels = NULL,
+  fill_values = NULL,
+  width = 10,
+  height = 6,
+  dpi = 300
+) {
+  assert_required_column(meta, group_col)
+  assert_required_column(meta, cluster_col)
+
+  group_vals <- as.character(meta[[group_col]])
+  cluster_vals <- as.character(meta[[cluster_col]])
+  group_vals[is.na(group_vals) | group_vals == ""] <- "Unknown"
+  cluster_vals[is.na(cluster_vals) | cluster_vals == ""] <- "Unknown"
+
+  group_levels <- make_observed_levels(
+    group_vals,
+    source_col = meta[[group_col]],
+    preferred_levels = preferred_group_levels
+  )
+  cluster_levels <- make_observed_levels(
+    cluster_vals,
+    source_col = meta[[cluster_col]]
+  )
+
+  plot_df <- data.frame(
+    cluster = factor(cluster_vals, levels = cluster_levels),
+    group = factor(group_vals, levels = group_levels),
+    stringsAsFactors = FALSE
+  )
+
+  count_df <- as.data.frame(
+    table(cluster = plot_df$cluster, group = plot_df$group),
+    stringsAsFactors = FALSE
+  )
+  names(count_df)[names(count_df) == "Freq"] <- "count"
+  count_df$cluster <- factor(count_df$cluster, levels = cluster_levels)
+  count_df$group <- factor(count_df$group, levels = group_levels)
+  count_df <- count_df %>%
+    dplyr::group_by(cluster) %>%
+    dplyr::mutate(
+      total = sum(count),
+      proportion = ifelse(total > 0, count / total, 0),
+      percent = 100 * proportion
+    ) %>%
+    dplyr::ungroup()
+
+  count_export <- count_df
+  names(count_export)[names(count_export) == "cluster"] <- cluster_col
+  names(count_export)[names(count_export) == "group"] <- group_col
+  write_table_csv(count_export, file.path(summary_dir, paste0(file_stub, "_counts.csv")))
+  percent_export <- count_export
+  write_table_csv(percent_export, file.path(summary_dir, paste0(file_stub, "_percent.csv")))
+
+  p_count <- ggplot2::ggplot(
+    count_df,
+    ggplot2::aes(x = cluster, y = count, fill = group)
+  ) +
+    ggplot2::geom_col(width = 0.85) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.05))) +
+    ggplot2::labs(
+      title = paste0(group_label, " cell counts by ", cluster_label),
+      x = cluster_label,
+      y = "Cell count",
+      fill = group_label
+    ) +
+    ggplot2::theme_classic(base_size = 12) +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
+
+  p_percent <- ggplot2::ggplot(
+    count_df,
+    ggplot2::aes(x = cluster, y = proportion, fill = group)
+  ) +
+    ggplot2::geom_col(width = 0.85) +
+    ggplot2::scale_y_continuous(
+      labels = function(x) paste0(round(100 * x), "%"),
+      breaks = seq(0, 1, 0.25),
+      expand = c(0, 0)
+    ) +
+    ggplot2::coord_cartesian(ylim = c(0, 1)) +
+    ggplot2::labs(
+      title = paste0(group_label, " percentage by ", cluster_label),
+      x = cluster_label,
+      y = "Percentage",
+      fill = group_label
+    ) +
+    ggplot2::theme_classic(base_size = 12) +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
+
+  if (!is.null(fill_values)) {
+    fill_values <- fill_values[names(fill_values) %in% group_levels]
+    if (length(fill_values) > 0) {
+      p_count <- p_count + ggplot2::scale_fill_manual(values = fill_values, drop = FALSE)
+      p_percent <- p_percent + ggplot2::scale_fill_manual(values = fill_values, drop = FALSE)
+    }
+  }
+
+  save_plot_pdf_png_tiff(
+    plot_obj = p_count,
+    file_stub = file.path(output_dir, paste0(file_stub, "_count")),
+    width = width,
+    height = height,
+    dpi = dpi
+  )
+  save_plot_pdf_png_tiff(
+    plot_obj = p_percent,
+    file_stub = file.path(output_dir, paste0(file_stub, "_percent")),
+    width = width,
+    height = height,
+    dpi = dpi
+  )
+
+  invisible(count_df)
+}
+
+write_requested_cluster_stack_plots <- function(meta, output_dir, summary_dir, cluster_col, sample_col) {
+  meta <- add_derived_tn_ploidy_metadata(meta)
+  assert_required_column(meta, cluster_col)
+  assert_required_column(meta, sample_col)
+  assert_required_column(meta, "TN")
+  assert_required_column(meta, "Ploidy")
+
+  cluster_n <- length(make_observed_levels(as.character(meta[[cluster_col]]), source_col = meta[[cluster_col]]))
+  sample_n <- length(make_observed_levels(as.character(meta[[sample_col]]), source_col = meta[[sample_col]]))
+  cluster_stack_width <- max(9, 0.45 * cluster_n + 5)
+  sample_stack_height <- max(6, 0.18 * sample_n + 5)
+
+  write_cluster_composition_stack_plots(
+    meta = meta,
+    group_col = "TN",
+    cluster_col = cluster_col,
+    output_dir = output_dir,
+    summary_dir = summary_dir,
+    file_stub = "stack_TN_by_cluster",
+    group_label = "CellLine/Tumor",
+    cluster_label = "cluster",
+    preferred_group_levels = c("CellLine", "Tumor"),
+    fill_values = c(CellLine = "#4E79A7", Tumor = "#E15759"),
+    width = cluster_stack_width,
+    height = 6
+  )
+  write_cluster_composition_stack_plots(
+    meta = meta,
+    group_col = sample_col,
+    cluster_col = cluster_col,
+    output_dir = output_dir,
+    summary_dir = summary_dir,
+    file_stub = "stack_sample_by_cluster",
+    group_label = "sample",
+    cluster_label = "cluster",
+    width = cluster_stack_width,
+    height = sample_stack_height
+  )
+  write_cluster_composition_stack_plots(
+    meta = meta,
+    group_col = "Ploidy",
+    cluster_col = cluster_col,
+    output_dir = output_dir,
+    summary_dir = summary_dir,
+    file_stub = "stack_Ploidy_by_cluster",
+    group_label = "Ploidy",
+    cluster_label = "cluster",
+    preferred_group_levels = c("2N", "4N"),
+    fill_values = c(`2N` = "#59A14F", `4N` = "#B07AA1"),
+    width = cluster_stack_width,
+    height = 6
+  )
+
+  invisible(meta)
+}
+
+run_final_cluster_plot_only <- function(input_path, output_root, cluster_col, sample_col) {
+  message("Plot-only mode: reading final Seurat object: ", input_path)
+  if (!file.exists(input_path)) {
+    stop("Plot-only input Seurat object does not exist: ", input_path, call. = FALSE)
+  }
+
+  .ensure_dir(output_root)
+  out_summary <- .ensure_dir(file.path(output_root, "00_summary"))
+  out_plots <- .ensure_dir(file.path(output_root, "02_plots"))
+
+  obj <- readRDS(input_path)
+  if (!inherits(obj, "Seurat")) {
+    stop("Plot-only input file is not a Seurat object.", call. = FALSE)
+  }
+
+  meta <- write_requested_cluster_stack_plots(
+    meta = obj@meta.data,
+    output_dir = out_plots,
+    summary_dir = out_summary,
+    cluster_col = cluster_col,
+    sample_col = sample_col
+  )
+
+  plot_only_summary <- c(
+    "03 final cluster plot-only completed.",
+    paste0("Input object: ", input_path),
+    paste0("Output root: ", output_root),
+    paste0("Output plots: ", out_plots),
+    paste0("Cluster column: ", cluster_col),
+    paste0("Sample column: ", sample_col),
+    paste0("Cells plotted: ", nrow(meta)),
+    "New cluster-x stacked bar plots written for TN, sample, and Ploidy as count and percent views.",
+    "Integration workflow: skipped",
+    "PCA/UMAP workflow: skipped",
+    "FindNeighbors: skipped",
+    "FindClusters: skipped"
+  )
+  writeLines(plot_only_summary, con = file.path(out_summary, "plot_only_cluster_stack_summary.txt"))
+
+  message("Plot-only cluster stack plots finished.")
+  message("Output plots: ", out_plots)
+}
+
+if (plot_only_mode) {
+  run_final_cluster_plot_only(
+    input_path = plot_only_input_rds,
+    output_root = plot_only_output_root,
+    cluster_col = cluster_col,
+    sample_col = sample_col
+  )
+  quit(save = "no", status = 0, runLast = FALSE)
 }
 
 message("Preparing output directories.")
@@ -435,34 +718,7 @@ cluster_counts_after_filter <- data.frame(
 write_table_csv(cluster_counts_after_filter, file.path(out_summary, "clusters_counts_after_filter.csv"))
 
 message("Adding Ploidy and TN metadata from IDs.")
-ids_values <- as.character(obj_filtered@meta.data[["IDs"]])
-ids_values[is.na(ids_values)] <- ""
-ploidy_values <- ifelse(
-  grepl("2N", ids_values, fixed = TRUE),
-  "2N",
-  ifelse(grepl("4N", ids_values, fixed = TRUE), "4N", NA_character_)
-)
-if (any(is.na(ploidy_values))) {
-  unresolved_ploidy <- sort(unique(ids_values[is.na(ploidy_values)]))
-  stop(
-    "Ploidy must be either 2N or 4N, but some IDs cannot be parsed: ",
-    paste(utils::head(unresolved_ploidy, 20), collapse = ", "),
-    call. = FALSE
-  )
-}
-tn_values <- ifelse(
-  grepl("Cell-Culture", ids_values, fixed = TRUE),
-  "CellLine",
-  "Tumor"
-)
-obj_filtered@meta.data[["Ploidy"]] <- factor(
-  ploidy_values,
-  levels = c("2N", "4N")
-)
-obj_filtered@meta.data[["TN"]] <- factor(
-  tn_values,
-  levels = c("CellLine", "Tumor")
-)
+obj_filtered@meta.data <- add_derived_tn_ploidy_metadata(obj_filtered@meta.data, overwrite = TRUE)
 
 metadata_summary_df <- data.frame(
   metadata = c("Ploidy", "Ploidy", "TN", "TN"),
@@ -627,9 +883,16 @@ write_cluster_stack_plots(
   width = 7,
   height = 6
 )
+write_requested_cluster_stack_plots(
+  meta = obj_filtered@meta.data,
+  output_dir = out_plots,
+  summary_dir = out_summary,
+  cluster_col = cluster_col,
+  sample_col = sample_col
+)
 
 message("Saving final Seurat object.")
-output_rds <- file.path(out_objects, "integrated_sct_cca_seurat_final_reclustered.rds")
+output_rds <- final_output_rds
 saveRDS(obj_filtered, output_rds)
 
 summary_lines <- c(
@@ -648,6 +911,7 @@ summary_lines <- c(
   paste0("UMAP dims used: ", paste(dims_use, collapse = ",")),
   "Derived metadata columns added from IDs: Ploidy and TN.",
   "Cluster stacked bar plots written for sample, Ploidy, and TN as count and percent views.",
+  "Cluster-x stacked bar plots written for TN, sample, and Ploidy as count and percent views.",
   "Plots are written as PDF, PNG, and TIFF.",
   "Integration workflow: skipped",
   "FindNeighbors: skipped",
