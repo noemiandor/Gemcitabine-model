@@ -109,11 +109,129 @@ cfg_value <- function(config, name, env_name = NULL, default = NULL) {
   default
 }
 
+parse_bool <- function(x, default = FALSE) {
+  if (is.null(x) || length(x) == 0) return(default)
+  x <- tolower(trimws(as.character(x)[1]))
+  if (!nzchar(x)) return(default)
+  if (x %in% c("1", "true", "t", "yes", "y")) return(TRUE)
+  if (x %in% c("0", "false", "f", "no", "n")) return(FALSE)
+  stop("Cannot parse logical value: ", x, call. = FALSE)
+}
+
 parse_int_cfg <- function(value, default, name) {
   if (is.null(value) || !nzchar(trimws(as.character(value)))) return(default)
   out <- suppressWarnings(as.integer(value))
   if (is.na(out) || out < 1L) {
     stop(name, " must be a positive integer.", call. = FALSE)
+  }
+  out
+}
+
+cluster_config_split_regex <- function() {
+  paste0("[,;|", intToUtf8(c(65292, 65307, 12289)), "]+")
+}
+
+strip_cluster_token_quotes <- function(value) {
+  quote_chars <- paste0("\"'", intToUtf8(c(8220, 8221, 8216, 8217)))
+  gsub(paste0("^[", quote_chars, "]+|[", quote_chars, "]+$"), "", value)
+}
+
+parse_cluster_config_values <- function(value, default = character(0)) {
+  if (is.null(value) || length(value) == 0) value <- default
+  if (is.list(value) && !is.data.frame(value)) {
+    value <- unlist(value, recursive = TRUE, use.names = FALSE)
+  }
+  value <- as.character(value)
+  value <- value[!is.na(value)]
+  if (length(value) == 0) return(character(0))
+  parts <- unlist(strsplit(value, cluster_config_split_regex()))
+  parts <- trimws(parts)
+  parts <- strip_cluster_token_quotes(parts)
+  parts <- parts[!is.na(parts) & nzchar(parts)]
+  parts <- gsub("\\s+", "", parts)
+  parts <- parts[!(toupper(parts) %in% c("NA", "NAN", "NULL", "NONE"))]
+  unique(parts)
+}
+
+normalize_cluster_config <- function(value, default = "") {
+  paste(parse_cluster_config_values(value, default = default), collapse = ",")
+}
+
+cfg_cluster_values <- function(config, name, env_name = NULL, default = character(0)) {
+  if (!is.null(env_name)) {
+    env_value <- trimws(Sys.getenv(env_name, unset = ""))
+    if (nzchar(env_value)) return(parse_cluster_config_values(env_value))
+  }
+  parsed <- parse_cluster_config_values(config[[name]])
+  if (length(parsed) > 0) return(parsed)
+  parse_cluster_config_values(default)
+}
+
+split_cluster_config <- function(value) {
+  parse_cluster_config_values(value)
+}
+
+cluster_config_label <- function(value, empty_label = "NULL") {
+  parts <- split_cluster_config(value)
+  if (length(parts) == 0) return(empty_label)
+  paste(sanitize_path_component(parts), collapse = "_")
+}
+
+build_pseudotrajectory_root_specs <- function(root_clusters) {
+  root_clusters <- parse_cluster_config_values(root_clusters)
+  if (length(root_clusters) == 0) root_clusters <- ""
+  root_labels <- vapply(root_clusters, cluster_config_label, character(1))
+  data.frame(
+    trajectory_branch = paste0("ROOT_", root_labels),
+    root_cluster = root_clusters,
+    root_label = root_labels,
+    stringsAsFactors = FALSE
+  ) %>%
+    dplyr::distinct(.data$trajectory_branch, .keep_all = TRUE)
+}
+
+task_env_value <- function(name, default = "") {
+  trimws(Sys.getenv(name, unset = default))
+}
+
+filter_pseudotrajectory_roots_for_task <- function(root_specs) {
+  if (!isTRUE(trajectory_hpc_task)) return(root_specs)
+
+  root_cluster <- normalize_cluster_config(task_env_value("TRAJECTORY_TASK_ROOT_CLUSTER"))
+  if (!nzchar(root_cluster)) {
+    stop("TRAJECTORY_TASK_ROOT_CLUSTER is required in HPC task mode.", call. = FALSE)
+  }
+  out <- root_specs %>% dplyr::filter(.data$root_cluster == .env$root_cluster)
+  if (nrow(out) != 1) {
+    stop("HPC root filter must match exactly one Monocle3 root branch; matched ", nrow(out), ".", call. = FALSE)
+  }
+  out
+}
+
+filter_pseudotrajectory_groups_for_task <- function(group_df) {
+  if (!isTRUE(trajectory_hpc_task)) return(group_df)
+
+  group_safe <- task_env_value("TRAJECTORY_TASK_GROUP_SAFE")
+  group_name <- task_env_value("TRAJECTORY_TASK_GROUP")
+  tn_scope <- task_env_value("TRAJECTORY_TASK_TN_SCOPE")
+  ploidy_scope <- task_env_value("TRAJECTORY_TASK_PLOIDY_SCOPE")
+
+  out <- group_df
+  if (nzchar(group_safe)) {
+    out <- out %>% dplyr::filter(.data$group_safe == .env$group_safe)
+  } else if (nzchar(group_name)) {
+    out <- out %>% dplyr::filter(.data$trajectory_group == .env$group_name)
+  } else if (nzchar(tn_scope) && nzchar(ploidy_scope)) {
+    out <- out %>% dplyr::filter(.data$tn_scope == .env$tn_scope, .data$ploidy_scope == .env$ploidy_scope)
+  } else {
+    stop("TRAJECTORY_TASK_GROUP_SAFE or TRAJECTORY_TASK_GROUP is required in HPC task mode.", call. = FALSE)
+  }
+
+  if (nrow(out) != 1) {
+    stop(
+      "HPC task group filter must match exactly one pseudotrajectory group; matched ", nrow(out), ".",
+      call. = FALSE
+    )
   }
   out
 }
@@ -224,12 +342,18 @@ choose_root_cells <- function(cds, cluster_col, root_cluster = NULL) {
   meta <- as.data.frame(colData(cds))
   clusters <- as.character(meta[[cluster_col]])
   cluster_levels <- sort_maybe_numeric(unique(clusters))
-  root_cluster_use <- if (!is.null(root_cluster) && root_cluster %in% clusters) {
-    root_cluster
+  requested_root_clusters <- split_cluster_config(root_cluster)
+  matched_root_clusters <- requested_root_clusters[requested_root_clusters %in% clusters]
+  root_cluster_use <- if (length(matched_root_clusters) > 0) {
+    paste(matched_root_clusters, collapse = ",")
   } else {
     cluster_levels[1]
   }
-  root_cells <- rownames(meta)[clusters == root_cluster_use]
+  root_cells <- if (length(matched_root_clusters) > 0) {
+    rownames(meta)[clusters %in% matched_root_clusters]
+  } else {
+    rownames(meta)[clusters == root_cluster_use]
+  }
   if (length(root_cells) == 0) {
     root_cells <- colnames(cds)[1]
   }
@@ -1403,9 +1527,15 @@ output_root <- cfg_value(
 assay_use <- cfg_value(config, "PseudoTrajectory_assay", "PSEUDOTRAJ_ASSAY", default = "RNA")
 nfeatures_use <- parse_int_cfg(cfg_value(config, "PseudoTrajectory_nfeatures", "PSEUDOTRAJ_NFEATURES", default = "2000"), 2000L, "PseudoTrajectory_nfeatures")
 npcs_use <- parse_int_cfg(cfg_value(config, "PseudoTrajectory_npcs", "PSEUDOTRAJ_NPCS", default = "30"), 30L, "PseudoTrajectory_npcs")
-root_cluster <- cfg_value(config, "PseudoTrajectory_root_cluster", "PSEUDOTRAJ_ROOT_CLUSTER", default = "")
-root_cluster <- if (is.null(root_cluster) || !nzchar(root_cluster)) NULL else root_cluster
-trajectory_branch <- "root14_end13"
+root_clusters <- cfg_cluster_values(
+  config,
+  "Trajectory_root_clusters",
+  "TRAJECTORY_ROOT_CLUSTERS",
+  default = cfg_value(config, "PseudoTrajectory_root_cluster", "PSEUDOTRAJ_ROOT_CLUSTER", default = "")
+)
+trajectory_hpc_task <- parse_bool(Sys.getenv("TRAJECTORY_HPC_TASK", unset = "FALSE"), default = FALSE)
+root_branch_specs <- build_pseudotrajectory_root_specs(root_clusters)
+root_branch_specs <- filter_pseudotrajectory_roots_for_task(root_branch_specs)
 missing_dose_action <- tolower(cfg_value(
   config,
   "PseudoTrajectory_missing_dose_action",
@@ -1423,9 +1553,18 @@ cluster_col <- "cluster_final"
 
 message("Preparing output directories.")
 .ensure_dir(output_root)
-out_pseudotrajectory_groups <- .ensure_dir(file.path(output_root, "01_pseudotrajectory_groups"))
-out_summary <- .ensure_dir(file.path(output_root, "02_summary"))
-out_plots <- .ensure_dir(file.path(output_root, "03_plots"))
+root_branch_specs$branch_output_root <- file.path(output_root, root_branch_specs$trajectory_branch)
+root_branch_specs$out_pseudotrajectory_groups <- file.path(root_branch_specs$branch_output_root, "01_pseudotrajectory_groups")
+root_branch_specs$out_summary <- file.path(root_branch_specs$branch_output_root, "02_summary")
+root_branch_specs$out_plots <- file.path(root_branch_specs$branch_output_root, "03_plots")
+for (dir_path in unique(c(
+  root_branch_specs$branch_output_root,
+  root_branch_specs$out_pseudotrajectory_groups,
+  root_branch_specs$out_summary,
+  root_branch_specs$out_plots
+))) {
+  .ensure_dir(dir_path)
+}
 
 if (!file.exists(input_rds)) {
   stop("Input Seurat object does not exist: ", input_rds, call. = FALSE)
@@ -1462,22 +1601,25 @@ dose_raw <- obj@meta.data[[dose_col]]
 dose_standardized <- standardize_in_vivo_dose(dose_raw)
 missing_dose <- is.na(dose_standardized)
 if (any(missing_dose)) {
-  missing_dose_file <- file.path(
-    out_summary,
+  missing_dose_files <- file.path(
+    root_branch_specs$out_summary,
     paste0("cells_with_missing_Dose_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv")
   )
-  utils::write.csv(
-    data.frame(
-      cell = rownames(obj@meta.data)[missing_dose],
-      Dose_raw = as.character(dose_raw)[missing_dose],
-      stringsAsFactors = FALSE
-    ),
-    missing_dose_file,
-    row.names = FALSE
+  missing_dose_df <- data.frame(
+    cell = rownames(obj@meta.data)[missing_dose],
+    Dose_raw = as.character(dose_raw)[missing_dose],
+    stringsAsFactors = FALSE
   )
+  for (missing_dose_file in missing_dose_files) {
+    utils::write.csv(
+      missing_dose_df,
+      missing_dose_file,
+      row.names = FALSE
+    )
+  }
   missing_msg <- paste0(
     "Dose contains NA or blank values in ", sum(missing_dose),
-    " cell(s). Details were written to: ", missing_dose_file
+    " cell(s). Details were written to: ", paste(missing_dose_files, collapse = "; ")
   )
   if (missing_dose_action == "stop") {
     stop(missing_msg, call. = FALSE)
@@ -1558,6 +1700,7 @@ pseudotrajectory_group_df <- dplyr::bind_rows(
 )
 pseudotrajectory_group_df <- pseudotrajectory_group_df %>%
   dplyr::filter(.data$n_cells > 0)
+pseudotrajectory_group_df <- filter_pseudotrajectory_groups_for_task(pseudotrajectory_group_df)
 if (nrow(pseudotrajectory_group_df) == 0) {
   stop("No cells were found for the requested pseudotrajectory analyses.", call. = FALSE)
 }
@@ -1565,41 +1708,46 @@ pseudotrajectory_group_levels <- unique(pseudotrajectory_group_df$trajectory_gro
 
 unresolved_karyotype <- is.na(karyotype) | (has_2n & has_4n)
 if (any(unresolved_karyotype)) {
-  unresolved_karyotype_file <- file.path(
-    out_summary,
+  unresolved_karyotype_files <- file.path(
+    root_branch_specs$out_summary,
     paste0("cells_with_unresolved_Karyotype_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv")
   )
-  utils::write.csv(
-    data.frame(
-      cell = rownames(obj@meta.data)[unresolved_karyotype],
-      IDs = ids_values[unresolved_karyotype],
-      has_2N = has_2n[unresolved_karyotype],
-      has_4N = has_4n[unresolved_karyotype],
-      stringsAsFactors = FALSE
-    ),
-    unresolved_karyotype_file,
-    row.names = FALSE
+  unresolved_karyotype_df <- data.frame(
+    cell = rownames(obj@meta.data)[unresolved_karyotype],
+    IDs = ids_values[unresolved_karyotype],
+    has_2N = has_2n[unresolved_karyotype],
+    has_4N = has_4n[unresolved_karyotype],
+    stringsAsFactors = FALSE
   )
+  for (unresolved_karyotype_file in unresolved_karyotype_files) {
+    utils::write.csv(
+      unresolved_karyotype_df,
+      unresolved_karyotype_file,
+      row.names = FALSE
+    )
+  }
   message(
     "Karyotype could not be uniquely resolved from IDs in ", sum(unresolved_karyotype),
-    " cell(s). Details were written to: ", unresolved_karyotype_file
+    " cell(s). Details were written to: ", paste(unresolved_karyotype_files, collapse = "; ")
   )
 }
 
-dose_counts <- write_group_counts(obj@meta.data[[dose_col]], "Dose", file.path(out_summary, "dose_cell_counts.csv"), order_levels = dose_levels)
-write_group_counts(obj@meta.data$Karyotype, "Karyotype", file.path(out_summary, "karyotype_cell_counts.csv"), order_levels = c("2N", "4N"))
-write_group_counts(obj@meta.data$Ploidy, "Ploidy", file.path(out_summary, "ploidy_cell_counts.csv"), order_levels = c("2N", "4N"))
-write_group_counts(obj@meta.data$SampleOrigin, "SampleOrigin", file.path(out_summary, "sample_origin_cell_counts.csv"), order_levels = c("CellLine", "Tumor"))
-write_group_counts(obj@meta.data$TN, "TN", file.path(out_summary, "tn_cell_counts.csv"), order_levels = c("CellLine", "Tumor"))
-write_group_counts(obj@meta.data$Dose_DEG, "Dose_DEG", file.path(out_summary, "dose_deg_cell_counts.csv"), order_levels = expected_doses)
-write_group_counts(obj@meta.data$trajectory_context, "trajectory_context", file.path(out_summary, "trajectory_context_cell_counts.csv"), order_levels = c("CellLine", "Tumor"))
-write_group_counts(obj@meta.data$trajectory_group, "trajectory_group", file.path(out_summary, "trajectory_group_cell_counts_by_cell_metadata.csv"), order_levels = c("CellLine", "Tumor"))
-write_table_csv(pseudotrajectory_group_df, file.path(out_summary, "pseudotrajectory_group_levels.csv"))
-write_table_csv(
-  pseudotrajectory_group_df %>%
-    dplyr::select(trajectory_group, tn_scope, ploidy_scope, trajectory_context, Dose, ploidy, n_cells, analysis_type, group_safe),
-  file.path(out_summary, "pseudotrajectory_group_cell_counts.csv")
-)
+write_pseudotrajectory_common_summary <- function(out_summary) {
+  write_group_counts(obj@meta.data[[dose_col]], "Dose", file.path(out_summary, "dose_cell_counts.csv"), order_levels = dose_levels)
+  write_group_counts(obj@meta.data$Karyotype, "Karyotype", file.path(out_summary, "karyotype_cell_counts.csv"), order_levels = c("2N", "4N"))
+  write_group_counts(obj@meta.data$Ploidy, "Ploidy", file.path(out_summary, "ploidy_cell_counts.csv"), order_levels = c("2N", "4N"))
+  write_group_counts(obj@meta.data$SampleOrigin, "SampleOrigin", file.path(out_summary, "sample_origin_cell_counts.csv"), order_levels = c("CellLine", "Tumor"))
+  write_group_counts(obj@meta.data$TN, "TN", file.path(out_summary, "tn_cell_counts.csv"), order_levels = c("CellLine", "Tumor"))
+  write_group_counts(obj@meta.data$Dose_DEG, "Dose_DEG", file.path(out_summary, "dose_deg_cell_counts.csv"), order_levels = expected_doses)
+  write_group_counts(obj@meta.data$trajectory_context, "trajectory_context", file.path(out_summary, "trajectory_context_cell_counts.csv"), order_levels = c("CellLine", "Tumor"))
+  write_group_counts(obj@meta.data$trajectory_group, "trajectory_group", file.path(out_summary, "trajectory_group_cell_counts_by_cell_metadata.csv"), order_levels = c("CellLine", "Tumor"))
+  write_table_csv(pseudotrajectory_group_df, file.path(out_summary, "pseudotrajectory_group_levels.csv"))
+  write_table_csv(
+    pseudotrajectory_group_df %>%
+      dplyr::select(trajectory_group, tn_scope, ploidy_scope, trajectory_context, Dose, ploidy, n_cells, analysis_type, group_safe),
+    file.path(out_summary, "pseudotrajectory_group_cell_counts.csv")
+  )
+}
 
 get_pseudotrajectory_group_cells <- function(task_row) {
   group_name <- task_row$trajectory_group[1]
@@ -1614,89 +1762,106 @@ get_pseudotrajectory_group_cells <- function(task_row) {
 }
 
 message("Running Monocle3 pseudotrajectory analyses: All_cells plus CellLine/Tumor ploidy_all, 2N, and 4N.")
-pseudotrajectory_results <- list()
-for (i in seq_len(nrow(pseudotrajectory_group_df))) {
-  group_name <- pseudotrajectory_group_df$trajectory_group[i]
-  group_cells <- get_pseudotrajectory_group_cells(pseudotrajectory_group_df[i, , drop = FALSE])
-  group_dir <- .ensure_dir(file.path(out_pseudotrajectory_groups, pseudotrajectory_group_df$group_safe[i]))
-  message("Running Monocle3 pseudotime for pseudotrajectory group ", group_name)
-  pseudotrajectory_results[[group_name]] <- run_dose_monocle3(
-    obj = obj,
-    dose_label = group_name,
-    dose_cells = group_cells,
-    output_dir = group_dir,
-    assay = assay_use,
-    cluster_col = cluster_col,
-    nfeatures = nfeatures_use,
-    npcs = npcs_use,
-    root_cluster = root_cluster,
+for (branch_i in seq_len(nrow(root_branch_specs))) {
+  branch_spec <- root_branch_specs[branch_i, , drop = FALSE]
+  root_cluster <- if (nzchar(branch_spec$root_cluster)) branch_spec$root_cluster else NULL
+  trajectory_branch <- branch_spec$trajectory_branch
+  branch_output_root <- branch_spec$branch_output_root
+  out_pseudotrajectory_groups <- branch_spec$out_pseudotrajectory_groups
+  out_summary <- branch_spec$out_summary
+  out_plots <- branch_spec$out_plots
+
+  write_pseudotrajectory_common_summary(out_summary)
+  message("Running Monocle3 pseudotrajectory branch ", trajectory_branch)
+
+  pseudotrajectory_results <- list()
+  for (i in seq_len(nrow(pseudotrajectory_group_df))) {
+    group_name <- pseudotrajectory_group_df$trajectory_group[i]
+    group_cells <- get_pseudotrajectory_group_cells(pseudotrajectory_group_df[i, , drop = FALSE])
+    group_dir <- .ensure_dir(file.path(out_pseudotrajectory_groups, pseudotrajectory_group_df$group_safe[i]))
+    message("Running Monocle3 pseudotime for pseudotrajectory group ", group_name)
+    pseudotrajectory_results[[group_name]] <- run_dose_monocle3(
+      obj = obj,
+      dose_label = group_name,
+      dose_cells = group_cells,
+      output_dir = group_dir,
+      assay = assay_use,
+      cluster_col = cluster_col,
+      nfeatures = nfeatures_use,
+      npcs = npcs_use,
+      root_cluster = root_cluster,
+      group_col = "trajectory_analysis_group",
+      analysis_name = pseudotrajectory_group_df$analysis_type[i],
+      tn_scope = pseudotrajectory_group_df$tn_scope[i],
+      ploidy_scope = pseudotrajectory_group_df$ploidy_scope[i],
+      branch_label = trajectory_branch
+    )
+  }
+
+  write_result_collection_outputs(
+    results = pseudotrajectory_results,
     group_col = "trajectory_analysis_group",
-    analysis_name = pseudotrajectory_group_df$analysis_type[i],
-    tn_scope = pseudotrajectory_group_df$tn_scope[i],
-    ploidy_scope = pseudotrajectory_group_df$ploidy_scope[i],
-    branch_label = trajectory_branch
+    analysis_name = "pseudotrajectory_groups",
+    group_title = "Pseudo trajectory analysis group",
+    table_suffix = "pseudotrajectory_groups",
+    plot_suffix = "pseudotrajectory_groups",
+    out_summary = out_summary,
+    out_plots = out_plots
   )
+
+  summary_lines <- c(
+    "04a Monocle3 expression-only pseudotime workflow completed.",
+    paste0("Input Seurat object: ", input_rds),
+    paste0("Output root: ", output_root),
+    paste0("Configured trajectory root cluster(s): ", ifelse(length(root_clusters) > 0, paste(root_clusters, collapse = ", "), "not specified")),
+    paste0("Trajectory root branches: ", paste(root_branch_specs$trajectory_branch, collapse = ", ")),
+    paste0("Branch output root: ", branch_output_root),
+    paste0("Assay used for Monocle3 matrix: ", assay_use),
+    paste0("Requested pseudotrajectory groups: ", paste(pseudotrajectory_group_levels, collapse = ", ")),
+    paste0("Observed Dose groups retained as metadata: ", paste(dose_levels, collapse = ", ")),
+    paste0("Cluster column: ", cluster_col),
+    paste0("Variable features per group: ", nfeatures_use),
+    paste0("PCA dimensions requested: ", npcs_use),
+    paste0("Root cluster override for this branch: ", ifelse(is.null(root_cluster), "not set; smallest cluster label per group used", root_cluster)),
+    paste0("Trajectory branch label: ", trajectory_branch),
+    paste0("Missing Dose action: ", missing_dose_action),
+    "",
+    "Metadata derivation:",
+    "  Karyotype/Ploidy is parsed from IDs: contains 2N -> 2N; contains 4N -> 4N.",
+    "  SampleOrigin is parsed from IDs: contains Cell-Culture -> CellLine; otherwise Tumor.",
+    "  Active pseudotrajectory groups are aligned to 04_trajectory.R: All_cells plus CellLine/Tumor ploidy_all, 2N, and 4N.",
+    "",
+    "Important interpretation:",
+    "  This is Monocle3 pseudotime from the expression matrix, not true RNA velocity.",
+    "  True RNA velocity requires spliced/unspliced counts from BAM/loom/h5ad.",
+    "  The arrows show Monocle3 principal graph direction oriented away from the default root graph node.",
+    "",
+    "Main outputs:",
+    "  ROOT_<root>/01_pseudotrajectory_groups/All_cells/cells_pseudotime.csv",
+    "  ROOT_<root>/01_pseudotrajectory_groups/CellLine/ploidy_all/cells_pseudotime.csv",
+    "  ROOT_<root>/01_pseudotrajectory_groups/CellLine/2N/cells_pseudotime.csv",
+    "  ROOT_<root>/01_pseudotrajectory_groups/CellLine/4N/cells_pseudotime.csv",
+    "  ROOT_<root>/01_pseudotrajectory_groups/Tumor/ploidy_all/cells_pseudotime.csv",
+    "  ROOT_<root>/01_pseudotrajectory_groups/Tumor/2N/cells_pseudotime.csv",
+    "  ROOT_<root>/01_pseudotrajectory_groups/Tumor/4N/cells_pseudotime.csv",
+    "  ROOT_<root>/01_pseudotrajectory_groups/*/cluster_pseudotime_summary.csv",
+    "  ROOT_<root>/01_pseudotrajectory_groups/*/principal_graph_nodes.csv",
+    "  ROOT_<root>/01_pseudotrajectory_groups/*/principal_graph_edges.csv",
+    "  ROOT_<root>/02_summary/pseudotime_cells_all_pseudotrajectory_groups.csv",
+    "  ROOT_<root>/02_summary/cluster_pseudotime_summary_all_pseudotrajectory_groups.csv",
+    "  ROOT_<root>/02_summary/principal_graph_nodes_all_pseudotrajectory_groups.csv",
+    "  ROOT_<root>/02_summary/principal_graph_edges_all_pseudotrajectory_groups.csv",
+    "  ROOT_<root>/02_summary/pseudotrajectory_group_levels.csv",
+    "  ROOT_<root>/02_summary/pseudotrajectory_group_cell_counts.csv",
+    "  ROOT_<root>/03_plots/umap_monocle3_pseudotime_by_pseudotrajectory_groups.pdf(.png)",
+    "  ROOT_<root>/03_plots/pseudotime_density_by_pseudotrajectory_groups.pdf(.png)",
+    "  ROOT_<root>/03_plots/pseudotime_distribution_by_pseudotrajectory_groups.pdf(.png)"
+  )
+  writeLines(summary_lines, con = file.path(out_summary, "run_summary.txt"))
+
+  saveRDS(obj, file.path(branch_output_root, "seurat_object_with_pseudotrajectory_metadata.rds"))
 }
-
-pseudotrajectory_outputs <- write_result_collection_outputs(
-  results = pseudotrajectory_results,
-  group_col = "trajectory_analysis_group",
-  analysis_name = "pseudotrajectory_groups",
-  group_title = "Pseudo trajectory analysis group",
-  table_suffix = "pseudotrajectory_groups",
-  plot_suffix = "pseudotrajectory_groups",
-  out_summary = out_summary,
-  out_plots = out_plots
-)
-
-summary_lines <- c(
-  "04a Monocle3 expression-only pseudotime workflow completed.",
-  paste0("Input Seurat object: ", input_rds),
-  paste0("Output root: ", output_root),
-  paste0("Assay used for Monocle3 matrix: ", assay_use),
-  paste0("Requested pseudotrajectory groups: ", paste(pseudotrajectory_group_levels, collapse = ", ")),
-  paste0("Observed Dose groups retained as metadata: ", paste(dose_levels, collapse = ", ")),
-  paste0("Cluster column: ", cluster_col),
-  paste0("Variable features per group: ", nfeatures_use),
-  paste0("PCA dimensions requested: ", npcs_use),
-  paste0("Root cluster override: ", ifelse(is.null(root_cluster), "not set; smallest cluster label per group used", root_cluster)),
-  paste0("Aligned trajectory branch label: ", trajectory_branch),
-  paste0("Missing Dose action: ", missing_dose_action),
-  "",
-  "Metadata derivation:",
-  "  Karyotype/Ploidy is parsed from IDs: contains 2N -> 2N; contains 4N -> 4N.",
-  "  SampleOrigin is parsed from IDs: contains Cell-Culture -> CellLine; otherwise Tumor.",
-  "  Active pseudotrajectory groups are aligned to 04_trajectory.R: All_cells plus CellLine/Tumor ploidy_all, 2N, and 4N.",
-  "",
-  "Important interpretation:",
-  "  This is Monocle3 pseudotime from the expression matrix, not true RNA velocity.",
-  "  True RNA velocity requires spliced/unspliced counts from BAM/loom/h5ad.",
-  "  The arrows show Monocle3 principal graph direction oriented away from the default root graph node.",
-  "",
-  "Main outputs:",
-  "  01_pseudotrajectory_groups/All_cells/cells_pseudotime.csv",
-  "  01_pseudotrajectory_groups/CellLine/ploidy_all/cells_pseudotime.csv",
-  "  01_pseudotrajectory_groups/CellLine/2N/cells_pseudotime.csv",
-  "  01_pseudotrajectory_groups/CellLine/4N/cells_pseudotime.csv",
-  "  01_pseudotrajectory_groups/Tumor/ploidy_all/cells_pseudotime.csv",
-  "  01_pseudotrajectory_groups/Tumor/2N/cells_pseudotime.csv",
-  "  01_pseudotrajectory_groups/Tumor/4N/cells_pseudotime.csv",
-  "  01_pseudotrajectory_groups/*/cluster_pseudotime_summary.csv",
-  "  01_pseudotrajectory_groups/*/principal_graph_nodes.csv",
-  "  01_pseudotrajectory_groups/*/principal_graph_edges.csv",
-  "  02_summary/pseudotime_cells_all_pseudotrajectory_groups.csv",
-  "  02_summary/cluster_pseudotime_summary_all_pseudotrajectory_groups.csv",
-  "  02_summary/principal_graph_nodes_all_pseudotrajectory_groups.csv",
-  "  02_summary/principal_graph_edges_all_pseudotrajectory_groups.csv",
-  "  02_summary/pseudotrajectory_group_levels.csv",
-  "  02_summary/pseudotrajectory_group_cell_counts.csv",
-  "  03_plots/umap_monocle3_pseudotime_by_pseudotrajectory_groups.pdf(.png)",
-  "  03_plots/pseudotime_density_by_pseudotrajectory_groups.pdf(.png)",
-  "  03_plots/pseudotime_distribution_by_pseudotrajectory_groups.pdf(.png)"
-)
-writeLines(summary_lines, con = file.path(out_summary, "run_summary.txt"))
-
-saveRDS(obj, file.path(output_root, "seurat_object_with_pseudotrajectory_metadata.rds"))
 
 message("04a Monocle3 pseudotime workflow finished.")
 message("Output root: ", normalizePath(output_root, mustWork = FALSE))
+message("Root branches: ", paste(root_branch_specs$trajectory_branch, collapse = ", "))

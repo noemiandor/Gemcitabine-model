@@ -1,6 +1,8 @@
 Results_root: /share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results
 Seurat_future_workers: 62
 PseudoTrajectory_root_cluster: "14"
+Trajectory_root_clusters: "14"
+Trajectory_end_clusters: "13"
 Paga_export_expression: true
 Paga_expression_assay: RNA
 Paga_expression_slot: data

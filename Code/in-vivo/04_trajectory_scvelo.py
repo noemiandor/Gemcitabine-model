@@ -320,18 +320,204 @@ def ensure_velocity_layers(adata):
         )
 
 
+def finite_rows(values, np):
+    arr = np.ma.asarray(values)
+    if arr.size == 0:
+        return arr, None
+    try:
+        arr = arr.astype(float)
+    except (TypeError, ValueError):
+        return arr, None
+    filled = arr.filled(np.nan) if np.ma.isMaskedArray(arr) else np.asarray(arr)
+    if filled.ndim == 1:
+        return filled, np.isfinite(filled)
+    axes = tuple(range(1, filled.ndim))
+    return filled, np.isfinite(filled).all(axis=axes)
+
+
+def subset_collection_values(collection, mask, np):
+    value_accessors = [
+        ("get_array", "set_array", True),
+        ("get_facecolors", "set_facecolors", False),
+        ("get_edgecolors", "set_edgecolors", False),
+        ("get_sizes", "set_sizes", False),
+        ("get_linewidths", "set_linewidths", False),
+    ]
+    for getter_name, setter_name, preserve_mask in value_accessors:
+        if not hasattr(collection, getter_name) or not hasattr(collection, setter_name):
+            continue
+        values = getattr(collection, getter_name)()
+        if values is None:
+            continue
+        arr = np.ma.asarray(values) if preserve_mask else np.asarray(values)
+        if arr.ndim > 0 and arr.shape[0] == len(mask):
+            getattr(collection, setter_name)(arr[mask])
+
+
+def replace_nonfinite_collection_values(collection, np):
+    for getter_name, setter_name, fill_value in [
+        ("get_facecolors", "set_facecolors", 0.0),
+        ("get_edgecolors", "set_edgecolors", 0.0),
+        ("get_sizes", "set_sizes", 0.0),
+        ("get_linewidths", "set_linewidths", 0.0),
+    ]:
+        if not hasattr(collection, getter_name) or not hasattr(collection, setter_name):
+            continue
+        values = getattr(collection, getter_name)()
+        if values is None:
+            continue
+        arr = np.asarray(values)
+        if arr.size == 0:
+            continue
+        try:
+            arr_float = arr.astype(float, copy=True)
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(arr_float).all():
+            continue
+        arr_float = np.nan_to_num(arr_float, nan=fill_value, posinf=fill_value, neginf=fill_value)
+        if arr_float.ndim >= 2 and arr_float.shape[-1] in {3, 4}:
+            arr_float[..., :3] = np.clip(arr_float[..., :3], 0.0, 1.0)
+            if arr_float.shape[-1] == 4:
+                arr_float[..., 3] = np.clip(arr_float[..., 3], 0.0, 1.0)
+        getattr(collection, setter_name)(arr_float)
+
+
+def sanitize_collection_paths(collection, np):
+    if not hasattr(collection, "get_paths") or not hasattr(collection, "set_paths"):
+        return False
+    paths = collection.get_paths()
+    if not paths:
+        return False
+
+    try:
+        from matplotlib.path import Path as MplPath
+    except ImportError:
+        return False
+
+    clean_paths = []
+    changed = False
+    for path in paths:
+        vertices = np.asarray(path.vertices, dtype=float)
+        if vertices.size == 0 or np.isfinite(vertices).all():
+            clean_paths.append(path)
+            continue
+        mask = np.isfinite(vertices).all(axis=1)
+        if mask.sum() < 2:
+            changed = True
+            continue
+        codes = path.codes
+        if codes is not None and len(codes) == len(mask):
+            codes = np.asarray(codes)[mask].copy()
+            codes[0] = MplPath.MOVETO
+        else:
+            codes = None
+        clean_paths.append(MplPath(vertices[mask], codes))
+        changed = True
+
+    if changed:
+        collection.set_paths(clean_paths)
+    return changed
+
+
+def sanitize_collection_for_pdf(collection, np):
+    changed = False
+    if hasattr(collection, "get_offsets") and hasattr(collection, "set_offsets"):
+        offsets = collection.get_offsets()
+        if offsets is not None:
+            offset_values, mask = finite_rows(offsets, np)
+            if mask is not None and mask.ndim == 1 and len(mask) == len(offset_values) and not mask.all():
+                collection.set_offsets(offset_values[mask])
+                subset_collection_values(collection, mask, np)
+                changed = True
+
+    if hasattr(collection, "get_segments") and hasattr(collection, "set_segments"):
+        segments = collection.get_segments()
+        clean_segments = []
+        dropped_or_trimmed = False
+        for segment in segments:
+            segment_values, mask = finite_rows(segment, np)
+            if mask is None or segment_values.ndim != 2:
+                clean_segments.append(segment)
+                continue
+            if mask.all():
+                clean_segments.append(segment_values)
+                continue
+            finite_segment = segment_values[mask]
+            if finite_segment.shape[0] >= 2:
+                clean_segments.append(finite_segment)
+            dropped_or_trimmed = True
+        if dropped_or_trimmed:
+            collection.set_segments(clean_segments)
+            changed = True
+
+    changed = sanitize_collection_paths(collection, np) or changed
+    replace_nonfinite_collection_values(collection, np)
+    return changed
+
+
+def sanitize_lines_for_pdf(ax, np):
+    changed = False
+    for line in ax.lines:
+        xdata = np.asarray(line.get_xdata(orig=False), dtype=float)
+        ydata = np.asarray(line.get_ydata(orig=False), dtype=float)
+        if xdata.shape != ydata.shape or xdata.size == 0:
+            continue
+        mask = np.isfinite(xdata) & np.isfinite(ydata)
+        if not mask.all():
+            line.set_data(xdata[mask], ydata[mask])
+            changed = True
+    return changed
+
+
+def sanitize_figure_for_vector_pdf(fig, np):
+    changed = False
+    for ax in fig.axes:
+        changed = sanitize_lines_for_pdf(ax, np) or changed
+        for collection in list(ax.collections):
+            changed = sanitize_collection_for_pdf(collection, np) or changed
+    return changed
+
+
+def save_pdf_vector(plt, output_stub):
+    output_file = output_stub.with_suffix(".pdf")
+    try:
+        plt.savefig(str(output_file), bbox_inches="tight")
+        return True, ""
+    except Exception:
+        first_traceback = traceback.format_exc()
+        if output_file.exists():
+            output_file.unlink()
+        try:
+            import numpy as np
+
+            sanitize_figure_for_vector_pdf(plt.gcf(), np)
+            plt.savefig(str(output_file), bbox_inches="tight")
+            return True, first_traceback
+        except Exception:
+            if output_file.exists():
+                output_file.unlink()
+            return False, first_traceback + "\n\nRetry after vector-PDF sanitization:\n" + traceback.format_exc()
+
+
 def save_plot_both(plt, output_stub, dpi):
     output_stub = Path(output_stub)
     output_stub.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        plt.savefig(str(output_stub.with_suffix(".pdf")), bbox_inches="tight")
-    except Exception:
+    pdf_ok, pdf_traceback = save_pdf_vector(plt, output_stub)
+    if not pdf_ok:
         err_file = output_stub.with_suffix(".pdf_error.txt")
-        err_file.write_text(traceback.format_exc())
+        err_file.write_text(pdf_traceback)
         print(
             f"WARNING: Failed to save PDF plot {output_stub.with_suffix('.pdf')}; "
             f"see {err_file}",
             file=sys.stderr,
+        )
+    elif pdf_traceback:
+        err_file = output_stub.with_suffix(".pdf_retry_warning.txt")
+        err_file.write_text(
+            "Initial vector PDF save failed, then succeeded after removing non-finite "
+            "matplotlib artist coordinates/values.\n\n"
+            + pdf_traceback
         )
     try:
         plt.savefig(str(output_stub.with_suffix(".png")), bbox_inches="tight", dpi=dpi)

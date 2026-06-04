@@ -1,124 +1,11 @@
 #!/usr/bin/env Rscript
 
-resolve_in_vivo_script_dir <- function() {
-  cmd_args <- commandArgs(trailingOnly = FALSE)
-  file_match <- grep("--file=", cmd_args, value = TRUE)
-  candidate_files <- character(0)
-  if (length(file_match) > 0) {
-    candidate_files <- c(candidate_files, sub("--file=", "", file_match[1]))
-  }
-
-  frame_files <- vapply(
-    sys.frames(),
-    function(x) {
-      if (!is.null(x$ofile)) x$ofile else NA_character_
-    },
-    character(1)
-  )
-  candidate_files <- c(candidate_files, frame_files[!is.na(frame_files)])
-
-  if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
-    active_path <- tryCatch(rstudioapi::getActiveDocumentContext()$path, error = function(e) "")
-    if (nzchar(active_path)) candidate_files <- c(candidate_files, active_path)
-  }
-
-  candidate_files <- candidate_files[!is.na(candidate_files) & nzchar(candidate_files)]
-  candidate_dirs <- unique(dirname(normalizePath(candidate_files, mustWork = FALSE)))
-  cwd <- normalizePath(getwd(), mustWork = FALSE)
-  cwd_parts <- strsplit(cwd, .Platform$file.sep, fixed = TRUE)[[1]]
-  parent_dirs <- vapply(
-    seq_along(cwd_parts),
-    function(i) {
-      paste(c(cwd_parts[seq_len(length(cwd_parts) - i + 1)]), collapse = .Platform$file.sep)
-    },
-    character(1)
-  )
-  parent_dirs <- parent_dirs[nzchar(parent_dirs)]
-  parent_dirs <- if (grepl("^/", cwd)) paste0("/", sub("^/+", "", parent_dirs)) else parent_dirs
-  candidate_dirs <- unique(c(
-    candidate_dirs,
-    cwd,
-    file.path(cwd, "Code", "in-vivo"),
-    parent_dirs,
-    file.path(parent_dirs, "Code", "in-vivo")
-  ))
-
-  utils_paths <- file.path(candidate_dirs, "Utils.R")
-  hit <- candidate_dirs[file.exists(utils_paths)]
-  if (length(hit) > 0) return(normalizePath(hit[1], mustWork = TRUE))
-  stop("Cannot locate Code/in-vivo/Utils.R from script path or working directory: ", cwd, call. = FALSE)
-}
-
-script_dir <- resolve_in_vivo_script_dir()
-source(file.path(script_dir, "Utils.R"))
-source(file.path(script_dir, "04c_extra_helpers.R"))
-config <- load_in_vivo_config(file.path(script_dir, "in_vivo_config.yaml"))
-results_root <- get_results_root(config)
-
-required_packages <- c("dplyr", "ggplot2", "readr", "tibble", "tidyr")
-missing_packages <- required_packages[
-  !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
-]
-if (length(missing_packages) > 0) {
-  stop("Missing required packages: ", paste(missing_packages, collapse = ", "), call. = FALSE)
-}
-
-suppressPackageStartupMessages({
-  library(dplyr)
-  library(ggplot2)
-  library(readr)
-  library(tibble)
-  library(tidyr)
-})
-
-set.seed(1234)
-
-get_env_scalar <- function(name, default) {
-  value <- Sys.getenv(name, unset = NA_character_)
-  if (is.na(value) || !nzchar(trimws(value))) return(default)
-  value
-}
-
-trajectory_root <- get_env_scalar("EXTRA_TRAJECTORY_ROOT", file.path(results_root, "0401_trajectory"))
-pseudotrajectory_root <- get_env_scalar("EXTRA_PSEUDOTRAJECTORY_ROOT", file.path(results_root, "0401a_psudo_rajectory"))
-deg_root <- get_env_scalar("EXTRA_DEG_ROOT", file.path(results_root, "03a_DEGs"))
-deg_round2_root <- get_env_scalar("EXTRA_DEG_ROUND2_ROOT", file.path(results_root, "03c_DEGs_round2"))
-gsea_root <- get_env_scalar("EXTRA_GSEA_ROOT", file.path(results_root, "03b_cluster_annotation_and_GSEA"))
-output_root <- get_env_scalar("EXTRA_TRAJECTORY_OUTPUT_ROOT", file.path(results_root, "0401b_extra_trajectory"))
-
-method_scvelo <- "scVelo"
-method_monocle3 <- "Monocle3"
-method_dir_scvelo <- "scVelo"
-method_dir_monocle3 <- "Monocle3"
-
-out_inputs <- .ensure_dir(file.path(output_root, "00_inputs"))
-out_tables <- .ensure_dir(file.path(output_root, "01_tables"))
-out_stats <- .ensure_dir(file.path(output_root, "02_stats"))
-out_plots <- .ensure_dir(file.path(output_root, "03_plots"))
-out_summary <- .ensure_dir(file.path(output_root, "04_question_summary"))
-out_separate <- .ensure_dir(file.path(output_root, "05_method_separate"))
-out_scvelo <- .ensure_dir(file.path(out_separate, method_dir_scvelo))
-out_monocle3 <- .ensure_dir(file.path(out_separate, method_dir_monocle3))
-out_biology <- .ensure_dir(file.path(output_root, "06_deg_gsea_pseudotime"))
-out_umap <- .ensure_dir(file.path(output_root, "07_umap_overlays"))
-out_umap_scvelo <- .ensure_dir(file.path(out_umap, method_dir_scvelo))
-out_umap_monocle3 <- .ensure_dir(file.path(out_umap, method_dir_monocle3))
-out_flow <- .ensure_dir(file.path(output_root, "08_flow_overlays"))
-out_flow_scvelo <- .ensure_dir(file.path(out_flow, method_dir_scvelo))
-out_flow_monocle3 <- .ensure_dir(file.path(out_flow, method_dir_monocle3))
-out_tn_ploidy <- .ensure_dir(file.path(output_root, "09_tn_ploidy_cluster_response"))
-out_tn_ploidy_scvelo <- .ensure_dir(file.path(out_tn_ploidy, method_dir_scvelo))
-out_tn_ploidy_monocle3 <- .ensure_dir(file.path(out_tn_ploidy, method_dir_monocle3))
-out_tn_ploidy_flow <- .ensure_dir(file.path(out_tn_ploidy, "scVelo_flow_umap"))
-out_cluster_timing <- .ensure_dir(file.path(output_root, "10_cluster_timing"))
-out_cluster_timing_scvelo <- .ensure_dir(file.path(out_cluster_timing, method_dir_scvelo))
-out_cluster_timing_monocle3 <- .ensure_dir(file.path(out_cluster_timing, method_dir_monocle3))
-out_paga_extra <- .ensure_dir(file.path(output_root, "11_paga_extra"))
-out_final_summary <- .ensure_dir(file.path(output_root, "summary"))
+# Shared helpers for the method-specific 04c extra trajectory scripts.
+# This file is generated from the former 04b_extra_trajectory.R helper section
+# plus the PAGA-only helper code previously kept in 04b_paga_extra_helpers.R.
 
 save_both <- function(plot_obj, file_stub, width = 9, height = 7, dpi = 300) {
-  ggplot2::ggsave(paste0(file_stub, ".pdf"), plot_obj, width = width, height = height)
-  ggplot2::ggsave(paste0(file_stub, ".png"), plot_obj, width = width, height = height, dpi = dpi)
+  ggplot2::ggsave(paste0(file_stub, ".pdf"), plot_obj, width = width, height = height, limitsize = FALSE)
 }
 
 save_square_panel_both <- function(plot_obj, file_stub, panel_size = 4.8, dpi = 300) {
@@ -143,7 +30,6 @@ save_square_panel_both <- function(plot_obj, file_stub, panel_size = 4.8, dpi = 
   if (!is.finite(width) || width <= 0) width <- length(panel_cols) * panel_size + 3
   if (!is.finite(height) || height <= 0) height <- length(panel_rows) * panel_size + 2
   ggplot2::ggsave(paste0(file_stub, ".pdf"), grob, width = width, height = height, limitsize = FALSE)
-  ggplot2::ggsave(paste0(file_stub, ".png"), grob, width = width, height = height, dpi = dpi, limitsize = FALSE)
   invisible(grob)
 }
 
@@ -209,60 +95,6 @@ coalesce_chr <- function(...) {
     }
   }
   out
-}
-
-excluded_sample_id <- "2N-A1-RR"
-
-normalize_sample_identifier <- function(x) {
-  out <- trimws(as.character(x))
-  out <- gsub("[\u2010\u2011\u2012\u2013\u2014\u2212]", "-", out, perl = TRUE)
-  out <- gsub("\\s+", "", out, perl = TRUE)
-  out
-}
-
-matches_excluded_sample <- function(x, excluded_sample = excluded_sample_id) {
-  values <- normalize_sample_identifier(x)
-  target <- normalize_sample_identifier(excluded_sample)[1]
-  !is.na(values) & nzchar(values) & (values == target | grepl(target, values, fixed = TRUE))
-}
-
-sample_exclusion_mask <- function(df, extra_cols = character(0)) {
-  candidate_cols <- unique(c(
-    extra_cols,
-    "cell",
-    "sample",
-    "sampleID",
-    "sample_id",
-    "sample_folder",
-    "Sequencing.IDs",
-    "orig.ident",
-    "IDs",
-    "ID"
-  ))
-  candidate_cols <- candidate_cols[!is.na(candidate_cols) & nzchar(candidate_cols)]
-  candidate_cols <- candidate_cols[candidate_cols %in% colnames(df)]
-
-  mask <- rep(FALSE, nrow(df))
-  for (col in candidate_cols) {
-    mask <- mask | matches_excluded_sample(df[[col]])
-  }
-  mask[is.na(mask)] <- FALSE
-  mask
-}
-
-filter_excluded_sample_rows <- function(df, source_label) {
-  if (nrow(df) == 0) return(df)
-  mask <- sample_exclusion_mask(df)
-  n_drop <- sum(mask)
-  if (n_drop == 0) {
-    message("No rows matched excluded sample in ", source_label, ": ", excluded_sample_id)
-    return(df)
-  }
-  message(
-    "Excluded sample ", excluded_sample_id, " from ", source_label, ": ",
-    n_drop, " row(s) removed; ", nrow(df) - n_drop, " row(s) retained."
-  )
-  df[!mask, , drop = FALSE]
 }
 
 ensure_columns <- function(df, cols, default = NA_character_) {
@@ -3354,15 +3186,15 @@ copy_summary_supporting_files <- function(output_root, summary_dir) {
     for (suffix in table_suffixes) {
       copy_one(file.path(source_method_dir, paste0(prefix, suffix)), method_table_dir, "table", method)
     }
-    for (stub in figure_stubs) {
-      for (ext in c(".pdf", ".png")) {
-        copy_one(file.path(source_method_dir, paste0(prefix, stub, ext)), method_figure_dir, "figure", method)
-      }
-    }
-    hist_dir <- file.path(output_root, "10_cluster_timing", method, "ploidy_pseudotime_histograms", "tumor_sample_pages")
-    for (ext in c(".pdf", ".png")) {
-      copy_one(file.path(hist_dir, paste0("all_samples_ploidy_pseudotime_frequency_histograms_16x1", ext)), method_figure_dir, "figure", method)
-    }
+	    for (stub in figure_stubs) {
+	      for (ext in c(".pdf")) {
+	        copy_one(file.path(source_method_dir, paste0(prefix, stub, ext)), method_figure_dir, "figure", method)
+	      }
+	    }
+	    hist_dir <- file.path(output_root, "10_cluster_timing", method, "ploidy_pseudotime_histograms", "tumor_sample_pages")
+	    for (ext in c(".pdf")) {
+	      copy_one(file.path(hist_dir, paste0("all_samples_ploidy_pseudotime_frequency_histograms_16x1", ext)), method_figure_dir, "figure", method)
+	    }
   }
   dplyr::bind_rows(manifest)
 }
@@ -5179,7 +5011,7 @@ plot_ploidy_frequency_histogram <- function(hist_df, label, output_stub, x_label
   invisible(p)
 }
 
-plot_sample_frequency_histogram_pages <- function(df, tn_label, output_pdf, output_png_dir, time_col = "velocity_pseudotime", method_label, time_label, x_label) {
+plot_sample_frequency_histogram_pages <- function(df, tn_label, output_pdf, output_plot_dir, time_col = "velocity_pseudotime", method_label, time_label, x_label) {
   df <- ensure_columns(df, c(time_col, "Ploidy", "sampleID", "Dose"))
   first_present <- function(x) {
     x <- as_clean_chr(x)
@@ -5245,7 +5077,7 @@ plot_sample_frequency_histogram_pages <- function(df, tn_label, output_pdf, outp
 
   grDevices::pdf(output_pdf, width = 8.8, height = 5.4, onefile = TRUE)
   on.exit(grDevices::dev.off(), add = TRUE)
-  .ensure_dir(output_png_dir)
+  .ensure_dir(output_plot_dir)
   for (sid in sample_ids) {
     hist_df <- hist_all %>% dplyr::filter(.data$sampleID == sid)
     p <- ggplot(hist_df, aes(x = time_bin_mid, y = cell_percent, fill = Ploidy, color = Ploidy)) +
@@ -5263,12 +5095,11 @@ plot_sample_frequency_histogram_pages <- function(df, tn_label, output_pdf, outp
 	      ) +
 	      theme_extra(9) +
 	      theme(axis.text.x = element_text(angle = 0), legend.position = "bottom")
-    print(p)
-    ggsave(file.path(output_png_dir, paste0(safe_file_stub(sid), "_ploidy_time_frequency_histogram.png")), p, width = 8.8, height = 5.4, dpi = 300)
-  }
+	    print(p)
+	  }
 
-	  combined_stub <- file.path(output_png_dir, "all_samples_ploidy_pseudotime_frequency_histograms")
-	  combined_16x1_stub <- file.path(output_png_dir, "all_samples_ploidy_pseudotime_frequency_histograms_16x1")
+	  combined_stub <- file.path(output_plot_dir, "all_samples_ploidy_pseudotime_frequency_histograms")
+	  combined_16x1_stub <- file.path(output_plot_dir, "all_samples_ploidy_pseudotime_frequency_histograms_16x1")
 	  if (nrow(hist_all) > 0) {
 	    x_limits <- range(c(hist_all$time_bin_left, hist_all$time_bin_right), na.rm = TRUE)
 	    y_limit <- max(hist_all$cell_percent, na.rm = TRUE)
@@ -5436,7 +5267,7 @@ run_group_cluster_timing_outputs <- function(df, out_dir, method_label, time_col
       tn_df,
       tn_label = tn_label,
       output_pdf = file.path(hist_dir, paste0(tolower(tn_label), "_sample_ploidy_pseudotime_frequency_histograms.pdf")),
-      output_png_dir = file.path(hist_dir, paste0(tolower(tn_label), "_sample_pages")),
+      output_plot_dir = file.path(hist_dir, paste0(tolower(tn_label), "_sample_pages")),
       time_col = ".time_value",
       method_label = method_label,
       time_label = time_label,
@@ -5676,284 +5507,1389 @@ plot_monocle3_graph_overlays <- function(root_dir, out_dir, out_umap_dir) {
 	  save_square_panel_both(p, file.path(out_umap_dir, "Monocle3_graph_pseudotime_by_ploidy_dose"), panel_size = 3.2)
 	}
 
-message("Input roots:")
-message("  trajectory_root: ", trajectory_root)
-message("  pseudotrajectory_root: ", pseudotrajectory_root)
-message("  deg_root: ", deg_root)
-message("  deg_round2_root: ", deg_round2_root)
-message("  gsea_root: ", gsea_root)
-message("  output_root: ", output_root)
+# ---- PAGA extra helpers ----
 
-if (!dir.exists(trajectory_root)) stop("Missing trajectory root: ", trajectory_root, call. = FALSE)
-if (!dir.exists(pseudotrajectory_root)) stop("Missing pseudotrajectory root: ", pseudotrajectory_root, call. = FALSE)
-if (!dir.exists(deg_round2_root)) warning("Missing 03c DEG round2 root: ", deg_round2_root, call. = FALSE)
-if (!dir.exists(gsea_root)) warning("Missing 03b GSEA root: ", gsea_root, call. = FALSE)
+#!/usr/bin/env Rscript
 
-comparison_summary_file <- file.path(deg_root, "00_summary", "DEG_comparison_summary.csv")
-if (file.exists(comparison_summary_file)) {
-  comparison_summary <- readr::read_csv(comparison_summary_file, show_col_types = FALSE, progress = FALSE)
-  write_table_csv(comparison_summary, file.path(out_inputs, "DEG_comparison_summary_used.csv"))
+paga_extra_chr <- function(x) {
+  out <- trimws(as.character(x))
+  out[out %in% c("", "NA", "NaN", "NULL", "<NA>")] <- NA_character_
+  out
 }
 
-cluster_annotations <- if (dir.exists(gsea_root)) read_cluster_annotations(gsea_root) else data.frame()
-gsea_inputs <- if (dir.exists(gsea_root)) read_gsea_inputs(gsea_root) else data.frame()
-deg_marker_summary <- if (dir.exists(deg_root)) read_deg_marker_summaries(deg_root) else data.frame()
-write_table_csv(cluster_annotations, file.path(out_inputs, "cluster_annotation_summary_used.csv"))
-write_table_csv(gsea_inputs, file.path(out_inputs, "hallmark_gsea_tables_used.csv"))
-write_table_csv(deg_marker_summary, file.path(out_inputs, "deg_marker_top_gene_summary_used.csv"))
+paga_extra_num <- function(x) suppressWarnings(as.numeric(x))
 
-velocity_cells <- read_velocity_metrics(trajectory_root)
-monocle3_cells <- read_pseudotrajectory_metrics(pseudotrajectory_root)
-
-write_table_csv(velocity_cells, file.path(out_tables, "scVelo_cell_metrics_long.csv"))
-write_table_csv(monocle3_cells, file.path(out_tables, "Monocle3_cell_metrics_long.csv"))
-
-velocity_suite <- run_comparison_suite(velocity_cells, velocity_metric_cols, method_scvelo)
-monocle3_suite <- run_comparison_suite(monocle3_cells, pseudo_metric_cols, method_monocle3)
-
-stat_tests <- add_adjusted_p(dplyr::bind_rows(velocity_suite$tests, monocle3_suite$tests))
-group_summaries <- dplyr::bind_rows(velocity_suite$summaries, monocle3_suite$summaries)
-trajectory_split_cols <- c(
-  "TrajectoryComparisonID", "TrajectoryScope", "TrajectoryComparison",
-  "TrajectoryIdent1", "TrajectoryIdent2", "TrajectoryGroupCol",
-  "TrajectoryCluster", "TrajectorySubsetGroup", "TrajectoryDose",
-  "TrajectoryComparisonGroup", "TrajectoryOriginalGroup", "TrajectoryUniverseKey"
-)
-stat_tests <- ensure_columns(stat_tests, trajectory_split_cols)
-group_summaries <- ensure_columns(group_summaries, trajectory_split_cols)
-
-write_table_csv(stat_tests, file.path(out_stats, "scVelo_Monocle3_stat_tests.csv"))
-write_table_csv(group_summaries, file.path(out_stats, "scVelo_Monocle3_group_summaries.csv"))
-
-question_summary <- summarize_questions(stat_tests)
-write_table_csv(question_summary, file.path(out_summary, "question_level_summary.csv"))
-
-time_metric_tests <- stat_tests %>%
-  dplyr::filter(.data$metric %in% c("velocity_pseudotime", "pseudotime"))
-write_table_csv(time_metric_tests, file.path(out_summary, "time_metric_tests_for_interpretation.csv"))
-
-scvelo_separate <- write_method_separate_outputs(
-  velocity_cells,
-  metric_col = "velocity_pseudotime",
-  method_label = method_scvelo,
-  out_dir = out_scvelo,
-  plot_prefix = "scVelo",
-  out_umap_dir = out_umap_scvelo,
-  cluster_annotations = cluster_annotations
-)
-monocle3_separate <- write_method_separate_outputs(
-  monocle3_cells,
-  metric_col = "pseudotime",
-  method_label = method_monocle3,
-  out_dir = out_monocle3,
-  plot_prefix = "Monocle3",
-  out_umap_dir = out_umap_monocle3,
-  cluster_annotations = cluster_annotations
-)
-method_answer_summary <- dplyr::bind_rows(
-  make_method_answer_summary(scvelo_separate, method_scvelo),
-  make_method_answer_summary(monocle3_separate, method_monocle3)
-)
-write_table_csv(method_answer_summary, file.path(out_summary, "method_separate_answer_summary.csv"))
-
-scvelo_tn_ploidy <- write_tn_ploidy_cluster_outputs(
-  scvelo_separate$desc,
-  metric_col = "velocity_pseudotime",
-  method_label = method_scvelo,
-  out_dir = out_tn_ploidy_scvelo,
-  plot_prefix = "scVelo",
-  cluster_annotations = cluster_annotations
-)
-monocle3_tn_ploidy <- write_tn_ploidy_cluster_outputs(
-  monocle3_separate$desc,
-  metric_col = "pseudotime",
-  method_label = method_monocle3,
-  out_dir = out_tn_ploidy_monocle3,
-  plot_prefix = "Monocle3",
-  cluster_annotations = cluster_annotations
-)
-write_table_csv(
-  dplyr::bind_rows(scvelo_tn_ploidy$key_conclusions, monocle3_tn_ploidy$key_conclusions),
-  file.path(out_tn_ploidy, "tn_ploidy_cluster_key_conclusions_all_methods.csv")
-)
-write_table_csv(
-  dplyr::bind_rows(
-    scvelo_tn_ploidy$tumor_ploidy_dose$ploidy_within_dose_sample_tests,
-    monocle3_tn_ploidy$tumor_ploidy_dose$ploidy_within_dose_sample_tests
-  ),
-  file.path(out_tn_ploidy, "tumor_Q1_ploidy_within_dose_sample_tests_all_methods.csv")
-)
-write_table_csv(
-  dplyr::bind_rows(
-    scvelo_tn_ploidy$tumor_ploidy_dose$dose_within_ploidy_sample_tests,
-    monocle3_tn_ploidy$tumor_ploidy_dose$dose_within_ploidy_sample_tests
-  ),
-  file.path(out_tn_ploidy, "tumor_Q2_dose_within_ploidy_sample_tests_all_methods.csv")
-)
-write_table_csv(
-  dplyr::bind_rows(
-    scvelo_tn_ploidy$tumor_ploidy_dose$dose_within_ploidy_pairwise_sample_tests,
-    monocle3_tn_ploidy$tumor_ploidy_dose$dose_within_ploidy_pairwise_sample_tests
-  ),
-  file.path(out_tn_ploidy, "tumor_Q2_dose_pairwise_within_ploidy_sample_tests_all_methods.csv")
-)
-write_table_csv(
-  dplyr::bind_rows(
-    scvelo_tn_ploidy$tumor_ploidy_dose$feature_summary,
-    monocle3_tn_ploidy$tumor_ploidy_dose$feature_summary
-  ),
-  file.path(out_tn_ploidy, "tumor_Q3_ploidy_dose_feature_summary_all_methods.csv")
-)
-scvelo_group_timing <- run_group_cluster_timing_outputs(
-  velocity_cells,
-  out_dir = out_cluster_timing_scvelo,
-  method_label = method_scvelo,
-  time_col = "velocity_pseudotime",
-  source_context_filter = c("velocity_groups"),
-  time_label = "velocity pseudotime",
-  x_label = "scVelo velocity pseudotime"
-)
-monocle3_group_timing <- run_group_cluster_timing_outputs(
-  monocle3_cells,
-  out_dir = out_cluster_timing_monocle3,
-  method_label = method_monocle3,
-  time_col = "pseudotime",
-  source_context_filter = c("monocle3_groups"),
-  time_label = "pseudotime",
-  x_label = "Monocle3 pseudotime"
-)
-
-pathway_trajectory <- join_trajectory_with_gsea(stat_tests, gsea_inputs, deg_marker_summary)
-pathway_timing_summary <- summarize_pathway_timing(pathway_trajectory)
-hypoxia_timing <- if (nrow(pathway_trajectory) > 0 && all(c("hypoxia_pathway", "pathway") %in% names(pathway_trajectory))) {
-  pathway_trajectory %>%
-    dplyr::filter(.data$hypoxia_pathway, !is.na(.data$pathway))
-} else {
-  data.frame()
+paga_extra_safe_component <- function(x) {
+  if (exists("sanitize_path_component", mode = "function")) {
+    x <- sanitize_path_component(x)
+  } else {
+    x <- gsub("[^A-Za-z0-9._-]+", "_", as.character(x))
+  }
+  x <- gsub("[.]+", "_", x)
+  x <- gsub("_+", "_", x)
+  x <- gsub("^_|_$", "", x)
+  ifelse(nzchar(x), x, "value")
 }
-hypoxia_method_summary <- if (nrow(hypoxia_timing) > 0 && "enriched_time_delta" %in% names(hypoxia_timing)) {
-  hypoxia_timing %>%
-    dplyr::filter(is.finite(.data$enriched_time_delta)) %>%
-    dplyr::group_by(.data$method, .data$metric) %>%
+
+paga_extra_safe_stub <- function(x) {
+  x <- gsub("[^A-Za-z0-9._-]+", "_", as.character(x))
+  x <- gsub("_+", "_", x)
+  x <- gsub("^_|_$", "", x)
+  ifelse(nzchar(x), x, "plot")
+}
+
+paga_extra_sort_levels <- function(x) {
+  x <- unique(paga_extra_chr(x))
+  x <- x[!is.na(x)]
+  if (exists("sort_maybe_numeric", mode = "function")) return(sort_maybe_numeric(x))
+  nx <- suppressWarnings(as.numeric(x))
+  if (all(is.finite(nx))) return(x[order(nx)])
+  sort(x)
+}
+
+paga_extra_write_csv <- function(df, file_path) {
+  dir.create(dirname(file_path), recursive = TRUE, showWarnings = FALSE)
+  if (exists("write_table_csv", mode = "function")) {
+    write_table_csv(df, file_path)
+  } else {
+    readr::write_csv(as.data.frame(df), file_path)
+  }
+  invisible(file_path)
+}
+
+paga_extra_save_both <- function(plot_obj, file_stub, width = 8, height = 6, dpi = 300) {
+  dir.create(dirname(file_stub), recursive = TRUE, showWarnings = FALSE)
+  if (exists("save_both", mode = "function")) {
+    save_both(plot_obj, file_stub, width = width, height = height, dpi = dpi)
+  } else {
+    ggplot2::ggsave(paste0(file_stub, ".pdf"), plot_obj, width = width, height = height, limitsize = FALSE)
+  }
+  invisible(plot_obj)
+}
+
+paga_extra_theme <- function(base_size = 10) {
+  if (exists("theme_extra", mode = "function")) return(theme_extra(base_size))
+  ggplot2::theme_classic(base_size = base_size) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", hjust = 0),
+      plot.subtitle = ggplot2::element_text(color = "grey35"),
+      strip.background = ggplot2::element_rect(fill = "grey94", color = NA),
+      strip.text = ggplot2::element_text(face = "bold"),
+      legend.title = ggplot2::element_text(face = "bold")
+    )
+}
+
+paga_extra_has_linewidth <- function() {
+  utils::packageVersion("ggplot2") >= "3.4.0"
+}
+
+paga_extra_coord_umap <- function(df, x_col = "UMAP_1", y_col = "UMAP_2") {
+  if (exists("coord_square_umap", mode = "function")) {
+    return(coord_square_umap(df[[x_col]], df[[y_col]]))
+  }
+  ggplot2::coord_fixed(ratio = 1)
+}
+
+paga_extra_rel_dir <- function(path, root_dir) {
+  path <- normalizePath(path, mustWork = FALSE)
+  root_dir <- normalizePath(root_dir, mustWork = FALSE)
+  prefix <- paste0(root_dir, .Platform$file.sep)
+  if (startsWith(path, prefix)) {
+    rel <- substring(path, nchar(prefix) + 1L)
+  } else {
+    rel <- path
+  }
+  gsub(.Platform$file.sep, "/", rel, fixed = TRUE)
+}
+
+paga_extra_analysis_group <- function(paga_rel_dir) {
+  rel <- gsub("\\\\", "/", paga_rel_dir)
+  rel <- sub("/+$", "", rel)
+  if (identical(rel, "All_cells")) return("All_cells")
+  parts <- strsplit(rel, "/", fixed = TRUE)[[1]]
+  parts <- parts[nzchar(parts)]
+  if (length(parts) == 0) return("All_cells")
+  paste(parts, collapse = "_")
+}
+
+paga_extra_deg_group_rel <- function(paga_rel_dir) {
+  rel <- gsub("\\\\", "/", paga_rel_dir)
+  rel <- sub("/+$", "", rel)
+  if (identical(rel, "All_cells")) return("All_cells/ploidy_all")
+  rel
+}
+
+paga_extra_discover_runs <- function(trajectory_root) {
+  paga_root <- file.path(trajectory_root, "04_paga_groups")
+  if (!dir.exists(paga_root)) {
+    warning("Missing PAGA root: ", paga_root, call. = FALSE)
+    return(data.frame())
+  }
+  h5ads <- list.files(
+    paga_root,
+    pattern = "^paga_result\\.h5ad$",
+    full.names = TRUE,
+    recursive = TRUE
+  )
+  h5ads <- h5ads[file.exists(h5ads) & file.info(h5ads)$size > 0]
+  if (length(h5ads) == 0) {
+    warning("No paga_result.h5ad files found under ", paga_root, call. = FALSE)
+    return(data.frame())
+  }
+  rows <- lapply(sort(normalizePath(h5ads, mustWork = TRUE)), function(h5ad) {
+    run_dir <- dirname(h5ad)
+    rel <- paga_extra_rel_dir(run_dir, paga_root)
+    label <- gsub("/", " / ", rel, fixed = TRUE)
+    data.frame(
+      h5ad = h5ad,
+      run_dir = run_dir,
+      source_relative_dir = rel,
+      analysis_group = paga_extra_analysis_group(rel),
+      deg_group_relative_dir = paga_extra_deg_group_rel(rel),
+      output_subdir = rel,
+      output_prefix = paga_extra_safe_stub(rel),
+      label = label,
+      paga_edges = file.path(run_dir, "paga_edges.csv"),
+      paga_connectivities = file.path(run_dir, "paga_connectivities.csv"),
+      paga_cell_metrics = file.path(run_dir, "paga_cell_metrics.csv"),
+      cells_metadata_umap = file.path(run_dir, "cells_metadata_umap.csv"),
+      stringsAsFactors = FALSE
+    )
+  })
+  dplyr::bind_rows(rows)
+}
+
+paga_extra_read_csv_if_exists <- function(file, keep_cols = NULL) {
+  if (!file.exists(file) || file.info(file)$size <= 0) return(data.frame())
+  if (is.null(keep_cols)) {
+    readr::read_csv(file, show_col_types = FALSE, progress = FALSE)
+  } else {
+    cols <- names(readr::read_csv(file, n_max = 0, show_col_types = FALSE, progress = FALSE))
+    use_cols <- intersect(keep_cols, cols)
+    if (length(use_cols) == 0) return(data.frame())
+    readr::read_csv(
+      file,
+      col_select = dplyr::all_of(use_cols),
+      show_col_types = FALSE,
+      progress = FALSE
+    )
+  }
+}
+
+paga_extra_read_points <- function(run_row) {
+  metric_cols <- c(
+    "cell", "clusters", "cluster_final", "seurat_clusters", "dpt_pseudotime",
+    "Dose", "Dose_DEG", "Ploidy", "ploidy", "TN", "sample", "sample_type",
+    "trajectory_analysis_group", "trajectory_context", "trajectory_group",
+    "trajectory_tn_scope", "trajectory_ploidy_scope", "trajectory_branch",
+    "cluster_final_annotation_primary"
+  )
+  umap_cols <- c(
+    "cell", "UMAP_1", "UMAP_2", "clusters", "cluster_final", "seurat_clusters",
+    "Dose", "Dose_DEG", "Ploidy", "ploidy", "TN", "sample", "sample_type"
+  )
+  metrics <- paga_extra_read_csv_if_exists(run_row$paga_cell_metrics, metric_cols)
+  umap <- paga_extra_read_csv_if_exists(run_row$cells_metadata_umap, umap_cols)
+  if (nrow(metrics) == 0 && nrow(umap) == 0) {
+    stop("Missing PAGA cell metrics and UMAP metadata for ", run_row$run_dir, call. = FALSE)
+  }
+  if (nrow(metrics) == 0) metrics <- umap[, intersect(c("cell", "clusters", "cluster_final", "seurat_clusters"), names(umap)), drop = FALSE]
+  metrics$cell <- paga_extra_chr(metrics$cell)
+  metrics <- metrics[!is.na(metrics$cell), , drop = FALSE]
+  metrics <- dplyr::distinct(metrics, cell, .keep_all = TRUE)
+  if (nrow(umap) > 0) {
+    umap$cell <- paga_extra_chr(umap$cell)
+    umap <- umap[!is.na(umap$cell), , drop = FALSE]
+    umap <- dplyr::distinct(umap, cell, .keep_all = TRUE)
+    joined <- dplyr::left_join(metrics, umap, by = "cell", suffix = c("", ".umap"))
+    for (col in setdiff(umap_cols, "cell")) {
+      alt <- paste0(col, ".umap")
+      if (alt %in% names(joined)) {
+        if (!(col %in% names(joined))) joined[[col]] <- NA
+        x <- paga_extra_chr(joined[[col]])
+        y <- paga_extra_chr(joined[[alt]])
+        replace_idx <- is.na(x) & !is.na(y)
+        joined[[col]][replace_idx] <- joined[[alt]][replace_idx]
+        joined[[alt]] <- NULL
+      }
+    }
+    metrics <- joined
+  }
+  if (!("clusters" %in% names(metrics))) metrics$clusters <- NA_character_
+  for (candidate in c("clusters", "cluster_final", "seurat_clusters")) {
+    if (candidate %in% names(metrics) && any(!is.na(paga_extra_chr(metrics[[candidate]])))) {
+      metrics$clusters <- paga_extra_chr(metrics[[candidate]])
+      break
+    }
+  }
+  metrics$UMAP_1 <- paga_extra_num(metrics$UMAP_1)
+  metrics$UMAP_2 <- paga_extra_num(metrics$UMAP_2)
+  metrics$dpt_pseudotime <- if ("dpt_pseudotime" %in% names(metrics)) paga_extra_num(metrics$dpt_pseudotime) else NA_real_
+  metrics <- metrics[
+    !is.na(metrics$cell) &
+      !is.na(metrics$clusters) &
+      is.finite(metrics$UMAP_1) &
+      is.finite(metrics$UMAP_2),
+    ,
+    drop = FALSE
+  ]
+  if (nrow(metrics) == 0) stop("No usable PAGA cell points for ", run_row$run_dir, call. = FALSE)
+  metrics$clusters <- factor(as.character(metrics$clusters), levels = paga_extra_sort_levels(metrics$clusters))
+  metrics
+}
+
+paga_extra_read_edges <- function(file) {
+  edges <- paga_extra_read_csv_if_exists(file)
+  if (nrow(edges) == 0) {
+    return(data.frame(group_1 = character(), group_2 = character(), connectivity = numeric(), above_threshold = logical()))
+  }
+  needed <- c("group_1", "group_2", "connectivity")
+  if (!all(needed %in% names(edges))) {
+    return(data.frame(group_1 = character(), group_2 = character(), connectivity = numeric(), above_threshold = logical()))
+  }
+  if (!("above_threshold" %in% names(edges))) edges$above_threshold <- TRUE
+  edges %>%
+    dplyr::transmute(
+      group_1 = paga_extra_chr(.data$group_1),
+      group_2 = paga_extra_chr(.data$group_2),
+      connectivity = paga_extra_num(.data$connectivity),
+      above_threshold = as.logical(.data$above_threshold)
+    ) %>%
+    dplyr::filter(!is.na(.data$group_1), !is.na(.data$group_2), is.finite(.data$connectivity), .data$connectivity > 0)
+}
+
+paga_extra_cluster_summary <- function(points, edges) {
+  clusters <- levels(points$clusters)
+  if (is.null(clusters)) clusters <- paga_extra_sort_levels(points$clusters)
+  summary <- points %>%
+    dplyr::mutate(clusters = as.character(.data$clusters)) %>%
+    dplyr::group_by(.data$clusters) %>%
     dplyr::summarise(
-      n_hypoxia_comparisons = dplyr::n(),
-      n_late_or_high_time = sum(.data$pathway_timing == "late_or_high_time", na.rm = TRUE),
-      n_early_or_low_time = sum(.data$pathway_timing == "early_or_low_time", na.rm = TRUE),
-      n_joint_gsea_pseudotime_fdr_0_05 = sum(.data$gsea_significant_fdr_0_05 & .data$trajectory_significant_fdr_0_05, na.rm = TRUE),
-      median_hypoxia_time_delta = stats::median(.data$enriched_time_delta, na.rm = TRUE),
-      dominant_hypoxia_timing = dplyr::case_when(
-        .data$n_late_or_high_time > .data$n_early_or_low_time ~ "mostly_late_or_high_time",
-        .data$n_early_or_low_time > .data$n_late_or_high_time ~ "mostly_early_or_low_time",
-        TRUE ~ "mixed_or_neutral"
-      ),
+      n_cells = dplyr::n(),
+      UMAP_1 = stats::median(.data$UMAP_1, na.rm = TRUE),
+      UMAP_2 = stats::median(.data$UMAP_2, na.rm = TRUE),
+      median_dpt_pseudotime = stats::median(.data$dpt_pseudotime, na.rm = TRUE),
+      has_dpt = any(is.finite(.data$dpt_pseudotime)),
       .groups = "drop"
     )
-} else {
-  data.frame()
-}
-write_table_csv(pathway_trajectory, file.path(out_biology, "pseudotime_gsea_deg_joined.csv"))
-write_table_csv(pathway_timing_summary, file.path(out_biology, "pathway_timing_summary_by_method.csv"))
-write_table_csv(hypoxia_timing, file.path(out_biology, "hypoxia_pseudotime_timing.csv"))
-write_table_csv(hypoxia_method_summary, file.path(out_biology, "hypoxia_timing_method_summary.csv"))
-
-plot_scope_summary(stat_tests)
-plot_deg_heatmap(stat_tests)
-plot_cluster_vs_rest(stat_tests)
-plot_global_effects(stat_tests)
-plot_within_cluster_ploidy(stat_tests)
-plot_omnibus_cluster(stat_tests)
-plot_merged_dose_ploidy(stat_tests)
-plot_gsea_trajectory_association(pathway_trajectory)
-plot_hypoxia_timing(hypoxia_timing)
-plot_pathway_timing_summary(pathway_timing_summary)
-run_scvelo_flow_overlays(trajectory_root, out_flow_scvelo, out_umap_scvelo)
-plot_monocle3_graph_overlays(pseudotrajectory_root, out_flow_monocle3, out_umap_monocle3)
-if (nrow(gsea_inputs) > 0) {
-  plot_cluster_hypoxia_umap(
-    scvelo_separate$desc,
-    gsea_inputs,
-    method_label = method_scvelo,
-    metric_col = "velocity_pseudotime",
-    out_dir = out_scvelo,
-    plot_prefix = "scVelo",
-    out_umap_dir = out_umap_scvelo
+  summary$median_dpt_pseudotime[!is.finite(summary$median_dpt_pseudotime)] <- NA_real_
+  summary <- summary[match(clusters, summary$clusters), , drop = FALSE]
+  degree_df <- dplyr::bind_rows(
+    data.frame(clusters = edges$group_1, degree_count = rep.int(1L, length(edges$group_1)), stringsAsFactors = FALSE),
+    data.frame(clusters = edges$group_2, degree_count = rep.int(1L, length(edges$group_2)), stringsAsFactors = FALSE)
   )
-  plot_cluster_hypoxia_umap(
-    monocle3_separate$desc,
-    gsea_inputs,
-    method_label = method_monocle3,
-    metric_col = "pseudotime",
-    out_dir = out_monocle3,
-    plot_prefix = "Monocle3",
-    out_umap_dir = out_umap_monocle3
-  )
+  degree_df <- if (nrow(degree_df) > 0) {
+    degree_df %>% dplyr::group_by(.data$clusters) %>% dplyr::summarise(paga_degree = sum(.data$degree_count), .groups = "drop")
+  } else {
+    data.frame(clusters = clusters, paga_degree = 0L, stringsAsFactors = FALSE)
+  }
+  summary <- dplyr::left_join(summary, degree_df, by = "clusters")
+  summary$paga_degree[is.na(summary$paga_degree)] <- 0L
+  if (any(is.finite(summary$median_dpt_pseudotime))) {
+    summary <- summary %>%
+      dplyr::arrange(.data$median_dpt_pseudotime, suppressWarnings(as.numeric(.data$clusters)), .data$clusters)
+  } else {
+    summary <- summary %>%
+      dplyr::mutate(.cluster_order = match(.data$clusters, paga_extra_sort_levels(.data$clusters))) %>%
+      dplyr::arrange(.data$.cluster_order) %>%
+      dplyr::select(-.cluster_order)
+  }
+  summary$cluster_order <- seq_len(nrow(summary))
+  if (any(is.finite(summary$median_dpt_pseudotime))) {
+    late_cut <- stats::quantile(summary$median_dpt_pseudotime, probs = 0.75, na.rm = TRUE, names = FALSE)
+    summary$is_terminal_candidate <- summary$paga_degree <= 1L & is.finite(summary$median_dpt_pseudotime) & summary$median_dpt_pseudotime >= late_cut
+    if (!any(summary$is_terminal_candidate, na.rm = TRUE)) {
+      summary$is_terminal_candidate <- summary$median_dpt_pseudotime == max(summary$median_dpt_pseudotime, na.rm = TRUE)
+    }
+    summary$is_root_candidate <- summary$median_dpt_pseudotime == min(summary$median_dpt_pseudotime, na.rm = TRUE)
+  } else {
+    summary$is_terminal_candidate <- summary$paga_degree <= 1L
+    summary$is_root_candidate <- summary$cluster_order == min(summary$cluster_order)
+  }
+  summary
 }
 
-paga_extra <- run_paga_extra_analysis(
-  trajectory_root = trajectory_root,
-  deg_round2_root = deg_round2_root,
-  output_root = out_paga_extra,
-  analysis_label = "0401b PAGA",
-  top_n = 10L,
-  max_cascade_genes = 30L
-)
+paga_extra_connected_components <- function(clusters, edges) {
+  clusters <- as.character(clusters)
+  parent <- stats::setNames(clusters, clusters)
+  find_parent <- function(i) {
+    while (parent[[i]] != i) i <- parent[[i]]
+    i
+  }
+  union_parent <- function(a, b) {
+    if (!(a %in% names(parent)) || !(b %in% names(parent))) return(invisible(NULL))
+    pa <- find_parent(a)
+    pb <- find_parent(b)
+    if (pa != pb) parent[[pb]] <<- pa
+    invisible(NULL)
+  }
+  if (nrow(edges) > 0) {
+    for (i in seq_len(nrow(edges))) union_parent(as.character(edges$group_1[i]), as.character(edges$group_2[i]))
+  }
+  roots <- vapply(clusters, find_parent, character(1))
+  comp_ids <- match(roots, unique(roots))
+  stats::setNames(paste0("macrostate_", comp_ids), clusters)
+}
 
-final_tumor_summary <- write_final_tumor_summary_outputs(
+paga_extra_macrostates <- function(cluster_summary, edges) {
+  clusters <- as.character(cluster_summary$clusters)
+  use_edges <- edges %>% dplyr::filter(.data$above_threshold %in% TRUE)
+  if (nrow(use_edges) == 0) use_edges <- edges
+  if (requireNamespace("igraph", quietly = TRUE) && nrow(use_edges) > 0) {
+    graph_df <- use_edges %>%
+      dplyr::transmute(from = .data$group_1, to = .data$group_2, weight = .data$connectivity)
+    g <- igraph::graph_from_data_frame(graph_df, directed = FALSE, vertices = data.frame(name = clusters))
+    membership <- tryCatch(
+      {
+        if (igraph::gsize(g) > 0) {
+          igraph::membership(igraph::cluster_louvain(g, weights = igraph::E(g)$weight))
+        } else {
+          stats::setNames(seq_along(clusters), clusters)
+        }
+      },
+      error = function(e) stats::setNames(seq_along(clusters), clusters)
+    )
+    out <- data.frame(
+      clusters = names(membership),
+      macrostate = paste0("macrostate_", as.integer(membership)),
+      macrostate_method = "igraph_louvain",
+      stringsAsFactors = FALSE
+    )
+  } else {
+    comp <- paga_extra_connected_components(clusters, use_edges)
+    out <- data.frame(
+      clusters = names(comp),
+      macrostate = unname(comp),
+      macrostate_method = if (nrow(use_edges) > 0) "connected_components" else "singletons",
+      stringsAsFactors = FALSE
+    )
+  }
+  dplyr::left_join(cluster_summary, out, by = "clusters")
+}
+
+paga_extra_edge_segments <- function(edges, cluster_summary) {
+  if (nrow(edges) == 0) return(data.frame())
+  cent <- cluster_summary %>%
+    dplyr::select(clusters, UMAP_1_center = UMAP_1, UMAP_2_center = UMAP_2)
+  edges %>%
+    dplyr::left_join(cent, by = c("group_1" = "clusters")) %>%
+    dplyr::rename(x = UMAP_1_center, y = UMAP_2_center) %>%
+    dplyr::left_join(cent, by = c("group_2" = "clusters")) %>%
+    dplyr::rename(xend = UMAP_1_center, yend = UMAP_2_center) %>%
+    dplyr::filter(is.finite(.data$x), is.finite(.data$y), is.finite(.data$xend), is.finite(.data$yend))
+}
+
+paga_extra_downsample_points <- function(points, max_points = 60000L) {
+  if (nrow(points) <= max_points) return(points)
+  set.seed(1234)
+  points[sort(sample(seq_len(nrow(points)), max_points)), , drop = FALSE]
+}
+
+paga_extra_read_h5ad_neighbor_segments <- function(h5ad_file, points, graph_path = "obsp/connectivities", max_edges = 50000L) {
+  if (!requireNamespace("hdf5r", quietly = TRUE)) {
+    warning("Package hdf5r is required to read h5ad neighbor graph edges.", call. = FALSE)
+    return(data.frame())
+  }
+  max_edges <- as.integer(max_edges)
+  if (!is.finite(max_edges) || max_edges <= 0) return(data.frame())
+
+  f <- hdf5r::H5File$new(h5ad_file, "r")
+  on.exit(f$close_all(), add = TRUE)
+  cells <- paga_extra_h5_read_strings(f, "obs/_index")
+  graph <- tryCatch(f[[graph_path]], error = function(e) NULL)
+  if (length(cells) == 0 || is.null(graph) || !inherits(graph, "H5Group")) return(data.frame())
+  if (!all(c("data", "indices", "indptr") %in% names(graph))) return(data.frame())
+
+  n_obs <- length(cells)
+  indptr <- as.integer(graph[["indptr"]][])
+  indices <- as.integer(graph[["indices"]][]) + 1L
+  weights <- paga_extra_num(graph[["data"]][])
+  if (length(indptr) != n_obs + 1L) return(data.frame())
+
+  row_counts <- diff(indptr)
+  if (any(row_counts < 0, na.rm = TRUE)) return(data.frame())
+  from_idx <- rep.int(seq_len(n_obs), row_counts)
+  n <- min(length(from_idx), length(indices), length(weights))
+  if (n == 0) return(data.frame())
+  from_idx <- from_idx[seq_len(n)]
+  to_idx <- indices[seq_len(n)]
+  weights <- weights[seq_len(n)]
+
+  keep <- from_idx < to_idx & to_idx >= 1L & to_idx <= n_obs & is.finite(weights) & weights > 0
+  if (!any(keep)) return(data.frame())
+  edge_df <- data.frame(
+    from_idx = from_idx[keep],
+    to_idx = to_idx[keep],
+    weight = weights[keep],
+    stringsAsFactors = FALSE
+  )
+  if (nrow(edge_df) > max_edges) {
+    ord <- order(edge_df$weight, decreasing = TRUE, na.last = NA)
+    edge_df <- edge_df[ord[seq_len(max_edges)], , drop = FALSE]
+  }
+
+  coords <- points %>%
+    dplyr::mutate(cell = paga_extra_chr(.data$cell)) %>%
+    dplyr::distinct(.data$cell, .keep_all = TRUE) %>%
+    dplyr::select(cell, UMAP_1, UMAP_2)
+  from_pos <- match(cells[edge_df$from_idx], coords$cell)
+  to_pos <- match(cells[edge_df$to_idx], coords$cell)
+  segment_df <- data.frame(
+    x = coords$UMAP_1[from_pos],
+    y = coords$UMAP_2[from_pos],
+    xend = coords$UMAP_1[to_pos],
+    yend = coords$UMAP_2[to_pos],
+    weight = edge_df$weight,
+    stringsAsFactors = FALSE
+  )
+  segment_df[
+    is.finite(segment_df$x) &
+      is.finite(segment_df$y) &
+      is.finite(segment_df$xend) &
+      is.finite(segment_df$yend) &
+      is.finite(segment_df$weight),
+    ,
+    drop = FALSE
+  ]
+}
+
+paga_extra_plot_umap_neighbor_edges <- function(points, h5ad_file, cluster_summary, label, out_stub, max_points = 60000L, max_edges = 50000L) {
+  plot_points <- paga_extra_downsample_points(points, max_points)
+  edge_segments <- tryCatch(
+    paga_extra_read_h5ad_neighbor_segments(h5ad_file, points, max_edges = max_edges),
+    error = function(e) {
+      warning("Could not read h5ad neighbor graph edges for ", label, ": ", conditionMessage(e), call. = FALSE)
+      data.frame()
+    }
+  )
+
+  p <- ggplot2::ggplot()
+  if (nrow(edge_segments) > 0) {
+    edge_aes <- if (paga_extra_has_linewidth()) {
+      ggplot2::aes(x = .data$x, y = .data$y, xend = .data$xend, yend = .data$yend, linewidth = .data$weight)
+    } else {
+      ggplot2::aes(x = .data$x, y = .data$y, xend = .data$xend, yend = .data$yend, size = .data$weight)
+    }
+    edge_scale <- if (paga_extra_has_linewidth()) {
+      ggplot2::scale_linewidth(range = c(0.02, 0.16), guide = "none")
+    } else {
+      ggplot2::scale_size(range = c(0.02, 0.16), guide = "none")
+    }
+    p <- p +
+      ggplot2::geom_segment(
+        data = edge_segments,
+        edge_aes,
+        inherit.aes = FALSE,
+        color = "grey62",
+        alpha = 0.22,
+        lineend = "round"
+      ) +
+      edge_scale
+  }
+  p <- p +
+    ggplot2::geom_point(
+      data = plot_points,
+      ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2, color = .data$clusters),
+      size = 0.22,
+      alpha = 0.65,
+      stroke = 0
+    ) +
+    ggplot2::geom_text(
+      data = cluster_summary,
+      ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2, label = .data$clusters),
+      inherit.aes = FALSE,
+      size = 3,
+      fontface = "bold",
+      color = "black"
+    ) +
+    paga_extra_coord_umap(points) +
+    ggplot2::labs(
+      title = paste0("UMAP neighbor graph edges: ", label),
+      subtitle = paste0("Cell-cell edges from h5ad obsp/connectivities; plotted edges: ", nrow(edge_segments)),
+      x = "UMAP 1",
+      y = "UMAP 2"
+    ) +
+    paga_extra_theme(9) +
+    ggplot2::guides(color = "none")
+  paga_extra_save_both(p, out_stub, width = 7.2, height = 6.2)
+  nrow(edge_segments)
+}
+
+paga_extra_plot_umap_edges <- function(points, edges, cluster_summary, label, out_stub, max_points = 60000L) {
+  plot_points <- paga_extra_downsample_points(points, max_points)
+  edge_segments <- paga_extra_edge_segments(edges %>% dplyr::filter(.data$above_threshold %in% TRUE), cluster_summary)
+  if (nrow(edge_segments) == 0) edge_segments <- paga_extra_edge_segments(edges, cluster_summary)
+  p <- ggplot2::ggplot(plot_points, ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2, color = .data$clusters)) +
+    ggplot2::geom_point(size = 0.25, alpha = 0.45)
+  if (nrow(edge_segments) > 0) {
+    edge_aes <- if (paga_extra_has_linewidth()) {
+      ggplot2::aes(x = .data$x, y = .data$y, xend = .data$xend, yend = .data$yend, linewidth = .data$connectivity)
+    } else {
+      ggplot2::aes(x = .data$x, y = .data$y, xend = .data$xend, yend = .data$yend, size = .data$connectivity)
+    }
+    edge_scale <- if (paga_extra_has_linewidth()) {
+      ggplot2::scale_linewidth(range = c(0.25, 1.8), guide = "none")
+    } else {
+      ggplot2::scale_size(range = c(0.25, 1.8), guide = "none")
+    }
+    p <- p +
+      ggplot2::geom_segment(
+        data = edge_segments,
+        edge_aes,
+        inherit.aes = FALSE,
+        color = "black",
+        alpha = 0.75,
+        lineend = "round"
+      ) +
+      edge_scale
+  }
+  p <- p +
+    ggplot2::geom_text(
+      data = cluster_summary,
+      ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2, label = .data$clusters),
+      inherit.aes = FALSE,
+      size = 3,
+      fontface = "bold",
+      color = "black"
+    ) +
+    paga_extra_coord_umap(points) +
+    ggplot2::labs(
+      title = paste0("PAGA UMAP graph overlay: ", label),
+      x = "UMAP 1",
+      y = "UMAP 2"
+    ) +
+    paga_extra_theme(9) +
+    ggplot2::guides(color = "none")
+  paga_extra_save_both(p, out_stub, width = 7.2, height = 6.2)
+}
+
+paga_extra_plot_dpt_umap <- function(points, label, out_stub, max_points = 60000L) {
+  if (!any(is.finite(points$dpt_pseudotime))) return(invisible(NULL))
+  plot_points <- paga_extra_downsample_points(points, max_points)
+  p <- ggplot2::ggplot(plot_points, ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2, color = .data$dpt_pseudotime)) +
+    ggplot2::geom_point(size = 0.25, alpha = 0.65) +
+    ggplot2::scale_color_viridis_c(option = "magma", name = "DPT\npseudotime") +
+    paga_extra_coord_umap(points) +
+    ggplot2::labs(
+      title = paste0("PAGA DPT pseudotime: ", label),
+      x = "UMAP 1",
+      y = "UMAP 2"
+    ) +
+    paga_extra_theme(9)
+  paga_extra_save_both(p, out_stub, width = 7.2, height = 6.2)
+}
+
+paga_extra_plot_macrostates <- function(points, state_summary, label, out_stub, max_points = 60000L) {
+  plot_df <- points %>%
+    dplyr::mutate(clusters = as.character(.data$clusters)) %>%
+    dplyr::left_join(state_summary %>% dplyr::select(clusters, macrostate), by = "clusters")
+  plot_points <- paga_extra_downsample_points(plot_df, max_points)
+  p <- ggplot2::ggplot(plot_points, ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2, color = .data$macrostate)) +
+    ggplot2::geom_point(size = 0.25, alpha = 0.55) +
+    ggplot2::geom_text(
+      data = state_summary,
+      ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2, label = .data$clusters),
+      inherit.aes = FALSE,
+      size = 3,
+      fontface = "bold",
+      color = "black"
+    ) +
+    paga_extra_coord_umap(points) +
+    ggplot2::labs(
+      title = paste0("PAGA macrostates: ", label),
+      x = "UMAP 1",
+      y = "UMAP 2",
+      color = "Macrostate"
+    ) +
+    paga_extra_theme(9)
+  paga_extra_save_both(p, out_stub, width = 7.2, height = 6.2)
+}
+
+paga_extra_plot_terminal_states <- function(points, state_summary, label, out_stub, max_points = 60000L) {
+  state_summary$terminal_state <- ifelse(state_summary$is_terminal_candidate, "terminal_candidate", "other")
+  plot_df <- points %>%
+    dplyr::mutate(clusters = as.character(.data$clusters)) %>%
+    dplyr::left_join(state_summary %>% dplyr::select(clusters, terminal_state), by = "clusters")
+  plot_points <- paga_extra_downsample_points(plot_df, max_points)
+  terminal_centers <- state_summary %>% dplyr::filter(.data$is_terminal_candidate %in% TRUE)
+  p <- ggplot2::ggplot(plot_points, ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2)) +
+    ggplot2::geom_point(color = "grey78", size = 0.22, alpha = 0.45) +
+    ggplot2::geom_point(
+      data = plot_points %>% dplyr::filter(.data$terminal_state == "terminal_candidate"),
+      ggplot2::aes(color = .data$clusters),
+      size = 0.35,
+      alpha = 0.75
+    )
+  if (nrow(terminal_centers) > 0) {
+    p <- p +
+      ggplot2::geom_point(
+        data = terminal_centers,
+        ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2),
+        inherit.aes = FALSE,
+        shape = 8,
+        size = 3,
+        stroke = 0.9,
+        color = "black"
+      ) +
+      ggplot2::geom_text(
+        data = terminal_centers,
+        ggplot2::aes(x = .data$UMAP_1, y = .data$UMAP_2, label = .data$clusters),
+        inherit.aes = FALSE,
+        size = 3,
+        fontface = "bold",
+        vjust = -0.9,
+        color = "black"
+      )
+  }
+  p <- p +
+    paga_extra_coord_umap(points) +
+    ggplot2::labs(
+      title = paste0("PAGA terminal candidate clusters: ", label),
+      x = "UMAP 1",
+      y = "UMAP 2",
+      color = "Terminal\ncluster"
+    ) +
+    paga_extra_theme(9)
+  paga_extra_save_both(p, out_stub, width = 7.2, height = 6.2)
+}
+
+paga_extra_plot_graph <- function(edges, state_summary, label, out_stub) {
+  if (nrow(state_summary) == 0) return(invisible(NULL))
+  if (!requireNamespace("igraph", quietly = TRUE) || nrow(edges) == 0) {
+    return(invisible(NULL))
+  }
+  graph_df <- edges %>%
+    dplyr::transmute(from = .data$group_1, to = .data$group_2, weight = .data$connectivity)
+  g <- igraph::graph_from_data_frame(graph_df, directed = FALSE, vertices = data.frame(name = state_summary$clusters))
+  coords <- state_summary %>%
+    dplyr::select(name = clusters, x = cluster_order, y = median_dpt_pseudotime)
+  coords$y[!is.finite(coords$y)] <- 0
+  edge_df <- as.data.frame(igraph::as_edgelist(g), stringsAsFactors = FALSE)
+  if (nrow(edge_df) > 0) {
+    names(edge_df) <- c("from", "to")
+    edge_df$weight <- igraph::E(g)$weight
+    edge_df <- edge_df %>%
+      dplyr::left_join(coords, by = c("from" = "name")) %>%
+      dplyr::left_join(coords, by = c("to" = "name"), suffix = c("", "_to")) %>%
+      dplyr::rename(xend = x_to, yend = y_to)
+  }
+  node_df <- dplyr::left_join(state_summary, coords, by = c("clusters" = "name"))
+  p <- ggplot2::ggplot()
+  if (exists("edge_df") && nrow(edge_df) > 0) {
+    edge_aes <- if (paga_extra_has_linewidth()) {
+      ggplot2::aes(x = .data$x, y = .data$y, xend = .data$xend, yend = .data$yend, linewidth = .data$weight)
+    } else {
+      ggplot2::aes(x = .data$x, y = .data$y, xend = .data$xend, yend = .data$yend, size = .data$weight)
+    }
+    edge_scale <- if (paga_extra_has_linewidth()) {
+      ggplot2::scale_linewidth(range = c(0.3, 2.0), guide = "none")
+    } else {
+      ggplot2::scale_size(range = c(0.3, 2.0), guide = "none")
+    }
+    p <- p +
+      ggplot2::geom_segment(
+        data = edge_df,
+        edge_aes,
+        color = "grey35",
+        alpha = 0.75,
+        lineend = "round"
+      ) +
+      edge_scale
+  }
+  p <- p +
+    ggplot2::geom_point(
+      data = node_df,
+      ggplot2::aes(x = .data$x, y = .data$y, fill = .data$macrostate),
+      shape = 21,
+      size = 5,
+      color = "black"
+    ) +
+    ggplot2::geom_text(
+      data = node_df,
+      ggplot2::aes(x = .data$x, y = .data$y, label = .data$clusters),
+      size = 3,
+      fontface = "bold",
+      vjust = -1.1
+    ) +
+    ggplot2::labs(
+      title = paste0("PAGA cluster graph ordered by DPT: ", label),
+      x = "Cluster order",
+      y = "Median DPT pseudotime",
+      fill = "Macrostate"
+    ) +
+    paga_extra_theme(9)
+  paga_extra_save_both(p, out_stub, width = 7.2, height = 5.2)
+}
+
+paga_extra_read_top_degs <- function(deg_round2_root, deg_group_relative_dir, analysis_group, clusters, top_n = 10L) {
+  if (is.null(deg_round2_root) || !dir.exists(deg_round2_root)) return(data.frame())
+  group_dir <- file.path(deg_round2_root, "01_cluster_final_vs_rest", deg_group_relative_dir)
+  if (!dir.exists(group_dir)) return(data.frame())
+  rows <- list()
+  clusters <- as.character(clusters)
+  for (cluster_id in clusters) {
+    cluster_stub <- paga_extra_safe_component(cluster_id)
+    marker_file <- file.path(group_dir, paste0("cluster_final_", cluster_stub, "_vs_rest_markers.csv"))
+    if (!file.exists(marker_file)) {
+      matches <- list.files(
+        group_dir,
+        pattern = paste0("^cluster_final_", cluster_stub, "_vs_rest_markers\\.csv$"),
+        full.names = TRUE,
+        recursive = FALSE
+      )
+      if (length(matches) > 0) marker_file <- matches[1]
+    }
+    if (!file.exists(marker_file) || file.info(marker_file)$size <= 0) next
+    keep_cols <- c("gene", "gene_symbol", "p_val", "avg_log2FC", "avg_logFC", "pct.1", "pct.2", "p_val_adj")
+    df <- paga_extra_read_csv_if_exists(marker_file, keep_cols)
+    if (nrow(df) == 0) next
+    if (!("gene" %in% names(df))) df$gene <- NA_character_
+    if (!("gene_symbol" %in% names(df))) df$gene_symbol <- NA_character_
+    lfc <- if ("avg_log2FC" %in% names(df) && any(is.finite(paga_extra_num(df$avg_log2FC)))) df$avg_log2FC else df$avg_logFC
+    df$lfc <- paga_extra_num(lfc)
+    df$p_val_adj_num <- if ("p_val_adj" %in% names(df)) paga_extra_num(df$p_val_adj) else NA_real_
+    df$p_val_num <- if ("p_val" %in% names(df)) paga_extra_num(df$p_val) else NA_real_
+    df$gene_label <- dplyr::coalesce(paga_extra_chr(df$gene_symbol), paga_extra_chr(df$gene))
+    ranked <- df %>%
+      dplyr::filter(!is.na(.data$gene_label), is.finite(.data$lfc))
+    sig <- ranked %>%
+      dplyr::filter(is.finite(.data$p_val_adj_num), .data$p_val_adj_num < 0.05)
+    rank_source <- if (nrow(sig) > 0) sig else ranked
+    up <- rank_source %>%
+      dplyr::filter(.data$lfc > 0)
+    if (nrow(up) == 0) up <- rank_source
+    top <- up %>%
+      dplyr::arrange(.data$p_val_adj_num, dplyr::desc(.data$lfc), .data$p_val_num, .data$gene_label) %>%
+      dplyr::slice_head(n = top_n) %>%
+      dplyr::mutate(
+        source_cluster = as.character(cluster_id),
+        deg_rank = dplyr::row_number(),
+        analysis_group = analysis_group,
+        deg_group_relative_dir = deg_group_relative_dir,
+        marker_file = marker_file
+      )
+    rows[[length(rows) + 1L]] <- top
+  }
+  out <- dplyr::bind_rows(rows)
+  if (nrow(out) == 0) return(out)
+  out %>%
+    dplyr::select(
+      analysis_group,
+      deg_group_relative_dir,
+      source_cluster,
+      deg_rank,
+      gene,
+      gene_symbol,
+      gene_label,
+      lfc,
+      p_val_num,
+      p_val_adj_num,
+      dplyr::everything()
+    )
+}
+
+paga_extra_h5_read_strings <- function(h5_file, path) {
+  obj <- tryCatch(h5_file[[path]], error = function(e) NULL)
+  if (is.null(obj)) return(character())
+  paga_extra_chr(obj[])
+}
+
+paga_extra_read_h5ad_expression_subset <- function(h5ad_file, gene_candidates) {
+  if (!requireNamespace("hdf5r", quietly = TRUE)) {
+    stop("Package hdf5r is required to read expression from paga_result.h5ad.", call. = FALSE)
+  }
+  if (!requireNamespace("Matrix", quietly = TRUE)) {
+    stop("Package Matrix is required to read sparse expression from paga_result.h5ad.", call. = FALSE)
+  }
+  gene_candidates <- unique(paga_extra_chr(gene_candidates))
+  gene_candidates <- gene_candidates[!is.na(gene_candidates)]
+  if (length(gene_candidates) == 0) stop("No candidate genes requested for h5ad expression.", call. = FALSE)
+
+  f <- hdf5r::H5File$new(h5ad_file, "r")
+  on.exit(f$close_all(), add = TRUE)
+
+  cells <- paga_extra_h5_read_strings(f, "obs/_index")
+  var_names <- paga_extra_h5_read_strings(f, "var/_index")
+  var_gene <- paga_extra_h5_read_strings(f, "var/gene")
+  if (length(cells) == 0) stop("Missing obs/_index in h5ad: ", h5ad_file, call. = FALSE)
+  if (length(var_names) == 0 && length(var_gene) == 0) stop("Missing var index/gene in h5ad: ", h5ad_file, call. = FALSE)
+  if (length(var_gene) == length(var_names) && length(var_gene) > 0) {
+    var_lookup <- var_gene
+    var_fallback <- var_names
+  } else {
+    var_lookup <- var_names
+    var_fallback <- var_names
+  }
+  n_obs <- length(cells)
+  n_vars <- length(var_lookup)
+
+  candidate_to_var <- match(gene_candidates, var_lookup)
+  missing_idx <- which(is.na(candidate_to_var) & gene_candidates %in% var_fallback)
+  if (length(missing_idx) > 0) candidate_to_var[missing_idx] <- match(gene_candidates[missing_idx], var_fallback)
+  keep <- !is.na(candidate_to_var)
+  if (!any(keep)) {
+    return(list(matrix = NULL, cells = cells, genes = character(), requested_genes = gene_candidates, available_genes = character()))
+  }
+  gene_candidates <- gene_candidates[keep]
+  var_idx <- as.integer(candidate_to_var[keep])
+  dedup <- !duplicated(var_idx)
+  gene_candidates <- gene_candidates[dedup]
+  var_idx <- var_idx[dedup]
+  gene_labels <- var_lookup[var_idx]
+  names(gene_labels) <- gene_candidates
+
+  x_obj <- f[["X"]]
+  if (inherits(x_obj, "H5Group")) {
+    if (!all(c("data", "indices", "indptr") %in% names(x_obj))) {
+      stop("Sparse X group is missing data/indices/indptr in h5ad: ", h5ad_file, call. = FALSE)
+    }
+    data <- paga_extra_num(x_obj[["data"]][])
+    indices <- as.integer(x_obj[["indices"]][]) + 1L
+    indptr <- as.integer(x_obj[["indptr"]][])
+    if (length(indptr) == n_obs + 1L) {
+      row_counts <- diff(indptr)
+      row_idx <- rep.int(seq_len(n_obs), row_counts)
+      selected_by_var <- rep(NA_integer_, n_vars)
+      selected_by_var[var_idx] <- seq_along(var_idx)
+      col_idx <- selected_by_var[indices]
+      keep_nnz <- !is.na(col_idx)
+      expr <- Matrix::sparseMatrix(
+        i = row_idx[keep_nnz],
+        j = col_idx[keep_nnz],
+        x = data[keep_nnz],
+        dims = c(n_obs, length(var_idx)),
+        dimnames = list(cells, gene_candidates)
+      )
+    } else if (length(indptr) == n_vars + 1L) {
+      ii <- integer()
+      jj <- integer()
+      xx <- numeric()
+      for (j in seq_along(var_idx)) {
+        v <- var_idx[j]
+        start <- indptr[v] + 1L
+        end <- indptr[v + 1L]
+        if (end < start) next
+        idx <- start:end
+        ii <- c(ii, indices[idx])
+        jj <- c(jj, rep.int(j, length(idx)))
+        xx <- c(xx, data[idx])
+      }
+      expr <- Matrix::sparseMatrix(
+        i = ii,
+        j = jj,
+        x = xx,
+        dims = c(n_obs, length(var_idx)),
+        dimnames = list(cells, gene_candidates)
+      )
+    } else {
+      stop("Cannot infer CSR/CSC orientation for h5ad X: ", h5ad_file, call. = FALSE)
+    }
+  } else {
+    dense <- x_obj[,]
+    if (nrow(dense) == n_vars && ncol(dense) == n_obs) dense <- t(dense)
+    if (nrow(dense) != n_obs || ncol(dense) != n_vars) {
+      stop("Dense X dimensions do not match obs/var in h5ad: ", h5ad_file, call. = FALSE)
+    }
+    expr <- Matrix::Matrix(dense[, var_idx, drop = FALSE], sparse = TRUE)
+    rownames(expr) <- cells
+    colnames(expr) <- gene_candidates
+  }
+  list(
+    matrix = expr,
+    cells = cells,
+    genes = gene_candidates,
+    requested_genes = gene_candidates,
+    available_genes = unname(gene_labels)
+  )
+}
+
+paga_extra_pick_expr_gene <- function(top_degs, available_genes) {
+  available_genes <- unique(paga_extra_chr(available_genes))
+  available_genes <- available_genes[!is.na(available_genes)]
+  pick_one <- function(gene, symbol, label) {
+    candidates <- unique(paga_extra_chr(c(gene, symbol, label)))
+    candidates <- candidates[!is.na(candidates)]
+    hit <- candidates[candidates %in% available_genes]
+    if (length(hit) > 0) hit[1] else NA_character_
+  }
+  mapply(pick_one, top_degs$gene, top_degs$gene_symbol, top_degs$gene_label, USE.NAMES = FALSE)
+}
+
+paga_extra_cluster_mean_expression <- function(expr_mat, expr_cells, points, cluster_order) {
+  point_df <- points %>%
+    dplyr::mutate(cell = paga_extra_chr(.data$cell), clusters = as.character(.data$clusters)) %>%
+    dplyr::select(cell, clusters, dpt_pseudotime)
+  cell_meta <- point_df[match(expr_cells, point_df$cell), , drop = FALSE]
+  cluster_levels <- as.character(cluster_order$clusters)
+  rows <- list()
+  for (cluster_id in cluster_levels) {
+    idx <- which(cell_meta$clusters == cluster_id)
+    if (length(idx) == 0) next
+    means <- Matrix::colMeans(expr_mat[idx, , drop = FALSE], na.rm = TRUE)
+    rows[[length(rows) + 1L]] <- data.frame(
+      clusters = cluster_id,
+      expr_gene = names(means),
+      mean_expression = as.numeric(means),
+      n_cells = length(idx),
+      stringsAsFactors = FALSE
+    )
+  }
+  dplyr::bind_rows(rows)
+}
+
+paga_extra_deg_cluster_status <- function(cluster_order, top_degs, matched_degs) {
+  cluster_levels <- as.character(cluster_order$clusters)
+  count_by_cluster <- function(df, count_col) {
+    if (nrow(df) == 0 || !("source_cluster" %in% names(df))) {
+      return(data.frame(source_cluster = character(), stringsAsFactors = FALSE))
+    }
+    df %>%
+      dplyr::mutate(source_cluster = as.character(.data$source_cluster)) %>%
+      dplyr::filter(!is.na(.data$source_cluster)) %>%
+      dplyr::count(.data$source_cluster, name = count_col)
+  }
+  top_counts <- count_by_cluster(top_degs, "top_deg_rows")
+  matched_counts <- count_by_cluster(matched_degs, "matched_expression_rows")
+  status_df <- data.frame(source_cluster = cluster_levels, stringsAsFactors = FALSE) %>%
+    dplyr::left_join(top_counts, by = "source_cluster") %>%
+    dplyr::left_join(matched_counts, by = "source_cluster")
+  if (!("top_deg_rows" %in% names(status_df))) status_df$top_deg_rows <- 0L
+  if (!("matched_expression_rows" %in% names(status_df))) status_df$matched_expression_rows <- 0L
+  status_df$top_deg_rows[is.na(status_df$top_deg_rows)] <- 0L
+  status_df$matched_expression_rows[is.na(status_df$matched_expression_rows)] <- 0L
+  status_df$deg_status <- dplyr::case_when(
+    status_df$top_deg_rows <= 0L ~ "no_top_deg_rows",
+    status_df$matched_expression_rows <= 0L ~ "no_expression_gene_match",
+    TRUE ~ "matched"
+  )
+  status_df
+}
+
+paga_extra_make_heatmap_table <- function(top_degs, cluster_means, cluster_order) {
+  cluster_levels <- as.character(cluster_order$clusters)
+  top_degs <- top_degs %>%
+    dplyr::filter(!is.na(.data$expr_gene)) %>%
+    dplyr::mutate(
+      row_id = paste(.data$source_cluster, sprintf("%02d", .data$deg_rank), .data$gene_label, sep = "|"),
+      row_label = .data$gene_label,
+      missing_deg = FALSE
+    )
+  missing_clusters <- setdiff(cluster_levels, unique(as.character(top_degs$source_cluster)))
+  if (length(missing_clusters) > 0) {
+    placeholders <- data.frame(
+      source_cluster = missing_clusters,
+      deg_rank = 0L,
+      gene = NA_character_,
+      gene_symbol = NA_character_,
+      gene_label = "(no top DEG)",
+      expr_gene = paste0("__no_top_deg__", missing_clusters),
+      row_id = paste(missing_clusters, "00", "no_top_deg", sep = "|"),
+      row_label = "(no top DEG)",
+      missing_deg = TRUE,
+      stringsAsFactors = FALSE
+    )
+    top_degs <- dplyr::bind_rows(top_degs, placeholders)
+  }
+  if (nrow(top_degs) == 0 || nrow(cluster_means) == 0) return(data.frame())
+  grid <- tidyr::expand_grid(
+    row_id = top_degs$row_id,
+    clusters = cluster_levels
+  ) %>%
+    dplyr::left_join(top_degs, by = "row_id") %>%
+    dplyr::left_join(cluster_means, by = c("clusters", "expr_gene"))
+  grid$missing_deg <- grid$missing_deg %in% TRUE
+  grid$mean_expression[!is.finite(grid$mean_expression) & !grid$missing_deg] <- 0
+  grid <- grid %>%
+    dplyr::group_by(.data$row_id) %>%
+    dplyr::mutate(
+      expression_z = {
+        x <- .data$mean_expression
+        if (all(.data$missing_deg %in% TRUE)) {
+          rep(NA_real_, length(x))
+        } else {
+          sx <- stats::sd(x, na.rm = TRUE)
+          if (!is.finite(sx) || sx == 0) rep(0, length(x)) else (x - mean(x, na.rm = TRUE)) / sx
+        }
+      }
+    ) %>%
+    dplyr::ungroup()
+  grid$clusters <- factor(as.character(grid$clusters), levels = cluster_levels)
+  row_levels <- top_degs %>%
+    dplyr::arrange(match(.data$source_cluster, cluster_levels), .data$missing_deg, .data$deg_rank) %>%
+    dplyr::pull(row_id)
+  grid$row_id <- factor(grid$row_id, levels = rev(row_levels))
+  grid$source_cluster <- factor(as.character(grid$source_cluster), levels = rev(cluster_levels))
+  grid
+}
+
+paga_extra_plot_deg_heatmap <- function(heat_df, label, out_stub) {
+  if (nrow(heat_df) == 0) return(invisible(NULL))
+  label_map <- stats::setNames(as.character(heat_df$row_label), as.character(heat_df$row_id))
+  n_rows <- length(unique(as.character(heat_df$row_id)))
+  n_cols <- length(unique(as.character(heat_df$clusters)))
+  tile_layer <- if (paga_extra_has_linewidth()) {
+    ggplot2::geom_tile(color = "white", linewidth = 0.15)
+  } else {
+    ggplot2::geom_tile(color = "white", size = 0.15)
+  }
+	  p <- ggplot2::ggplot(heat_df, ggplot2::aes(x = .data$clusters, y = .data$row_id, fill = .data$expression_z)) +
+	    tile_layer +
+	    ggplot2::facet_grid(source_cluster ~ ., scales = "free_y", space = "free_y", drop = FALSE) +
+	    ggplot2::scale_y_discrete(labels = label_map) +
+	    ggplot2::scale_fill_gradient2(
+	      low = "#2166AC",
+	      mid = "white",
+	      high = "#B2182B",
+	      midpoint = 0,
+	      name = "Gene-wise\nz-score",
+	      na.value = "grey86"
+	    ) +
+    ggplot2::labs(
+      title = paste0("Top DEG expression across PAGA-ordered clusters: ", label),
+      x = "PAGA/DPT ordered cluster",
+      y = "Top DEG grouped by source cluster"
+    ) +
+    paga_extra_theme(8) +
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1),
+      axis.text.y = ggplot2::element_text(size = 6),
+      strip.text.y = ggplot2::element_text(angle = 0, size = 7)
+    )
+  paga_extra_save_both(
+    p,
+    out_stub,
+    width = max(7, 2.8 + 0.45 * n_cols),
+    height = max(6, 1.8 + 0.15 * n_rows)
+  )
+}
+
+paga_extra_make_cascade_table <- function(expr_mat, expr_cells, points, top_degs, max_genes = 30L, n_bins = 40L) {
+  if (!any(is.finite(points$dpt_pseudotime))) return(data.frame())
+  selected <- top_degs %>%
+    dplyr::filter(!is.na(.data$expr_gene)) %>%
+    dplyr::arrange(match(.data$source_cluster, unique(.data$source_cluster)), .data$deg_rank) %>%
+    dplyr::distinct(expr_gene, .keep_all = TRUE) %>%
+    dplyr::slice_head(n = max_genes)
+  if (nrow(selected) == 0) return(data.frame())
+  genes <- intersect(selected$expr_gene, colnames(expr_mat))
+  if (length(genes) == 0) return(data.frame())
+  point_df <- points %>%
+    dplyr::mutate(cell = paga_extra_chr(.data$cell), clusters = as.character(.data$clusters)) %>%
+    dplyr::select(cell, clusters, dpt_pseudotime)
+  cell_meta <- point_df[match(expr_cells, point_df$cell), , drop = FALSE]
+  keep_cells <- which(is.finite(cell_meta$dpt_pseudotime))
+  if (length(keep_cells) == 0) return(data.frame())
+  expr_small <- as.matrix(expr_mat[keep_cells, genes, drop = FALSE])
+  meta_small <- cell_meta[keep_cells, , drop = FALSE]
+  dpt_range <- range(meta_small$dpt_pseudotime, na.rm = TRUE)
+  if (!all(is.finite(dpt_range)) || diff(dpt_range) <= 0) return(data.frame())
+  breaks <- seq(dpt_range[1], dpt_range[2], length.out = n_bins + 1L)
+  bin <- cut(meta_small$dpt_pseudotime, breaks = breaks, include.lowest = TRUE, labels = FALSE)
+  bin_mid <- (breaks[-length(breaks)] + breaks[-1]) / 2
+  long <- as.data.frame(expr_small, stringsAsFactors = FALSE)
+  long$cell <- meta_small$cell
+  long$dpt_pseudotime <- meta_small$dpt_pseudotime
+  long$pseudotime_bin <- bin
+  long <- tidyr::pivot_longer(
+    long,
+    cols = dplyr::all_of(genes),
+    names_to = "expr_gene",
+    values_to = "expression"
+  )
+  long %>%
+    dplyr::filter(!is.na(.data$pseudotime_bin)) %>%
+    dplyr::group_by(.data$expr_gene, .data$pseudotime_bin) %>%
+    dplyr::summarise(
+      dpt_pseudotime = bin_mid[.data$pseudotime_bin[1]],
+      mean_expression = mean(.data$expression, na.rm = TRUE),
+      n_cells = dplyr::n(),
+      .groups = "drop"
+    ) %>%
+    dplyr::left_join(
+      selected %>% dplyr::select(expr_gene, gene_label, source_cluster, deg_rank),
+      by = "expr_gene"
+    )
+}
+
+paga_extra_plot_expression_cascade <- function(cascade_df, label, out_stub) {
+  if (nrow(cascade_df) == 0) return(invisible(NULL))
+  gene_order <- cascade_df %>%
+    dplyr::distinct(expr_gene, gene_label, source_cluster, deg_rank) %>%
+    dplyr::arrange(.data$source_cluster, .data$deg_rank) %>%
+    dplyr::mutate(gene_facet = paste0(.data$gene_label, " (cluster ", .data$source_cluster, ")"))
+  cascade_df <- dplyr::left_join(
+    cascade_df,
+    gene_order %>% dplyr::select(expr_gene, gene_facet),
+    by = "expr_gene"
+  )
+  cascade_df$gene_facet <- factor(cascade_df$gene_facet, levels = gene_order$gene_facet)
+  line_layer <- if (paga_extra_has_linewidth()) {
+    ggplot2::geom_line(linewidth = 0.55, alpha = 0.9)
+  } else {
+    ggplot2::geom_line(size = 0.55, alpha = 0.9)
+  }
+  p <- ggplot2::ggplot(cascade_df, ggplot2::aes(x = .data$dpt_pseudotime, y = .data$mean_expression, color = .data$source_cluster)) +
+    line_layer +
+    ggplot2::facet_wrap(~gene_facet, scales = "free_y", ncol = 5) +
+    ggplot2::labs(
+      title = paste0("Top DEG expression cascades over PAGA DPT: ", label),
+      x = "DPT pseudotime",
+      y = "Mean expression",
+      color = "Source\ncluster"
+    ) +
+    paga_extra_theme(8) +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 0))
+  n_genes <- length(unique(cascade_df$gene_facet))
+  paga_extra_save_both(p, out_stub, width = 12, height = max(5, ceiling(n_genes / 5) * 1.7 + 1.3))
+}
+
+paga_extra_run_expression_outputs <- function(run_row, points, cluster_order, out_dir, top_n = 10L, max_cascade_genes = 30L) {
+  top_degs <- paga_extra_read_top_degs(
+    deg_round2_root = run_row$deg_round2_root,
+    deg_group_relative_dir = run_row$deg_group_relative_dir,
+    analysis_group = run_row$analysis_group,
+    clusters = cluster_order$clusters,
+    top_n = top_n
+  )
+  paga_extra_write_csv(top_degs, file.path(out_dir, "paga_top10_deg_used.csv"))
+  if (nrow(top_degs) == 0) {
+    deg_status <- paga_extra_deg_cluster_status(cluster_order, top_degs, data.frame())
+    paga_extra_write_csv(deg_status, file.path(out_dir, "paga_top10_deg_cluster_match_status.csv"))
+    return(list(
+      status = "skipped_no_deg",
+      message = "No top DEG rows were available for this PAGA group.",
+      n_top_deg = 0L,
+      n_expr_genes = 0L,
+      heatmap_rows = 0L,
+      cascade_rows = 0L,
+      n_top_deg_clusters = 0L,
+      n_heatmap_source_clusters = 0L,
+      missing_deg_clusters = paste(deg_status$source_cluster, collapse = ";")
+    ))
+  }
+  gene_candidates <- unique(paga_extra_chr(c(top_degs$gene, top_degs$gene_symbol, top_degs$gene_label)))
+  gene_candidates <- gene_candidates[!is.na(gene_candidates)]
+  expr <- paga_extra_read_h5ad_expression_subset(run_row$h5ad, gene_candidates)
+  if (is.null(expr$matrix) || ncol(expr$matrix) == 0) {
+    deg_status <- paga_extra_deg_cluster_status(cluster_order, top_degs, data.frame())
+    paga_extra_write_csv(deg_status, file.path(out_dir, "paga_top10_deg_cluster_match_status.csv"))
+    return(list(
+      status = "skipped_no_matching_expression_genes",
+      message = "Top DEG genes were not found in h5ad var names.",
+      n_top_deg = nrow(top_degs),
+      n_expr_genes = 0L,
+      heatmap_rows = 0L,
+      cascade_rows = 0L,
+      n_top_deg_clusters = length(unique(as.character(top_degs$source_cluster))),
+      n_heatmap_source_clusters = 0L,
+      missing_deg_clusters = paste(deg_status$source_cluster[deg_status$deg_status != "matched"], collapse = ";")
+    ))
+  }
+  top_degs$expr_gene <- paga_extra_pick_expr_gene(top_degs, expr$genes)
+  matched_degs <- top_degs %>% dplyr::filter(!is.na(.data$expr_gene))
+  deg_status <- paga_extra_deg_cluster_status(cluster_order, top_degs, matched_degs)
+  paga_extra_write_csv(deg_status, file.path(out_dir, "paga_top10_deg_cluster_match_status.csv"))
+  if (nrow(matched_degs) == 0) {
+    return(list(
+      status = "skipped_no_matching_expression_genes",
+      message = "Top DEG genes were not found in h5ad var names.",
+      n_top_deg = 0L,
+      n_expr_genes = ncol(expr$matrix),
+      heatmap_rows = 0L,
+      cascade_rows = 0L,
+      n_top_deg_clusters = length(unique(as.character(top_degs$source_cluster))),
+      n_heatmap_source_clusters = 0L,
+      missing_deg_clusters = paste(deg_status$source_cluster[deg_status$deg_status != "matched"], collapse = ";")
+    ))
+  }
+  paga_extra_write_csv(matched_degs, file.path(out_dir, "paga_top10_deg_expression_matched.csv"))
+  cluster_means <- paga_extra_cluster_mean_expression(expr$matrix, expr$cells, points, cluster_order)
+  paga_extra_write_csv(cluster_means, file.path(out_dir, "paga_cluster_mean_expression.csv"))
+  heat_df <- paga_extra_make_heatmap_table(matched_degs, cluster_means, cluster_order)
+  paga_extra_write_csv(heat_df, file.path(out_dir, "paga_top10_deg_ordered_cluster_heatmap_values.csv"))
+  paga_extra_plot_deg_heatmap(heat_df, run_row$label, file.path(out_dir, "paga_top10_deg_ordered_cluster_heatmap"))
+  cascade_df <- paga_extra_make_cascade_table(
+    expr$matrix,
+    expr$cells,
+    points,
+    matched_degs,
+    max_genes = max_cascade_genes
+  )
+  paga_extra_write_csv(cascade_df, file.path(out_dir, "paga_top_deg_expression_cascade_values.csv"))
+  paga_extra_plot_expression_cascade(cascade_df, run_row$label, file.path(out_dir, "paga_top_deg_expression_cascades"))
+  list(
+    status = "completed",
+    message = NA_character_,
+    n_top_deg = nrow(matched_degs),
+    n_expr_genes = ncol(expr$matrix),
+    heatmap_rows = nrow(heat_df),
+    cascade_rows = nrow(cascade_df),
+    n_top_deg_clusters = length(unique(as.character(top_degs$source_cluster))),
+    n_heatmap_source_clusters = length(unique(as.character(heat_df$source_cluster))),
+    missing_deg_clusters = paste(deg_status$source_cluster[deg_status$deg_status != "matched"], collapse = ";")
+  )
+}
+
+paga_extra_run_one <- function(run_row, output_root, max_points = 60000L, top_n = 10L, max_cascade_genes = 30L, max_neighbor_edges = 50000L) {
+  out_dir <- file.path(output_root, run_row$output_subdir)
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  points <- paga_extra_read_points(run_row)
+  edges <- paga_extra_read_edges(run_row$paga_edges)
+  valid_clusters <- unique(as.character(points$clusters))
+  if (nrow(edges) > 0) {
+    edges <- edges[
+      as.character(edges$group_1) %in% valid_clusters &
+        as.character(edges$group_2) %in% valid_clusters,
+      ,
+      drop = FALSE
+    ]
+  }
+  cluster_summary <- paga_extra_cluster_summary(points, edges)
+  state_summary <- paga_extra_macrostates(cluster_summary, edges)
+  paga_extra_write_csv(points, file.path(out_dir, "paga_cells_used.csv"))
+  paga_extra_write_csv(edges, file.path(out_dir, "paga_edges_used.csv"))
+  paga_extra_write_csv(cluster_summary, file.path(out_dir, "paga_cluster_order.csv"))
+  paga_extra_write_csv(state_summary, file.path(out_dir, "paga_cluster_state_summary.csv"))
+	  paga_extra_plot_umap_edges(
+	    points,
+	    edges,
+	    cluster_summary,
+	    run_row$label,
+	    file.path(out_dir, "paga_umap_edges_on_data"),
+	    max_points = max_points
+	  )
+  n_neighbor_edges_plotted <- paga_extra_plot_umap_neighbor_edges(
+    points,
+    run_row$h5ad,
+    cluster_summary,
+    run_row$label,
+    file.path(out_dir, "paga_umap_neighbor_edges_on_data"),
+    max_points = max_points,
+    max_edges = max_neighbor_edges
+  )
+	  paga_extra_plot_dpt_umap(points, run_row$label, file.path(out_dir, "paga_dpt_pseudotime_umap"), max_points = max_points)
+  paga_extra_plot_macrostates(points, state_summary, run_row$label, file.path(out_dir, "paga_macrostate_umap"), max_points = max_points)
+  paga_extra_plot_terminal_states(points, state_summary, run_row$label, file.path(out_dir, "paga_terminal_candidate_umap"), max_points = max_points)
+  paga_extra_plot_graph(edges, state_summary, run_row$label, file.path(out_dir, "paga_cluster_graph_ordered_by_dpt"))
+
+  expr_status <- tryCatch(
+    paga_extra_run_expression_outputs(
+      run_row = run_row,
+      points = points,
+      cluster_order = cluster_summary,
+      out_dir = out_dir,
+      top_n = top_n,
+      max_cascade_genes = max_cascade_genes
+    ),
+    error = function(e) {
+      list(
+        status = "failed",
+        message = conditionMessage(e),
+        n_top_deg = NA_integer_,
+	        n_expr_genes = NA_integer_,
+	        heatmap_rows = NA_integer_,
+	        cascade_rows = NA_integer_,
+        n_top_deg_clusters = NA_integer_,
+        n_heatmap_source_clusters = NA_integer_,
+        missing_deg_clusters = NA_character_
+	      )
+	    }
+	  )
+  data.frame(
+    h5ad = run_row$h5ad,
+    source_relative_dir = run_row$source_relative_dir,
+    analysis_group = run_row$analysis_group,
+    deg_group_relative_dir = run_row$deg_group_relative_dir,
+    output_dir = out_dir,
+    status = if (identical(expr_status$status, "completed")) "completed" else "partial",
+    structural_status = "completed",
+    expression_status = expr_status$status,
+    expression_message = expr_status$message,
+    n_cells = nrow(points),
+    n_clusters = nrow(cluster_summary),
+	    n_edges = nrow(edges),
+    n_neighbor_edges_plotted = n_neighbor_edges_plotted,
+	    n_terminal_candidates = sum(state_summary$is_terminal_candidate, na.rm = TRUE),
+	    n_top_deg = expr_status$n_top_deg,
+	    n_expr_genes = expr_status$n_expr_genes,
+	    heatmap_rows = expr_status$heatmap_rows,
+	    cascade_rows = expr_status$cascade_rows,
+    n_top_deg_clusters = expr_status$n_top_deg_clusters,
+    n_heatmap_source_clusters = expr_status$n_heatmap_source_clusters,
+    missing_deg_clusters = expr_status$missing_deg_clusters,
+	    stringsAsFactors = FALSE
+	  )
+	}
+
+run_paga_extra_analysis <- function(
+  trajectory_root,
+  deg_round2_root,
   output_root,
-  out_final_summary,
-  scvelo_tn_ploidy,
-  monocle3_tn_ploidy
-)
+  analysis_label = "PAGA",
+	  top_n = 10L,
+	  max_cascade_genes = 30L,
+	  max_points = 60000L,
+  max_neighbor_edges = 50000L
+	) {
+  dir.create(output_root, recursive = TRUE, showWarnings = FALSE)
+  manifest <- paga_extra_discover_runs(trajectory_root)
+  if (nrow(manifest) == 0) {
+    empty_status <- data.frame()
+    paga_extra_write_csv(manifest, file.path(output_root, "paga_run_manifest.csv"))
+    paga_extra_write_csv(empty_status, file.path(output_root, "paga_extra_status.csv"))
+    return(list(manifest = manifest, status = empty_status))
+  }
+  manifest$deg_round2_root <- deg_round2_root
+  manifest$analysis_label <- analysis_label
+  paga_extra_write_csv(manifest, file.path(output_root, "paga_run_manifest.csv"))
 
-run_summary_lines <- c(
-  "04b extra scVelo/Monocle3 pseudotime analysis completed.",
-  paste0("Output root: ", normalizePath(output_root, mustWork = FALSE)),
-  paste0("scVelo cell rows: ", nrow(velocity_cells)),
-  paste0("Monocle3 cell rows: ", nrow(monocle3_cells)),
-  paste0("Stat test rows: ", nrow(stat_tests)),
-  paste0("Group summary rows: ", nrow(group_summaries)),
-  paste0("GSEA pseudotime rows: ", nrow(pathway_trajectory)),
-  paste0("Hypoxia timing rows: ", nrow(hypoxia_timing)),
-  paste0("TN/Ploidy scVelo key conclusion rows: ", nrow(scvelo_tn_ploidy$key_conclusions)),
-  paste0("TN/Ploidy Monocle3 key conclusion rows: ", nrow(monocle3_tn_ploidy$key_conclusions)),
-  paste0("scVelo group cluster timing UMAP rows: ", nrow(scvelo_group_timing$status)),
-  paste0("scVelo group cluster timing summary rows: ", nrow(scvelo_group_timing$cluster_summary)),
-  paste0("scVelo group sample histogram rows: ", nrow(scvelo_group_timing$histogram_summary)),
-  paste0("Monocle3 group cluster timing UMAP rows: ", nrow(monocle3_group_timing$status)),
-  paste0("Monocle3 group cluster timing summary rows: ", nrow(monocle3_group_timing$cluster_summary)),
-  paste0("Monocle3 group sample histogram rows: ", nrow(monocle3_group_timing$histogram_summary)),
-  paste0("PAGA extra groups processed: ", if (is.data.frame(paga_extra$status)) nrow(paga_extra$status) else 0L),
-  paste0("PAGA extra completed groups: ", if (is.data.frame(paga_extra$status) && nrow(paga_extra$status) > 0) sum(paga_extra$status$status == "completed", na.rm = TRUE) else 0L),
-  paste0("PAGA extra partial groups: ", if (is.data.frame(paga_extra$status) && nrow(paga_extra$status) > 0) sum(paga_extra$status$status == "partial", na.rm = TRUE) else 0L),
-  paste0("Final summary copied supporting files: ", sum(final_tumor_summary$copy_manifest$copied, na.rm = TRUE)),
-  "",
-  "Main time metrics:",
-  "  scVelo: velocity_pseudotime",
-  "  Monocle3: pseudotime",
-  "",
-  "Interpretation note:",
-  "  Cell-level tests compare cell distributions and can be highly powered because cells are not biological replicates.",
-  "  Sample-level tests summarize each sample by median first and are included as a more conservative companion table.",
-  "",
-  "Key outputs:",
-  "  01_tables/scVelo_cell_metrics_long.csv",
-  "  01_tables/Monocle3_cell_metrics_long.csv",
-  "  02_stats/scVelo_Monocle3_stat_tests.csv",
-  "  02_stats/scVelo_Monocle3_group_summaries.csv",
-  "  04_question_summary/question_level_summary.csv",
-  "  04_question_summary/method_separate_answer_summary.csv",
-  "  05_method_separate/scVelo/*",
-  "  05_method_separate/Monocle3/*",
-  "  06_deg_gsea_pseudotime/*",
-  "  07_umap_overlays/*",
-  "  08_flow_overlays/*",
-  "  09_tn_ploidy_cluster_response/*",
-  "  10_cluster_timing/scVelo/*",
-  "  10_cluster_timing/Monocle3/*",
-  "  11_paga_extra/*",
-  "  summary/*",
-  "  03_plots/*.pdf and *.png"
-)
-writeLines(run_summary_lines, file.path(output_root, "run_summary.txt"))
-
-message(paste(run_summary_lines, collapse = "\n"))
+  status_rows <- vector("list", nrow(manifest))
+  for (i in seq_len(nrow(manifest))) {
+    message("Drawing PAGA extra outputs: ", i, "/", nrow(manifest), " ", manifest$label[i])
+    run_row <- manifest[i, , drop = FALSE]
+    status_rows[[i]] <- tryCatch(
+      paga_extra_run_one(
+        run_row = run_row,
+	        output_root = output_root,
+	        max_points = max_points,
+	        top_n = top_n,
+	        max_cascade_genes = max_cascade_genes,
+        max_neighbor_edges = max_neighbor_edges
+	      ),
+      error = function(e) {
+        out_dir <- file.path(output_root, run_row$output_subdir)
+        dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+        data.frame(
+          h5ad = run_row$h5ad,
+          source_relative_dir = run_row$source_relative_dir,
+          analysis_group = run_row$analysis_group,
+          deg_group_relative_dir = run_row$deg_group_relative_dir,
+          output_dir = out_dir,
+          status = "failed",
+          structural_status = "failed",
+          expression_status = "not_attempted",
+          expression_message = conditionMessage(e),
+	          n_cells = NA_integer_,
+	          n_clusters = NA_integer_,
+	          n_edges = NA_integer_,
+          n_neighbor_edges_plotted = NA_integer_,
+	          n_terminal_candidates = NA_integer_,
+	          n_top_deg = NA_integer_,
+	          n_expr_genes = NA_integer_,
+	          heatmap_rows = NA_integer_,
+	          cascade_rows = NA_integer_,
+          n_top_deg_clusters = NA_integer_,
+          n_heatmap_source_clusters = NA_integer_,
+          missing_deg_clusters = NA_character_,
+	          stringsAsFactors = FALSE
+	        )
+      }
+    )
+  }
+  status <- dplyr::bind_rows(status_rows)
+  paga_extra_write_csv(status, file.path(output_root, "paga_extra_status.csv"))
+  if (any(status$status == "failed" | status$expression_status == "failed", na.rm = TRUE)) {
+    warning("Some PAGA extra outputs failed; see paga_extra_status.csv.", call. = FALSE)
+  }
+  list(manifest = manifest, status = status)
+}

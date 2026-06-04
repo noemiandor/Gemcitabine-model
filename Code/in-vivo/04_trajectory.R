@@ -163,6 +163,161 @@ parse_numeric_cfg <- function(value, default, name) {
   out
 }
 
+cluster_config_split_regex <- function() {
+  paste0("[,;|", intToUtf8(c(65292, 65307, 12289)), "]+")
+}
+
+strip_cluster_token_quotes <- function(value) {
+  quote_chars <- paste0("\"'", intToUtf8(c(8220, 8221, 8216, 8217)))
+  gsub(paste0("^[", quote_chars, "]+|[", quote_chars, "]+$"), "", value)
+}
+
+parse_cluster_config_values <- function(value, default = character(0)) {
+  if (is.null(value) || length(value) == 0) value <- default
+  if (is.list(value) && !is.data.frame(value)) {
+    value <- unlist(value, recursive = TRUE, use.names = FALSE)
+  }
+  value <- as.character(value)
+  value <- value[!is.na(value)]
+  if (length(value) == 0) return(character(0))
+  parts <- unlist(strsplit(value, cluster_config_split_regex()))
+  parts <- trimws(parts)
+  parts <- strip_cluster_token_quotes(parts)
+  parts <- parts[!is.na(parts) & nzchar(parts)]
+  parts <- gsub("\\s+", "", parts)
+  parts <- parts[!(toupper(parts) %in% c("NA", "NAN", "NULL", "NONE"))]
+  unique(parts)
+}
+
+normalize_cluster_config <- function(value, default = "") {
+  paste(parse_cluster_config_values(value, default = default), collapse = ",")
+}
+
+cfg_cluster_values <- function(config, name, env_name = NULL, default = character(0)) {
+  if (!is.null(env_name)) {
+    env_value <- trimws(Sys.getenv(env_name, unset = ""))
+    if (nzchar(env_value)) return(parse_cluster_config_values(env_value))
+  }
+  parsed <- parse_cluster_config_values(config[[name]])
+  if (length(parsed) > 0) return(parsed)
+  parse_cluster_config_values(default)
+}
+
+cluster_config_label <- function(value, empty_label = "NULL") {
+  parts <- parse_cluster_config_values(value)
+  if (length(parts) == 0) return(empty_label)
+  paste(sanitize_path_component(parts), collapse = "_")
+}
+
+build_trajectory_branch_specs <- function(root_clusters, end_clusters) {
+  root_clusters <- parse_cluster_config_values(root_clusters)
+  end_clusters <- parse_cluster_config_values(end_clusters)
+  if (length(root_clusters) == 0) {
+    stop("Trajectory root cluster configuration is empty.", call. = FALSE)
+  }
+
+  rows <- list()
+  for (root_cluster in root_clusters) {
+    root_label <- cluster_config_label(root_cluster)
+    rows[[length(rows) + 1L]] <- data.frame(
+      trajectory_branch = paste0("ROOT_", root_label, "_END_NULL"),
+      root_clusters = root_cluster,
+      end_clusters = "",
+      end_label = "NULL",
+      run_scvelo = TRUE,
+      run_paga = TRUE,
+      stringsAsFactors = FALSE
+    )
+    for (end_cluster in end_clusters) {
+      end_label <- cluster_config_label(end_cluster)
+      rows[[length(rows) + 1L]] <- data.frame(
+        trajectory_branch = paste0("ROOT_", root_label, "_END_", end_label),
+        root_clusters = root_cluster,
+        end_clusters = end_cluster,
+        end_label = end_label,
+        run_scvelo = TRUE,
+        run_paga = FALSE,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  dplyr::distinct(dplyr::bind_rows(rows), .data$trajectory_branch, .keep_all = TRUE)
+}
+
+task_env_value <- function(name, default = "") {
+  trimws(Sys.getenv(name, unset = default))
+}
+
+normalize_task_end_cluster <- function(value) {
+  value <- normalize_cluster_config(value)
+  if (!nzchar(value) || toupper(value) %in% c("NULL", "NA", "NAN", "NONE")) "" else value
+}
+
+filter_trajectory_branches_for_task <- function(branch_specs) {
+  if (!isTRUE(trajectory_hpc_task)) return(branch_specs)
+
+  root_cluster <- normalize_cluster_config(task_env_value("TRAJECTORY_TASK_ROOT_CLUSTER"))
+  end_cluster <- normalize_task_end_cluster(task_env_value("TRAJECTORY_TASK_END_CLUSTER", "NULL"))
+  method <- tolower(task_env_value("TRAJECTORY_TASK_METHOD"))
+  if (!(method %in% c("scvelo", "paga"))) {
+    stop("TRAJECTORY_TASK_METHOD must be 'scvelo' or 'paga' in HPC task mode.", call. = FALSE)
+  }
+  if (!nzchar(root_cluster)) {
+    stop("TRAJECTORY_TASK_ROOT_CLUSTER is required in HPC task mode.", call. = FALSE)
+  }
+
+  branch_specs <- branch_specs %>%
+    dplyr::filter(.data$root_clusters == root_cluster, .data$end_clusters == end_cluster)
+  if (nrow(branch_specs) == 0) {
+    stop(
+      "No trajectory branch matched ROOT=", root_cluster,
+      " END=", ifelse(nzchar(end_cluster), end_cluster, "NULL"),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  if (identical(method, "scvelo")) {
+    branch_specs$run_scvelo <- TRUE
+    branch_specs$run_paga <- FALSE
+  } else {
+    if (nzchar(end_cluster)) {
+      stop("PAGA HPC tasks must use TRAJECTORY_TASK_END_CLUSTER=NULL.", call. = FALSE)
+    }
+    branch_specs$run_scvelo <- FALSE
+    branch_specs$run_paga <- TRUE
+  }
+  branch_specs
+}
+
+filter_trajectory_groups_for_task <- function(group_df) {
+  if (!isTRUE(trajectory_hpc_task)) return(group_df)
+
+  group_safe <- task_env_value("TRAJECTORY_TASK_GROUP_SAFE")
+  group_name <- task_env_value("TRAJECTORY_TASK_GROUP")
+  tn_scope <- task_env_value("TRAJECTORY_TASK_TN_SCOPE")
+  ploidy_scope <- task_env_value("TRAJECTORY_TASK_PLOIDY_SCOPE")
+
+  out <- group_df
+  if (nzchar(group_safe)) {
+    out <- out %>% dplyr::filter(.data$group_safe == .env$group_safe)
+  } else if (nzchar(group_name)) {
+    out <- out %>% dplyr::filter(.data$trajectory_group == .env$group_name)
+  } else if (nzchar(tn_scope) && nzchar(ploidy_scope)) {
+    out <- out %>% dplyr::filter(.data$tn_scope == .env$tn_scope, .data$ploidy_scope == .env$ploidy_scope)
+  } else {
+    stop("TRAJECTORY_TASK_GROUP_SAFE or TRAJECTORY_TASK_GROUP is required in HPC task mode.", call. = FALSE)
+  }
+
+  if (nrow(out) != 1) {
+    stop(
+      "HPC task group filter must match exactly one trajectory group; matched ", nrow(out), ".",
+      call. = FALSE
+    )
+  }
+  out
+}
+
 collapse_unique_nonmissing <- function(x) {
   x <- as.character(x)
   x <- x[!is.na(x) & nzchar(x) & x != "NA"]
@@ -968,7 +1123,9 @@ prepare_or_run_paga_analysis <- function(
   trajectory_context = NA_character_,
   base_groups = character(0),
   tn_scope = NA_character_,
-  ploidy_scope = "ploidy_all"
+  ploidy_scope = "ploidy_all",
+  root_clusters = "",
+  trajectory_branch = NA_character_
 ) {
   analysis_dir <- .ensure_dir(file.path(analysis_root, group_safe))
   metadata_df <- metadata_df %>%
@@ -1021,8 +1178,9 @@ prepare_or_run_paga_analysis <- function(
     "--paga-threshold", as.character(paga_threshold)
   )
   paga_args <- c(paga_args, expression_export$args)
-  if (nzchar(paga_root_clusters)) {
-    paga_args <- c(paga_args, "--root-clusters", paga_root_clusters)
+  root_clusters <- normalize_cluster_config(root_clusters)
+  if (nzchar(root_clusters)) {
+    paga_args <- c(paga_args, "--root-clusters", root_clusters)
   }
 
   write_paga_runner(
@@ -1080,7 +1238,7 @@ prepare_or_run_paga_analysis <- function(
     n_neighbors = paga_n_neighbors,
     pca_prefix = paga_pca_prefix,
     paga_threshold = paga_threshold,
-    root_clusters = paga_root_clusters,
+    root_clusters = root_clusters,
     expression_export = export_expression,
     expression_source = expression_export$source,
     expression_matrix = expression_export$matrix_file,
@@ -1108,7 +1266,10 @@ prepare_or_run_scvelo_analysis <- function(
   ploidy_scope = "ploidy_all",
   shape_col = "",
   shape_order = character(0),
-  shape_markers = character(0)
+  shape_markers = character(0),
+  root_clusters = "",
+  end_clusters = "",
+  trajectory_branch = NA_character_
 ) {
   analysis_dir <- .ensure_dir(file.path(analysis_root, group_safe))
   metadata_df <- metadata_df %>%
@@ -1156,11 +1317,13 @@ prepare_or_run_scvelo_analysis <- function(
   if (isTRUE(scvelo_use_metadata_pca)) {
     scvelo_args <- c(scvelo_args, "--use-metadata-pca", "--pca-prefix", scvelo_pca_prefix)
   }
-  if (nzchar(scvelo_root_clusters)) {
-    scvelo_args <- c(scvelo_args, "--root-clusters", scvelo_root_clusters)
+  root_clusters <- normalize_cluster_config(root_clusters)
+  end_clusters <- normalize_cluster_config(end_clusters)
+  if (nzchar(root_clusters)) {
+    scvelo_args <- c(scvelo_args, "--root-clusters", root_clusters)
   }
-  if (nzchar(scvelo_end_clusters)) {
-    scvelo_args <- c(scvelo_args, "--end-clusters", scvelo_end_clusters)
+  if (nzchar(end_clusters)) {
+    scvelo_args <- c(scvelo_args, "--end-clusters", end_clusters)
   }
   if (nzchar(shape_col)) {
     scvelo_args <- c(scvelo_args, "--shape-col", shape_col)
@@ -1229,8 +1392,8 @@ prepare_or_run_scvelo_analysis <- function(
     exit_status = exit_status,
     use_metadata_pca = scvelo_use_metadata_pca,
     pca_prefix = scvelo_pca_prefix,
-    root_clusters = scvelo_root_clusters,
-    end_clusters = scvelo_end_clusters,
+    root_clusters = root_clusters,
+    end_clusters = end_clusters,
     neighbor_representation = ifelse(scvelo_use_metadata_pca, "Seurat_PCA", "scVelo_auto"),
     shape_col = shape_col,
     shape_order = paste(shape_order, collapse = ";"),
@@ -1798,9 +1961,24 @@ scvelo_min_matched_cells <- parse_int_cfg(cfg_value(config, "Scvelo_min_matched_
 scvelo_stream_density <- parse_numeric_cfg(cfg_value(config, "Scvelo_stream_density", "SCVELO_STREAM_DENSITY", default = "1.2"), 1.2, "Scvelo_stream_density")
 scvelo_use_metadata_pca <- TRUE
 scvelo_pca_prefix <- "PCA_"
-scvelo_root_clusters <- "14"
-scvelo_end_clusters <- "13"
-trajectory_branch <- "root14_end13"
+trajectory_root_clusters <- cfg_cluster_values(
+  config,
+  "Trajectory_root_clusters",
+  "TRAJECTORY_ROOT_CLUSTERS",
+  default = cfg_value(config, "PseudoTrajectory_root_cluster", "PSEUDOTRAJECTORY_ROOT_CLUSTER", default = "14")
+)
+trajectory_end_clusters <- cfg_cluster_values(
+  config,
+  "Trajectory_end_clusters",
+  "TRAJECTORY_END_CLUSTERS",
+  default = "13"
+)
+trajectory_branch_specs <- build_trajectory_branch_specs(
+  root_clusters = trajectory_root_clusters,
+  end_clusters = trajectory_end_clusters
+)
+trajectory_hpc_task <- parse_bool(Sys.getenv("TRAJECTORY_HPC_TASK", unset = "FALSE"), default = FALSE)
+trajectory_branch_specs <- filter_trajectory_branches_for_task(trajectory_branch_specs)
 paga_python_script <- file.path(script_dir, "04_trajectory_paga.py")
 run_paga <- parse_bool(cfg_value(config, "Run_paga", "RUN_PAGA", default = "TRUE"), default = TRUE)
 paga_n_neighbors <- parse_int_cfg(cfg_value(config, "Paga_n_neighbors", "PAGA_N_NEIGHBORS", default = "15"), 15L, "Paga_n_neighbors")
@@ -1808,7 +1986,6 @@ paga_n_pcs <- parse_int_cfg(cfg_value(config, "Paga_n_pcs", "PAGA_N_PCS", defaul
 paga_min_cells <- parse_int_cfg(cfg_value(config, "Paga_min_cells", "PAGA_MIN_CELLS", default = "20"), 20L, "Paga_min_cells")
 paga_threshold <- parse_numeric_cfg(cfg_value(config, "Paga_threshold", "PAGA_THRESHOLD", default = "0.03"), 0.03, "Paga_threshold")
 paga_pca_prefix <- cfg_value(config, "Paga_pca_prefix", "PAGA_PCA_PREFIX", default = scvelo_pca_prefix)
-paga_root_clusters <- cfg_value(config, "Paga_root_clusters", "PAGA_ROOT_CLUSTERS", default = scvelo_root_clusters)
 paga_export_expression <- parse_bool(cfg_value(config, "Paga_export_expression", "PAGA_EXPORT_EXPRESSION", default = "TRUE"), default = TRUE)
 paga_expression_assay <- cfg_value(config, "Paga_expression_assay", "PAGA_EXPRESSION_ASSAY", default = "RNA")
 paga_expression_slot <- cfg_value(config, "Paga_expression_slot", "PAGA_EXPRESSION_SLOT", default = "data")
@@ -1822,10 +1999,38 @@ cluster_col <- "cluster_final"
 message("Preparing output directories.")
 .ensure_dir(output_root)
 out_inputs <- .ensure_dir(file.path(output_root, "00_inputs"))
-out_velocity_groups <- .ensure_dir(file.path(output_root, "01_velocity_groups"))
-out_summary <- .ensure_dir(file.path(output_root, "02_summary"))
-out_plots <- .ensure_dir(file.path(output_root, "03_plots"))
-out_paga_groups <- .ensure_dir(file.path(output_root, "04_paga_groups"))
+trajectory_branch_specs$branch_root <- file.path(output_root, trajectory_branch_specs$trajectory_branch)
+trajectory_branch_specs$scvelo_root <- file.path(trajectory_branch_specs$branch_root, "scvelo")
+trajectory_branch_specs$scvelo_groups <- file.path(trajectory_branch_specs$scvelo_root, "01_velocity_groups")
+trajectory_branch_specs$scvelo_summary <- file.path(trajectory_branch_specs$scvelo_root, "02_summary")
+trajectory_branch_specs$scvelo_plots <- file.path(trajectory_branch_specs$scvelo_root, "03_plots")
+trajectory_branch_specs$paga_root <- ifelse(
+  trajectory_branch_specs$run_paga,
+  file.path(trajectory_branch_specs$branch_root, "PAGA"),
+  NA_character_
+)
+trajectory_branch_specs$paga_groups <- ifelse(
+  trajectory_branch_specs$run_paga,
+  file.path(trajectory_branch_specs$paga_root, "04_paga_groups"),
+  NA_character_
+)
+trajectory_branch_specs$paga_summary <- ifelse(
+  trajectory_branch_specs$run_paga,
+  file.path(trajectory_branch_specs$paga_root, "02_summary"),
+  NA_character_
+)
+for (dir_path in unique(c(
+  trajectory_branch_specs$branch_root,
+  trajectory_branch_specs$scvelo_root[trajectory_branch_specs$run_scvelo],
+  trajectory_branch_specs$scvelo_groups[trajectory_branch_specs$run_scvelo],
+  trajectory_branch_specs$scvelo_summary[trajectory_branch_specs$run_scvelo],
+  trajectory_branch_specs$scvelo_plots[trajectory_branch_specs$run_scvelo],
+  trajectory_branch_specs$paga_root[trajectory_branch_specs$run_paga],
+  trajectory_branch_specs$paga_groups[trajectory_branch_specs$run_paga],
+  trajectory_branch_specs$paga_summary[trajectory_branch_specs$run_paga]
+))) {
+  .ensure_dir(dir_path)
+}
 
 if (!file.exists(input_rds)) {
   stop("Input Seurat object does not exist: ", input_rds, call. = FALSE)
@@ -2036,6 +2241,7 @@ trajectory_group_df <- dplyr::bind_rows(
 )
 trajectory_group_df <- trajectory_group_df %>%
   dplyr::filter(.data$n_cells > 0)
+trajectory_group_df <- filter_trajectory_groups_for_task(trajectory_group_df)
 if (nrow(trajectory_group_df) == 0) {
   stop("No cells were found for the requested velocity analyses.", call. = FALSE)
 }
@@ -2131,12 +2337,19 @@ if (cellranger_sample_folder_col %in% colnames(meta_all)) {
 }
 
 write_table_csv(meta_all, file.path(out_inputs, "seurat_cells_metadata_umap.csv"))
-write_table_csv(trajectory_group_df, file.path(out_summary, "trajectory_group_levels.csv"))
+scvelo_branch_specs <- trajectory_branch_specs[trajectory_branch_specs$run_scvelo %in% TRUE, , drop = FALSE]
+common_scvelo_summary_dirs <- unique(scvelo_branch_specs$scvelo_summary)
+common_scvelo_plot_dirs <- unique(scvelo_branch_specs$scvelo_plots)
+for (summary_dir in common_scvelo_summary_dirs) {
+  write_table_csv(trajectory_group_df, file.path(summary_dir, "trajectory_group_levels.csv"))
+}
 
 cell_count_by_dose <- meta_all %>%
   dplyr::count(Dose, name = "n_cells") %>%
   dplyr::arrange(match(as.character(Dose), dose_levels))
-write_table_csv(cell_count_by_dose, file.path(out_summary, "dose_cell_counts.csv"))
+for (summary_dir in common_scvelo_summary_dirs) {
+  write_table_csv(cell_count_by_dose, file.path(summary_dir, "dose_cell_counts.csv"))
+}
 
 cell_count_by_group <- trajectory_group_df %>%
   dplyr::select(
@@ -2150,7 +2363,9 @@ cell_count_by_group <- trajectory_group_df %>%
     analysis_type,
     group_safe
   )
-write_table_csv(cell_count_by_group, file.path(out_summary, "trajectory_group_cell_counts.csv"))
+for (summary_dir in common_scvelo_summary_dirs) {
+  write_table_csv(cell_count_by_group, file.path(summary_dir, "trajectory_group_cell_counts.csv"))
+}
 
 message("Writing Seurat UMAP overview plots.")
 dose_colors <- c(
@@ -2166,7 +2381,9 @@ p_dose <- ggplot(meta_all, aes(x = UMAP_1, y = UMAP_2, color = Dose)) +
   scale_color_manual(values = observed_dose_colors, na.value = "grey80") +
   labs(title = "UMAP by Dose", subtitle = "Input cells for trajectory velocity analysis") +
   make_pretty_umap_theme()
-save_both(p_dose, file.path(out_plots, "umap_by_Dose"), width = 9, height = 7)
+for (plot_dir in common_scvelo_plot_dirs) {
+  save_both(p_dose, file.path(plot_dir, "umap_by_Dose"), width = 9, height = 7)
+}
 
 cluster_levels <- sort_maybe_numeric(as.character(meta_all[[cluster_col]]))
 cluster_palette <- setNames(grDevices::hcl.colors(length(cluster_levels), palette = "Dark 3"), cluster_levels)
@@ -2176,7 +2393,9 @@ p_cluster <- ggplot(meta_all, aes(x = UMAP_1, y = UMAP_2, color = as.character(.
   scale_color_manual(values = cluster_palette, na.value = "grey80") +
   labs(title = "UMAP by cluster", color = cluster_col) +
   make_pretty_umap_theme()
-save_both(p_cluster, file.path(out_plots, "umap_by_cluster"), width = 9, height = 7)
+for (plot_dir in common_scvelo_plot_dirs) {
+  save_both(p_cluster, file.path(plot_dir, "umap_by_cluster"), width = 9, height = 7)
+}
 
 p_cluster_by_dose <- ggplot(meta_all, aes(x = UMAP_1, y = UMAP_2, color = as.character(.data[[cluster_col]]))) +
   geom_point(size = 0.18, alpha = 0.85, stroke = 0) +
@@ -2185,7 +2404,9 @@ p_cluster_by_dose <- ggplot(meta_all, aes(x = UMAP_1, y = UMAP_2, color = as.cha
   scale_color_manual(values = cluster_palette, na.value = "grey80") +
   labs(title = "UMAP by cluster within each Dose", color = cluster_col) +
   make_pretty_umap_theme()
-save_both(p_cluster_by_dose, file.path(out_plots, "umap_by_cluster_facet_Dose"), width = 11, height = 7)
+for (plot_dir in common_scvelo_plot_dirs) {
+  save_both(p_cluster_by_dose, file.path(plot_dir, "umap_by_cluster_facet_Dose"), width = 11, height = 7)
+}
 
 p_cluster_by_tn <- ggplot(meta_all, aes(x = UMAP_1, y = UMAP_2, color = as.character(.data[[cluster_col]]))) +
   geom_point(size = 0.18, alpha = 0.85, stroke = 0) +
@@ -2194,7 +2415,9 @@ p_cluster_by_tn <- ggplot(meta_all, aes(x = UMAP_1, y = UMAP_2, color = as.chara
   scale_color_manual(values = cluster_palette, na.value = "grey80") +
   labs(title = "UMAP by cluster within Tumor and CellLine cells", color = cluster_col) +
   make_pretty_umap_theme()
-save_both(p_cluster_by_tn, file.path(out_plots, "umap_by_cluster_facet_TN"), width = 10, height = 7)
+for (plot_dir in common_scvelo_plot_dirs) {
+  save_both(p_cluster_by_tn, file.path(plot_dir, "umap_by_cluster_facet_TN"), width = 10, height = 7)
+}
 
 velocity_inputs <- as_velocity_input_list(resolve_velocity_inputs(
   dose_levels = dose_levels,
@@ -2229,7 +2452,9 @@ velocity_manifest_df <- data.frame(
   }, character(1)),
   stringsAsFactors = FALSE
 )
-write_table_csv(velocity_manifest_df, file.path(out_summary, "resolved_velocity_inputs.csv"))
+for (summary_dir in common_scvelo_summary_dirs) {
+  write_table_csv(velocity_manifest_df, file.path(summary_dir, "resolved_velocity_inputs.csv"))
+}
 
 color_cols <- unique(c(cluster_col, "clusters", dose_col, ploidy_col, "Ploidy", "TN", "Dose_DEG", "trajectory_context", "trajectory_group", "trajectory_analysis_group", "trajectory_shape_group", "trajectory_tn_scope", "trajectory_ploidy_scope", "trajectory_branch", "sample_type", "cluster_final_annotation_primary"))
 color_cols <- color_cols[color_cols %in% c(colnames(meta_all), "trajectory_analysis_group", "trajectory_shape_group", "trajectory_tn_scope", "trajectory_ploidy_scope", "trajectory_branch")]
@@ -2316,8 +2541,6 @@ resolve_analysis_group_inputs <- function(group_meta) {
 }
 
 message("Preparing PAGA and scVelo analyses: All_cells plus CellLine/Tumor ploidy_all, 2N, and 4N.")
-run_rows <- list()
-paga_rows <- list()
 analysis_group_meta <- stats::setNames(vector("list", length(trajectory_group_levels)), trajectory_group_levels)
 analysis_group_inputs <- stats::setNames(vector("list", length(trajectory_group_levels)), trajectory_group_levels)
 analysis_group_input_info <- stats::setNames(vector("list", length(trajectory_group_levels)), trajectory_group_levels)
@@ -2329,75 +2552,6 @@ for (i in seq_len(nrow(trajectory_group_df))) {
   analysis_group_meta[[group_name]] <- group_meta
   analysis_group_inputs[[group_name]] <- input_info$input_files
   analysis_group_input_info[[group_name]] <- input_info
-
-  paga_rows[[group_name]] <- prepare_or_run_paga_analysis(
-    group_name = group_name,
-    group_safe = trajectory_group_df$group_safe[i],
-    analysis_type = trajectory_group_df$analysis_type[i],
-    analysis_root = out_paga_groups,
-    metadata_df = group_meta,
-    seurat_obj = obj,
-    export_expression = paga_export_expression,
-    expression_assay = paga_expression_assay,
-    expression_slot = paga_expression_slot,
-    color_cols = color_cols,
-    dose = NA_character_,
-    ploidy = trajectory_group_df$ploidy[i],
-    trajectory_context = trajectory_group_df$trajectory_context[i],
-    base_groups = group_name,
-    tn_scope = trajectory_group_df$tn_scope[i],
-    ploidy_scope = trajectory_group_df$ploidy_scope[i]
-  )
-
-  run_rows[[group_name]] <- prepare_or_run_scvelo_analysis(
-    group_name = group_name,
-    group_safe = trajectory_group_df$group_safe[i],
-    analysis_type = trajectory_group_df$analysis_type[i],
-    analysis_root = out_velocity_groups,
-    metadata_df = group_meta,
-    input_files = input_info$input_files,
-    color_cols = color_cols,
-    dose = NA_character_,
-    ploidy = trajectory_group_df$ploidy[i],
-    trajectory_context = trajectory_group_df$trajectory_context[i],
-    base_groups = group_name,
-    tn_scope = trajectory_group_df$tn_scope[i],
-    ploidy_scope = trajectory_group_df$ploidy_scope[i],
-    shape_col = if (identical(group_name, "All_cells") || identical(trajectory_group_df$ploidy_scope[i], "ploidy_all")) "trajectory_shape_group" else "",
-    shape_order = if (identical(group_name, "All_cells")) c("CellLine", "Tumor") else if (identical(trajectory_group_df$ploidy_scope[i], "ploidy_all")) c("2N", "4N") else character(0),
-    shape_markers = if (identical(group_name, "All_cells")) c("o", "^") else if (identical(trajectory_group_df$ploidy_scope[i], "ploidy_all")) c("o", "^") else character(0)
-  )
-}
-
-paga_run_summary_df <- dplyr::bind_rows(paga_rows)
-write_table_csv(paga_run_summary_df, file.path(out_summary, "paga_run_summary.csv"))
-paga_edge_files <- file.path(paga_run_summary_df$paga_dir, "paga_edges.csv")
-paga_edge_files <- paga_edge_files[file.exists(paga_edge_files)]
-if (length(paga_edge_files) > 0) {
-  paga_edges_all <- dplyr::bind_rows(lapply(paga_edge_files, function(path) {
-    group_name <- paga_run_summary_df$analysis_group[match(dirname(path), paga_run_summary_df$paga_dir)]
-    read_trajectory_csv(
-      path,
-      col_types = readr::cols(
-        group_1 = readr::col_character(),
-        group_2 = readr::col_character(),
-        connectivity = readr::col_double(),
-        above_threshold = readr::col_logical()
-      )
-    ) %>%
-      dplyr::mutate(analysis_group = group_name, paga_dir = dirname(path), .before = 1)
-  }))
-  write_table_csv(paga_edges_all, file.path(out_summary, "paga_edges_all_trajectory_analyses.csv"))
-}
-paga_metric_files <- file.path(paga_run_summary_df$paga_dir, "paga_cell_metrics.csv")
-paga_metric_files <- paga_metric_files[file.exists(paga_metric_files)]
-if (length(paga_metric_files) > 0) {
-  paga_metrics_all <- dplyr::bind_rows(lapply(paga_metric_files, function(path) {
-    group_name <- paga_run_summary_df$analysis_group[match(dirname(path), paga_run_summary_df$paga_dir)]
-    read_trajectory_csv(path) %>%
-      dplyr::mutate(analysis_group = group_name, paga_dir = dirname(path), .before = 1)
-  }))
-  write_table_csv(paga_metrics_all, file.path(out_summary, "paga_cell_metrics_all_trajectory_analyses.csv"))
 }
 
 group_velocity_manifest_df <- data.frame(
@@ -2427,55 +2581,167 @@ group_velocity_manifest_df <- data.frame(
   }, character(1)),
   stringsAsFactors = FALSE
 )
-write_table_csv(group_velocity_manifest_df, file.path(out_summary, "resolved_velocity_inputs_by_trajectory_group.csv"))
-
-run_summary_df <- dplyr::bind_rows(run_rows)
-write_table_csv(run_summary_df, file.path(out_summary, "scvelo_run_summary.csv"))
-
-missing_inputs <- run_summary_df %>%
-  dplyr::filter(status == "missing_velocity_input")
-if (nrow(missing_inputs) > 0) {
-  requirement_lines <- c(
-    "RNA velocity input is missing for one or more trajectory analyses.",
-    "",
-    "Required input:",
-    "  A .loom or .h5ad containing spliced and unspliced layers.",
-    "",
-    "Supported ways to provide input:",
-    "  1. Set VELOCITY_INPUT_ROOT to a directory containing one combined .loom/.h5ad, or per-Dose files named with 0mgkg, 30mgkg, 120mgkg.",
-    "  2. Set VELOCITY_INPUT_MANIFEST to a CSV with columns: dose,input_file.",
-    "  3. If cell IDs differ between Seurat and velocity input, set VELOCITY_CELL_MAP to a CSV with columns: seurat_cell,velocity_cell.",
-    "  4. Put existing per-sample loom files under 00_inputs/velocyto_loom/<sample_folder>/<sample_folder>.loom; this is checked before any velocyto generation.",
-    "  5. If Cell Ranger folders are available, set CELLRANGER_ROOT and CELLRANGER_SAMPLE_FOLDER_COL; this script writes velocyto run10x scripts from sample_folder and can use existing per-sample velocyto .loom files.",
-    "  6. To generate missing loom files from Cell Ranger BAMs, set VELOCYTO_GTF to a gene annotation GTF and RUN_VELOCYTO=TRUE.",
-    "",
-    paste0("Default searched root: ", velocity_input_root),
-    paste0("Per-sample loom root: ", velocyto_output_root),
-    paste0("Cell Ranger root: ", cellranger_root),
-    paste0("Cell Ranger sample folder metadata column: ", cellranger_sample_folder_col),
-    paste0("Velocyto writable work root: ", velocyto_work_root),
-    paste0("Velocyto output root: ", velocyto_output_root),
-    paste0("samtools binary: ", ifelse(is.na(samtools_bin), "not found", samtools_bin)),
-    paste0("Velocyto samtools threads: ", velocyto_samtools_threads),
-    "",
-    "Per-analysis Seurat metadata and run_scvelo.sh files have already been written under 01_velocity_groups/."
-  )
-  writeLines(requirement_lines, con = file.path(out_summary, "velocity_input_requirements.txt"))
-  stop(
-    "Missing velocity input for trajectory analysis group(s): ",
-    paste(missing_inputs$analysis_group, collapse = ", "),
-    ". See ",
-    file.path(out_summary, "velocity_input_requirements.txt"),
-    call. = FALSE
-  )
+for (summary_dir in common_scvelo_summary_dirs) {
+  write_table_csv(group_velocity_manifest_df, file.path(summary_dir, "resolved_velocity_inputs_by_trajectory_group.csv"))
 }
 
-metric_files <- file.path(run_summary_df$dose_dir, "scvelo_cell_metrics.csv")
-metric_files <- metric_files[file.exists(metric_files)]
-if (length(metric_files) > 0) {
-  metric_df <- dplyr::bind_rows(lapply(metric_files, function(path) {
-    read_trajectory_csv(path)
-  }))
+paga_run_summary_df <- data.frame()
+paga_branch_specs <- trajectory_branch_specs[trajectory_branch_specs$run_paga %in% TRUE, , drop = FALSE]
+if (nrow(paga_branch_specs) > 0) {
+  for (branch_i in seq_len(nrow(paga_branch_specs))) {
+    branch_spec <- paga_branch_specs[branch_i, , drop = FALSE]
+    message("Preparing PAGA branch: ", branch_spec$trajectory_branch)
+    paga_rows <- list()
+    for (i in seq_len(nrow(trajectory_group_df))) {
+      group_name <- trajectory_group_df$trajectory_group[i]
+      paga_rows[[group_name]] <- prepare_or_run_paga_analysis(
+        group_name = group_name,
+        group_safe = trajectory_group_df$group_safe[i],
+        analysis_type = trajectory_group_df$analysis_type[i],
+        analysis_root = branch_spec$paga_groups,
+        metadata_df = analysis_group_meta[[group_name]],
+        seurat_obj = obj,
+        export_expression = paga_export_expression,
+        expression_assay = paga_expression_assay,
+        expression_slot = paga_expression_slot,
+        color_cols = color_cols,
+        dose = NA_character_,
+        ploidy = trajectory_group_df$ploidy[i],
+        trajectory_context = trajectory_group_df$trajectory_context[i],
+        base_groups = group_name,
+        tn_scope = trajectory_group_df$tn_scope[i],
+        ploidy_scope = trajectory_group_df$ploidy_scope[i],
+        root_clusters = branch_spec$root_clusters,
+        trajectory_branch = branch_spec$trajectory_branch
+      )
+    }
+    branch_paga_summary <- dplyr::bind_rows(paga_rows)
+    write_table_csv(branch_paga_summary, file.path(branch_spec$paga_summary, "paga_run_summary.csv"))
+    paga_run_summary_df <- dplyr::bind_rows(paga_run_summary_df, branch_paga_summary)
+
+    paga_edge_files <- file.path(branch_paga_summary$paga_dir, "paga_edges.csv")
+    paga_edge_files <- paga_edge_files[file.exists(paga_edge_files)]
+    if (length(paga_edge_files) > 0) {
+      paga_edges_all <- dplyr::bind_rows(lapply(paga_edge_files, function(path) {
+        group_name <- branch_paga_summary$analysis_group[match(dirname(path), branch_paga_summary$paga_dir)]
+        read_trajectory_csv(
+          path,
+          col_types = readr::cols(
+            group_1 = readr::col_character(),
+            group_2 = readr::col_character(),
+            connectivity = readr::col_double(),
+            above_threshold = readr::col_logical()
+          )
+        ) %>%
+          dplyr::mutate(analysis_group = group_name, paga_dir = dirname(path), .before = 1)
+      }))
+      write_table_csv(paga_edges_all, file.path(branch_spec$paga_summary, "paga_edges_all_trajectory_analyses.csv"))
+    }
+    paga_metric_files <- file.path(branch_paga_summary$paga_dir, "paga_cell_metrics.csv")
+    paga_metric_files <- paga_metric_files[file.exists(paga_metric_files)]
+    if (length(paga_metric_files) > 0) {
+      paga_metrics_all <- dplyr::bind_rows(lapply(paga_metric_files, function(path) {
+        group_name <- branch_paga_summary$analysis_group[match(dirname(path), branch_paga_summary$paga_dir)]
+        read_trajectory_csv(path) %>%
+          dplyr::mutate(analysis_group = group_name, paga_dir = dirname(path), .before = 1)
+      }))
+      write_table_csv(paga_metrics_all, file.path(branch_spec$paga_summary, "paga_cell_metrics_all_trajectory_analyses.csv"))
+    }
+  }
+}
+
+run_summary_list <- list()
+if (nrow(scvelo_branch_specs) > 0) {
+  for (branch_i in seq_len(nrow(scvelo_branch_specs))) {
+    branch_spec <- scvelo_branch_specs[branch_i, , drop = FALSE]
+    message("Preparing scVelo branch: ", branch_spec$trajectory_branch)
+    branch_run_rows <- list()
+    for (i in seq_len(nrow(trajectory_group_df))) {
+      group_name <- trajectory_group_df$trajectory_group[i]
+      branch_run_rows[[group_name]] <- prepare_or_run_scvelo_analysis(
+        group_name = group_name,
+        group_safe = trajectory_group_df$group_safe[i],
+        analysis_type = trajectory_group_df$analysis_type[i],
+        analysis_root = branch_spec$scvelo_groups,
+        metadata_df = analysis_group_meta[[group_name]],
+        input_files = analysis_group_inputs[[group_name]],
+        color_cols = color_cols,
+        dose = NA_character_,
+        ploidy = trajectory_group_df$ploidy[i],
+        trajectory_context = trajectory_group_df$trajectory_context[i],
+        base_groups = group_name,
+        tn_scope = trajectory_group_df$tn_scope[i],
+        ploidy_scope = trajectory_group_df$ploidy_scope[i],
+        shape_col = if (identical(group_name, "All_cells") || identical(trajectory_group_df$ploidy_scope[i], "ploidy_all")) "trajectory_shape_group" else "",
+        shape_order = if (identical(group_name, "All_cells")) c("CellLine", "Tumor") else if (identical(trajectory_group_df$ploidy_scope[i], "ploidy_all")) c("2N", "4N") else character(0),
+        shape_markers = if (identical(group_name, "All_cells")) c("o", "^") else if (identical(trajectory_group_df$ploidy_scope[i], "ploidy_all")) c("o", "^") else character(0),
+        root_clusters = branch_spec$root_clusters,
+        end_clusters = branch_spec$end_clusters,
+        trajectory_branch = branch_spec$trajectory_branch
+      )
+    }
+    branch_run_summary_df <- dplyr::bind_rows(branch_run_rows)
+    write_table_csv(branch_run_summary_df, file.path(branch_spec$scvelo_summary, "scvelo_run_summary.csv"))
+    run_summary_list[[branch_spec$trajectory_branch]] <- branch_run_summary_df
+  }
+}
+run_summary_df <- dplyr::bind_rows(run_summary_list)
+
+if (nrow(scvelo_branch_specs) > 0) {
+  missing_inputs <- run_summary_df %>%
+    dplyr::filter(status == "missing_velocity_input")
+  if (nrow(missing_inputs) > 0) {
+    requirement_lines <- c(
+      "RNA velocity input is missing for one or more trajectory analyses.",
+      "",
+      "Required input:",
+      "  A .loom or .h5ad containing spliced and unspliced layers.",
+      "",
+      "Supported ways to provide input:",
+      "  1. Set VELOCITY_INPUT_ROOT to a directory containing one combined .loom/.h5ad, or per-Dose files named with 0mgkg, 30mgkg, 120mgkg.",
+      "  2. Set VELOCITY_INPUT_MANIFEST to a CSV with columns: dose,input_file.",
+      "  3. If cell IDs differ between Seurat and velocity input, set VELOCITY_CELL_MAP to a CSV with columns: seurat_cell,velocity_cell.",
+      "  4. Put existing per-sample loom files under 00_inputs/velocyto_loom/<sample_folder>/<sample_folder>.loom; this is checked before any velocyto generation.",
+      "  5. If Cell Ranger folders are available, set CELLRANGER_ROOT and CELLRANGER_SAMPLE_FOLDER_COL; this script writes velocyto run10x scripts from sample_folder and can use existing per-sample velocyto .loom files.",
+      "  6. To generate missing loom files from Cell Ranger BAMs, set VELOCYTO_GTF to a gene annotation GTF and RUN_VELOCYTO=TRUE.",
+      "",
+      paste0("Default searched root: ", velocity_input_root),
+      paste0("Per-sample loom root: ", velocyto_output_root),
+      paste0("Cell Ranger root: ", cellranger_root),
+      paste0("Cell Ranger sample folder metadata column: ", cellranger_sample_folder_col),
+      paste0("Velocyto writable work root: ", velocyto_work_root),
+      paste0("Velocyto output root: ", velocyto_output_root),
+      paste0("samtools binary: ", ifelse(is.na(samtools_bin), "not found", samtools_bin)),
+      paste0("Velocyto samtools threads: ", velocyto_samtools_threads),
+      "",
+      "Per-analysis Seurat metadata and run_scvelo.sh files have already been written under ROOT_<root>_END_<end>/scvelo/01_velocity_groups/."
+    )
+    affected_branches <- unique(as.character(missing_inputs$trajectory_branch))
+    for (branch_name in affected_branches) {
+      branch_summary <- scvelo_branch_specs$scvelo_summary[match(branch_name, scvelo_branch_specs$trajectory_branch)]
+      if (!is.na(branch_summary)) {
+        writeLines(requirement_lines, con = file.path(branch_summary, "velocity_input_requirements.txt"))
+      }
+    }
+    stop(
+      "Missing velocity input for trajectory analysis group(s): ",
+      paste(paste0(missing_inputs$trajectory_branch, "/", missing_inputs$analysis_group), collapse = ", "),
+      ". See velocity_input_requirements.txt under the affected scVelo branch summary directory.",
+      call. = FALSE
+    )
+  }
+
+  for (branch_i in seq_len(nrow(scvelo_branch_specs))) {
+    branch_spec <- scvelo_branch_specs[branch_i, , drop = FALSE]
+    branch_run_summary_df <- run_summary_df %>%
+      dplyr::filter(.data$trajectory_branch == branch_spec$trajectory_branch)
+    metric_files <- file.path(branch_run_summary_df$dose_dir, "scvelo_cell_metrics.csv")
+    metric_files <- metric_files[file.exists(metric_files)]
+    if (length(metric_files) == 0) next
+
+    metric_df <- dplyr::bind_rows(lapply(metric_files, function(path) {
+      read_trajectory_csv(path)
+    }))
   metric_join_cols <- unique(c(
     "cell",
     "UMAP_1",
@@ -2532,7 +2798,7 @@ if (length(metric_files) > 0) {
       trajectory_ploidy_scope = dplyr::coalesce(.data$trajectory_ploidy_scope, .data$trajectory_ploidy_scope_seurat),
       trajectory_branch = dplyr::coalesce(.data$trajectory_branch, .data$trajectory_branch_seurat)
     )
-  write_table_csv(metric_df, file.path(out_summary, "scvelo_cell_metrics_all_trajectory_analyses.csv"))
+  write_table_csv(metric_df, file.path(branch_spec$scvelo_summary, "scvelo_cell_metrics_all_trajectory_analyses.csv"))
 
   metric_single_df <- metric_df %>%
     dplyr::filter(is.na(.data$trajectory_analysis_group) | .data$trajectory_analysis_group %in% trajectory_group_levels)
@@ -2540,36 +2806,37 @@ if (length(metric_files) > 0) {
   plot_metric_umap(
     metric_single_df,
     metric = "velocity_pseudotime",
-    file_stub = file.path(out_plots, "umap_velocity_pseudotime_by_velocity_analysis_group"),
-    title = "Velocity pseudotime by velocity analysis group"
+    file_stub = file.path(branch_spec$scvelo_plots, "umap_velocity_pseudotime_by_velocity_analysis_group"),
+    title = paste0("Velocity pseudotime by velocity analysis group: ", branch_spec$trajectory_branch)
   )
   plot_metric_umap(
     metric_single_df,
     metric = "latent_time",
-    file_stub = file.path(out_plots, "umap_latent_time_by_velocity_analysis_group"),
-    title = "Latent time by velocity analysis group"
+    file_stub = file.path(branch_spec$scvelo_plots, "umap_latent_time_by_velocity_analysis_group"),
+    title = paste0("Latent time by velocity analysis group: ", branch_spec$trajectory_branch)
   )
   plot_metric_umap(
     metric_single_df,
     metric = "velocity_confidence",
-    file_stub = file.path(out_plots, "umap_velocity_confidence_by_velocity_analysis_group"),
-    title = "Velocity confidence by velocity analysis group"
+    file_stub = file.path(branch_spec$scvelo_plots, "umap_velocity_confidence_by_velocity_analysis_group"),
+    title = paste0("Velocity confidence by velocity analysis group: ", branch_spec$trajectory_branch)
   )
 }
+}
 
-summary_lines <- c(
+common_summary_lines <- c(
   "04 trajectory velocity workflow completed.",
   paste0("Input Seurat object: ", input_rds),
   paste0("Output root: ", output_root),
-  paste0("Trajectory branch: ", trajectory_branch),
+  paste0("Configured trajectory root cluster(s): ", paste(trajectory_root_clusters, collapse = ", ")),
+  paste0("Configured trajectory end cluster(s): ", ifelse(length(trajectory_end_clusters) > 0, paste(trajectory_end_clusters, collapse = ", "), "not specified")),
+  paste0("Trajectory branches: ", paste(trajectory_branch_specs$trajectory_branch, collapse = ", ")),
   paste0("scVelo neighbors: ", ifelse(scvelo_use_metadata_pca, paste0("Seurat PCA columns with prefix ", scvelo_pca_prefix), "scVelo automatic PCA/neighbors")),
-  paste0("scVelo root cluster(s): ", scvelo_root_clusters),
-  paste0("scVelo end cluster(s): ", ifelse(nzchar(scvelo_end_clusters), scvelo_end_clusters, "not specified")),
   paste0("Run PAGA immediately: ", run_paga),
   paste0("PAGA neighbors: ", paga_n_neighbors),
   paste0("PAGA PCs: ", paga_n_pcs),
   paste0("PAGA threshold: ", paga_threshold),
-  paste0("PAGA root cluster(s) for DPT: ", ifelse(nzchar(paga_root_clusters), paga_root_clusters, "not specified")),
+  paste0("PAGA root cluster(s) for DPT: ", paste(trajectory_root_clusters, collapse = ", ")),
   paste0("PAGA h5ad expression export: ", paga_export_expression),
   paste0("PAGA h5ad expression source requested: ", paga_expression_assay, ":", paga_expression_slot),
   paste0("Dose groups: ", paste(dose_levels, collapse = ", ")),
@@ -2598,35 +2865,60 @@ summary_lines <- c(
   "Velocity outputs:",
   "  00_inputs/cellranger_sample_bam_manifest.csv",
   "  00_inputs/velocyto_run10x/*_run_velocyto.sh",
-  "  01_velocity_groups/All_cells/cells_metadata_umap.csv",
-  "  01_velocity_groups/CellLine/ploidy_all/cells_metadata_umap.csv",
-  "  01_velocity_groups/CellLine/2N/cells_metadata_umap.csv",
-  "  01_velocity_groups/CellLine/4N/cells_metadata_umap.csv",
-  "  01_velocity_groups/Tumor/ploidy_all/cells_metadata_umap.csv",
-  "  01_velocity_groups/Tumor/2N/cells_metadata_umap.csv",
-  "  01_velocity_groups/Tumor/4N/cells_metadata_umap.csv",
-  "  01_velocity_groups/**/run_scvelo.sh",
-  "  01_velocity_groups/**/plots/velocity_stream.pdf(.png), after scVelo runs",
+  "  ROOT_<root>_END_<end>/scvelo/01_velocity_groups/All_cells/cells_metadata_umap.csv",
+  "  ROOT_<root>_END_<end>/scvelo/01_velocity_groups/CellLine/ploidy_all/cells_metadata_umap.csv",
+  "  ROOT_<root>_END_<end>/scvelo/01_velocity_groups/CellLine/2N/cells_metadata_umap.csv",
+  "  ROOT_<root>_END_<end>/scvelo/01_velocity_groups/CellLine/4N/cells_metadata_umap.csv",
+  "  ROOT_<root>_END_<end>/scvelo/01_velocity_groups/Tumor/ploidy_all/cells_metadata_umap.csv",
+  "  ROOT_<root>_END_<end>/scvelo/01_velocity_groups/Tumor/2N/cells_metadata_umap.csv",
+  "  ROOT_<root>_END_<end>/scvelo/01_velocity_groups/Tumor/4N/cells_metadata_umap.csv",
+  "  ROOT_<root>_END_<end>/scvelo/01_velocity_groups/**/run_scvelo.sh",
+  "  ROOT_<root>_END_<end>/scvelo/01_velocity_groups/**/plots/velocity_stream.pdf(.png), after scVelo runs",
   "",
   "PAGA outputs:",
-  "  04_paga_groups/All_cells/cells_metadata_umap.csv",
-  "  04_paga_groups/**/expression_matrix.mtx, expression_genes.csv, expression_cells.csv",
-  "  04_paga_groups/**/paga_result.h5ad",
-  "  04_paga_groups/CellLine/ploidy_all/paga_edges.csv",
-  "  04_paga_groups/Tumor/ploidy_all/paga_connectivities.csv",
-  "  04_paga_groups/**/plots/paga_graph.pdf(.png)",
-  "  04_paga_groups/**/plots/paga_umap_overlay.pdf(.png)",
-  "  02_summary/paga_run_summary.csv",
-  "  02_summary/paga_edges_all_trajectory_analyses.csv",
-  "  02_summary/paga_cell_metrics_all_trajectory_analyses.csv",
+  "  ROOT_<root>_END_NULL/PAGA/04_paga_groups/All_cells/cells_metadata_umap.csv",
+  "  ROOT_<root>_END_NULL/PAGA/04_paga_groups/**/expression_matrix.mtx, expression_genes.csv, expression_cells.csv",
+  "  ROOT_<root>_END_NULL/PAGA/04_paga_groups/**/paga_result.h5ad",
+  "  ROOT_<root>_END_NULL/PAGA/04_paga_groups/CellLine/ploidy_all/paga_edges.csv",
+  "  ROOT_<root>_END_NULL/PAGA/04_paga_groups/Tumor/ploidy_all/paga_connectivities.csv",
+  "  ROOT_<root>_END_NULL/PAGA/04_paga_groups/**/plots/paga_graph.pdf(.png)",
+  "  ROOT_<root>_END_NULL/PAGA/04_paga_groups/**/plots/paga_umap_overlay.pdf(.png)",
+  "  ROOT_<root>_END_NULL/PAGA/02_summary/paga_run_summary.csv",
+  "  ROOT_<root>_END_NULL/PAGA/02_summary/paga_edges_all_trajectory_analyses.csv",
+  "  ROOT_<root>_END_NULL/PAGA/02_summary/paga_cell_metrics_all_trajectory_analyses.csv",
   "",
   "R overview plots:",
-  "  03_plots/umap_by_Dose.pdf(.png)",
-  "  03_plots/umap_by_cluster.pdf(.png)",
-  "  03_plots/umap_by_cluster_facet_Dose.pdf(.png)",
-  "  03_plots/umap_by_cluster_facet_TN.pdf(.png)"
+  "  ROOT_<root>_END_<end>/scvelo/03_plots/umap_by_Dose.pdf(.png)",
+  "  ROOT_<root>_END_<end>/scvelo/03_plots/umap_by_cluster.pdf(.png)",
+  "  ROOT_<root>_END_<end>/scvelo/03_plots/umap_by_cluster_facet_Dose.pdf(.png)",
+  "  ROOT_<root>_END_<end>/scvelo/03_plots/umap_by_cluster_facet_TN.pdf(.png)"
 )
-writeLines(summary_lines, con = file.path(out_summary, "run_summary.txt"))
+if (nrow(scvelo_branch_specs) > 0) {
+  for (branch_i in seq_len(nrow(scvelo_branch_specs))) {
+    branch_spec <- scvelo_branch_specs[branch_i, , drop = FALSE]
+    branch_lines <- c(
+      common_summary_lines,
+      "",
+      paste0("This scVelo branch: ", branch_spec$trajectory_branch),
+      paste0("scVelo root cluster(s): ", branch_spec$root_clusters),
+      paste0("scVelo end cluster(s): ", ifelse(nzchar(branch_spec$end_clusters), branch_spec$end_clusters, "not specified")),
+      paste0("scVelo output root: ", branch_spec$scvelo_root)
+    )
+    writeLines(branch_lines, con = file.path(branch_spec$scvelo_summary, "run_summary.txt"))
+  }
+}
+for (branch_i in seq_len(nrow(paga_branch_specs))) {
+  branch_spec <- paga_branch_specs[branch_i, , drop = FALSE]
+  branch_lines <- c(
+    common_summary_lines,
+    "",
+    paste0("This PAGA branch: ", branch_spec$trajectory_branch),
+    paste0("PAGA root cluster(s): ", branch_spec$root_clusters),
+    "PAGA end cluster(s): not specified",
+    paste0("PAGA output root: ", branch_spec$paga_root)
+  )
+  writeLines(branch_lines, con = file.path(branch_spec$paga_summary, "run_summary.txt"))
+}
 
 message("04 trajectory workflow finished.")
 message("Output root: ", normalizePath(output_root, mustWork = FALSE))

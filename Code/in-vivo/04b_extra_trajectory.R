@@ -51,6 +51,7 @@ resolve_in_vivo_script_dir <- function() {
 
 script_dir <- resolve_in_vivo_script_dir()
 source(file.path(script_dir, "Utils.R"))
+source(file.path(script_dir, "04c_extra_helpers.R"))
 config <- load_in_vivo_config(file.path(script_dir, "in_vivo_config.yaml"))
 results_root <- get_results_root(config)
 
@@ -81,6 +82,7 @@ get_env_scalar <- function(name, default) {
 trajectory_root <- get_env_scalar("EXTRA_TRAJECTORY_ROOT", file.path(results_root, "04_trajectory"))
 pseudotrajectory_root <- get_env_scalar("EXTRA_PSEUDOTRAJECTORY_ROOT", file.path(results_root, "04a_psudo_rajectory"))
 deg_root <- get_env_scalar("EXTRA_DEG_ROOT", file.path(results_root, "03a_DEGs"))
+deg_round2_root <- get_env_scalar("EXTRA_DEG_ROUND2_ROOT", file.path(results_root, "03c_DEGs_round2"))
 gsea_root <- get_env_scalar("EXTRA_GSEA_ROOT", file.path(results_root, "03b_cluster_annotation_and_GSEA"))
 output_root <- get_env_scalar("EXTRA_TRAJECTORY_OUTPUT_ROOT", file.path(results_root, "04b_extra_trajectory"))
 
@@ -111,6 +113,7 @@ out_tn_ploidy_flow <- .ensure_dir(file.path(out_tn_ploidy, "scVelo_flow_umap"))
 out_cluster_timing <- .ensure_dir(file.path(output_root, "10_cluster_timing"))
 out_cluster_timing_scvelo <- .ensure_dir(file.path(out_cluster_timing, method_dir_scvelo))
 out_cluster_timing_monocle3 <- .ensure_dir(file.path(out_cluster_timing, method_dir_monocle3))
+out_paga_extra <- .ensure_dir(file.path(output_root, "11_paga_extra"))
 out_final_summary <- .ensure_dir(file.path(output_root, "summary"))
 
 save_both <- function(plot_obj, file_stub, width = 9, height = 7, dpi = 300) {
@@ -5623,11 +5626,13 @@ message("Input roots:")
 message("  trajectory_root: ", trajectory_root)
 message("  pseudotrajectory_root: ", pseudotrajectory_root)
 message("  deg_root: ", deg_root)
+message("  deg_round2_root: ", deg_round2_root)
 message("  gsea_root: ", gsea_root)
 message("  output_root: ", output_root)
 
 if (!dir.exists(trajectory_root)) stop("Missing trajectory root: ", trajectory_root, call. = FALSE)
 if (!dir.exists(pseudotrajectory_root)) stop("Missing pseudotrajectory root: ", pseudotrajectory_root, call. = FALSE)
+if (!dir.exists(deg_round2_root)) warning("Missing 03c DEG round2 root: ", deg_round2_root, call. = FALSE)
 if (!dir.exists(gsea_root)) warning("Missing 03b GSEA root: ", gsea_root, call. = FALSE)
 
 comparison_summary_file <- file.path(deg_root, "00_summary", "DEG_comparison_summary.csv")
@@ -5830,6 +5835,15 @@ if (nrow(gsea_inputs) > 0) {
   )
 }
 
+paga_extra <- run_paga_extra_analysis(
+  trajectory_root = trajectory_root,
+  deg_round2_root = deg_round2_root,
+  output_root = out_paga_extra,
+  analysis_label = "04b PAGA",
+  top_n = 10L,
+  max_cascade_genes = 30L
+)
+
 final_tumor_summary <- write_final_tumor_summary_outputs(
   output_root,
   out_final_summary,
@@ -5854,6 +5868,9 @@ run_summary_lines <- c(
   paste0("Monocle3 group cluster timing UMAP rows: ", nrow(monocle3_group_timing$status)),
   paste0("Monocle3 group cluster timing summary rows: ", nrow(monocle3_group_timing$cluster_summary)),
   paste0("Monocle3 group sample histogram rows: ", nrow(monocle3_group_timing$histogram_summary)),
+  paste0("PAGA extra groups processed: ", if (is.data.frame(paga_extra$status)) nrow(paga_extra$status) else 0L),
+  paste0("PAGA extra completed groups: ", if (is.data.frame(paga_extra$status) && nrow(paga_extra$status) > 0) sum(paga_extra$status$status == "completed", na.rm = TRUE) else 0L),
+  paste0("PAGA extra partial groups: ", if (is.data.frame(paga_extra$status) && nrow(paga_extra$status) > 0) sum(paga_extra$status$status == "partial", na.rm = TRUE) else 0L),
   paste0("Final summary copied supporting files: ", sum(final_tumor_summary$copy_manifest$copied, na.rm = TRUE)),
   "",
   "Main time metrics:",
@@ -5879,6 +5896,7 @@ run_summary_lines <- c(
   "  09_tn_ploidy_cluster_response/*",
   "  10_cluster_timing/scVelo/*",
   "  10_cluster_timing/Monocle3/*",
+  "  11_paga_extra/*",
   "  summary/*",
   "  03_plots/*.pdf and *.png"
 )

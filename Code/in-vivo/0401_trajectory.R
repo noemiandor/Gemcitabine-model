@@ -650,108 +650,6 @@ write_scvelo_runner <- function(
   Sys.chmod(run_script, mode = "0755")
 }
 
-write_paga_runner <- function(
-  run_script,
-  python_bin,
-  python_script,
-  args,
-  log_file
-) {
-  lines <- c(
-    "#!/usr/bin/env bash",
-    "set -euo pipefail",
-    paste(
-      shQuote(python_bin),
-      shQuote(python_script),
-      quote_args(args),
-      ">",
-      shQuote(log_file),
-      "2>&1"
-    )
-  )
-  writeLines(lines, con = run_script)
-  Sys.chmod(run_script, mode = "0755")
-}
-
-is_nonempty_assay_matrix <- function(mat) {
-  !is.null(mat) && length(dim(mat)) == 2L && nrow(mat) > 0 && ncol(mat) > 0
-}
-
-get_paga_expression_matrix <- function(obj, cells, assay = "RNA", slot_name = "data") {
-  if (!(assay %in% names(obj@assays))) {
-    stop("PAGA expression assay not found in Seurat object: ", assay, call. = FALSE)
-  }
-
-  slot_candidates <- unique(c(slot_name, if (!identical(slot_name, "counts")) "counts" else "data"))
-  for (slot_candidate in slot_candidates) {
-    mat <- get_assay_matrix(obj, assay = assay, slot_name = slot_candidate)
-    if (!is_nonempty_assay_matrix(mat)) next
-
-    missing_cells <- setdiff(cells, colnames(mat))
-    if (length(missing_cells) > 0) {
-      stop(
-        "PAGA expression matrix is missing ",
-        length(missing_cells),
-        " cell(s), e.g. ",
-        paste(utils::head(missing_cells, 5), collapse = ", "),
-        call. = FALSE
-      )
-    }
-
-    mat <- mat[, cells, drop = FALSE]
-    return(list(matrix = mat, assay = assay, slot = slot_candidate))
-  }
-
-  stop(
-    "Cannot find a non-empty PAGA expression matrix for assay ",
-    assay,
-    " in slot/layer candidates: ",
-    paste(slot_candidates, collapse = ", "),
-    call. = FALSE
-  )
-}
-
-write_paga_expression_export <- function(
-  obj,
-  cells,
-  output_dir,
-  assay = "RNA",
-  slot_name = "data"
-) {
-  cells <- as.character(cells)
-  cells <- cells[!is.na(cells) & nzchar(cells)]
-  if (length(cells) == 0) {
-    return(list(args = character(0), matrix_file = "", genes_file = "", cells_file = "", source = ""))
-  }
-
-  expr_info <- get_paga_expression_matrix(obj, cells = cells, assay = assay, slot_name = slot_name)
-  expr_mat <- expr_info$matrix
-  if (!inherits(expr_mat, "sparseMatrix")) {
-    expr_mat <- Matrix::Matrix(expr_mat, sparse = TRUE)
-  }
-
-  matrix_file <- file.path(output_dir, "expression_matrix.mtx")
-  genes_file <- file.path(output_dir, "expression_genes.csv")
-  cells_file <- file.path(output_dir, "expression_cells.csv")
-  Matrix::writeMM(expr_mat, matrix_file)
-  write_table_csv(data.frame(gene = rownames(expr_mat), stringsAsFactors = FALSE), genes_file)
-  write_table_csv(data.frame(cell = colnames(expr_mat), stringsAsFactors = FALSE), cells_file)
-
-  source_label <- paste(expr_info$assay, expr_info$slot, sep = ":")
-  list(
-    args = c(
-      "--expression-matrix", matrix_file,
-      "--expression-genes", genes_file,
-      "--expression-cells", cells_file,
-      "--expression-source", source_label
-    ),
-    matrix_file = matrix_file,
-    genes_file = genes_file,
-    cells_file = cells_file,
-    source = source_label
-  )
-}
-
 plot_metric_umap <- function(df, metric, file_stub, title) {
   if (!(metric %in% colnames(df))) return(invisible(NULL))
   values <- suppressWarnings(as.numeric(df[[metric]]))
@@ -775,146 +673,6 @@ plot_metric_umap <- function(df, metric, file_stub, title) {
     make_pretty_umap_theme()
   save_both(p, file_stub, width = 11, height = 7)
   invisible(p)
-}
-
-prepare_or_run_paga_analysis <- function(
-  group_name,
-  group_safe,
-  analysis_type,
-  analysis_root,
-  metadata_df,
-  seurat_obj = NULL,
-  export_expression = TRUE,
-  expression_assay = "RNA",
-  expression_slot = "data",
-  color_cols,
-  dose = NA_character_,
-  ploidy = NA_character_,
-  trajectory_context = NA_character_,
-  base_groups = character(0),
-  tn_scope = NA_character_,
-  ploidy_scope = "ploidy_all"
-) {
-  analysis_dir <- .ensure_dir(file.path(analysis_root, group_safe))
-  metadata_df <- metadata_df %>%
-    dplyr::mutate(
-      trajectory_analysis_group = group_name,
-      trajectory_tn_scope = tn_scope,
-      trajectory_ploidy_scope = ploidy_scope,
-      trajectory_branch = trajectory_branch
-    ) %>%
-    dplyr::arrange(.data$cell)
-
-  metadata_file <- file.path(analysis_dir, "cells_metadata_umap.csv")
-  cells_file <- file.path(analysis_dir, "cells.txt")
-  write_table_csv(metadata_df, metadata_file)
-  writeLines(metadata_df$cell, con = cells_file)
-
-  expression_export <- list(
-    args = character(0),
-    matrix_file = "",
-    genes_file = "",
-    cells_file = "",
-    source = ""
-  )
-  if (isTRUE(export_expression)) {
-    if (is.null(seurat_obj)) {
-      stop("PAGA expression export requested but seurat_obj is NULL.", call. = FALSE)
-    }
-    expression_export <- write_paga_expression_export(
-      obj = seurat_obj,
-      cells = metadata_df$cell,
-      output_dir = analysis_dir,
-      assay = expression_assay,
-      slot_name = expression_slot
-    )
-  }
-
-  log_file <- file.path(analysis_dir, "paga.log")
-  run_script <- file.path(analysis_dir, "run_paga.sh")
-  paga_args <- c(
-    "--metadata", metadata_file,
-    "--output-dir", analysis_dir,
-    "--analysis-label", group_name,
-    "--basis", "umap",
-    "--cluster-col", cluster_col,
-    "--color-cols", paste(color_cols, collapse = ","),
-    "--pca-prefix", paga_pca_prefix,
-    "--n-pcs", as.character(paga_n_pcs),
-    "--n-neighbors", as.character(paga_n_neighbors),
-    "--min-cells", as.character(paga_min_cells),
-    "--paga-threshold", as.character(paga_threshold)
-  )
-  paga_args <- c(paga_args, expression_export$args)
-  if (nzchar(paga_root_clusters)) {
-    paga_args <- c(paga_args, "--root-clusters", paga_root_clusters)
-  }
-
-  write_paga_runner(
-    run_script = run_script,
-    python_bin = python_bin,
-    python_script = paga_python_script,
-    args = paga_args,
-    log_file = log_file
-  )
-
-  status <- "prepared"
-  exit_status <- NA_integer_
-  missing_required_cols <- setdiff(c("cell", "UMAP_1", "UMAP_2", cluster_col), colnames(metadata_df))
-  if (length(missing_required_cols) > 0) {
-    status <- paste0("missing_metadata_columns:", paste(missing_required_cols, collapse = ";"))
-  } else if (nrow(metadata_df) < paga_min_cells) {
-    status <- "skipped_too_few_cells"
-  } else if (run_paga) {
-    message("Running PAGA for ", group_name)
-    if (!nzchar(Sys.which(python_bin)) && !file.exists(python_bin)) {
-      stop("Python binary not found: ", python_bin, call. = FALSE)
-    }
-    exit_status <- system2(
-      command = python_bin,
-      args = c(paga_python_script, paga_args),
-      stdout = log_file,
-      stderr = log_file
-    )
-    status <- if (identical(exit_status, 0L)) "completed" else "failed"
-    if (!identical(exit_status, 0L)) {
-      stop("PAGA failed for ", group_name, ". See log: ", log_file, call. = FALSE)
-    }
-  } else {
-    status <- "prepared_only"
-  }
-
-  data.frame(
-    analysis_group = group_name,
-    analysis_type = analysis_type,
-    trajectory_group = group_name,
-    trajectory_branch = trajectory_branch,
-    tn_scope = as.character(tn_scope),
-    ploidy_scope = as.character(ploidy_scope),
-    base_groups = format_input_files(base_groups),
-    Dose = as.character(dose),
-    ploidy = as.character(ploidy),
-    trajectory_context = as.character(trajectory_context),
-    paga_dir = analysis_dir,
-    n_cells = nrow(metadata_df),
-    cluster_col = cluster_col,
-    run_paga = run_paga,
-    status = status,
-    exit_status = exit_status,
-    n_pcs = paga_n_pcs,
-    n_neighbors = paga_n_neighbors,
-    pca_prefix = paga_pca_prefix,
-    paga_threshold = paga_threshold,
-    root_clusters = paga_root_clusters,
-    expression_export = export_expression,
-    expression_source = expression_export$source,
-    expression_matrix = expression_export$matrix_file,
-    expression_genes = expression_export$genes_file,
-    expression_cells = expression_export$cells_file,
-    run_script = run_script,
-    log_file = log_file,
-    stringsAsFactors = FALSE
-  )
 }
 
 prepare_or_run_scvelo_analysis <- function(
@@ -1568,17 +1326,6 @@ scvelo_pca_prefix <- "PCA_"
 scvelo_root_clusters <- "14"
 scvelo_end_clusters <- ""
 trajectory_branch <- "root14_no_end"
-paga_python_script <- file.path(script_dir, "04_trajectory_paga.py")
-run_paga <- parse_bool(cfg_value(config, "Run_paga", "RUN_PAGA", default = "TRUE"), default = TRUE)
-paga_n_neighbors <- parse_int_cfg(cfg_value(config, "Paga_n_neighbors", "PAGA_N_NEIGHBORS", default = "15"), 15L, "Paga_n_neighbors")
-paga_n_pcs <- parse_int_cfg(cfg_value(config, "Paga_n_pcs", "PAGA_N_PCS", default = as.character(scvelo_n_pcs)), scvelo_n_pcs, "Paga_n_pcs")
-paga_min_cells <- parse_int_cfg(cfg_value(config, "Paga_min_cells", "PAGA_MIN_CELLS", default = "20"), 20L, "Paga_min_cells")
-paga_threshold <- parse_numeric_cfg(cfg_value(config, "Paga_threshold", "PAGA_THRESHOLD", default = "0.03"), 0.03, "Paga_threshold")
-paga_pca_prefix <- cfg_value(config, "Paga_pca_prefix", "PAGA_PCA_PREFIX", default = scvelo_pca_prefix)
-paga_root_clusters <- cfg_value(config, "Paga_root_clusters", "PAGA_ROOT_CLUSTERS", default = scvelo_root_clusters)
-paga_export_expression <- parse_bool(cfg_value(config, "Paga_export_expression", "PAGA_EXPORT_EXPRESSION", default = "TRUE"), default = TRUE)
-paga_expression_assay <- cfg_value(config, "Paga_expression_assay", "PAGA_EXPRESSION_ASSAY", default = "RNA")
-paga_expression_slot <- cfg_value(config, "Paga_expression_slot", "PAGA_EXPRESSION_SLOT", default = "data")
 
 dose_col <- "Dose"
 id_col_candidates <- unique(c("IDs", cfg_value(config, "Trajectory_id_col", "TRAJECTORY_ID_COL", default = "ID"), "ID"))
@@ -1592,16 +1339,12 @@ out_inputs <- .ensure_dir(file.path(output_root, "00_inputs"))
 out_velocity_groups <- .ensure_dir(file.path(output_root, "01_velocity_groups"))
 out_summary <- .ensure_dir(file.path(output_root, "02_summary"))
 out_plots <- .ensure_dir(file.path(output_root, "03_plots"))
-out_paga_groups <- .ensure_dir(file.path(output_root, "04_paga_groups"))
 
 if (!file.exists(input_rds)) {
   stop("Input Seurat object does not exist: ", input_rds, call. = FALSE)
 }
 if (!file.exists(python_script)) {
   stop("Python worker script does not exist: ", python_script, call. = FALSE)
-}
-if (run_paga && !file.exists(paga_python_script)) {
-  stop("PAGA Python worker script does not exist: ", paga_python_script, call. = FALSE)
 }
 
 message("Reading Seurat object: ", input_rds)
@@ -2004,9 +1747,8 @@ resolve_analysis_group_inputs <- function(group_meta) {
   )
 }
 
-message("Preparing PAGA and scVelo analyses: All_cells plus CellLine/Tumor ploidy_all, 2N, and 4N.")
+message("Preparing scVelo analyses: All_cells plus CellLine/Tumor ploidy_all, 2N, and 4N.")
 run_rows <- list()
-paga_rows <- list()
 analysis_group_meta <- stats::setNames(vector("list", length(trajectory_group_levels)), trajectory_group_levels)
 analysis_group_inputs <- stats::setNames(vector("list", length(trajectory_group_levels)), trajectory_group_levels)
 analysis_group_input_info <- stats::setNames(vector("list", length(trajectory_group_levels)), trajectory_group_levels)
@@ -2018,25 +1760,6 @@ for (i in seq_len(nrow(trajectory_group_df))) {
   analysis_group_meta[[group_name]] <- group_meta
   analysis_group_inputs[[group_name]] <- input_info$input_files
   analysis_group_input_info[[group_name]] <- input_info
-
-  paga_rows[[group_name]] <- prepare_or_run_paga_analysis(
-    group_name = group_name,
-    group_safe = trajectory_group_df$group_safe[i],
-    analysis_type = trajectory_group_df$analysis_type[i],
-    analysis_root = out_paga_groups,
-    metadata_df = group_meta,
-    seurat_obj = obj,
-    export_expression = paga_export_expression,
-    expression_assay = paga_expression_assay,
-    expression_slot = paga_expression_slot,
-    color_cols = color_cols,
-    dose = NA_character_,
-    ploidy = trajectory_group_df$ploidy[i],
-    trajectory_context = trajectory_group_df$trajectory_context[i],
-    base_groups = group_name,
-    tn_scope = trajectory_group_df$tn_scope[i],
-    ploidy_scope = trajectory_group_df$ploidy_scope[i]
-  )
 
   run_rows[[group_name]] <- prepare_or_run_scvelo_analysis(
     group_name = group_name,
@@ -2056,37 +1779,6 @@ for (i in seq_len(nrow(trajectory_group_df))) {
     shape_order = if (identical(group_name, "All_cells")) c("CellLine", "Tumor") else if (identical(trajectory_group_df$ploidy_scope[i], "ploidy_all")) c("2N", "4N") else character(0),
     shape_markers = if (identical(group_name, "All_cells")) c("o", "^") else if (identical(trajectory_group_df$ploidy_scope[i], "ploidy_all")) c("o", "^") else character(0)
   )
-}
-
-paga_run_summary_df <- dplyr::bind_rows(paga_rows)
-write_table_csv(paga_run_summary_df, file.path(out_summary, "paga_run_summary.csv"))
-paga_edge_files <- file.path(paga_run_summary_df$paga_dir, "paga_edges.csv")
-paga_edge_files <- paga_edge_files[file.exists(paga_edge_files)]
-if (length(paga_edge_files) > 0) {
-  paga_edges_all <- dplyr::bind_rows(lapply(paga_edge_files, function(path) {
-    group_name <- paga_run_summary_df$analysis_group[match(dirname(path), paga_run_summary_df$paga_dir)]
-    read_trajectory_csv(
-      path,
-      col_types = readr::cols(
-        group_1 = readr::col_character(),
-        group_2 = readr::col_character(),
-        connectivity = readr::col_double(),
-        above_threshold = readr::col_logical()
-      )
-    ) %>%
-      dplyr::mutate(analysis_group = group_name, paga_dir = dirname(path), .before = 1)
-  }))
-  write_table_csv(paga_edges_all, file.path(out_summary, "paga_edges_all_trajectory_analyses.csv"))
-}
-paga_metric_files <- file.path(paga_run_summary_df$paga_dir, "paga_cell_metrics.csv")
-paga_metric_files <- paga_metric_files[file.exists(paga_metric_files)]
-if (length(paga_metric_files) > 0) {
-  paga_metrics_all <- dplyr::bind_rows(lapply(paga_metric_files, function(path) {
-    group_name <- paga_run_summary_df$analysis_group[match(dirname(path), paga_run_summary_df$paga_dir)]
-    read_trajectory_csv(path) %>%
-      dplyr::mutate(analysis_group = group_name, paga_dir = dirname(path), .before = 1)
-  }))
-  write_table_csv(paga_metrics_all, file.path(out_summary, "paga_cell_metrics_all_trajectory_analyses.csv"))
 }
 
 group_velocity_manifest_df <- data.frame(
@@ -2246,13 +1938,6 @@ summary_lines <- c(
   paste0("scVelo neighbors: ", ifelse(scvelo_use_metadata_pca, paste0("Seurat PCA columns with prefix ", scvelo_pca_prefix), "scVelo automatic PCA/neighbors")),
   paste0("scVelo root cluster(s): ", scvelo_root_clusters),
   paste0("scVelo end cluster(s): ", ifelse(nzchar(scvelo_end_clusters), scvelo_end_clusters, "not specified")),
-  paste0("Run PAGA immediately: ", run_paga),
-  paste0("PAGA neighbors: ", paga_n_neighbors),
-  paste0("PAGA PCs: ", paga_n_pcs),
-  paste0("PAGA threshold: ", paga_threshold),
-  paste0("PAGA root cluster(s) for DPT: ", ifelse(nzchar(paga_root_clusters), paga_root_clusters, "not specified")),
-  paste0("PAGA h5ad expression export: ", paga_export_expression),
-  paste0("PAGA h5ad expression source requested: ", paga_expression_assay, ":", paga_expression_slot),
   paste0("Dose groups: ", paste(dose_levels, collapse = ", ")),
   paste0("Ploidy groups: ", paste(ploidy_levels, collapse = ", ")),
   paste0("Velocity analysis groups: ", paste(trajectory_group_levels, collapse = ", ")),
@@ -2279,18 +1964,6 @@ summary_lines <- c(
   "  01_velocity_groups/Tumor/4N/cells_metadata_umap.csv",
   "  01_velocity_groups/**/run_scvelo.sh",
   "  01_velocity_groups/**/plots/velocity_stream.pdf(.png), after scVelo runs",
-  "",
-  "PAGA outputs:",
-  "  04_paga_groups/All_cells/cells_metadata_umap.csv",
-  "  04_paga_groups/**/expression_matrix.mtx, expression_genes.csv, expression_cells.csv",
-  "  04_paga_groups/**/paga_result.h5ad",
-  "  04_paga_groups/CellLine/ploidy_all/paga_edges.csv",
-  "  04_paga_groups/Tumor/ploidy_all/paga_connectivities.csv",
-  "  04_paga_groups/**/plots/paga_graph.pdf(.png)",
-  "  04_paga_groups/**/plots/paga_umap_overlay.pdf(.png)",
-  "  02_summary/paga_run_summary.csv",
-  "  02_summary/paga_edges_all_trajectory_analyses.csv",
-  "  02_summary/paga_cell_metrics_all_trajectory_analyses.csv",
   "",
   "R overview plots:",
   "  03_plots/umap_by_Dose.pdf(.png)",
