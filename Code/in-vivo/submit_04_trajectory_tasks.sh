@@ -214,7 +214,16 @@ set -euo pipefail
 module load "$CONDA_MODULE"
 module load "$R_MODULE"
 source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate "$ENV_DIR"
+if ! conda activate "$ENV_DIR" >/dev/null 2>&1; then
+  if [ -f "$ENV_DIR/bin/activate" ]; then
+    source "$ENV_DIR/bin/activate"
+  elif [ -x "$ENV_DIR/bin/python" ]; then
+    export PATH="$ENV_DIR/bin:$PATH"
+  else
+    echo "ERROR: Cannot activate ENV_DIR=$ENV_DIR and no executable python was found there." >&2
+    exit 1
+  fi
+fi
 
 line=$(awk -v n="$SLURM_ARRAY_TASK_ID" 'NR == n + 1 { print; exit }' "$MANIFEST")
 if [ -z "$line" ]; then
