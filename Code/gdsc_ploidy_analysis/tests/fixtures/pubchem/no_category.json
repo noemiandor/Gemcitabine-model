@@ -1,0 +1,20 @@
+{
+  "Record": {
+    "Section": [
+      {
+        "TOCHeading": "Names and Identifiers",
+        "Information": [
+          {
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "No therapeutic class information is present."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

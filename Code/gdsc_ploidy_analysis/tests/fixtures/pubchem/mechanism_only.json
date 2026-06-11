@@ -1,0 +1,20 @@
+{
+  "Record": {
+    "Section": [
+      {
+        "TOCHeading": "Mechanism of Action",
+        "Information": [
+          {
+            "Value": {
+              "StringWithMarkup": [
+                {
+                  "String": "This compound is a kinase inhibitor that blocks EGFR signaling."
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
