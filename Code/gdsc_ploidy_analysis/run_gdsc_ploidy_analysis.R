@@ -32,6 +32,7 @@ arg_value <- function(name, default = NULL) {
 
 base_dir <- script_dir()
 source(file.path(base_dir, "annotations.R"))
+source(file.path(base_dir, "analysis_helpers.R"))
 data_dir <- file.path(base_dir, "data")
 out_dir <- normalizePath(arg_value("output-dir", file.path(base_dir, "output")), mustWork = FALSE)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
@@ -131,8 +132,22 @@ lowpIsSens <- highpIsSens <- list()
 # Stabilize the permutation-based enrichment step for reproducibility testing.
 set.seed(1)
 for (can in names(x)) {
-  lowpIsSens[[can]] <- try(enrichment(x[[can]], coxIn, permute.n = 300, normalize = FALSE, pvalue.cutoff = 0.05)$pvalue)
-  highpIsSens[[can]] <- try(enrichment(-x[[can]], coxIn, permute.n = 300, normalize = FALSE, pvalue.cutoff = 0.1)$pvalue)
+  lowpIsSens[[can]] <- run_enrichment_or_stop(
+    x[[can]],
+    coxIn,
+    cancer = can,
+    direction = "low_ploidy_sensitive",
+    permute_n = 300,
+    pvalue_cutoff = 0.05
+  )
+  highpIsSens[[can]] <- run_enrichment_or_stop(
+    -x[[can]],
+    coxIn,
+    cancer = can,
+    direction = "high_ploidy_sensitive",
+    permute_n = 300,
+    pvalue_cutoff = 0.1
+  )
 }
 
 groups <- unique(coxIn$group)
@@ -153,16 +168,11 @@ names(col) <- tmp
 pdf(file.path(out_dir, "ploidyVsDrugSensitivity.pdf"), width = 3, height = 6)
 for (sheet in colnames(lowpIsSens)) {
   plot_vals <- R_[[sheet]][abs(R_[[sheet]]) >= 0.1]
-  try(barplot(
+  plot_barplot_or_stop(
     plot_vals,
-    col = col[coxIn[names(plot_vals), "group"]],
-    main = sheet,
-    horiz = TRUE,
-    las = 2,
-    cex.lab = 0.7,
-    cex.names = 0.35,
-    xlab = "Pearson r between ploidy and drug sensitivity (IC50)"
-  ))
+    colors = col[coxIn[names(plot_vals), "group"]],
+    cancer = sheet
+  )
 }
 dev.off()
 
