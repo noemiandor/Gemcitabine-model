@@ -58,6 +58,16 @@ rownames(appCL) <- appCL$`Cell iname`
 
 R <- list()
 metric <- "Z_SCORE"
+metric_label <- "GDSC Z-score"
+
+metadata_dir <- file.path(out_dir, "metadata")
+tables_dir <- file.path(out_dir, "tables")
+dir.create(metadata_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
+write_tsv(
+  data.frame(key = c("metric", "metric_label"), value = c(metric, metric_label), stringsAsFactors = FALSE),
+  file.path(metadata_dir, "run_config.tsv")
+)
 
 pdf(file.path(out_dir, "drugsVsPloidyCorr.pdf"), width = 15, height = 7)
 par(mfrow = c(3, 7))
@@ -81,7 +91,13 @@ for (can in c("allcancers", unique(dr$TCGA_DESC))) {
     }
     r[[drug]] <- cor(dr_drug[ii, metric], appCL[ii, "ploidy"], use = "pairwise.complete.obs")
     if (abs(r[[drug]]) > 0.6) {
-      plot(dr_drug[ii, metric], appCL[ii, "ploidy"], main = paste(can, drug))
+      plot(
+        dr_drug[ii, metric],
+        appCL[ii, "ploidy"],
+        main = paste(can, drug),
+        xlab = metric_label,
+        ylab = "Ploidy"
+      )
     }
   }
   R[[can]] <- sort(unlist(r))
@@ -117,7 +133,11 @@ coxIn$group[coxIn$group %in% c("PARP INHIBITORS", "SIGNAL TRANSDUCTION INHIBITOR
 coxIn <- coxIn[nchar(coxIn$group) > 0, , drop = FALSE]
 
 fr <- plyr::count(coxIn$group)
+write_tsv(fr, file.path(tables_dir, "drug_category_counts_before_filter.tsv"))
 coxIn <- coxIn[coxIn$group %in% fr$x[fr$freq > 1], , drop = FALSE]
+fr_after <- plyr::count(coxIn$group)
+write_tsv(fr_after, file.path(tables_dir, "drug_category_counts_after_filter.tsv"))
+validate_required_groups(coxIn$group)
 coxIn <- coxIn[, c("drug", "group"), drop = FALSE]
 coxIn$drug <- toupper(coxIn$drug)
 rownames(coxIn) <- coxIn$drug
@@ -171,7 +191,8 @@ for (sheet in colnames(lowpIsSens)) {
   plot_barplot_or_stop(
     plot_vals,
     colors = col[coxIn[names(plot_vals), "group"]],
-    cancer = sheet
+    cancer = sheet,
+    xlab = paste("Pearson r between ploidy and drug sensitivity", paste0("(", metric_label, ")"))
   )
 }
 dev.off()

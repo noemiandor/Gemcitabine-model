@@ -58,10 +58,17 @@ expect_error_contains(
     c(A = 0.1),
     colors = c("red"),
     cancer = "TEST",
+    xlab = "test metric",
     plotting_fn = function(...) stop("forced plot failure")
   ),
   c("cancer=TEST", "plotted_drugs=1", "forced plot failure"),
   "plot context"
+)
+
+expect_error_contains(
+  validate_required_groups(c("SIGNALING"), required_groups = c("SIGNALING", "CYTOTOXIC")),
+  c("Missing required annotation groups", "CYTOTOXIC"),
+  "required group validation"
 )
 
 cat("Error handling tests passed.\n")
