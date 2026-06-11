@@ -53,6 +53,33 @@ The default sensitivity metric is `Z_SCORE`, labeled in figures as `GDSC Z-score
 
 The main analysis requires `EnrichIntersect`, `xlsx`, and `plyr`. Annotation refresh additionally requires `ChemmineR`, `jsonlite`, and `httr2`. If `Code/gdsc_ploidy_analysis/.Rlibs` exists locally, it is prepended to `.libPaths()` before package checks. `.Rlibs` is ignored by Git.
 
+## Commands
+
+From the repository root:
+
+```sh
+Rscript Code/gdsc_ploidy_analysis/tests/smoke_test.R
+Rscript Code/gdsc_ploidy_analysis/run_gdsc_ploidy_analysis.R
+```
+
+To run an isolated full validation:
+
+```sh
+Rscript Code/gdsc_ploidy_analysis/run_gdsc_ploidy_analysis.R \
+  --output-dir=Code/gdsc_ploidy_analysis/output_milestones/manual_validation/outputs
+
+Rscript Code/gdsc_ploidy_analysis/tests/create_analysis_baseline.R \
+  --baseline-dir=Code/gdsc_ploidy_analysis/output_milestones/manual_validation \
+  --output-dir=Code/gdsc_ploidy_analysis/output_milestones/manual_validation/outputs
+
+Rscript Code/gdsc_ploidy_analysis/tests/compare_analysis_outputs.R \
+  --baseline-dir=Code/gdsc_ploidy_analysis/output_milestones/phase8_layout_hygiene \
+  --candidate-dir=Code/gdsc_ploidy_analysis/output_milestones/manual_validation \
+  --allow-differences=true
+```
+
+The comparison report identifies whether final outputs changed and where the first meaningful divergence occurred. Regenerated Excel/PDF hashes can differ even when RData and exported TSV intermediates match.
+
 ## Notes
 
 - `data/manual/custom_set_candidate.tsv` is a reconstructed manual override table inferred from surviving outputs and rerun behavior.
