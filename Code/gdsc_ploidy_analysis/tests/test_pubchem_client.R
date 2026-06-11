@@ -13,7 +13,7 @@ script_dir <- function() {
 
 tests_dir <- script_dir()
 base_dir <- normalizePath(file.path(tests_dir, ".."))
-source(file.path(base_dir, "pubchem_client.R"))
+source(file.path(base_dir, "src", "pubchem_client.R"))
 
 if (!requireNamespace("jsonlite", quietly = TRUE)) {
   stop("Package 'jsonlite' is required for PubChem parser tests.", call. = FALSE)

@@ -4,22 +4,24 @@ This folder packages the GDSC-versus-ploidy analysis used in the gemcitabine man
 
 ## Contents
 
-- `run_gdsc_ploidy_analysis.R`: main entrypoint
-- `refresh_pubchem_annotations.R`: explicit network-dependent annotation refresh entrypoint using structured PubChem JSON parsing
-- `annotate_from_pubchem.R`: local drug-category annotation helper
-- `custom_set_candidate.tsv`: reconstructed manual category overrides
-- `GDSC_analysis_original.R`: original script with its historical external-path assumptions
-- `GDSC_analysis_repro_reference.R`: repaired reference version developed during reproduction
-- `data/`: local input files required by the analysis
-- `output/`: generated results
+- `run_gdsc_ploidy_analysis.R`: backward-compatible wrapper for the main entrypoint
+- `refresh_pubchem_annotations.R`: backward-compatible wrapper for the network-dependent annotation refresh entrypoint
+- `src/`: maintained analysis, annotation, dependency, PubChem, plotting, and validation code
+- `data/raw/`: raw local input files required by the analysis
+- `data/manual/`: manual category override inputs
+- `data/derived/`: reviewed derived inputs, including the cached PubChem annotation table
+- `references/`: historical scripts retained for provenance, not maintained entrypoints
+- `output/`: generated results, ignored by Git
 
 ## Inputs
 
 The analysis uses:
 
-- `GDSC2_fitted_dose_response_24Jul22.txt`
-- `ploidyAcrossCellLines_V1.txt`
-- `small_molecule_20200407234909.csv`
+- `data/raw/GDSC2_fitted_dose_response_24Jul22.txt`
+- `data/raw/ploidyAcrossCellLines_V1.txt`
+- `data/raw/small_molecule_20200407234909.csv`
+- `data/manual/custom_set_candidate.tsv`
+- `data/derived/pubchem_drug_annotations.tsv`
 
 ## Outputs
 
@@ -46,19 +48,18 @@ The default sensitivity metric is `Z_SCORE`, labeled in figures as `GDSC Z-score
 - `xlsx`
 - `plyr`
 - `ChemmineR`
-- `textreadr`
 - `jsonlite`
 - `httr2`
 
-The main analysis requires `EnrichIntersect`, `xlsx`, and `plyr`. Annotation refresh additionally requires `ChemmineR`, `jsonlite`, and `httr2`. If `Code/gdsc_ploidy_analysis/.Rlibs` exists, it is prepended to `.libPaths()` before package checks.
+The main analysis requires `EnrichIntersect`, `xlsx`, and `plyr`. Annotation refresh additionally requires `ChemmineR`, `jsonlite`, and `httr2`. If `Code/gdsc_ploidy_analysis/.Rlibs` exists locally, it is prepended to `.libPaths()` before package checks. `.Rlibs` is ignored by Git.
 
 ## Notes
 
-- `custom_set_candidate.tsv` is a reconstructed manual override table inferred from surviving outputs and rerun behavior.
+- `data/manual/custom_set_candidate.tsv` is a reconstructed manual override table inferred from surviving outputs and rerun behavior.
 - The original script relied on an undefined in-memory object called `custom.set`; this package makes that dependency explicit.
 - The main analysis uses `data/derived/pubchem_drug_annotations.tsv` by default and does not contact PubChem during normal runs.
-- To refresh PubChem annotations, run `Rscript refresh_pubchem_annotations.R --output-cache=data/derived/pubchem_drug_annotations.refresh.tsv` and review the TSV diff before replacing the canonical cache.
+- To refresh PubChem annotations, run `Rscript refresh_pubchem_annotations.R --output-cache=data/derived/pubchem_drug_annotations.refresh.tsv` from `Code/gdsc_ploidy_analysis/` and review the TSV diff before replacing the canonical cache.
 - `SIGNALING` and `CYTOTOXIC` are required after category normalization and filtering because they are used to order enrichment result matrices.
 - Duplicate `DRUG_NAME`/`CELL_LINE_NAME` records are resolved with `lowest_rmse` by default, with stable identifier tie-breakers. The duplicate audit and resolution summary are written under `output/qc/`.
-- `annotate_from_pubchem.R` is retained as a historical near-verbatim port of the original script. The refresh entrypoint uses structured PubChem JSON parsing in `pubchem_client.R`.
+- `references/annotate_from_pubchem_legacy.R` is retained as a historical near-verbatim port of the original script. The refresh entrypoint uses structured PubChem JSON parsing in `src/pubchem_client.R`.
 - `matlab` is no longer required by this module because `isempty()` is implemented locally.

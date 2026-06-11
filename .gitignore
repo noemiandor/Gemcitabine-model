@@ -1,0 +1,7 @@
+Code/gdsc_ploidy_analysis/.Rlibs/
+Code/gdsc_ploidy_analysis/output/
+Code/gdsc_ploidy_analysis/output_milestones/**/outputs/
+Code/gdsc_ploidy_analysis/output_milestones/**/intermediate/
+Code/gdsc_ploidy_analysis/output_milestones/**/metadata/
+Code/gdsc_ploidy_analysis/output_milestones/**/checksums.tsv
+Code/gdsc_ploidy_analysis/output_milestones/**/result_summary.tsv

@@ -13,7 +13,7 @@ script_dir <- function() {
 
 tests_dir <- script_dir()
 base_dir <- normalizePath(file.path(tests_dir, ".."))
-source(file.path(base_dir, "analysis_helpers.R"))
+source(file.path(base_dir, "src", "analysis_helpers.R"))
 
 expect_error_contains <- function(expr, expected, label) {
   msg <- tryCatch(

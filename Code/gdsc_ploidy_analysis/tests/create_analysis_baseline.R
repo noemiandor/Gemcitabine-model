@@ -26,7 +26,7 @@ tests_dir <- script_dir()
 base_dir <- normalizePath(file.path(tests_dir, ".."))
 baseline_dir <- normalizePath(arg_value("baseline-dir", file.path(base_dir, "baseline")), mustWork = FALSE)
 output_dir <- normalizePath(arg_value("output-dir", file.path(base_dir, "output")), mustWork = FALSE)
-data_dir <- normalizePath(arg_value("data-dir", file.path(base_dir, "data")), mustWork = FALSE)
+data_dir <- normalizePath(arg_value("data-dir", file.path(base_dir, "data", "raw")), mustWork = FALSE)
 
 dir.create(baseline_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(file.path(baseline_dir, "metadata"), recursive = TRUE, showWarnings = FALSE)
@@ -60,7 +60,8 @@ input_files <- c(
   file.path(data_dir, "GDSC2_fitted_dose_response_24Jul22.txt"),
   file.path(data_dir, "ploidyAcrossCellLines_V1.txt"),
   file.path(data_dir, "small_molecule_20200407234909.csv"),
-  file.path(base_dir, "custom_set_candidate.tsv")
+  file.path(base_dir, "data", "manual", "custom_set_candidate.tsv"),
+  file.path(base_dir, "data", "derived", "pubchem_drug_annotations.tsv")
 )
 
 output_files <- c(

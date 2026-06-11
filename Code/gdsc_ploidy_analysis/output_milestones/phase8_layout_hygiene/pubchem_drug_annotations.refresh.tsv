@@ -1,0 +1,4 @@
+drug	drugName	pubchem_cid	drugCategory_Pubchem	annotation_source	annotation_status	retrieved_at	pubchem_url	notes
+Lapatinib	Lapatinib		Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors;	baseline_coxIn_RData	cached	preexisting_committed_output		Seeded from Code/gdsc_ploidy_analysis/output/coxIn.RData to preserve pre-hardening annotations
+Sepantronium bromide	Sepantronium bromide		CYTOTOXIC	baseline_coxIn_RData	cached	preexisting_committed_output		Seeded from Code/gdsc_ploidy_analysis/output/coxIn.RData to preserve pre-hardening annotations
+Tretinoin	Tretinoin		Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Dermatologic Agents; Keratolytic Agents; Retinoids; Targeted therapies	baseline_coxIn_RData	cached	preexisting_committed_output		Seeded from Code/gdsc_ploidy_analysis/output/coxIn.RData to preserve pre-hardening annotations
