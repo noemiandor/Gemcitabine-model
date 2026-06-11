@@ -1,11 +1,5 @@
 options(stringsAsFactors = FALSE)
 
-suppressPackageStartupMessages({
-  library(EnrichIntersect)
-  library(xlsx)
-  library(plyr)
-})
-
 `%||%` <- function(x, y) {
   if (is.null(x) || length(x) == 0) y else x
 }
@@ -31,6 +25,14 @@ arg_value <- function(name, default = NULL) {
 }
 
 base_dir <- script_dir()
+source(file.path(base_dir, "dependencies.R"))
+setup_local_lib(base_dir)
+require_packages(c("EnrichIntersect", "xlsx", "plyr"))
+suppressPackageStartupMessages({
+  library(EnrichIntersect)
+  library(xlsx)
+  library(plyr)
+})
 source(file.path(base_dir, "annotations.R"))
 source(file.path(base_dir, "analysis_helpers.R"))
 data_dir <- file.path(base_dir, "data")
@@ -47,6 +49,10 @@ annotation_file <- normalizePath(
 )
 
 stopifnot(file.exists(gdsc_file), file.exists(ploidy_file), file.exists(cmap_file), file.exists(custom_file), file.exists(annotation_file))
+write_input_manifest(
+  c(gdsc_file, ploidy_file, cmap_file, custom_file, annotation_file),
+  file.path(out_dir, "metadata", "input_manifest.tsv")
+)
 
 dr <- read.table(gdsc_file, sep = "\t", header = TRUE)
 dr$CELL_LINE_NAME <- toupper(gsub("-", "", dr$CELL_LINE_NAME))
@@ -204,4 +210,5 @@ for (sheet in colnames(lowpIsSens)) {
 }
 dev.off()
 
+write_session_metadata(file.path(metadata_dir, "session_info.txt"))
 message("Analysis completed. Outputs written to: ", out_dir)

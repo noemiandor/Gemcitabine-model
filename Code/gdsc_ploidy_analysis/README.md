@@ -31,6 +31,8 @@ Running the analysis writes:
 - `output/drugsVsPloidyCorr.xlsx`
 - `output/ploidyVsDrugSensitivity.pdf`
 - `output/metadata/run_config.tsv`
+- `output/metadata/input_manifest.tsv`
+- `output/metadata/session_info.txt`
 - `output/tables/drug_category_counts_before_filter.tsv`
 - `output/tables/drug_category_counts_after_filter.tsv`
 - `output/qc/duplicate_drug_cell_line_records.tsv`
@@ -45,6 +47,10 @@ The default sensitivity metric is `Z_SCORE`, labeled in figures as `GDSC Z-score
 - `plyr`
 - `ChemmineR`
 - `textreadr`
+- `jsonlite`
+- `httr2`
+
+The main analysis requires `EnrichIntersect`, `xlsx`, and `plyr`. Annotation refresh additionally requires `ChemmineR`, `jsonlite`, and `httr2`. If `Code/gdsc_ploidy_analysis/.Rlibs` exists, it is prepended to `.libPaths()` before package checks.
 
 ## Notes
 
