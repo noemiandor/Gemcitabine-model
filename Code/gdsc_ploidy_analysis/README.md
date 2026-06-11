@@ -33,6 +33,8 @@ Running the analysis writes:
 - `output/metadata/run_config.tsv`
 - `output/tables/drug_category_counts_before_filter.tsv`
 - `output/tables/drug_category_counts_after_filter.tsv`
+- `output/qc/duplicate_drug_cell_line_records.tsv`
+- `output/qc/duplicate_resolution_summary.tsv`
 
 The default sensitivity metric is `Z_SCORE`, labeled in figures as `GDSC Z-score`. Positive correlations indicate higher ploidy is associated with higher values of this metric; negative correlations indicate higher ploidy is associated with lower values of this metric.
 
@@ -51,5 +53,6 @@ The default sensitivity metric is `Z_SCORE`, labeled in figures as `GDSC Z-score
 - The main analysis uses `data/derived/pubchem_drug_annotations.tsv` by default and does not contact PubChem during normal runs.
 - To refresh PubChem annotations, run `Rscript refresh_pubchem_annotations.R --output-cache=data/derived/pubchem_drug_annotations.refresh.tsv` and review the TSV diff before replacing the canonical cache.
 - `SIGNALING` and `CYTOTOXIC` are required after category normalization and filtering because they are used to order enrichment result matrices.
+- Duplicate `DRUG_NAME`/`CELL_LINE_NAME` records are resolved with `lowest_rmse` by default, with stable identifier tie-breakers. The duplicate audit and resolution summary are written under `output/qc/`.
 - `annotate_from_pubchem.R` is retained as a historical near-verbatim port of the original script. The refresh entrypoint uses structured PubChem JSON parsing in `pubchem_client.R`.
 - `matlab` is no longer required by this module because `isempty()` is implemented locally.

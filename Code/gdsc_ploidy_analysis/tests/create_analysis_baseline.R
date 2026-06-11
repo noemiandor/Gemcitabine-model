@@ -71,7 +71,9 @@ output_files <- c(
   file.path(output_dir, "ploidyVsDrugSensitivity.pdf"),
   file.path(output_dir, "metadata", "run_config.tsv"),
   file.path(output_dir, "tables", "drug_category_counts_before_filter.tsv"),
-  file.path(output_dir, "tables", "drug_category_counts_after_filter.tsv")
+  file.path(output_dir, "tables", "drug_category_counts_after_filter.tsv"),
+  file.path(output_dir, "qc", "duplicate_drug_cell_line_records.tsv"),
+  file.path(output_dir, "qc", "duplicate_resolution_summary.tsv")
 )
 
 checksums <- rbind(

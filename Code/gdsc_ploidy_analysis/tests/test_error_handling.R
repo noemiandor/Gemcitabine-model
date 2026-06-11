@@ -71,4 +71,20 @@ expect_error_contains(
   "required group validation"
 )
 
+dups <- data.frame(
+  DRUG_NAME = c("DrugA", "DrugA", "DrugB"),
+  CELL_LINE_NAME = c("Cell1", "Cell1", "Cell2"),
+  Z_SCORE = c(10, 20, 30),
+  RMSE = c(0.5, 0.1, 0.2),
+  NLME_RESULT_ID = c(2, 1, 3),
+  stringsAsFactors = FALSE
+)
+resolved <- resolve_duplicate_drug_cell_lines(dups, metric = "Z_SCORE", strategy = "lowest_rmse")
+if (nrow(resolved) != 2) {
+  stop("duplicate resolution should return two rows", call. = FALSE)
+}
+if (resolved$Z_SCORE[resolved$DRUG_NAME == "DrugA"] != 20) {
+  stop("lowest_rmse duplicate resolution did not select the lower-RMSE row", call. = FALSE)
+}
+
 cat("Error handling tests passed.\n")

@@ -62,12 +62,20 @@ metric_label <- "GDSC Z-score"
 
 metadata_dir <- file.path(out_dir, "metadata")
 tables_dir <- file.path(out_dir, "tables")
+qc_dir <- file.path(out_dir, "qc")
 dir.create(metadata_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(qc_dir, recursive = TRUE, showWarnings = FALSE)
+duplicate_strategy <- "lowest_rmse"
 write_tsv(
-  data.frame(key = c("metric", "metric_label"), value = c(metric, metric_label), stringsAsFactors = FALSE),
+  data.frame(
+    key = c("metric", "metric_label", "duplicate_strategy"),
+    value = c(metric, metric_label, duplicate_strategy),
+    stringsAsFactors = FALSE
+  ),
   file.path(metadata_dir, "run_config.tsv")
 )
+dr <- resolve_duplicate_drug_cell_lines(dr, metric = metric, strategy = duplicate_strategy, qc_dir = qc_dir)
 
 pdf(file.path(out_dir, "drugsVsPloidyCorr.pdf"), width = 15, height = 7)
 par(mfrow = c(3, 7))
@@ -84,7 +92,6 @@ for (can in c("allcancers", unique(dr$TCGA_DESC))) {
   r <- list()
   for (drug in unique(dr_sub$DRUG_NAME)) {
     dr_drug <- dr_sub[dr_sub$DRUG_NAME == drug, ]
-    dr_drug <- dr_drug[!duplicated(dr_drug$CELL_LINE_NAME), ]
     rownames(dr_drug) <- dr_drug$CELL_LINE_NAME
     if (sum(!is.na(dr_drug[ii, metric])) < 10) {
       next
