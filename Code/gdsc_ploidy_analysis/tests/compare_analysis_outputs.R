@@ -43,7 +43,11 @@ write_tsv <- function(x, path) {
 relative_files <- function(root) {
   files <- list.files(root, recursive = TRUE, full.names = TRUE, all.files = FALSE)
   rel <- sub(paste0("^", normalizePath(root), "/?"), "", normalizePath(files, mustWork = FALSE))
-  rel[basename(rel) != "regression_report.md" & basename(rel) != "regression_diff_summary.tsv"]
+  rel[
+    basename(rel) != "regression_report.md" &
+      basename(rel) != "regression_diff_summary.tsv" &
+      !grepl("^outputs/", rel)
+  ]
 }
 
 file_md5 <- function(path) {

@@ -36,14 +36,19 @@ write_tsv <- function(x, path) {
   utils::write.table(x, file = path, sep = "\t", row.names = FALSE, quote = FALSE, na = "")
 }
 
-checksum_files <- function(files, root) {
+checksum_files <- function(files, root, canonical_paths = NULL) {
   existing <- files[file.exists(files)]
   if (length(existing) == 0) {
     return(data.frame(path = character(), md5 = character()))
   }
   sums <- tools::md5sum(existing)
+  if (is.null(canonical_paths)) {
+    paths <- sub(paste0("^", normalizePath(root, mustWork = FALSE), "/?"), "", normalizePath(names(sums), mustWork = FALSE))
+  } else {
+    paths <- canonical_paths[match(names(sums), files)]
+  }
   data.frame(
-    path = sub(paste0("^", normalizePath(root, mustWork = FALSE), "/?"), "", normalizePath(names(sums), mustWork = FALSE)),
+    path = paths,
     md5 = unname(sums),
     stringsAsFactors = FALSE
   )
@@ -68,7 +73,10 @@ output_files <- c(
 
 checksums <- rbind(
   transform(checksum_files(input_files, base_dir), kind = "input"),
-  transform(checksum_files(output_files, base_dir), kind = "output")
+  transform(
+    checksum_files(output_files, base_dir, canonical_paths = file.path("output", basename(output_files))),
+    kind = "output"
+  )
 )
 checksums <- checksums[, c("kind", "path", "md5")]
 write_tsv(checksums, file.path(baseline_dir, "checksums.tsv"))

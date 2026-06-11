@@ -20,18 +20,32 @@ script_dir <- function() {
   normalizePath(getwd())
 }
 
+arg_value <- function(name, default = NULL) {
+  args <- commandArgs(trailingOnly = TRUE)
+  prefix <- paste0("--", name, "=")
+  hit <- grep(prefix, args, value = TRUE)
+  if (length(hit) == 0) {
+    return(default)
+  }
+  sub(prefix, "", hit[1], fixed = TRUE)
+}
+
 base_dir <- script_dir()
-source(file.path(base_dir, "annotate_from_pubchem.R"))
+source(file.path(base_dir, "annotations.R"))
 data_dir <- file.path(base_dir, "data")
-out_dir <- file.path(base_dir, "output")
+out_dir <- normalizePath(arg_value("output-dir", file.path(base_dir, "output")), mustWork = FALSE)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 gdsc_file <- file.path(data_dir, "GDSC2_fitted_dose_response_24Jul22.txt")
 ploidy_file <- file.path(data_dir, "ploidyAcrossCellLines_V1.txt")
 cmap_file <- file.path(data_dir, "small_molecule_20200407234909.csv")
 custom_file <- file.path(base_dir, "custom_set_candidate.tsv")
+annotation_file <- normalizePath(
+  arg_value("annotation-file", file.path(data_dir, "derived", "pubchem_drug_annotations.tsv")),
+  mustWork = FALSE
+)
 
-stopifnot(file.exists(gdsc_file), file.exists(ploidy_file), file.exists(cmap_file), file.exists(custom_file))
+stopifnot(file.exists(gdsc_file), file.exists(ploidy_file), file.exists(cmap_file), file.exists(custom_file), file.exists(annotation_file))
 
 dr <- read.table(gdsc_file, sep = "\t", header = TRUE)
 dr$CELL_LINE_NAME <- toupper(gsub("-", "", dr$CELL_LINE_NAME))
@@ -75,19 +89,12 @@ dev.off()
 save(R, file = file.path(out_dir, "drugsVsPloidyCorr.RData"))
 
 coxIn <- data.frame(drug = unique(unlist(sapply(R, names))), stringsAsFactors = FALSE)
-coxIn$drugName <- coxIn$drug
-coxIn <- annotate_from_pubchem(coxIn, cmap_file)
+coxIn <- load_drug_annotations(coxIn$drug, annotation_file, custom_file)
 coxIn$group <- coxIn$drugCategory_Pubchem
-
-custom.set <- read.table(custom_file, sep = "\t", header = TRUE, quote = "", comment.char = "", check.names = FALSE, stringsAsFactors = FALSE)
-rownames(custom.set) <- toupper(custom.set$drug)
 
 coxIn <- coxIn[, intersect(c("drug", "drugName", "group"), colnames(coxIn))]
 coxIn <- coxIn[!duplicated(coxIn$drug), ]
 rownames(coxIn) <- toupper(coxIn$drug)
-
-ii <- intersect(rownames(custom.set), rownames(coxIn[is.na(coxIn$group) | coxIn$group == "," | coxIn$group == "", , drop = FALSE]))
-coxIn[ii, "group"] <- custom.set[ii, "group"]
 
 save(coxIn, file = file.path(out_dir, "coxIn.RData"))
 
