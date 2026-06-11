@@ -44,8 +44,10 @@ relative_files <- function(root) {
   files <- list.files(root, recursive = TRUE, full.names = TRUE, all.files = FALSE)
   rel <- sub(paste0("^", normalizePath(root), "/?"), "", normalizePath(files, mustWork = FALSE))
   rel[
-    basename(rel) != "regression_report.md" &
+      basename(rel) != "regression_report.md" &
       basename(rel) != "regression_diff_summary.tsv" &
+      basename(rel) != "pubchem_drug_annotations.refresh.tsv" &
+      basename(rel) != "pubchem_refresh_log.tsv" &
       !grepl("^outputs/", rel)
   ]
 }
