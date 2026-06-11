@@ -1,0 +1,10 @@
+kind	path	md5
+input	data/GDSC2_fitted_dose_response_24Jul22.txt	6ac74242a492c0352b6350000fce23f8
+input	data/ploidyAcrossCellLines_V1.txt	a0d580267b3f678995057c3e6b469f01
+input	data/small_molecule_20200407234909.csv	8db37f1762fda301ca6e863cd739bc4f
+input	custom_set_candidate.tsv	4849e694d4ffbf92c033be27bf59285a
+output	output/drugsVsPloidyCorr.RData	8605e4b239a766acfddde1c2cbfb527c
+output	output/coxIn.RData	a81af5270ca2189c52adebf059c6a5ba
+output	output/drugsVsPloidyCorr.xlsx	2521874abd3d7171ade1b0cf8dd579c5
+output	output/drugsVsPloidyCorr.pdf	bfb38f52f8236f23e127ec20c3f9c4be
+output	output/ploidyVsDrugSensitivity.pdf	78e6a752413093ca7b76a616bbef0735
