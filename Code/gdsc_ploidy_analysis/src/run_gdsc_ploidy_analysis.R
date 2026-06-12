@@ -237,6 +237,13 @@ save(R, file = file.path(out_dir, "drugsVsPloidyCorr.RData"))
 coxIn <- data.frame(drug = unique(unlist(sapply(R, names))), stringsAsFactors = FALSE)
 coxIn <- load_drug_annotations(coxIn$drug, annotation_file, custom_file)
 coxIn$group <- coxIn$drugCategory_Pubchem
+annotation_audit <- build_drug_annotation_audit(coxIn, custom_file)
+write_tsv(annotation_audit, file.path(tables_dir, "drug_annotation_audit.tsv"))
+write_curated_mapping_template(
+  annotation_audit,
+  file.path(tables_dir, "drug_class_final_curated_TEMPLATE.tsv")
+)
+warning("Enrichment still uses legacy_group_used_for_enrichment. Review drug_annotation_audit.tsv before switching to curated final_category.")
 
 coxIn <- coxIn[, intersect(c("drug", "drugName", "group"), colnames(coxIn))]
 coxIn <- coxIn[!duplicated(coxIn$drug), ]
@@ -248,17 +255,7 @@ coxIn_other <- coxIn[is.na(coxIn$group), , drop = FALSE]
 coxIn_other$group <- "NOTCLASSIFIED"
 coxIn <- coxIn[!is.na(coxIn$group), , drop = FALSE]
 
-tmp <- strsplit(coxIn$group, "; ", fixed = TRUE)
-coxIn$group <- vapply(tmp, function(x) x[length(x)], character(1))
-coxIn$group <- gsub("Cytotoxic medicines", "Cytotoxic", gsub(";", "", gsub(",", "", coxIn$group)))
-coxIn$group[grep("Alkylating", coxIn$group)] <- "Alkylating"
-coxIn$group[grep("Topoisomerase", coxIn$group)] <- "Cytotoxic"
-coxIn$group[grep("Tubulin", coxIn$group)] <- "Cytotoxic"
-coxIn$group[grep("Antimitotic", coxIn$group)] <- "Cytotoxic"
-coxIn$group[grep("Antineoplastic Agents", coxIn$group)] <- "Antineoplastic Agents"
-coxIn$group <- toupper(coxIn$group)
-coxIn$group <- gsub("(ANTI-)INFLAMMATORY", "IMMUNOSUPPRESSIVE AGENTS", coxIn$group, fixed = TRUE)
-coxIn$group[coxIn$group %in% c("PARP INHIBITORS", "SIGNAL TRANSDUCTION INHIBITORS", "JAK INHIBITORS", "ENZYME INHIBITORS", "TARGETED THERAPIES")] <- "SIGNALING"
+coxIn$group <- normalize_legacy_drug_group(coxIn$group)
 coxIn <- coxIn[nchar(coxIn$group) > 0, , drop = FALSE]
 
 fr <- plyr::count(coxIn$group)
