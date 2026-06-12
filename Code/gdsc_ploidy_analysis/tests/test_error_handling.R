@@ -87,6 +87,31 @@ if (resolved$Z_SCORE[resolved$DRUG_NAME == "DrugA"] != 20) {
   stop("lowest_rmse duplicate resolution did not select the lower-RMSE row", call. = FALSE)
 }
 
+dups_no_rmse <- dups[, setdiff(colnames(dups), "RMSE"), drop = FALSE]
+expect_error_contains(
+  resolve_duplicate_drug_cell_lines(dups_no_rmse, metric = "Z_SCORE", strategy = "lowest_rmse"),
+  c("missing required columns", "RMSE"),
+  "lowest_rmse requires RMSE"
+)
+
+dup_qc_dir <- tempfile()
+resolved_with_qc <- resolve_duplicate_drug_cell_lines(dups, metric = "Z_SCORE", strategy = "lowest_rmse", qc_dir = dup_qc_dir)
+selection_audit <- read.table(
+  file.path(dup_qc_dir, "duplicate_drug_cell_line_selection.tsv"),
+  sep = "\t",
+  header = TRUE,
+  quote = "",
+  comment.char = "",
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+if (!any(selection_audit$selected)) {
+  stop("Duplicate selection audit should mark selected rows", call. = FALSE)
+}
+if (!identical(nrow(resolved_with_qc), 2L)) {
+  stop("Duplicate resolution with QC should still return resolved rows", call. = FALSE)
+}
+
 cor_stats <- compute_drug_ploidy_correlation(
   response = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
   ploidy = c(2, 3, 5, 7, 11, 13, 17, 19, 23, 29),

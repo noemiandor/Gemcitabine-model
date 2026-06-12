@@ -584,28 +584,29 @@ resolve_duplicate_drug_cell_lines <- function(drug_table,
                                              strategy = "lowest_rmse",
                                              qc_dir = NULL) {
   required_cols <- c("DRUG_NAME", "CELL_LINE_NAME", metric)
+  if (strategy == "lowest_rmse") {
+    required_cols <- c(required_cols, "RMSE")
+  }
   missing_cols <- setdiff(required_cols, colnames(drug_table))
   if (length(missing_cols) > 0) {
     stop("Drug table is missing required columns: ", paste(missing_cols, collapse = ", "), call. = FALSE)
   }
-  if (!strategy %in% c("lowest_rmse", "first_input_order")) {
+  if (!strategy %in% c("lowest_rmse", "first_input_order", "first_after_sort")) {
     stop("Unsupported duplicate resolution strategy: ", strategy, call. = FALSE)
   }
 
+  drug_table$.row_id <- seq_len(nrow(drug_table))
   key_cols <- c("DRUG_NAME", "CELL_LINE_NAME")
   duplicate_mask <- duplicated(drug_table[, key_cols]) | duplicated(drug_table[, key_cols], fromLast = TRUE)
   duplicate_rows <- drug_table[duplicate_mask, , drop = FALSE]
 
-  if (!is.null(qc_dir)) {
-    dir.create(qc_dir, recursive = TRUE, showWarnings = FALSE)
-    write_tsv(duplicate_rows, file.path(qc_dir, "duplicate_drug_cell_line_records.tsv"))
-  }
-
   if (strategy == "first_input_order") {
     resolved <- drug_table[!duplicated(drug_table[, key_cols]), , drop = FALSE]
+    selection_reason <- "first row in input order"
+    sort_columns <- "input_order"
   } else {
     order_cols <- list(drug_table$DRUG_NAME, drug_table$CELL_LINE_NAME)
-    if ("RMSE" %in% colnames(drug_table)) {
+    if (strategy == "lowest_rmse") {
       order_cols <- c(order_cols, list(is.na(drug_table$RMSE), drug_table$RMSE))
     }
     for (col in c("NLME_RESULT_ID", "NLME_CURVE_ID", "DRUG_ID", "COSMIC_ID")) {
@@ -615,6 +616,20 @@ resolve_duplicate_drug_cell_lines <- function(drug_table,
     }
     ordered <- drug_table[do.call(order, order_cols), , drop = FALSE]
     resolved <- ordered[!duplicated(ordered[, key_cols]), , drop = FALSE]
+    selection_reason <- if (strategy == "lowest_rmse") {
+      "lowest finite RMSE with stable identifier tie-breakers"
+    } else {
+      "first row after stable identifier sort"
+    }
+    sort_columns <- paste(
+      c(
+        "DRUG_NAME",
+        "CELL_LINE_NAME",
+        if (strategy == "lowest_rmse") c("is.na(RMSE)", "RMSE") else character(),
+        intersect(c("NLME_RESULT_ID", "NLME_CURVE_ID", "DRUG_ID", "COSMIC_ID"), colnames(drug_table))
+      ),
+      collapse = ";"
+    )
   }
 
   remaining_duplicates <- duplicated(resolved[, key_cols]) | duplicated(resolved[, key_cols], fromLast = TRUE)
@@ -622,9 +637,18 @@ resolve_duplicate_drug_cell_lines <- function(drug_table,
     stop("Duplicate resolution failed to produce one row per DRUG_NAME and CELL_LINE_NAME.", call. = FALSE)
   }
 
+  selected_row_ids <- resolved$.row_id
+  if (nrow(duplicate_rows) > 0) {
+    duplicate_rows$selected <- duplicate_rows$.row_id %in% selected_row_ids
+    duplicate_rows$selection_reason <- ifelse(duplicate_rows$selected, selection_reason, "not selected")
+    duplicate_rows$selection_sort_columns <- sort_columns
+  }
+
   summary <- data.frame(
     metric = metric,
     strategy = strategy,
+    required_columns = paste(required_cols, collapse = ";"),
+    selection_sort_columns = sort_columns,
     input_rows = nrow(drug_table),
     duplicate_rows = nrow(duplicate_rows),
     duplicate_keys = if (nrow(duplicate_rows) == 0) 0 else nrow(unique(duplicate_rows[, key_cols])),
@@ -633,9 +657,14 @@ resolve_duplicate_drug_cell_lines <- function(drug_table,
     stringsAsFactors = FALSE
   )
   if (!is.null(qc_dir)) {
+    dir.create(qc_dir, recursive = TRUE, showWarnings = FALSE)
+    duplicate_rows_out <- duplicate_rows[, setdiff(colnames(duplicate_rows), ".row_id"), drop = FALSE]
+    write_tsv(duplicate_rows_out, file.path(qc_dir, "duplicate_drug_cell_line_records.tsv"))
+    write_tsv(duplicate_rows_out, file.path(qc_dir, "duplicate_drug_cell_line_selection.tsv"))
     write_tsv(summary, file.path(qc_dir, "duplicate_resolution_summary.tsv"))
   }
 
+  resolved$.row_id <- NULL
   attr(resolved, "duplicate_resolution_summary") <- summary
   resolved
 }

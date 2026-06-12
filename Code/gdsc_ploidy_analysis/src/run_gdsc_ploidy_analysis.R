@@ -125,6 +125,10 @@ write_cell_line_matching_delta(
 appCL <- appCL[!duplicated(appCL$`Cell iname`), ]
 rownames(appCL) <- appCL$`Cell iname`
 duplicate_strategy <- "lowest_rmse"
+duplicate_strategy_required_columns <- paste(
+  c("DRUG_NAME", "CELL_LINE_NAME", metric, if (duplicate_strategy == "lowest_rmse") "RMSE" else character()),
+  collapse = ";"
+)
 write_run_metadata(
   data.frame(
     key = c(
@@ -144,7 +148,8 @@ write_run_metadata(
       "tissue_model_min_n",
       "tissue_model_min_tissues",
       "tissue_model_min_rows_per_tissue",
-      "duplicate_strategy"
+      "duplicate_strategy",
+      "duplicate_strategy_required_columns"
     ),
     value = c(
       metric,
@@ -163,7 +168,8 @@ write_run_metadata(
       as.character(tissue_model_min_n),
       as.character(tissue_model_min_tissues),
       as.character(tissue_model_min_rows_per_tissue),
-      duplicate_strategy
+      duplicate_strategy,
+      duplicate_strategy_required_columns
     ),
     stringsAsFactors = FALSE
   ),
