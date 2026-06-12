@@ -63,8 +63,14 @@ log_file <- normalizePath(
   arg_value("log-file", file.path(base_dir, "data", "derived", "pubchem_refresh_log.tsv")),
   mustWork = FALSE
 )
+metadata_file <- normalizePath(
+  arg_value("metadata-file", file.path(base_dir, "output", "metadata", "pubchem_refresh_metadata.tsv")),
+  mustWork = FALSE
+)
 limit <- as.integer(arg_value("limit", NA_character_))
 force_refresh <- arg_flag("force-refresh")
+subset_output <- arg_flag("subset-output")
+allow_missing <- arg_flag("allow-missing")
 
 if (!file.exists(cmap_file)) {
   stop("Missing cmap file: ", cmap_file, call. = FALSE)
@@ -75,30 +81,13 @@ if (!file.exists(existing_cache) && is.null(drug_file)) {
 
 source(file.path(src_dir, "pubchem_client.R"))
 
-cache_cols <- c(
-  "drug",
-  "drugName",
-  "pubchem_cid",
-  "drugCategory_Pubchem",
-  "annotation_source",
-  "annotation_status",
-  "retrieved_at",
-  "pubchem_url",
-  "notes"
-)
+cache_cols <- pubchem_cache_columns()
 
 if (file.exists(existing_cache)) {
-  cache <- read_tsv(existing_cache)
+  cache <- standardize_pubchem_cache(read_tsv(existing_cache), cache_cols)
 } else {
-  cache <- data.frame(matrix(ncol = length(cache_cols), nrow = 0), stringsAsFactors = FALSE)
-  colnames(cache) <- cache_cols
+  cache <- standardize_pubchem_cache(NULL, cache_cols)
 }
-
-missing_cols <- setdiff(cache_cols, colnames(cache))
-for (col in missing_cols) {
-  cache[[col]] <- NA_character_
-}
-cache <- cache[, cache_cols, drop = FALSE]
 
 if (!is.null(drug_file)) {
   if (!file.exists(drug_file)) {
@@ -169,16 +158,47 @@ if (length(refresh_drugs) > 0) {
   }
 }
 
-reuse <- cache[cache$.drug_key %in% requested_keys & !cache$.drug_key %in% refresh_keys, cache_cols, drop = FALSE]
 log_rows$status[log_rows$action == "reuse"] <- "reused"
 log_rows$message[log_rows$action == "reuse"] <- "existing cache row reused"
 
-combined <- rbind(reuse, refreshed)
-combined$.drug_key <- toupper(combined$drug)
-combined <- combined[match(requested_keys[requested_keys %in% combined$.drug_key], combined$.drug_key), cache_cols, drop = FALSE]
+merge_result <- tryCatch(
+  merge_pubchem_refresh_results(
+    cache = cache,
+    requested_drugs = requested_drugs,
+    refreshed = refreshed,
+    subset_output = subset_output,
+    allow_missing = allow_missing,
+    cache_cols = cache_cols
+  ),
+  error = function(e) {
+    metadata <- data.frame(
+      parameter = c(
+        "requested_drug_count",
+        "refreshed_drug_count",
+        "subset_output",
+        "allow_missing",
+        "refresh_status",
+        "error_message"
+      ),
+      value = c(
+        length(requested_keys),
+        nrow(refreshed),
+        as.character(subset_output),
+        as.character(allow_missing),
+        "failed",
+        conditionMessage(e)
+      ),
+      stringsAsFactors = FALSE
+    )
+    write_tsv(metadata, metadata_file)
+    stop(conditionMessage(e), call. = FALSE)
+  }
+)
 
-write_tsv(combined, output_cache)
+write_tsv(merge_result$cache, output_cache)
 write_tsv(log_rows, log_file)
+write_tsv(merge_result$metadata, metadata_file)
 
 message("Annotation refresh wrote cache to: ", output_cache)
 message("Annotation refresh wrote log to: ", log_file)
+message("Annotation refresh wrote metadata to: ", metadata_file)

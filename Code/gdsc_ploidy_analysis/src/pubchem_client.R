@@ -168,6 +168,111 @@ annotate_pubchem_drug_structured <- function(drug, cmap_csv) {
   )
 }
 
+pubchem_cache_columns <- function() {
+  c(
+    "drug",
+    "drugName",
+    "pubchem_cid",
+    "drugCategory_Pubchem",
+    "annotation_source",
+    "annotation_status",
+    "retrieved_at",
+    "pubchem_url",
+    "notes"
+  )
+}
+
+standardize_pubchem_cache <- function(cache, cache_cols = pubchem_cache_columns()) {
+  if (is.null(cache) || nrow(cache) == 0) {
+    cache <- data.frame(matrix(ncol = length(cache_cols), nrow = 0), stringsAsFactors = FALSE)
+    colnames(cache) <- cache_cols
+  }
+  missing_cols <- setdiff(cache_cols, colnames(cache))
+  for (col in missing_cols) {
+    cache[[col]] <- NA_character_
+  }
+  cache <- cache[, cache_cols, drop = FALSE]
+  cache$.drug_key <- toupper(cache$drug)
+  cache <- cache[!duplicated(cache$.drug_key, fromLast = TRUE), , drop = FALSE]
+  cache
+}
+
+merge_pubchem_refresh_results <- function(cache,
+                                          requested_drugs,
+                                          refreshed,
+                                          subset_output = FALSE,
+                                          allow_missing = FALSE,
+                                          cache_cols = pubchem_cache_columns()) {
+  cache <- standardize_pubchem_cache(cache, cache_cols)
+  refreshed <- standardize_pubchem_cache(refreshed, cache_cols)
+  requested_drugs <- unique(requested_drugs[nzchar(requested_drugs)])
+  requested_keys <- toupper(requested_drugs)
+  refreshed_keys <- refreshed$.drug_key
+  cache_keys <- cache$.drug_key
+
+  failed_without_cache <- refreshed$.drug_key[
+    refreshed$annotation_status == "failed" &
+      !refreshed$.drug_key %in% cache_keys
+  ]
+  missing_without_cache <- setdiff(requested_keys, union(cache_keys, refreshed_keys))
+  unresolved_without_cache <- unique(c(failed_without_cache, missing_without_cache))
+
+  metadata <- data.frame(
+    parameter = c(
+      "requested_drug_count",
+      "refreshed_drug_count",
+      "reused_requested_count",
+      "preserved_cached_row_count",
+      "failed_drug_count",
+      "requested_missing_without_cache_count",
+      "subset_output",
+      "allow_missing"
+    ),
+    value = c(
+      length(requested_keys),
+      nrow(refreshed),
+      sum(requested_keys %in% cache_keys & !requested_keys %in% refreshed_keys),
+      sum(!cache_keys %in% refreshed_keys),
+      sum(refreshed$annotation_status == "failed"),
+      length(unresolved_without_cache),
+      as.character(subset_output),
+      as.character(allow_missing)
+    ),
+    stringsAsFactors = FALSE
+  )
+
+  if (length(unresolved_without_cache) > 0 && !allow_missing) {
+    stop(
+      "PubChem refresh could not resolve requested drugs without cached annotations: ",
+      paste(requested_drugs[requested_keys %in% unresolved_without_cache], collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  updated <- cache
+  for (i in seq_len(nrow(refreshed))) {
+    key <- refreshed$.drug_key[[i]]
+    hit <- match(key, updated$.drug_key)
+    if (is.na(hit)) {
+      updated <- rbind(updated, refreshed[i, , drop = FALSE])
+    } else {
+      updated[hit, ] <- refreshed[i, ]
+    }
+  }
+
+  if (subset_output) {
+    keep <- match(requested_keys, updated$.drug_key)
+    keep <- keep[!is.na(keep)]
+    updated <- updated[keep, , drop = FALSE]
+  }
+
+  list(
+    cache = updated[, cache_cols, drop = FALSE],
+    metadata = metadata,
+    unresolved_without_cache = unresolved_without_cache
+  )
+}
+
 `%||%` <- function(x, y) {
   if (is.null(x) || length(x) == 0) y else x
 }
