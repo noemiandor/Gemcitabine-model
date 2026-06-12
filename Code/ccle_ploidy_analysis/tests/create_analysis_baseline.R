@@ -27,7 +27,7 @@ baseline_dir <- normalizePath(arg_value(args, "baseline-dir", file.path(base_dir
 output_dir <- normalizePath(arg_value(args, "output-dir", tempfile("ccle_ploidy_baseline_output_")), mustWork = FALSE)
 
 source(file.path(base_dir, "src", "run_ccle_ploidy_analysis.R"))
-run_ccle_ploidy_analysis(base_dir = base_dir, out_dir = output_dir, metric = "IC50", metric_source = "legacy")
+run_ccle_ploidy_analysis(base_dir = base_dir, out_dir = output_dir)
 
 dir.create(baseline_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(file.path(baseline_dir, "tables"), recursive = TRUE, showWarnings = FALSE)
@@ -35,9 +35,9 @@ dir.create(file.path(baseline_dir, "metadata"), recursive = TRUE, showWarnings =
 
 files_to_copy <- c(
   file.path(output_dir, "result_summary.tsv"),
-  file.path(output_dir, "tables", "drug_ploidy_correlations_plotted_ic50.tsv"),
-  file.path(output_dir, "tables", "drug_ploidy_correlations_all_ic50.tsv"),
-  file.path(output_dir, "tables", "drug_coverage_ic50.tsv"),
+  file.path(output_dir, "tables", "drug_ploidy_correlations_plotted_z_score.tsv"),
+  file.path(output_dir, "tables", "drug_ploidy_correlations_all_z_score.tsv"),
+  file.path(output_dir, "tables", "drug_coverage_z_score.tsv"),
   file.path(output_dir, "metadata", "input_manifest.tsv"),
   file.path(output_dir, "metadata", "run_config.tsv"),
   file.path(output_dir, "metadata", "session_info.txt")

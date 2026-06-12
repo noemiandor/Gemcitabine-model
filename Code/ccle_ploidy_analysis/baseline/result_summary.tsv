@@ -1,2 +1,2 @@
-metric	metric_source	n_cell_lines	n_drugs_after_coverage_filter	n_plotted_drugs	min_plotted_estimate	max_plotted_estimate	plot_file
-IC50	legacy_breast_drug_sensitivity_z_score	20	119	45	-0.388878669039637	0.4628112903956	ccle_drug_ploidy_correlations_ic50.pdf
+metric	metric_label	metric_source	response_column	n_cell_lines	n_drugs_after_coverage_filter	n_plotted_drugs	min_plotted_estimate	max_plotted_estimate	plot_file
+Z_SCORE	BreastCancerDrugSensitivity Z Score	legacy_breast_drug_sensitivity_z_score	Z Score	20	119	45	-0.388878669039637	0.4628112903956	ccle_drug_ploidy_correlations_z_score.pdf

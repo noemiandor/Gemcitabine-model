@@ -27,7 +27,7 @@ baseline_dir <- normalizePath(arg_value(args, "baseline-dir", file.path(base_dir
 candidate_dir <- normalizePath(arg_value(args, "candidate-dir", tempfile("ccle_ploidy_candidate_")), mustWork = FALSE)
 
 source(file.path(base_dir, "src", "run_ccle_ploidy_analysis.R"))
-run_ccle_ploidy_analysis(base_dir = base_dir, out_dir = candidate_dir, metric = "IC50", metric_source = "legacy")
+run_ccle_ploidy_analysis(base_dir = base_dir, out_dir = candidate_dir)
 
 baseline <- read.table(file.path(baseline_dir, "checksums.tsv"), sep = "\t", header = TRUE, stringsAsFactors = FALSE)
 candidate_files <- file.path(candidate_dir, baseline$file)

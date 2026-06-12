@@ -2,7 +2,7 @@
 
 This folder packages the CCLE breast-cell-line drug sensitivity versus ploidy barplot analysis into a self-contained module.
 
-The default entrypoint reproduces the historical IC50-labeled plot from `BREAST_CCLE_PathwaysPloidy_depracated.R`. That historical plot reads `BreastCancerDrugSensitivity` files and correlates ploidy with their `Z Score` column, while labeling the x-axis as `Pearson (ploidy, IC50)`.
+The default entrypoint reproduces the historical `BREAST_CCLE_PathwaysPloidy_depracated.R` numeric result, but labels it by the actual response column: `BreastCancerDrugSensitivity Z Score`. Lower Z Score values are treated as more sensitive.
 
 ## Contents
 
@@ -13,12 +13,12 @@ The default entrypoint reproduces the historical IC50-labeled plot from `BREAST_
 - `data/derived/`: reduced derived inputs needed for filtering, including CCLE expression column names
 - `references/`: historical scripts retained for provenance
 - `tests/`: smoke and baseline comparison scripts
-- `baseline/`: reference outputs for the default IC50-labeled analysis
+- `baseline/`: reference outputs for the default Z Score analysis
 - `output/`: generated results, ignored by Git if the parent repository ignore rules include it
 
 ## Inputs
 
-The default IC50-labeled analysis uses:
+The default Z Score analysis uses:
 
 - `data/raw/Cell_app_export.txt`
 - `data/raw/DrugAliases.txt`
@@ -36,17 +36,17 @@ The optional grbrowser analysis also uses:
 
 Running the default analysis writes:
 
-- `output/ccle_drug_ploidy_correlations_ic50.pdf`
-- `output/ccle_drug_ploidy_correlations_ic50.tsv`
-- `output/drug_ploidy_correlations_ic50.RData`
+- `output/ccle_drug_ploidy_correlations_z_score.pdf`
+- `output/ccle_drug_ploidy_correlations_z_score.tsv`
+- `output/drug_ploidy_correlations_z_score.RData`
 - `output/result_summary.tsv`
 - `output/metadata/run_config.tsv`
 - `output/metadata/run_parameters.tsv`
 - `output/metadata/input_manifest.tsv`
 - `output/metadata/session_info.txt`
-- `output/tables/drug_coverage_ic50.tsv`
-- `output/tables/drug_ploidy_correlations_all_ic50.tsv`
-- `output/tables/drug_ploidy_correlations_plotted_ic50.tsv`
+- `output/tables/drug_coverage_z_score.tsv`
+- `output/tables/drug_ploidy_correlations_all_z_score.tsv`
+- `output/tables/drug_ploidy_correlations_plotted_z_score.tsv`
 
 ## R Dependencies
 
@@ -76,6 +76,14 @@ Rscript Code/ccle_ploidy_analysis/run_ccle_ploidy_analysis.R \
   --metric-source=grbrowser
 ```
 
+To run true grbrowser IC50 values, use:
+
+```sh
+Rscript Code/ccle_ploidy_analysis/run_ccle_ploidy_analysis.R \
+  --metric=IC50 \
+  --metric-source=grbrowser
+```
+
 To compare current outputs with the checked baseline:
 
 ```sh
@@ -84,6 +92,7 @@ Rscript Code/ccle_ploidy_analysis/tests/compare_analysis_outputs.R
 
 ## Notes
 
-- The default IC50-labeled analysis intentionally follows `BREAST_CCLE_PathwaysPloidy_depracated.R`, including the `0.8 * max(drug coverage)` drug filter and `abs(correlation) >= 0.2` plotting threshold.
-- Positive correlations in the default IC50-labeled output are colored as low-ploidy sensitive, matching the historical legend.
-- `BREAST_CCLE_PathwaysPloidy.R` is retained as provenance for the later MEP-LINCS `GR_AOC` plot, while `BREAST_CCLE_PathwaysPloidy_depracated.R` is retained as provenance for the default IC50-labeled plot.
+- The default Z Score analysis intentionally follows `BREAST_CCLE_PathwaysPloidy_depracated.R`, including the `0.8 * max(drug coverage)` drug filter and `abs(correlation) >= 0.2` plotting threshold.
+- Positive correlations in the default Z Score output are colored as low-ploidy sensitive because lower Z Score values are documented as more sensitive.
+- `--metric=IC50 --metric-source=legacy` is accepted as a deprecated alias for the default Z Score analysis and emits a warning. Canonical default outputs use `z_score` filenames.
+- `BREAST_CCLE_PathwaysPloidy.R` is retained as provenance for the later MEP-LINCS `GR_AOC` plot, while `BREAST_CCLE_PathwaysPloidy_depracated.R` is retained as provenance for the default Z Score plot.

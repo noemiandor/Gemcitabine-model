@@ -59,7 +59,7 @@ matrix_from_named_vectors <- function(named_vectors, rows) {
   mat
 }
 
-run_legacy_ic50 <- function(base_dir, out_dir, correlation_threshold, drug_filter) {
+run_legacy_z_score <- function(base_dir, out_dir, correlation_threshold, drug_filter) {
   inputs <- load_common_inputs(base_dir, require_primary_adherent = TRUE)
   paths <- inputs$paths
   ploidy <- inputs$ploidy
@@ -111,7 +111,7 @@ run_legacy_ic50 <- function(base_dir, out_dir, correlation_threshold, drug_filte
     plotted <- plotted[keep, , drop = FALSE]
   }
   if (nrow(plotted) == 0) {
-    stop("No drugs passed the legacy IC50 plotting filters.", call. = FALSE)
+    stop("No drugs passed the legacy Z_SCORE plotting filters.", call. = FALSE)
   }
 
   plotted$display_drug <- plotted$drug
@@ -119,11 +119,13 @@ run_legacy_ic50 <- function(base_dir, out_dir, correlation_threshold, drug_filte
   plotted$direction <- ifelse(plotted$estimate > 0, "Low ploidy is sensitive", "High ploidy is sensitive")
 
   list(
-    metric = "IC50",
-    metric_label = "IC50",
+    metric = "Z_SCORE",
+    metric_label = "BreastCancerDrugSensitivity Z Score",
     metric_source = "legacy_breast_drug_sensitivity_z_score",
-    metric_note = "Historical CCLE IC50-labeled plot uses BreastCancerDrugSensitivity Z Score values.",
+    metric_note = "Historical CCLE breast drug-sensitivity values from the BreastCancerDrugSensitivity Z Score column.",
+    response_column = "Z Score",
     lower_metric_more_sensitive = TRUE,
+    sensitivity_direction_assumption = "Lower BreastCancerDrugSensitivity Z Score values are documented as more sensitive.",
     ploidy = ploidy,
     response_matrix = clin_mat,
     drug_coverage = fr,
@@ -238,7 +240,13 @@ run_grbrowser_metric <- function(base_dir, out_dir, metric, correlation_threshol
     metric_label = metric,
     metric_source = "grbrowser",
     metric_note = "MEP-LINCS grbrowser metric.",
+    response_column = metric,
     lower_metric_more_sensitive = lower_metric_more_sensitive,
+    sensitivity_direction_assumption = if (lower_metric_more_sensitive) {
+      paste0("Lower ", metric, " values are treated as more sensitive.")
+    } else {
+      paste0("Higher ", metric, " values are treated as more sensitive.")
+    },
     ploidy = ploidy,
     response_matrix = clin_mat,
     drug_coverage = fr,
@@ -265,6 +273,9 @@ write_outputs <- function(result, base_dir, out_dir, correlation_threshold, drug
         "metric_label",
         "metric_source",
         "metric_note",
+        "response_column",
+        "lower_metric_more_sensitive",
+        "sensitivity_direction_assumption",
         "correlation_threshold",
         "drug_coverage_threshold_fraction",
         "drug_coverage_cutoff",
@@ -276,6 +287,9 @@ write_outputs <- function(result, base_dir, out_dir, correlation_threshold, drug
         result$metric_label,
         result$metric_source,
         result$metric_note,
+        result$response_column,
+        result$lower_metric_more_sensitive,
+        result$sensitivity_direction_assumption,
         correlation_threshold,
         0.8,
         result$coverage_cutoff,
@@ -305,7 +319,9 @@ write_outputs <- function(result, base_dir, out_dir, correlation_threshold, drug
 
   summary <- data.frame(
     metric = result$metric,
+    metric_label = result$metric_label,
     metric_source = result$metric_source,
+    response_column = result$response_column,
     n_cell_lines = ncol(result$response_matrix),
     n_drugs_after_coverage_filter = nrow(result$response_matrix),
     n_plotted_drugs = nrow(result$plotted),
@@ -321,7 +337,7 @@ write_outputs <- function(result, base_dir, out_dir, correlation_threshold, drug
 
 run_ccle_ploidy_analysis <- function(base_dir,
                                      out_dir = file.path(base_dir, "output"),
-                                     metric = "IC50",
+                                     metric = "Z_SCORE",
                                      metric_source = NULL,
                                      correlation_threshold = 0.2,
                                      drug_filter = character()) {
@@ -330,11 +346,28 @@ run_ccle_ploidy_analysis <- function(base_dir,
   setup_local_lib(base_dir)
   require_packages(character())
 
-  metric_source <- metric_source %||% if (toupper(metric) == "IC50") "legacy" else "grbrowser"
-  result <- if (toupper(metric) == "IC50" && tolower(metric_source) != "grbrowser") {
-    run_legacy_ic50(base_dir, out_dir, correlation_threshold, drug_filter)
+  metric_key <- toupper(metric)
+  legacy_metric_keys <- c("Z_SCORE", "ZSCORE", "LEGACY_Z_SCORE")
+  metric_source <- metric_source %||% if (metric_key %in% legacy_metric_keys) "legacy" else "grbrowser"
+  metric_source_key <- tolower(metric_source)
+
+  if (!metric_source_key %in% c("legacy", "grbrowser")) {
+    stop("metric_source must be either 'legacy' or 'grbrowser'.", call. = FALSE)
+  }
+
+  if (metric_source_key == "legacy") {
+    if (metric_key == "IC50") {
+      warning(
+        "--metric=IC50 --metric-source=legacy is deprecated because the legacy files contain Z Score values. ",
+        "Running the legacy analysis as Z_SCORE.",
+        call. = FALSE
+      )
+    } else if (!metric_key %in% legacy_metric_keys) {
+      stop("The legacy metric source only supports Z_SCORE.", call. = FALSE)
+    }
+    result <- run_legacy_z_score(base_dir, out_dir, correlation_threshold, drug_filter)
   } else {
-    run_grbrowser_metric(base_dir, out_dir, metric, correlation_threshold, drug_filter)
+    result <- run_grbrowser_metric(base_dir, out_dir, metric, correlation_threshold, drug_filter)
   }
   write_outputs(result, base_dir, out_dir, correlation_threshold, drug_filter)
 }
@@ -342,7 +375,7 @@ run_ccle_ploidy_analysis <- function(base_dir,
 ccle_ploidy_analysis_main <- function(base_dir) {
   args <- commandArgs(trailingOnly = TRUE)
   out_dir <- normalizePath(arg_value(args, "output-dir", file.path(base_dir, "output")), mustWork = FALSE)
-  metric <- arg_value(args, "metric", "IC50")
+  metric <- arg_value(args, "metric", "Z_SCORE")
   metric_source <- arg_value(args, "metric-source", arg_value(args, "ic50-source", NULL))
   correlation_threshold <- as.numeric(arg_value(args, "correlation-threshold", "0.2"))
   drug_filter <- split_arg(arg_value(args, "drugs", ""))
