@@ -78,6 +78,14 @@ canonical_matching_mode <- "legacy_raw_name_matching"
 supplemental_matching_mode <- "normalized_cell_line_key"
 ploidy_collision_tolerance <- as.numeric(arg_value("ploidy-collision-tolerance", "0.05"))
 correlation_min_n <- as.integer(arg_value("correlation-min-n", "10"))
+analysis_mode <- arg_value("analysis-mode", "dev")
+if (!analysis_mode %in% c("dev", "manuscript")) {
+  stop("--analysis-mode must be either 'dev' or 'manuscript'.", call. = FALSE)
+}
+default_enrichment_permute_n <- if (analysis_mode == "manuscript") 10000L else 300L
+enrichment_permute_n <- as.integer(arg_value("enrichment-permute-n", as.character(default_enrichment_permute_n)))
+low_ploidy_pvalue_cutoff <- as.numeric(arg_value("low-ploidy-pvalue-cutoff", "0.05"))
+high_ploidy_pvalue_cutoff <- as.numeric(arg_value("high-ploidy-pvalue-cutoff", "0.1"))
 
 metadata_dir <- file.path(out_dir, "metadata")
 tables_dir <- file.path(out_dir, "tables")
@@ -126,6 +134,10 @@ write_run_metadata(
       "ploidy_collision_tolerance",
       "correlation_min_n",
       "spearman_ci_method",
+      "analysis_mode",
+      "enrichment_permute_n",
+      "low_ploidy_pvalue_cutoff",
+      "high_ploidy_pvalue_cutoff",
       "duplicate_strategy"
     ),
     value = c(
@@ -138,6 +150,10 @@ write_run_metadata(
       as.character(ploidy_collision_tolerance),
       as.character(correlation_min_n),
       "approximate_fisher_transform_for_estimable_spearman_ci",
+      analysis_mode,
+      as.character(enrichment_permute_n),
+      as.character(low_ploidy_pvalue_cutoff),
+      as.character(high_ploidy_pvalue_cutoff),
       duplicate_strategy
     ),
     stringsAsFactors = FALSE
@@ -275,26 +291,82 @@ R_ <- sapply(R, function(x) x[names(x) %in% coxIn$drug])
 
 x <- sapply(names(R_), function(can) matrix(R_[[can]], dimnames = list(names(R_[[can]]), can)))
 lowpIsSens <- highpIsSens <- list()
+selected_drugs_for_enrichment <- list()
+enrichment_metadata <- list()
 # Stabilize the permutation-based enrichment step for reproducibility testing.
 set.seed(1)
 for (can in names(x)) {
+  enrichment_drugs <- rownames(x[[can]])
+  enrichment_values <- as.numeric(x[[can]][, 1])
+  selected_drugs_for_enrichment[[paste(can, "low_ploidy_sensitive", sep = "::")]] <- data.frame(
+    cancer_type = can,
+    direction = "low_ploidy_sensitive",
+    metric = metric,
+    drug = enrichment_drugs,
+    correlation_value = enrichment_values,
+    group = coxIn[enrichment_drugs, "group"],
+    stringsAsFactors = FALSE
+  )
+  selected_drugs_for_enrichment[[paste(can, "high_ploidy_sensitive", sep = "::")]] <- data.frame(
+    cancer_type = can,
+    direction = "high_ploidy_sensitive",
+    metric = metric,
+    drug = enrichment_drugs,
+    correlation_value = -enrichment_values,
+    group = coxIn[enrichment_drugs, "group"],
+    stringsAsFactors = FALSE
+  )
+  enrichment_metadata[[paste(can, "low_ploidy_sensitive", sep = "::")]] <- data.frame(
+    cancer_type = can,
+    direction = "low_ploidy_sensitive",
+    metric = metric,
+    analysis_mode = analysis_mode,
+    permute_n = enrichment_permute_n,
+    pvalue_cutoff = low_ploidy_pvalue_cutoff,
+    input_drugs = length(enrichment_drugs),
+    input_groups = length(unique(coxIn[enrichment_drugs, "group"])),
+    category_source = "legacy_group_used_for_enrichment",
+    stringsAsFactors = FALSE
+  )
+  enrichment_metadata[[paste(can, "high_ploidy_sensitive", sep = "::")]] <- data.frame(
+    cancer_type = can,
+    direction = "high_ploidy_sensitive",
+    metric = metric,
+    analysis_mode = analysis_mode,
+    permute_n = enrichment_permute_n,
+    pvalue_cutoff = high_ploidy_pvalue_cutoff,
+    input_drugs = length(enrichment_drugs),
+    input_groups = length(unique(coxIn[enrichment_drugs, "group"])),
+    category_source = "legacy_group_used_for_enrichment",
+    stringsAsFactors = FALSE
+  )
+
   lowpIsSens[[can]] <- run_enrichment_or_stop(
     x[[can]],
     coxIn,
     cancer = can,
     direction = "low_ploidy_sensitive",
-    permute_n = 300,
-    pvalue_cutoff = 0.05
+    permute_n = enrichment_permute_n,
+    pvalue_cutoff = low_ploidy_pvalue_cutoff
   )
   highpIsSens[[can]] <- run_enrichment_or_stop(
     -x[[can]],
     coxIn,
     cancer = can,
     direction = "high_ploidy_sensitive",
-    permute_n = 300,
-    pvalue_cutoff = 0.1
+    permute_n = enrichment_permute_n,
+    pvalue_cutoff = high_ploidy_pvalue_cutoff
   )
 }
+
+write_tsv(
+  do.call(rbind, selected_drugs_for_enrichment),
+  file.path(tables_dir, "class_enrichment_selected_drugs_legacy_Z_SCORE.tsv")
+)
+write_tsv(
+  do.call(rbind, enrichment_metadata),
+  file.path(tables_dir, "class_enrichment_legacy_metadata.tsv")
+)
 
 groups <- unique(coxIn$group)
 lowpIsSens <- sapply(lowpIsSens, function(x) as.data.frame(x)[groups, ])
@@ -305,8 +377,33 @@ lowpIsSens <- lowpIsSens[, order(lowpIsSens["CYTOTOXIC", ])]
 highpIsSens <- highpIsSens[, order(highpIsSens["CYTOTOXIC", ])]
 highpIsSens <- highpIsSens[, order(highpIsSens["SIGNALING", ])]
 
+enrichment_long <- rbind(
+  data.frame(
+    direction = "low_ploidy_sensitive",
+    metric = metric,
+    cancer_type = rep(colnames(lowpIsSens), each = nrow(lowpIsSens)),
+    group = rep(rownames(lowpIsSens), times = ncol(lowpIsSens)),
+    pvalue = as.vector(lowpIsSens),
+    stringsAsFactors = FALSE
+  ),
+  data.frame(
+    direction = "high_ploidy_sensitive",
+    metric = metric,
+    cancer_type = rep(colnames(highpIsSens), each = nrow(highpIsSens)),
+    group = rep(rownames(highpIsSens), times = ncol(highpIsSens)),
+    pvalue = as.vector(highpIsSens),
+    stringsAsFactors = FALSE
+  )
+)
+write_tsv(enrichment_long, file.path(tables_dir, "class_enrichment_legacy_Z_SCORE.tsv"))
+
 write.xlsx(t(lowpIsSens), file = file.path(out_dir, "drugsVsPloidyCorr.xlsx"), sheetName = "lowpIsSens")
 write.xlsx(t(highpIsSens), file = file.path(out_dir, "drugsVsPloidyCorr.xlsx"), sheetName = "highpIsSens", append = TRUE)
+invisible(file.copy(
+  file.path(out_dir, "drugsVsPloidyCorr.xlsx"),
+  file.path(tables_dir, "drugsVsPloidyCorr_legacy_Z_SCORE.xlsx"),
+  overwrite = TRUE
+))
 
 tmp <- sort(unique(coxIn$group))
 col <- rainbow(length(tmp) * 1.3)[1:length(tmp)]
