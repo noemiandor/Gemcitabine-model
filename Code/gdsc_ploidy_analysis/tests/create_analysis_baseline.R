@@ -78,11 +78,25 @@ output_files <- c(
   file.path(output_dir, "qc", "duplicate_drug_cell_line_records.tsv"),
   file.path(output_dir, "qc", "duplicate_resolution_summary.tsv")
 )
+generated_detail_files <- unlist(lapply(
+  file.path(output_dir, c("metadata", "tables", "qc")),
+  function(dir) {
+    if (!dir.exists(dir)) {
+      return(character())
+    }
+    list.files(dir, recursive = TRUE, full.names = TRUE, all.files = FALSE)
+  }
+), use.names = FALSE)
+output_files <- sort(unique(c(output_files, generated_detail_files)))
+canonical_output_paths <- file.path(
+  "output",
+  sub(paste0("^", normalizePath(output_dir, mustWork = FALSE), "/?"), "", normalizePath(output_files, mustWork = FALSE))
+)
 
 checksums <- rbind(
   transform(checksum_files(input_files, base_dir), kind = "input"),
   transform(
-    checksum_files(output_files, base_dir, canonical_paths = file.path("output", basename(output_files))),
+    checksum_files(output_files, base_dir, canonical_paths = canonical_output_paths),
     kind = "output"
   )
 )

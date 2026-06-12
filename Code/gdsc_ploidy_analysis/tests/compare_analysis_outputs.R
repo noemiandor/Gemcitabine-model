@@ -71,6 +71,27 @@ append_diff <- function(path, status, detail) {
   diffs <<- rbind(diffs, data.frame(path = path, status = status, detail = detail, stringsAsFactors = FALSE))
 }
 
+append_checksum_diffs <- function(b, c) {
+  b_sum <- read_tsv(b)
+  c_sum <- read_tsv(c)
+  b_sum$.key <- paste(b_sum$kind, b_sum$path, sep = "::")
+  c_sum$.key <- paste(c_sum$kind, c_sum$path, sep = "::")
+  all_keys <- sort(unique(c(b_sum$.key, c_sum$.key)))
+
+  for (key in all_keys) {
+    b_row <- b_sum[b_sum$.key == key, , drop = FALSE]
+    c_row <- c_sum[c_sum$.key == key, , drop = FALSE]
+    out_path <- paste0("checksums:", sub("::", "/", key, fixed = TRUE))
+    if (nrow(b_row) == 0) {
+      append_diff(out_path, "added", "artifact present only in candidate checksum manifest")
+    } else if (nrow(c_row) == 0) {
+      append_diff(out_path, "removed", "artifact present only in baseline checksum manifest")
+    } else if (!identical(b_row$md5[[1]], c_row$md5[[1]])) {
+      append_diff(out_path, "changed", paste("md5", b_row$md5[[1]], "->", c_row$md5[[1]]))
+    }
+  }
+}
+
 for (rel in all_rel) {
   b <- file.path(baseline_dir, rel)
   c <- file.path(candidate_dir, rel)
@@ -78,6 +99,8 @@ for (rel in all_rel) {
     append_diff(rel, "added", "present only in candidate")
   } else if (!file.exists(c)) {
     append_diff(rel, "removed", "present only in baseline")
+  } else if (rel == "checksums.tsv") {
+    append_checksum_diffs(b, c)
   } else {
     b_md5 <- file_md5(b)
     c_md5 <- file_md5(c)

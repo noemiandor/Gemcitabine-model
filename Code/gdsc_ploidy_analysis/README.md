@@ -36,9 +36,30 @@ Running the analysis writes:
 - `output/metadata/run_parameters.tsv`
 - `output/metadata/input_manifest.tsv`
 - `output/metadata/session_info.txt`
+- `output/tables/cell_line_key_collisions_gdsc.tsv`
+- `output/tables/cell_line_key_collisions_ploidy.tsv`
+- `output/tables/cell_line_matching_delta_raw_vs_normalized.tsv`
+- `output/tables/drug_ploidy_correlations_by_cancer_Z_SCORE.tsv`
+- `output/tables/drug_ploidy_correlations_by_cancer_Z_SCORE.xlsx`
+- `output/tables/drug_ploidy_correlations_by_cancer_all_metrics.tsv`
+- `output/tables/drug_ploidy_correlations_by_cancer_all_metrics.xlsx`
+- `output/tables/drug_ploidy_correlations_by_cancer_Z_SCORE_normalized_key_SUPPLEMENTAL.tsv`
+- `output/tables/drug_ploidy_correlations_by_cancer_Z_SCORE_normalized_key_SUPPLEMENTAL.xlsx`
+- `output/tables/correlation_delta_raw_vs_normalized_Z_SCORE.tsv`
+- `output/tables/drug_annotation_audit.tsv`
+- `output/tables/drug_class_final_curated_TEMPLATE.tsv`
+- `output/tables/class_enrichment_legacy_Z_SCORE.tsv`
+- `output/tables/class_enrichment_legacy_metadata.tsv`
+- `output/tables/class_enrichment_selected_drugs_legacy_Z_SCORE.tsv`
+- `output/tables/drugsVsPloidyCorr_legacy_Z_SCORE.xlsx`
+- `output/tables/gemcitabine_rank_summary_Z_SCORE.tsv`
+- `output/tables/gemcitabine_rank_summary_all_metrics.tsv`
+- `output/tables/all_cancers_tissue_adjusted_ploidy_models_Z_SCORE.tsv`
+- `output/tables/all_cancers_tissue_adjusted_ploidy_models_all_metrics.tsv`
 - `output/tables/drug_category_counts_before_filter.tsv`
 - `output/tables/drug_category_counts_after_filter.tsv`
 - `output/qc/duplicate_drug_cell_line_records.tsv`
+- `output/qc/duplicate_drug_cell_line_selection.tsv`
 - `output/qc/duplicate_resolution_summary.tsv`
 
 The default sensitivity metric is `Z_SCORE`, labeled in figures as `GDSC Z-score`. Positive correlations indicate higher ploidy is associated with higher values of this metric; negative correlations indicate higher ploidy is associated with lower values of this metric.
@@ -65,6 +86,8 @@ Rscript Code/gdsc_ploidy_analysis/tests/smoke_test.R
 Rscript Code/gdsc_ploidy_analysis/run_gdsc_ploidy_analysis.R
 ```
 
+The main run accepts `--analysis-mode=dev` or `--analysis-mode=manuscript`. `dev` is the default and uses 300 enrichment permutations; `manuscript` uses 10000 unless overridden with `--enrichment-permute-n=<n>`. The selected mode and permutation count are recorded in `output/metadata/run_parameters.tsv`.
+
 To run an isolated full validation:
 
 ```sh
@@ -88,8 +111,8 @@ The comparison report identifies whether final outputs changed and where the fir
 - `data/manual/custom_set_candidate.tsv` is a reconstructed manual override table inferred from surviving outputs and rerun behavior.
 - The original script relied on an undefined in-memory object called `custom.set`; this package makes that dependency explicit.
 - The main analysis uses `data/derived/pubchem_drug_annotations.tsv` by default and does not contact PubChem during normal runs.
-- To refresh PubChem annotations, run `Rscript refresh_pubchem_annotations.R --output-cache=data/derived/pubchem_drug_annotations.refresh.tsv` from `Code/gdsc_ploidy_analysis/` and review the TSV diff before replacing the canonical cache.
+- To refresh PubChem annotations, run `Rscript refresh_pubchem_annotations.R --output-cache=data/derived/pubchem_drug_annotations.refresh.tsv` from `Code/gdsc_ploidy_analysis/` and review the TSV diff before replacing the canonical cache. When a drug subset is requested, the refresh preserves unrequested cached rows by default; use `--subset-output` only when a subset-only cache is intentional.
 - `SIGNALING` and `CYTOTOXIC` are required after category normalization and filtering because they are used to order enrichment result matrices.
-- Duplicate `DRUG_NAME`/`CELL_LINE_NAME` records are resolved with `lowest_rmse` by default, with stable identifier tie-breakers. The duplicate audit and resolution summary are written under `output/qc/`.
+- Duplicate `DRUG_NAME`/`CELL_LINE_NAME` records are resolved with `lowest_rmse` by default, which requires an `RMSE` column and uses stable identifier tie-breakers. The duplicate audit, selected-row audit, and resolution summary are written under `output/qc/`.
 - `references/annotate_from_pubchem_legacy.R` is retained as a historical near-verbatim port of the original script. The refresh entrypoint uses structured PubChem JSON parsing in `src/pubchem_client.R`.
 - `matlab` is no longer required by this module because `isempty()` is implemented locally.
