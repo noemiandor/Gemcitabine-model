@@ -61,16 +61,22 @@ write_input_manifest(
 )
 
 dr <- read.table(gdsc_file, sep = "\t", header = TRUE)
+dr$CELL_LINE_NAME_RAW <- dr$CELL_LINE_NAME
 dr$CELL_LINE_NAME <- toupper(gsub("-", "", dr$CELL_LINE_NAME))
+dr$CELL_LINE_KEY <- normalize_cell_line_name(dr$CELL_LINE_NAME_RAW)
 
 appCL <- read.table(ploidy_file, sep = "\t", check.names = FALSE, header = TRUE)
 appCL <- appCL[!is.na(appCL$ploidy), ]
-appCL <- appCL[!duplicated(appCL$`Cell iname`), ]
-rownames(appCL) <- appCL$`Cell iname`
+appCL$CELL_LINE_KEY <- normalize_cell_line_name(appCL$`Cell iname`)
 
 R <- list()
-metric <- "Z_SCORE"
+canonical_metric <- "Z_SCORE"
+metric <- canonical_metric
 metric_label <- "GDSC Z-score"
+supplemental_metrics <- intersect(c("Z_SCORE", "LN_IC50", "AUC"), colnames(dr))
+canonical_matching_mode <- "legacy_raw_name_matching"
+supplemental_matching_mode <- "normalized_cell_line_key"
+ploidy_collision_tolerance <- as.numeric(arg_value("ploidy-collision-tolerance", "0.05"))
 
 metadata_dir <- file.path(out_dir, "metadata")
 tables_dir <- file.path(out_dir, "tables")
@@ -78,11 +84,57 @@ qc_dir <- file.path(out_dir, "qc")
 dir.create(metadata_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(qc_dir, recursive = TRUE, showWarnings = FALSE)
+
+gdsc_collisions <- audit_normalized_key_collisions(
+  dr,
+  raw_col = "CELL_LINE_NAME_RAW",
+  key_col = "CELL_LINE_KEY",
+  source_name = "GDSC"
+)
+ploidy_collisions <- audit_normalized_key_collisions(
+  appCL,
+  raw_col = "Cell iname",
+  key_col = "CELL_LINE_KEY",
+  source_name = "CellPassports_ploidy"
+)
+write_tsv(as.data.frame(gdsc_collisions), file.path(tables_dir, "cell_line_key_collisions_gdsc.tsv"))
+write_tsv(as.data.frame(ploidy_collisions), file.path(tables_dir, "cell_line_key_collisions_ploidy.tsv"))
+validate_ploidy_key_collisions(
+  appCL,
+  tolerance = ploidy_collision_tolerance,
+  tables_dir = tables_dir
+)
+write_cell_line_matching_delta(
+  dr,
+  appCL,
+  file.path(tables_dir, "cell_line_matching_delta_raw_vs_normalized.tsv")
+)
+
+appCL <- appCL[!duplicated(appCL$`Cell iname`), ]
+rownames(appCL) <- appCL$`Cell iname`
 duplicate_strategy <- "lowest_rmse"
 write_run_metadata(
   data.frame(
-    key = c("metric", "metric_label", "duplicate_strategy"),
-    value = c(metric, metric_label, duplicate_strategy),
+    key = c(
+      "metric",
+      "metric_label",
+      "canonical_metric",
+      "supplemental_metrics",
+      "canonical_matching_mode",
+      "supplemental_matching_mode",
+      "ploidy_collision_tolerance",
+      "duplicate_strategy"
+    ),
+    value = c(
+      metric,
+      metric_label,
+      canonical_metric,
+      paste(supplemental_metrics, collapse = ";"),
+      canonical_matching_mode,
+      supplemental_matching_mode,
+      as.character(ploidy_collision_tolerance),
+      duplicate_strategy
+    ),
     stringsAsFactors = FALSE
   ),
   metadata_dir
