@@ -1,0 +1,10 @@
+key	value
+metric	IC50
+metric_label	IC50
+metric_source	legacy_breast_drug_sensitivity_z_score
+metric_note	Historical CCLE IC50-labeled plot uses BreastCancerDrugSensitivity Z Score values.
+correlation_threshold	0.2
+drug_coverage_threshold_fraction	0.8
+drug_coverage_cutoff	16
+drug_filter	
+module_dir	/Users/4470246/Repositories/Gemcitabine-model/Code/ccle_ploidy_analysis

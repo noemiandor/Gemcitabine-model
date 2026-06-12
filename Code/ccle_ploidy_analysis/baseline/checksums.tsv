@@ -1,0 +1,8 @@
+file	md5
+result_summary.tsv	95b15e991411d44918fc6eeaedcc6cf9
+tables/drug_ploidy_correlations_plotted_ic50.tsv	1389f834322a764eff4250499f1a113a
+tables/drug_ploidy_correlations_all_ic50.tsv	14338dcebfaae841c114297b94461256
+tables/drug_coverage_ic50.tsv	680cd4aac431f041fa31d407228e5058
+metadata/input_manifest.tsv	d1c41cf4deb4f870d714116e0ccc733e
+metadata/run_config.tsv	695ee62513236b4aa8270ebca5159aa9
+metadata/session_info.txt	92a81c303b3c22e549ddc1fc49833a21
