@@ -32,7 +32,7 @@ base_dir <- module_dir()
 src_dir <- file.path(base_dir, "src")
 source(file.path(src_dir, "dependencies.R"))
 setup_local_lib(base_dir)
-require_packages(c("EnrichIntersect", "xlsx", "plyr"))
+require_packages(c("EnrichIntersect", "xlsx", "plyr", "openxlsx", "data.table"))
 suppressPackageStartupMessages({
   library(EnrichIntersect)
   library(xlsx)
@@ -79,13 +79,13 @@ dir.create(metadata_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(qc_dir, recursive = TRUE, showWarnings = FALSE)
 duplicate_strategy <- "lowest_rmse"
-write_tsv(
+write_run_metadata(
   data.frame(
     key = c("metric", "metric_label", "duplicate_strategy"),
     value = c(metric, metric_label, duplicate_strategy),
     stringsAsFactors = FALSE
   ),
-  file.path(metadata_dir, "run_config.tsv")
+  metadata_dir
 )
 dr <- resolve_duplicate_drug_cell_lines(dr, metric = metric, strategy = duplicate_strategy, qc_dir = qc_dir)
 

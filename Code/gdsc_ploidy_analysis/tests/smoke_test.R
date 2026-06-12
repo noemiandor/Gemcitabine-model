@@ -16,7 +16,7 @@ base_dir <- normalizePath(file.path(tests_dir, ".."))
 
 source(file.path(base_dir, "src", "dependencies.R"))
 setup_local_lib(base_dir)
-require_packages(c("EnrichIntersect", "xlsx", "plyr"))
+require_packages(c("EnrichIntersect", "xlsx", "plyr", "openxlsx", "data.table"))
 
 source(file.path(tests_dir, "test_error_handling.R"))
 source(file.path(tests_dir, "test_pubchem_client.R"))
