@@ -422,6 +422,146 @@ write_correlation_delta <- function(raw_dt, normalized_dt, path) {
   invisible(delta)
 }
 
+normalize_drug_key <- function(x) {
+  x <- toupper(as.character(x))
+  gsub("[^A-Z0-9]", "", x)
+}
+
+write_gemcitabine_rank_summary <- function(cor_dt,
+                                           path,
+                                           aliases = c("GEMCITABINE", "GEMZAR")) {
+  aliases <- normalize_drug_key(aliases)
+  out <- cor_dt[normalize_drug_key(cor_dt$drug) %in% aliases, , drop = FALSE]
+  write_tsv(out, path)
+  invisible(out)
+}
+
+build_tissue_adjusted_ploidy_models <- function(dr,
+                                                appCL,
+                                                metrics,
+                                                min_n = 20L,
+                                                min_tissues = 3L,
+                                                min_rows_per_tissue = 2L) {
+  metrics <- intersect(metrics, colnames(dr))
+  ploidy_map <- unique(data.frame(
+    CELL_LINE_NAME = appCL$`Cell iname`,
+    ploidy = appCL$ploidy,
+    stringsAsFactors = FALSE
+  ))
+  merged_all <- merge(dr, ploidy_map, by = "CELL_LINE_NAME", all = FALSE, sort = FALSE)
+  rows <- list()
+  idx <- 0L
+
+  empty_row <- function(drug,
+                        metric,
+                        data,
+                        status,
+                        skipped_reason = "",
+                        rank_deficient = NA,
+                        beta = NA_real_,
+                        se = NA_real_,
+                        tval = NA_real_,
+                        pval = NA_real_,
+                        notes = "") {
+    data.frame(
+      drug = drug,
+      metric = metric,
+      n = nrow(data),
+      n_cancer_types = length(unique(data$TCGA_DESC)),
+      n_tissues = length(unique(data$TCGA_DESC)),
+      beta_ploidy = beta,
+      se_ploidy = se,
+      t_ploidy = tval,
+      p_ploidy = pval,
+      fdr_ploidy = NA_real_,
+      model_formula = "response ~ ploidy + TCGA_DESC",
+      model_status = status,
+      rank_deficient = rank_deficient,
+      skipped_reason = skipped_reason,
+      notes = notes,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  for (drug in sort(unique(merged_all$DRUG_NAME))) {
+    drug_dt <- merged_all[merged_all$DRUG_NAME == drug, , drop = FALSE]
+    for (metric in metrics) {
+      fit_data <- data.frame(
+        response = drug_dt[[metric]],
+        ploidy = drug_dt$ploidy,
+        TCGA_DESC = drug_dt$TCGA_DESC,
+        stringsAsFactors = FALSE
+      )
+      fit_data <- fit_data[
+        is.finite(fit_data$response) &
+          is.finite(fit_data$ploidy) &
+          !is.na(fit_data$TCGA_DESC) &
+          nzchar(fit_data$TCGA_DESC),
+        ,
+        drop = FALSE
+      ]
+      fit_data$TCGA_DESC <- droplevels(factor(fit_data$TCGA_DESC))
+
+      idx <- idx + 1L
+      if (nrow(fit_data) < min_n) {
+        rows[[idx]] <- empty_row(drug, metric, fit_data, "skipped_insufficient_n", "n below tissue_model_min_n")
+        next
+      }
+      tissue_counts <- table(fit_data$TCGA_DESC)
+      if (length(tissue_counts) < min_tissues) {
+        rows[[idx]] <- empty_row(drug, metric, fit_data, "skipped_insufficient_tissue_count", "fewer tissues than tissue_model_min_tissues")
+        next
+      }
+      if (any(tissue_counts < min_rows_per_tissue)) {
+        rows[[idx]] <- empty_row(drug, metric, fit_data, "skipped_sparse_tissue_levels", "one or more tissues below tissue_model_min_rows_per_tissue")
+        next
+      }
+
+      fit <- tryCatch(
+        stats::lm(response ~ ploidy + TCGA_DESC, data = fit_data),
+        error = function(e) e
+      )
+      if (inherits(fit, "error")) {
+        rows[[idx]] <- empty_row(drug, metric, fit_data, "fit_error", conditionMessage(fit))
+        next
+      }
+
+      coef_table <- summary(fit)$coefficients
+      rank_deficient <- fit$rank < length(stats::coef(fit))
+      if (!"ploidy" %in% rownames(coef_table) || is.na(coef_table["ploidy", "Estimate"])) {
+        rows[[idx]] <- empty_row(
+          drug,
+          metric,
+          fit_data,
+          "rank_deficient_no_ploidy_coef",
+          "ploidy coefficient absent or NA",
+          rank_deficient = TRUE
+        )
+        next
+      }
+
+      status <- if (rank_deficient) "rank_deficient_ploidy_estimable" else "ok"
+      rows[[idx]] <- empty_row(
+        drug,
+        metric,
+        fit_data,
+        status,
+        rank_deficient = rank_deficient,
+        beta = coef_table["ploidy", "Estimate"],
+        se = coef_table["ploidy", "Std. Error"],
+        tval = coef_table["ploidy", "t value"],
+        pval = coef_table["ploidy", "Pr(>|t|)"],
+        notes = if (rank_deficient) "Model is rank-deficient, but ploidy coefficient is estimable." else ""
+      )
+    }
+  }
+
+  out <- do.call(rbind, rows)
+  out_dt <- data.table::as.data.table(out)
+  out_dt[, fdr_ploidy := stats::p.adjust(p_ploidy, method = "BH"), by = metric]
+  as.data.frame(out_dt)
+}
+
 write_tsv <- function(x, path) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   write.table(x, file = path, sep = "\t", row.names = FALSE, quote = FALSE, na = "")

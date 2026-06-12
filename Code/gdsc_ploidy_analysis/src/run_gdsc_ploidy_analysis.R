@@ -86,6 +86,9 @@ default_enrichment_permute_n <- if (analysis_mode == "manuscript") 10000L else 3
 enrichment_permute_n <- as.integer(arg_value("enrichment-permute-n", as.character(default_enrichment_permute_n)))
 low_ploidy_pvalue_cutoff <- as.numeric(arg_value("low-ploidy-pvalue-cutoff", "0.05"))
 high_ploidy_pvalue_cutoff <- as.numeric(arg_value("high-ploidy-pvalue-cutoff", "0.1"))
+tissue_model_min_n <- as.integer(arg_value("tissue-model-min-n", "20"))
+tissue_model_min_tissues <- as.integer(arg_value("tissue-model-min-tissues", "3"))
+tissue_model_min_rows_per_tissue <- as.integer(arg_value("tissue-model-min-rows-per-tissue", "2"))
 
 metadata_dir <- file.path(out_dir, "metadata")
 tables_dir <- file.path(out_dir, "tables")
@@ -138,6 +141,9 @@ write_run_metadata(
       "enrichment_permute_n",
       "low_ploidy_pvalue_cutoff",
       "high_ploidy_pvalue_cutoff",
+      "tissue_model_min_n",
+      "tissue_model_min_tissues",
+      "tissue_model_min_rows_per_tissue",
       "duplicate_strategy"
     ),
     value = c(
@@ -154,6 +160,9 @@ write_run_metadata(
       as.character(enrichment_permute_n),
       as.character(low_ploidy_pvalue_cutoff),
       as.character(high_ploidy_pvalue_cutoff),
+      as.character(tissue_model_min_n),
+      as.character(tissue_model_min_tissues),
+      as.character(tissue_model_min_rows_per_tissue),
       duplicate_strategy
     ),
     stringsAsFactors = FALSE
@@ -213,6 +222,39 @@ write_correlation_delta(
   canonical_correlations,
   normalized_key_correlations,
   file.path(tables_dir, "correlation_delta_raw_vs_normalized_Z_SCORE.tsv")
+)
+write_gemcitabine_rank_summary(
+  canonical_correlations,
+  file.path(tables_dir, "gemcitabine_rank_summary_Z_SCORE.tsv")
+)
+write_gemcitabine_rank_summary(
+  all_metric_correlations,
+  file.path(tables_dir, "gemcitabine_rank_summary_all_metrics.tsv")
+)
+
+tissue_models_z <- build_tissue_adjusted_ploidy_models(
+  dr,
+  appCL,
+  metrics = canonical_metric,
+  min_n = tissue_model_min_n,
+  min_tissues = tissue_model_min_tissues,
+  min_rows_per_tissue = tissue_model_min_rows_per_tissue
+)
+write_tsv(
+  tissue_models_z,
+  file.path(tables_dir, "all_cancers_tissue_adjusted_ploidy_models_Z_SCORE.tsv")
+)
+tissue_models_all <- build_tissue_adjusted_ploidy_models(
+  dr,
+  appCL,
+  metrics = supplemental_metrics,
+  min_n = tissue_model_min_n,
+  min_tissues = tissue_model_min_tissues,
+  min_rows_per_tissue = tissue_model_min_rows_per_tissue
+)
+write_tsv(
+  tissue_models_all,
+  file.path(tables_dir, "all_cancers_tissue_adjusted_ploidy_models_all_metrics.tsv")
 )
 
 pdf(file.path(out_dir, "drugsVsPloidyCorr.pdf"), width = 15, height = 7)

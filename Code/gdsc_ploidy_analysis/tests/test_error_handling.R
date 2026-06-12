@@ -108,4 +108,44 @@ if (!identical(low_n_stats$spearman_ci_method, "not_estimated_n_below_minimum"))
   stop("Low-n Spearman CI method should be not_estimated_n_below_minimum", call. = FALSE)
 }
 
+gem_summary_path <- tempfile(fileext = ".tsv")
+gem_summary <- write_gemcitabine_rank_summary(
+  data.frame(
+    cancer_type = c("A", "A"),
+    drug = c("Gemcitabine", "OtherDrug"),
+    metric = c("Z_SCORE", "Z_SCORE"),
+    n = c(10, 10),
+    stringsAsFactors = FALSE
+  ),
+  gem_summary_path
+)
+if (nrow(gem_summary) != 1 || gem_summary$drug != "Gemcitabine") {
+  stop("Gemcitabine summary should neutrally subset gemcitabine aliases only", call. = FALSE)
+}
+
+tissue_dr <- data.frame(
+  CELL_LINE_NAME = paste0("CELL", seq_len(12)),
+  DRUG_NAME = rep("DrugA", 12),
+  TCGA_DESC = rep(c("T1", "T2", "T3"), each = 4),
+  Z_SCORE = seq_len(12),
+  stringsAsFactors = FALSE
+)
+tissue_ploidy <- data.frame(
+  `Cell iname` = paste0("CELL", seq_len(12)),
+  ploidy = seq(2, 3.1, length.out = 12),
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+tissue_models <- build_tissue_adjusted_ploidy_models(
+  tissue_dr,
+  tissue_ploidy,
+  metrics = "Z_SCORE",
+  min_n = 10,
+  min_tissues = 3,
+  min_rows_per_tissue = 2
+)
+if (!identical(tissue_models$model_status, "ok")) {
+  stop("Tissue-adjusted model fixture should fit with model_status ok", call. = FALSE)
+}
+
 cat("Error handling tests passed.\n")
