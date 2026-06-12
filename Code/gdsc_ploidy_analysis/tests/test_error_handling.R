@@ -87,4 +87,25 @@ if (resolved$Z_SCORE[resolved$DRUG_NAME == "DrugA"] != 20) {
   stop("lowest_rmse duplicate resolution did not select the lower-RMSE row", call. = FALSE)
 }
 
+cor_stats <- compute_drug_ploidy_correlation(
+  response = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+  ploidy = c(2, 3, 5, 7, 11, 13, 17, 19, 23, 29),
+  min_n = 5
+)
+if (!identical(cor_stats$spearman_ci_method, "approximate_fisher_transform")) {
+  stop("Spearman CI method should be labeled as approximate_fisher_transform", call. = FALSE)
+}
+if (!is.finite(cor_stats$pearson_r)) {
+  stop("Correlation helper should return a finite Pearson r for valid input", call. = FALSE)
+}
+
+low_n_stats <- compute_drug_ploidy_correlation(
+  response = c(1, 2, 3),
+  ploidy = c(1, 2, 3),
+  min_n = 5
+)
+if (!identical(low_n_stats$spearman_ci_method, "not_estimated_n_below_minimum")) {
+  stop("Low-n Spearman CI method should be not_estimated_n_below_minimum", call. = FALSE)
+}
+
 cat("Error handling tests passed.\n")

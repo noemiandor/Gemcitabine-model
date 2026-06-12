@@ -77,6 +77,7 @@ supplemental_metrics <- intersect(c("Z_SCORE", "LN_IC50", "AUC"), colnames(dr))
 canonical_matching_mode <- "legacy_raw_name_matching"
 supplemental_matching_mode <- "normalized_cell_line_key"
 ploidy_collision_tolerance <- as.numeric(arg_value("ploidy-collision-tolerance", "0.05"))
+correlation_min_n <- as.integer(arg_value("correlation-min-n", "10"))
 
 metadata_dir <- file.path(out_dir, "metadata")
 tables_dir <- file.path(out_dir, "tables")
@@ -123,6 +124,8 @@ write_run_metadata(
       "canonical_matching_mode",
       "supplemental_matching_mode",
       "ploidy_collision_tolerance",
+      "correlation_min_n",
+      "spearman_ci_method",
       "duplicate_strategy"
     ),
     value = c(
@@ -133,6 +136,8 @@ write_run_metadata(
       canonical_matching_mode,
       supplemental_matching_mode,
       as.character(ploidy_collision_tolerance),
+      as.character(correlation_min_n),
+      "approximate_fisher_transform_for_estimable_spearman_ci",
       duplicate_strategy
     ),
     stringsAsFactors = FALSE
@@ -140,6 +145,59 @@ write_run_metadata(
   metadata_dir
 )
 dr <- resolve_duplicate_drug_cell_lines(dr, metric = metric, strategy = duplicate_strategy, qc_dir = qc_dir)
+
+canonical_correlations <- build_drug_ploidy_correlation_table(
+  dr,
+  appCL,
+  metrics = canonical_metric,
+  matching_mode = "raw",
+  min_n = correlation_min_n
+)
+write_tsv(
+  canonical_correlations,
+  file.path(tables_dir, "drug_ploidy_correlations_by_cancer_Z_SCORE.tsv")
+)
+write_correlations_xlsx(
+  canonical_correlations,
+  file.path(tables_dir, "drug_ploidy_correlations_by_cancer_Z_SCORE.xlsx")
+)
+
+all_metric_correlations <- build_drug_ploidy_correlation_table(
+  dr,
+  appCL,
+  metrics = supplemental_metrics,
+  matching_mode = "raw",
+  min_n = correlation_min_n
+)
+write_tsv(
+  all_metric_correlations,
+  file.path(tables_dir, "drug_ploidy_correlations_by_cancer_all_metrics.tsv")
+)
+write_correlations_xlsx(
+  all_metric_correlations,
+  file.path(tables_dir, "drug_ploidy_correlations_by_cancer_all_metrics.xlsx")
+)
+
+normalized_key_correlations <- build_drug_ploidy_correlation_table(
+  dr,
+  appCL,
+  metrics = canonical_metric,
+  matching_mode = "normalized",
+  min_n = correlation_min_n
+)
+write_tsv(
+  normalized_key_correlations,
+  file.path(tables_dir, "drug_ploidy_correlations_by_cancer_Z_SCORE_normalized_key_SUPPLEMENTAL.tsv")
+)
+write_correlations_xlsx(
+  normalized_key_correlations,
+  file.path(tables_dir, "drug_ploidy_correlations_by_cancer_Z_SCORE_normalized_key_SUPPLEMENTAL.xlsx")
+)
+write_correlation_delta(
+  canonical_correlations,
+  normalized_key_correlations,
+  file.path(tables_dir, "correlation_delta_raw_vs_normalized_Z_SCORE.tsv")
+)
 
 pdf(file.path(out_dir, "drugsVsPloidyCorr.pdf"), width = 15, height = 7)
 par(mfrow = c(3, 7))

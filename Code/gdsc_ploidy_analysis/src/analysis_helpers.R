@@ -168,6 +168,260 @@ write_cell_line_matching_delta <- function(dr, appCL, path) {
   invisible(delta)
 }
 
+compute_drug_ploidy_correlation <- function(response, ploidy, min_n = 10) {
+  ok <- is.finite(response) & is.finite(ploidy)
+  n <- sum(ok)
+
+  empty <- function(method) {
+    data.frame(
+      n = n,
+      pearson_r = NA_real_,
+      pearson_p = NA_real_,
+      pearson_ci_low = NA_real_,
+      pearson_ci_high = NA_real_,
+      spearman_rho = NA_real_,
+      spearman_p = NA_real_,
+      spearman_ci_low = NA_real_,
+      spearman_ci_high = NA_real_,
+      spearman_ci_method = method,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  if (n < min_n) {
+    return(empty("not_estimated_n_below_minimum"))
+  }
+
+  response_ok <- response[ok]
+  ploidy_ok <- ploidy[ok]
+  if (stats::sd(response_ok) == 0 || stats::sd(ploidy_ok) == 0) {
+    return(empty("not_estimated_no_variation"))
+  }
+
+  pearson <- tryCatch(
+    suppressWarnings(stats::cor.test(response_ok, ploidy_ok, method = "pearson")),
+    error = function(e) NULL
+  )
+  spearman <- tryCatch(
+    suppressWarnings(stats::cor.test(response_ok, ploidy_ok, method = "spearman", exact = FALSE)),
+    error = function(e) NULL
+  )
+
+  pearson_ci <- c(NA_real_, NA_real_)
+  pearson_r <- pearson_p <- NA_real_
+  if (!is.null(pearson)) {
+    pearson_r <- unname(pearson$estimate)
+    pearson_p <- pearson$p.value
+    pearson_ci <- pearson$conf.int
+  }
+
+  spearman_rho <- spearman_p <- NA_real_
+  spearman_ci <- c(NA_real_, NA_real_)
+  spearman_ci_method <- "not_estimated"
+  if (!is.null(spearman)) {
+    spearman_rho <- unname(spearman$estimate)
+    spearman_p <- spearman$p.value
+    if (is.finite(spearman_rho) && abs(spearman_rho) < 1 && n > 3) {
+      z <- atanh(spearman_rho)
+      se <- 1 / sqrt(n - 3)
+      spearman_ci <- tanh(c(z - 1.96 * se, z + 1.96 * se))
+      spearman_ci_method <- "approximate_fisher_transform"
+    }
+  }
+
+  data.frame(
+    n = n,
+    pearson_r = pearson_r,
+    pearson_p = pearson_p,
+    pearson_ci_low = pearson_ci[1],
+    pearson_ci_high = pearson_ci[2],
+    spearman_rho = spearman_rho,
+    spearman_p = spearman_p,
+    spearman_ci_low = spearman_ci[1],
+    spearman_ci_high = spearman_ci[2],
+    spearman_ci_method = spearman_ci_method,
+    stringsAsFactors = FALSE
+  )
+}
+
+response_direction_note <- function(metric) {
+  switch(
+    metric,
+    Z_SCORE = "Positive r means higher ploidy is associated with higher GDSC Z-score; sensitivity direction requires metric-specific interpretation.",
+    LN_IC50 = "Positive r means higher ploidy is associated with higher LN_IC50; interpret sensitivity direction separately from the correlation sign.",
+    AUC = "Positive r means higher ploidy is associated with higher AUC; interpret sensitivity direction separately from the correlation sign.",
+    "Positive r means higher ploidy is associated with a higher response metric value; interpret sensitivity direction separately."
+  )
+}
+
+ploidy_map_for_matching <- function(appCL, matching_mode) {
+  matching_mode <- match.arg(matching_mode, c("raw", "normalized"))
+  if (matching_mode == "raw") {
+    out <- unique(data.frame(
+      match_key = appCL$`Cell iname`,
+      ploidy = appCL$ploidy,
+      stringsAsFactors = FALSE
+    ))
+  } else {
+    appCL_dt <- data.table::as.data.table(appCL)
+    out_dt <- appCL_dt[, .(
+      ploidy = mean(ploidy, na.rm = TRUE),
+      ploidy_rows = .N,
+      ploidy_raw_names = paste(sort(unique(`Cell iname`)), collapse = " | ")
+    ), by = CELL_LINE_KEY]
+    data.table::setnames(out_dt, "CELL_LINE_KEY", "match_key")
+    out <- as.data.frame(out_dt)
+  }
+  out[!is.na(out$match_key) & nzchar(out$match_key), , drop = FALSE]
+}
+
+build_drug_ploidy_correlation_table <- function(dr,
+                                                appCL,
+                                                metrics,
+                                                matching_mode = c("raw", "normalized"),
+                                                min_n = 10) {
+  matching_mode <- match.arg(matching_mode)
+  metrics <- intersect(metrics, colnames(dr))
+  cancer_types <- c("allcancers", sort(unique(dr$TCGA_DESC)))
+  ploidy_map <- ploidy_map_for_matching(appCL, matching_mode)
+  match_col <- if (matching_mode == "raw") "CELL_LINE_NAME" else "CELL_LINE_KEY"
+  rows <- list()
+  idx <- 0L
+
+  for (cancer_type in cancer_types) {
+    dr_sub <- dr
+    if (cancer_type != "allcancers") {
+      dr_sub <- dr[dr$TCGA_DESC == cancer_type, , drop = FALSE]
+    }
+    if (nrow(dr_sub) == 0) {
+      next
+    }
+
+    for (drug in sort(unique(dr_sub$DRUG_NAME))) {
+      dr_drug <- dr_sub[dr_sub$DRUG_NAME == drug, , drop = FALSE]
+      merged <- merge(
+        dr_drug,
+        ploidy_map,
+        by.x = match_col,
+        by.y = "match_key",
+        all = FALSE,
+        sort = FALSE
+      )
+      for (metric in metrics) {
+        stats <- compute_drug_ploidy_correlation(merged[[metric]], merged$ploidy, min_n = min_n)
+        idx <- idx + 1L
+        rows[[idx]] <- data.frame(
+          cancer_type = cancer_type,
+          drug = drug,
+          metric = metric,
+          stats,
+          response_direction_note = response_direction_note(metric),
+          stringsAsFactors = FALSE
+        )
+      }
+    }
+  }
+
+  if (length(rows) == 0) {
+    return(data.frame())
+  }
+  res <- data.table::as.data.table(do.call(rbind, rows))
+  res[, pearson_fdr := stats::p.adjust(pearson_p, method = "BH"), by = .(cancer_type, metric)]
+  res[, spearman_fdr := stats::p.adjust(spearman_p, method = "BH"), by = .(cancer_type, metric)]
+  res[, rank_by_pearson_desc := data.table::frank(-pearson_r, ties.method = "min", na.last = "keep"), by = .(cancer_type, metric)]
+  res[, rank_by_pearson_asc := data.table::frank(pearson_r, ties.method = "min", na.last = "keep"), by = .(cancer_type, metric)]
+  res[, rank_by_spearman_desc := data.table::frank(-spearman_rho, ties.method = "min", na.last = "keep"), by = .(cancer_type, metric)]
+  res[, rank_by_spearman_asc := data.table::frank(spearman_rho, ties.method = "min", na.last = "keep"), by = .(cancer_type, metric)]
+
+  ordered_cols <- c(
+    "cancer_type",
+    "drug",
+    "metric",
+    "n",
+    "pearson_r",
+    "pearson_p",
+    "pearson_ci_low",
+    "pearson_ci_high",
+    "pearson_fdr",
+    "spearman_rho",
+    "spearman_p",
+    "spearman_ci_low",
+    "spearman_ci_high",
+    "spearman_ci_method",
+    "spearman_fdr",
+    "rank_by_pearson_desc",
+    "rank_by_pearson_asc",
+    "rank_by_spearman_desc",
+    "rank_by_spearman_asc",
+    "response_direction_note"
+  )
+  as.data.frame(res[, ..ordered_cols])
+}
+
+safe_sheet_name <- function(x) {
+  x <- gsub("[\\[\\]\\:\\*\\?\\/\\\\]", "_", as.character(x))
+  substr(x, 1, 31)
+}
+
+write_correlations_xlsx <- function(cor_dt, path) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  wb <- openxlsx::createWorkbook()
+  if (nrow(cor_dt) == 0) {
+    openxlsx::addWorksheet(wb, "no_results")
+    openxlsx::writeData(wb, "no_results", data.frame(message = "No correlation results"))
+  } else {
+    for (cancer_type in sort(unique(cor_dt$cancer_type))) {
+      sheet <- safe_sheet_name(cancer_type)
+      openxlsx::addWorksheet(wb, sheet)
+      sheet_dt <- cor_dt[cor_dt$cancer_type == cancer_type, , drop = FALSE]
+      openxlsx::writeData(wb, sheet, sheet_dt)
+      openxlsx::freezePane(wb, sheet, firstRow = TRUE)
+      openxlsx::setColWidths(wb, sheet, cols = seq_len(ncol(sheet_dt)), widths = "auto")
+    }
+  }
+  openxlsx::saveWorkbook(wb, path, overwrite = TRUE)
+}
+
+write_correlation_delta <- function(raw_dt, normalized_dt, path) {
+  raw <- raw_dt
+  normalized <- normalized_dt
+  suffix_cols <- c(
+    "n",
+    "pearson_r",
+    "pearson_p",
+    "pearson_fdr",
+    "spearman_rho",
+    "spearman_p",
+    "spearman_fdr"
+  )
+  raw <- raw[, c("cancer_type", "drug", "metric", suffix_cols), drop = FALSE]
+  normalized <- normalized[, c("cancer_type", "drug", "metric", suffix_cols), drop = FALSE]
+  names(raw)[match(suffix_cols, names(raw))] <- paste0(suffix_cols, "_raw")
+  names(normalized)[match(suffix_cols, names(normalized))] <- paste0(suffix_cols, "_normalized")
+
+  delta <- merge(raw, normalized, by = c("cancer_type", "drug", "metric"), all = TRUE, sort = FALSE)
+  delta$n_delta <- delta$n_normalized - delta$n_raw
+  delta$pearson_r_delta <- delta$pearson_r_normalized - delta$pearson_r_raw
+  delta$spearman_rho_delta <- delta$spearman_rho_normalized - delta$spearman_rho_raw
+  delta$delta_status <- ifelse(
+    is.na(delta$n_raw),
+    "normalized_only",
+    ifelse(
+      is.na(delta$n_normalized),
+      "raw_only",
+      ifelse(
+        delta$n_delta == 0 &
+          (is.na(delta$pearson_r_delta) | abs(delta$pearson_r_delta) < .Machine$double.eps^0.5) &
+          (is.na(delta$spearman_rho_delta) | abs(delta$spearman_rho_delta) < .Machine$double.eps^0.5),
+        "unchanged",
+        "changed"
+      )
+    )
+  )
+  write_tsv(delta, path)
+  invisible(delta)
+}
+
 write_tsv <- function(x, path) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   write.table(x, file = path, sep = "\t", row.names = FALSE, quote = FALSE, na = "")
