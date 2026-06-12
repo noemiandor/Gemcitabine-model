@@ -52,6 +52,8 @@ Running the analysis writes:
 - `output/tables/class_enrichment_legacy_metadata.tsv`
 - `output/tables/class_enrichment_selected_drugs_legacy_Z_SCORE.tsv`
 - `output/tables/drugsVsPloidyCorr_legacy_Z_SCORE.xlsx`
+- `output/tables/ploidyVsDrugSensitivity_plot_values_Z_SCORE.tsv`
+- `output/tables/ploidyVsDrugSensitivity_pages/ploidyVsDrugSensitivity_page_<NN>_<cancer_type>.tsv`
 - `output/tables/gemcitabine_rank_summary_Z_SCORE.tsv`
 - `output/tables/gemcitabine_rank_summary_all_metrics.tsv`
 - `output/tables/all_cancers_tissue_adjusted_ploidy_models_Z_SCORE.tsv`

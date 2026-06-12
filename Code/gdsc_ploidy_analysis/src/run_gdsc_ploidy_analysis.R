@@ -89,6 +89,7 @@ high_ploidy_pvalue_cutoff <- as.numeric(arg_value("high-ploidy-pvalue-cutoff", "
 tissue_model_min_n <- as.integer(arg_value("tissue-model-min-n", "20"))
 tissue_model_min_tissues <- as.integer(arg_value("tissue-model-min-tissues", "3"))
 tissue_model_min_rows_per_tissue <- as.integer(arg_value("tissue-model-min-rows-per-tissue", "2"))
+ploidy_sensitivity_plot_abs_r_threshold <- as.numeric(arg_value("ploidy-sensitivity-plot-abs-r-threshold", "0.1"))
 
 metadata_dir <- file.path(out_dir, "metadata")
 tables_dir <- file.path(out_dir, "tables")
@@ -148,6 +149,7 @@ write_run_metadata(
       "tissue_model_min_n",
       "tissue_model_min_tissues",
       "tissue_model_min_rows_per_tissue",
+      "ploidy_sensitivity_plot_abs_r_threshold",
       "duplicate_strategy",
       "duplicate_strategy_required_columns"
     ),
@@ -168,6 +170,7 @@ write_run_metadata(
       as.character(tissue_model_min_n),
       as.character(tissue_model_min_tissues),
       as.character(tissue_model_min_rows_per_tissue),
+      as.character(ploidy_sensitivity_plot_abs_r_threshold),
       duplicate_strategy,
       duplicate_strategy_required_columns
     ),
@@ -456,9 +459,32 @@ invisible(file.copy(
 tmp <- sort(unique(coxIn$group))
 col <- rainbow(length(tmp) * 1.3)[1:length(tmp)]
 names(col) <- tmp
+ploidy_sensitivity_pages_dir <- file.path(tables_dir, "ploidyVsDrugSensitivity_pages")
+dir.create(ploidy_sensitivity_pages_dir, recursive = TRUE, showWarnings = FALSE)
+ploidy_sensitivity_plot_tables <- list()
 pdf(file.path(out_dir, "ploidyVsDrugSensitivity.pdf"), width = 3, height = 6)
-for (sheet in colnames(lowpIsSens)) {
-  plot_vals <- R_[[sheet]][abs(R_[[sheet]]) >= 0.1]
+for (page_index in seq_along(colnames(lowpIsSens))) {
+  sheet <- colnames(lowpIsSens)[page_index]
+  plot_vals <- R_[[sheet]][abs(R_[[sheet]]) >= ploidy_sensitivity_plot_abs_r_threshold]
+  page_tsv_name <- sprintf(
+    "ploidyVsDrugSensitivity_page_%02d_%s.tsv",
+    page_index,
+    safe_file_stem(sheet)
+  )
+  page_tsv_rel <- file.path("tables", "ploidyVsDrugSensitivity_pages", page_tsv_name)
+  page_table <- build_ploidy_sensitivity_plot_table(
+    cancer_type = sheet,
+    plot_values = plot_vals,
+    group_by_drug = setNames(coxIn$group, rownames(coxIn)),
+    color_by_group = col,
+    metric = metric,
+    metric_label = metric_label,
+    abs_r_threshold = ploidy_sensitivity_plot_abs_r_threshold,
+    page_index = page_index,
+    page_tsv_file = page_tsv_rel
+  )
+  write_tsv(page_table, file.path(ploidy_sensitivity_pages_dir, page_tsv_name))
+  ploidy_sensitivity_plot_tables[[sheet]] <- page_table
   plot_barplot_or_stop(
     plot_vals,
     colors = col[coxIn[names(plot_vals), "group"]],
@@ -467,6 +493,10 @@ for (sheet in colnames(lowpIsSens)) {
   )
 }
 dev.off()
+write_tsv(
+  do.call(rbind, ploidy_sensitivity_plot_tables),
+  file.path(tables_dir, "ploidyVsDrugSensitivity_plot_values_Z_SCORE.tsv")
+)
 
 write_session_metadata(file.path(metadata_dir, "session_info.txt"))
 message("Analysis completed. Outputs written to: ", out_dir)

@@ -65,6 +65,24 @@ expect_error_contains(
   "plot context"
 )
 
+plot_page_table <- build_ploidy_sensitivity_plot_table(
+  cancer_type = "TEST",
+  plot_values = c(DrugA = -0.2, DrugB = 0.3),
+  group_by_drug = c(DrugA = "CYTOTOXIC", DrugB = "SIGNALING"),
+  color_by_group = c(CYTOTOXIC = "#111111", SIGNALING = "#222222"),
+  metric = "Z_SCORE",
+  metric_label = "GDSC Z-score",
+  abs_r_threshold = 0.1,
+  page_index = 1,
+  page_tsv_file = "tables/ploidyVsDrugSensitivity_pages/ploidyVsDrugSensitivity_page_01_TEST.tsv"
+)
+if (!identical(plot_page_table$barplot_order, 1:2)) {
+  stop("Ploidy sensitivity page table should preserve barplot order", call. = FALSE)
+}
+if (!identical(plot_page_table$plot_color, c("#111111", "#222222"))) {
+  stop("Ploidy sensitivity page table should record group colors", call. = FALSE)
+}
+
 expect_error_contains(
   validate_required_groups(c("SIGNALING"), required_groups = c("SIGNALING", "CYTOTOXIC")),
   c("Missing required annotation groups", "CYTOTOXIC"),

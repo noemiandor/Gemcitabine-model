@@ -363,6 +363,13 @@ safe_sheet_name <- function(x) {
   substr(x, 1, 31)
 }
 
+safe_file_stem <- function(x) {
+  x <- gsub("[^A-Za-z0-9._-]", "_", as.character(x))
+  x <- gsub("_+", "_", x)
+  x <- gsub("^_|_$", "", x)
+  ifelse(nzchar(x), x, "unnamed")
+}
+
 write_correlations_xlsx <- function(cor_dt, path) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   wb <- openxlsx::createWorkbook()
@@ -420,6 +427,38 @@ write_correlation_delta <- function(raw_dt, normalized_dt, path) {
   )
   write_tsv(delta, path)
   invisible(delta)
+}
+
+build_ploidy_sensitivity_plot_table <- function(cancer_type,
+                                                plot_values,
+                                                group_by_drug,
+                                                color_by_group,
+                                                metric,
+                                                metric_label,
+                                                abs_r_threshold,
+                                                page_index,
+                                                page_tsv_file = NA_character_) {
+  drugs <- names(plot_values)
+  if (is.null(drugs)) {
+    drugs <- character(length(plot_values))
+  }
+  groups <- unname(group_by_drug[drugs])
+  data.frame(
+    page_index = rep(page_index, length(plot_values)),
+    cancer_type = rep(cancer_type, length(plot_values)),
+    metric = rep(metric, length(plot_values)),
+    metric_label = rep(metric_label, length(plot_values)),
+    abs_pearson_r_threshold = rep(abs_r_threshold, length(plot_values)),
+    barplot_order = seq_along(plot_values),
+    drug = drugs,
+    pearson_r = as.numeric(plot_values),
+    abs_pearson_r = abs(as.numeric(plot_values)),
+    group = groups,
+    plot_color = unname(color_by_group[groups]),
+    page_tsv_file = rep(page_tsv_file, length(plot_values)),
+    response_direction_note = rep(response_direction_note(metric), length(plot_values)),
+    stringsAsFactors = FALSE
+  )
 }
 
 normalize_drug_key <- function(x) {
