@@ -686,6 +686,479 @@ standardize_in_vivo_dose <- function(dose_values) {
   dose_chr
 }
 
+normalize_in_vivo_sample_id <- function(sample_values) {
+  sample_chr <- trimws(as.character(sample_values))
+  sample_chr[sample_chr %in% c("", "NA", "NaN", "NULL", "None")] <- NA_character_
+  sample_chr <- sub("-Count-HM$", "", sample_chr)
+  sample_chr <- sub("-Count$", "", sample_chr)
+  sample_chr <- sub("-HM$", "", sample_chr)
+  sample_chr
+}
+
+infer_in_vivo_initial_ploidy <- function(sample_values, harvest_values = NULL) {
+  sample_chr <- trimws(as.character(sample_values))
+  harvest_chr <- if (is.null(harvest_values)) rep(NA_character_, length(sample_chr)) else trimws(as.character(harvest_values))
+  signal <- paste(sample_chr, harvest_chr)
+  out <- rep(NA_character_, length(sample_chr))
+  out[grepl("(^|-)2N($|-)", signal, ignore.case = TRUE) | grepl("^2N($|-)", sample_chr, ignore.case = TRUE)] <- "2N"
+  out[
+    grepl("(^|-)4N($|-)", signal, ignore.case = TRUE) |
+      grepl("^4N($|-)", sample_chr, ignore.case = TRUE) |
+      grepl("^A[0-9]+-4N($|-)", sample_chr, ignore.case = TRUE)
+  ] <- "4N"
+  out
+}
+
+infer_in_vivo_dose_from_harvest <- function(harvest_values) {
+  harvest_chr <- trimws(as.character(harvest_values))
+  dose_chr <- rep(NA_character_, length(harvest_chr))
+  hit <- grepl("^SUM159-(2N|4N)-[0-9]+-", harvest_chr, ignore.case = TRUE)
+  dose_chr[hit] <- sub("^SUM159-(2N|4N)-([0-9]+)-.*$", "\\2", harvest_chr[hit], ignore.case = TRUE)
+  standardize_in_vivo_dose(dose_chr)
+}
+
+calculate_in_vivo_tgi <- function(
+  growth_curve_file,
+  sheet = NULL,
+  control_dose = "0mg/kg",
+  baseline_day = "Day_0",
+  final_day = NULL,
+  endpoint_days = NULL,
+  match_control_by = "initial_ploidy"
+) {
+  if (!requireNamespace("readxl", quietly = TRUE)) {
+    stop("Package 'readxl' is required to calculate TGI from xlsx growth curves.", call. = FALSE)
+  }
+  if (!file.exists(growth_curve_file)) {
+    stop("Growth curve file does not exist: ", growth_curve_file, call. = FALSE)
+  }
+
+  sheet_use <- if (is.null(sheet)) 1 else sheet
+  growth_raw <- readxl::read_excel(growth_curve_file, sheet = sheet_use)
+  growth_raw <- as.data.frame(growth_raw, stringsAsFactors = FALSE)
+
+  harvest_col <- resolve_col_case_insensitive(growth_raw, c("harvest"))
+  sample_col <- resolve_col_case_insensitive(growth_raw, c("Sequencing IDs", "Sequencing.IDs", "Sequencing ID", "SequencingIDs"))
+  if (is.na(harvest_col)) stop("Growth curve file is missing a harvest column.", call. = FALSE)
+  if (is.na(sample_col)) stop("Growth curve file is missing a Sequencing IDs column.", call. = FALSE)
+
+  day_cols <- grep("^Day_[0-9]+$", names(growth_raw), value = TRUE)
+  if (length(day_cols) == 0) {
+    stop("Growth curve file does not contain Day_* tumor volume columns.", call. = FALSE)
+  }
+  day_nums <- suppressWarnings(as.numeric(sub("^Day_", "", day_cols)))
+  day_cols <- day_cols[order(day_nums)]
+  if (!(baseline_day %in% day_cols)) {
+    stop("Requested baseline_day is not present in growth curve file: ", baseline_day, call. = FALSE)
+  }
+  if (!is.null(final_day) && !(final_day %in% day_cols)) {
+    stop("Requested final_day is not present in growth curve file: ", final_day, call. = FALSE)
+  }
+  baseline_time <- suppressWarnings(as.numeric(sub("^Day_", "", baseline_day)))
+  endpoint_day_cols <- endpoint_days
+  if (is.null(endpoint_day_cols)) {
+    endpoint_day_cols <- day_cols[day_nums > baseline_time]
+  } else {
+    endpoint_day_cols <- as.character(endpoint_day_cols)
+    endpoint_day_cols <- endpoint_day_cols[endpoint_day_cols %in% day_cols]
+    endpoint_day_cols <- endpoint_day_cols[match(endpoint_day_cols, day_cols, nomatch = 0L) > 0L]
+  }
+  endpoint_day_cols <- endpoint_day_cols[endpoint_day_cols != baseline_day]
+
+  rows <- seq_len(nrow(growth_raw))
+  volume_rows <- lapply(rows, function(i) {
+    values <- suppressWarnings(as.numeric(unlist(growth_raw[i, day_cols], use.names = FALSE)))
+    names(values) <- day_cols
+    baseline_value <- values[[baseline_day]]
+    final_day_i <- final_day
+    if (is.null(final_day_i)) {
+      finite_idx <- which(is.finite(values))
+      final_day_i <- if (length(finite_idx) == 0) NA_character_ else day_cols[finite_idx[length(finite_idx)]]
+    }
+    final_value <- if (!is.na(final_day_i)) values[[final_day_i]] else NA_real_
+    finite_auc <- is.finite(day_nums) & is.finite(values) & is.finite(baseline_value)
+    auc_delta <- NA_real_
+    auc_raw <- NA_real_
+    auc_n_days <- sum(finite_auc, na.rm = TRUE)
+    auc_start_day <- NA_character_
+    auc_end_day <- NA_character_
+    if (sum(finite_auc, na.rm = TRUE) >= 2) {
+      t <- day_nums[finite_auc]
+      y <- values[finite_auc]
+      ord <- order(t)
+      t <- t[ord]
+      y <- y[ord]
+      auc_raw <- sum(diff(t) * (head(y, -1) + tail(y, -1)) / 2)
+      y_delta <- y - baseline_value
+      auc_delta <- sum(diff(t) * (head(y_delta, -1) + tail(y_delta, -1)) / 2)
+      auc_start_day <- paste0("Day_", t[1])
+      auc_end_day <- paste0("Day_", t[length(t)])
+    }
+    row <- data.frame(
+      growth_curve_row = i,
+      sample_id_raw = as.character(growth_raw[[sample_col]][i]),
+      sample_id = normalize_in_vivo_sample_id(growth_raw[[sample_col]][i]),
+      harvest = as.character(growth_raw[[harvest_col]][i]),
+      initial_ploidy = infer_in_vivo_initial_ploidy(growth_raw[[sample_col]][i], growth_raw[[harvest_col]][i]),
+      dose = infer_in_vivo_dose_from_harvest(growth_raw[[harvest_col]][i]),
+      baseline_day = baseline_day,
+      baseline_volume = baseline_value,
+      final_day = final_day_i,
+      final_volume = final_value,
+      tumor_volume_delta = final_value - baseline_value,
+      tumor_volume_auc = auc_raw,
+      tumor_volume_auc_delta = auc_delta,
+      auc_start_day = auc_start_day,
+      auc_end_day = auc_end_day,
+      auc_n_days = auc_n_days,
+      stringsAsFactors = FALSE
+    )
+    for (day_col in endpoint_day_cols) {
+      suffix <- day_col
+      day_value <- values[[day_col]]
+      row[[paste0("tumor_volume_", suffix)]] <- day_value
+      row[[paste0("tumor_volume_delta_", suffix)]] <- day_value - baseline_value
+    }
+    row
+  })
+  out <- do.call(rbind, volume_rows)
+  out <- out[!is.na(out$sample_id) & nzchar(out$sample_id) & is.finite(out$tumor_volume_delta), , drop = FALSE]
+  out$dose <- standardize_in_vivo_dose(out$dose)
+  control_dose <- standardize_in_vivo_dose(control_dose)[1]
+
+  out$control_match_group <- if (identical(match_control_by, "initial_ploidy")) out$initial_ploidy else "all"
+  out$matched_control_mean_delta <- NA_real_
+  out$matched_control_n <- NA_integer_
+  out$matched_control_mean_auc_delta <- NA_real_
+  out$matched_control_n_auc <- NA_integer_
+  for (day_col in endpoint_day_cols) {
+    out[[paste0("matched_control_mean_delta_", day_col)]] <- NA_real_
+    out[[paste0("matched_control_n_", day_col)]] <- NA_integer_
+  }
+  groups <- unique(out$control_match_group[!is.na(out$control_match_group)])
+  for (group_value in groups) {
+    control_idx <- out$control_match_group == group_value & out$dose == control_dose & is.finite(out$tumor_volume_delta)
+    mean_delta <- mean(out$tumor_volume_delta[control_idx], na.rm = TRUE)
+    n_control <- sum(control_idx, na.rm = TRUE)
+    target_idx <- out$control_match_group == group_value
+    out$matched_control_mean_delta[target_idx] <- if (is.finite(mean_delta)) mean_delta else NA_real_
+    out$matched_control_n[target_idx] <- n_control
+
+    control_auc_idx <- out$control_match_group == group_value & out$dose == control_dose & is.finite(out$tumor_volume_auc_delta)
+    mean_auc_delta <- mean(out$tumor_volume_auc_delta[control_auc_idx], na.rm = TRUE)
+    n_control_auc <- sum(control_auc_idx, na.rm = TRUE)
+    out$matched_control_mean_auc_delta[target_idx] <- if (is.finite(mean_auc_delta)) mean_auc_delta else NA_real_
+    out$matched_control_n_auc[target_idx] <- n_control_auc
+
+    for (day_col in endpoint_day_cols) {
+      delta_col <- paste0("tumor_volume_delta_", day_col)
+      mean_col <- paste0("matched_control_mean_delta_", day_col)
+      n_col <- paste0("matched_control_n_", day_col)
+      control_day_idx <- out$control_match_group == group_value & out$dose == control_dose & is.finite(out[[delta_col]])
+      mean_day_delta <- mean(out[[delta_col]][control_day_idx], na.rm = TRUE)
+      n_day_control <- sum(control_day_idx, na.rm = TRUE)
+      out[[mean_col]][target_idx] <- if (is.finite(mean_day_delta)) mean_day_delta else NA_real_
+      out[[n_col]][target_idx] <- n_day_control
+    }
+  }
+  out$TGI_percent <- 100 * (1 - out$tumor_volume_delta / out$matched_control_mean_delta)
+  out$TGI_percent[!is.finite(out$TGI_percent)] <- NA_real_
+  out$TGI_percent_auc <- 100 * (1 - out$tumor_volume_auc_delta / out$matched_control_mean_auc_delta)
+  out$TGI_percent_auc[!is.finite(out$TGI_percent_auc)] <- NA_real_
+  for (day_col in endpoint_day_cols) {
+    delta_col <- paste0("tumor_volume_delta_", day_col)
+    mean_col <- paste0("matched_control_mean_delta_", day_col)
+    tgi_col <- paste0("TGI_percent_", day_col)
+    out[[tgi_col]] <- 100 * (1 - out[[delta_col]] / out[[mean_col]])
+    out[[tgi_col]][!is.finite(out[[tgi_col]])] <- NA_real_
+  }
+
+  out[order(out$initial_ploidy, out$dose, out$sample_id), , drop = FALSE]
+}
+
+make_in_vivo_tgi_process_markdown <- function(
+  growth_curve_file,
+  output_csv_file,
+  analysis_label,
+  target_cell_description,
+  cluster_description,
+  code_location,
+  sample_tgi
+) {
+  format_num <- function(x) {
+    x_num <- suppressWarnings(as.numeric(x))
+    out <- rep(NA_character_, length(x_num))
+    finite <- is.finite(x_num)
+    out[finite] <- format(signif(x_num[finite], 6), trim = TRUE, scientific = FALSE)
+    out[!finite] <- "NA"
+    out
+  }
+  escape_md <- function(x) {
+    x <- as.character(x)
+    x[is.na(x)] <- ""
+    gsub("[|]", "\\\\|", x)
+  }
+
+  endpoint_days <- sub("^TGI_percent_", "", grep("^TGI_percent_Day_", names(sample_tgi), value = TRUE))
+  endpoint_days <- endpoint_days[order(suppressWarnings(as.numeric(sub("^Day_", "", endpoint_days))))]
+  endpoint_label <- if (length(endpoint_days) == 0) "None" else paste(endpoint_days, collapse = ", ")
+  baseline_label <- paste(unique(sample_tgi$baseline_day), collapse = ", ")
+  final_day_label <- paste(unique(sample_tgi$final_day), collapse = ", ")
+
+  control_summary <- sample_tgi[sample_tgi$dose == "0mg/kg", , drop = FALSE]
+  control_lines <- if (nrow(control_summary) > 0) {
+    control_summary <- control_summary[!duplicated(control_summary$initial_ploidy), , drop = FALSE]
+    c(
+      "| initial ploidy | control dose | control n | final endpoint mean control delta | AUC mean control delta |",
+      "|---|---:|---:|---:|---:|",
+      apply(control_summary, 1, function(row) {
+        paste0(
+          "| ", row[["initial_ploidy"]],
+          " | 0mg/kg",
+          " | ", row[["matched_control_n"]],
+          " | ", format_num(row[["matched_control_mean_delta"]]),
+          " | ", format_num(row[["matched_control_mean_auc_delta"]]),
+          " |"
+        )
+      })
+    )
+  } else {
+    "No matched control summary was available."
+  }
+
+  endpoint_control_rows <- lapply(endpoint_days, function(day_col) {
+    mean_col <- paste0("matched_control_mean_delta_", day_col)
+    n_col <- paste0("matched_control_n_", day_col)
+    if (!all(c(mean_col, n_col) %in% names(sample_tgi))) return(NULL)
+    day_summary <- sample_tgi[sample_tgi$dose == "0mg/kg", c("initial_ploidy", mean_col, n_col), drop = FALSE]
+    day_summary <- day_summary[!duplicated(day_summary$initial_ploidy), , drop = FALSE]
+    data.frame(
+      endpoint_day = day_col,
+      initial_ploidy = day_summary$initial_ploidy,
+      matched_control_n = day_summary[[n_col]],
+      matched_control_mean_delta = day_summary[[mean_col]],
+      stringsAsFactors = FALSE
+    )
+  })
+  endpoint_control_summary <- do.call(rbind, endpoint_control_rows)
+  endpoint_control_lines <- if (!is.null(endpoint_control_summary) && nrow(endpoint_control_summary) > 0) {
+    c(
+      "| endpoint day | initial ploidy | control n | matched control mean delta |",
+      "|---|---:|---:|---:|",
+      apply(endpoint_control_summary, 1, function(row) {
+        paste0(
+          "| ", row[["endpoint_day"]],
+          " | ", row[["initial_ploidy"]],
+          " | ", row[["matched_control_n"]],
+          " | ", format_num(row[["matched_control_mean_delta"]]),
+          " |"
+        )
+      })
+    )
+  } else {
+    "No endpoint-specific control summary was available."
+  }
+
+  export_colnames <- character(0)
+  if (!is.null(output_csv_file) && file.exists(output_csv_file)) {
+    export_colnames <- tryCatch(
+      names(utils::read.csv(output_csv_file, nrows = 0, check.names = FALSE)),
+      error = function(e) character(0)
+    )
+  }
+  if (length(export_colnames) == 0) {
+    export_colnames <- c(
+      "cell_id", "sample_id", "cluster", "initial_ploidy", "gemcitabine_dose",
+      "gemcitabine_dose_mg_per_kg", "pseudotime", "cell_ploidy", "average_ploidy",
+      "median_ploidy", "sample_mean_pseudotime", "sample_median_pseudotime",
+      "n_target_cells", "n_tumor_cells", "target_cluster_fraction",
+      "target_cluster_percent", "growth_curve_sample_id_raw", "growth_curve_harvest",
+      "tgi_initial_ploidy", "tgi_dose", "tumor_volume_baseline_day",
+      "tumor_volume_baseline", "tumor_volume_final_day", "tumor_volume_final",
+      "tumor_volume_delta", "matched_control_mean_delta", "matched_control_n",
+      "TGI_percent", "tumor_volume_auc", "tumor_volume_auc_delta", "auc_start_day",
+      "auc_end_day", "auc_n_days", "matched_control_mean_auc_delta",
+      "matched_control_n_auc", "TGI_percent_auc"
+    )
+  }
+  describe_export_column <- function(column_name) {
+    fixed <- list(
+      cell_id = c("cell-level scRNA/scVelo", "Cell barcode or cell ID from the scVelo all-cells metrics table."),
+      sample_id = c("cell-level join key", "Normalized sample ID used in the exported fig4 data and for joining sample-level TGI values."),
+      cluster = c("cell-level scRNA/scVelo", "Tumor cluster assignment for the exported target cell."),
+      initial_ploidy = c("sample-level scRNA metadata", "Initial ploidy group for the sample, `2N` or `4N`, from the scRNA metadata."),
+      gemcitabine_dose = c("sample-level scRNA metadata", "Gemcitabine dose label from the scRNA metadata."),
+      gemcitabine_dose_mg_per_kg = c("sample-level scRNA metadata", "Numeric Gemcitabine dose in mg/kg."),
+      pseudotime = c("cell-level scVelo", "scVelo pseudotime value used to draw `fig4_pseudotime_distribution_per_sample.pdf`."),
+      cell_ploidy = c("cell-level ploidy", "Cell-level ploidy value assigned before the 04f/04g export."),
+      average_ploidy = c("sample-level summary", "Mean `cell_ploidy` across exported target cells from the same sample."),
+      median_ploidy = c("sample-level summary", "Median `cell_ploidy` across exported target cells from the same sample."),
+      sample_mean_pseudotime = c("sample-level summary", "Mean pseudotime across exported target cells from the same sample."),
+      sample_median_pseudotime = c("sample-level summary", "Median pseudotime across exported target cells from the same sample."),
+      n_target_cells = c("sample-level summary", "Number of exported target Tumor cells from the same sample."),
+      n_tumor_cells = c("sample-level summary", "Number of Tumor cells with finite pseudotime in the same sample before the 04f/04g target-cluster filter."),
+      target_cluster_fraction = c("sample-level summary", "Fraction `n_target_cells / n_tumor_cells` for the same sample."),
+      target_cluster_percent = c("sample-level summary", "Percent `100 * target_cluster_fraction` for the same sample."),
+      growth_curve_sample_id_raw = c("growth curve/sample-level", "Original `Sequencing IDs` value from the tumor growth-curve spreadsheet."),
+      growth_curve_harvest = c("growth curve/sample-level", "Original `harvest` label from the tumor growth-curve spreadsheet."),
+      tgi_initial_ploidy = c("growth curve/sample-level", "Initial ploidy inferred by the TGI helper from `Sequencing IDs` and `harvest`; used for matched-control grouping."),
+      tgi_dose = c("growth curve/sample-level", "Gemcitabine dose inferred by the TGI helper from `harvest`; standardized to `0mg/kg`, `30mg/kg`, or `120mg/kg`."),
+      tumor_volume_baseline_day = c("TGI/sample-level", "Baseline day used for endpoint delta and AUC baseline adjustment; currently `Day_0`."),
+      tumor_volume_baseline = c("TGI/sample-level", "Tumor volume at `tumor_volume_baseline_day`."),
+      tumor_volume_final_day = c("TGI/sample-level", "Final finite day used for the backward-compatible endpoint `TGI_percent`; currently `Day_38` for the exported samples."),
+      tumor_volume_final = c("TGI/sample-level", "Tumor volume at `tumor_volume_final_day`."),
+      tumor_volume_delta = c("TGI/sample-level", "`tumor_volume_final - tumor_volume_baseline`; numerator for backward-compatible `TGI_percent`."),
+      matched_control_mean_delta = c("TGI/sample-level", "Mean `tumor_volume_delta` among `0mg/kg` controls with the same initial ploidy."),
+      matched_control_n = c("TGI/sample-level", "Number of same-initial-ploidy `0mg/kg` controls used for `matched_control_mean_delta`."),
+      TGI_percent = c("TGI/sample-level", "Backward-compatible final endpoint TGI: `100 * (1 - tumor_volume_delta / matched_control_mean_delta)`."),
+      tumor_volume_auc = c("AUC TGI/sample-level", "Raw trapezoidal AUC of tumor volume over all finite `Day_*` measurements for the sample."),
+      tumor_volume_auc_delta = c("AUC TGI/sample-level", "Baseline-adjusted trapezoidal AUC of `tumor_volume_Day_X - tumor_volume_baseline` over all finite `Day_*` measurements."),
+      auc_start_day = c("AUC TGI/sample-level", "First finite `Day_*` included in the AUC calculation."),
+      auc_end_day = c("AUC TGI/sample-level", "Last finite `Day_*` included in the AUC calculation."),
+      auc_n_days = c("AUC TGI/sample-level", "Number of finite `Day_*` tumor-volume measurements included in the AUC calculation."),
+      matched_control_mean_auc_delta = c("AUC TGI/sample-level", "Mean `tumor_volume_auc_delta` among `0mg/kg` controls with the same initial ploidy."),
+      matched_control_n_auc = c("AUC TGI/sample-level", "Number of same-initial-ploidy `0mg/kg` controls used for `matched_control_mean_auc_delta`."),
+      TGI_percent_auc = c("AUC TGI/sample-level", "AUC-based TGI: `100 * (1 - tumor_volume_auc_delta / matched_control_mean_auc_delta)`.")
+    )
+    if (column_name %in% names(fixed)) return(fixed[[column_name]])
+    if (grepl("^tumor_volume_Day_[0-9]+$", column_name)) {
+      day <- sub("^tumor_volume_", "", column_name)
+      return(c("growth curve/sample-level", paste0("Observed tumor volume at `", day, "`; repeated for every exported cell from the same sample.")))
+    }
+    if (grepl("^tumor_volume_delta_Day_[0-9]+$", column_name)) {
+      day <- sub("^tumor_volume_delta_", "", column_name)
+      return(c("endpoint TGI/sample-level", paste0("Endpoint tumor-volume delta at `", day, "`: `tumor_volume_", day, " - tumor_volume_baseline`.")))
+    }
+    if (grepl("^matched_control_mean_delta_Day_[0-9]+$", column_name)) {
+      day <- sub("^matched_control_mean_delta_", "", column_name)
+      return(c("endpoint TGI/sample-level", paste0("Mean `tumor_volume_delta_", day, "` among `0mg/kg` controls with the same initial ploidy.")))
+    }
+    if (grepl("^matched_control_n_Day_[0-9]+$", column_name)) {
+      day <- sub("^matched_control_n_", "", column_name)
+      return(c("endpoint TGI/sample-level", paste0("Number of same-initial-ploidy `0mg/kg` controls used for `matched_control_mean_delta_", day, "`.")))
+    }
+    if (grepl("^TGI_percent_Day_[0-9]+$", column_name)) {
+      day <- sub("^TGI_percent_", "", column_name)
+      return(c("endpoint TGI/sample-level", paste0("Endpoint TGI at `", day, "`: `100 * (1 - tumor_volume_delta_", day, " / matched_control_mean_delta_", day, ")`.")))
+    }
+    c("exported column", "Column exported by the analysis script; no specific TGI dictionary entry was assigned.")
+  }
+  column_description_lines <- c(
+    "| column | level/source | description |",
+    "|---|---|---|",
+    vapply(export_colnames, function(column_name) {
+      desc <- describe_export_column(column_name)
+      paste0("| `", escape_md(column_name), "` | ", escape_md(desc[[1]]), " | ", escape_md(desc[[2]]), " |")
+    }, character(1))
+  )
+
+  c(
+    "# TGI Calculation Process",
+    "",
+    paste0("Analysis: ", analysis_label),
+    "",
+    "This document describes how tumor growth inhibition (TGI) was calculated for the exported cell-level data used with `fig4_pseudotime_distribution_per_sample.pdf`.",
+    "",
+    "Output CSV:",
+    "",
+    paste0("`", output_csv_file, "`"),
+    "",
+    "## Input Data",
+    "",
+    "The tumor growth curve data were read from:",
+    "",
+    paste0("`", growth_curve_file, "`"),
+    "",
+    "The analysis used `Sheet1`. Tumor volume columns were detected dynamically from all columns matching `Day_*`.",
+    "",
+    "Endpoint TGI was calculated for every detected follow-up day after `Day_0`:",
+    "",
+    paste0("`", endpoint_label, "`"),
+    "",
+    paste0("Baseline day detected/used: `", baseline_label, "`."),
+    paste0("Final day used for backward-compatible `TGI_percent`: `", final_day_label, "`."),
+    "",
+    "## Sample ID Matching",
+    "",
+    "Growth-curve sample IDs were normalized before joining to the scRNA-seq sample IDs:",
+    "",
+    "- trailing `-HM`, `-Count`, and `-Count-HM` suffixes were removed.",
+    "- initial ploidy was inferred from `Sequencing IDs` and `harvest`.",
+    "- Gemcitabine dose was inferred from the `harvest` label and standardized to `0mg/kg`, `30mg/kg`, or `120mg/kg`.",
+    "",
+    "Rows were kept for TGI calculation only when the normalized sample ID was non-missing and the final endpoint delta was finite.",
+    "",
+    "Sample-level TGI values were then joined back to the exported cell-level table by normalized `sample_id`; therefore every cell from the same sample carries the same TGI and tumor-volume columns.",
+    "",
+    "## Endpoint TGI",
+    "",
+    "For sample `i`, baseline tumor volume is:",
+    "",
+    "```text",
+    "B_i = V_i,Day_0",
+    "```",
+    "",
+    "For every detected follow-up day `Day_X`:",
+    "",
+    "```text",
+    "delta_i,Day_X = V_i,Day_X - B_i",
+    "matched_control_mean_delta_g,Day_X = mean(delta_j,Day_X for controls j with initial_ploidy = g and dose = 0mg/kg)",
+    "TGI_percent_Day_X = 100 * (1 - delta_i,Day_X / matched_control_mean_delta_g,Day_X)",
+    "```",
+    "",
+    "Controls were matched separately by initial ploidy group `g`, so 2N samples were compared with 2N `0mg/kg` controls and 4N samples were compared with 4N `0mg/kg` controls.",
+    "",
+    "The existing `TGI_percent` column is retained for backward compatibility and represents the final endpoint TGI using the final finite day for each sample, currently `Day_38` in this dataset.",
+    "",
+    "Endpoint-specific matched control means used in this run:",
+    "",
+    endpoint_control_lines,
+    "",
+    "## AUC-Based TGI",
+    "",
+    "AUC was calculated with the trapezoidal rule over all finite `Day_*` tumor-volume points for each sample. If a sample had finite tumor volumes at ordered times `t_1, ..., t_k` with corresponding volumes `V_1, ..., V_k`, raw tumor-volume AUC was:",
+    "",
+    "```text",
+    "tumor_volume_auc = sum over m = 1...(k - 1) of (t_(m+1) - t_m) * (V_m + V_(m+1)) / 2",
+    "```",
+    "",
+    "The AUC-based TGI uses baseline-adjusted volume:",
+    "",
+    "```text",
+    "B_i = V_i,Day_0",
+    "tumor_volume_auc_delta = sum over m = 1...(k - 1) of (t_(m+1) - t_m) * ((V_m - B_i) + (V_(m+1) - B_i)) / 2",
+    "matched_control_mean_auc_delta_g = mean(tumor_volume_auc_delta_j for controls j with initial_ploidy = g and dose = 0mg/kg)",
+    "TGI_percent_auc = 100 * (1 - tumor_volume_auc_delta / matched_control_mean_auc_delta)",
+    "```",
+    "",
+    "`auc_start_day`, `auc_end_day`, and `auc_n_days` record which finite timepoints were used for each sample. The matched control AUC mean was calculated from the same initial-ploidy-matched `0mg/kg` control group.",
+    "",
+    "## Final Endpoint and AUC Control Means",
+    "",
+    control_lines,
+    "",
+    "## Exported CSV Structure and Complete Column Dictionary",
+    "",
+    paste0("The exported CSV is cell-level. Each row is one ", target_cell_description, "."),
+    "",
+    paste0("Cluster scope: ", cluster_description),
+    "",
+    "All sample-level fields, including TGI columns, are repeated across all exported cells from the same sample.",
+    "",
+    column_description_lines,
+    "",
+    "## Code Location",
+    "",
+    "Reusable helper:",
+    "",
+    "`calculate_in_vivo_tgi()` in `/Users/4482173/Documents/GitHub/Gemcitabine-model/Code/in-vivo/Utils.R`",
+    "",
+    "Export logic:",
+    "",
+    paste0("`", code_location, "`")
+  )
+}
+
 sanitize_path_component <- function(x, prefix = NULL) {
   x <- as.character(x)
   x <- trimws(x)

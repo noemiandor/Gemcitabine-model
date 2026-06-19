@@ -112,6 +112,201 @@ standardize_group_labels <- function(x) {
 
 safe_numeric <- function(x) suppressWarnings(as.numeric(x))
 
+extra_split_regex <- paste0("[,;|", intToUtf8(c(65292, 65307, 12289)), "]+")
+
+extra_strip_quotes <- function(value) {
+  quote_chars <- paste0("\"'", intToUtf8(c(8220, 8221, 8216, 8217)))
+  gsub(paste0("^[", quote_chars, "]+|[", quote_chars, "]+$"), "", value)
+}
+
+extra_parse_clusters <- function(value, default = character(0)) {
+  if (is.null(value) || length(value) == 0) value <- default
+  if (is.list(value) && !is.data.frame(value)) value <- unlist(value, recursive = TRUE, use.names = FALSE)
+  value <- as.character(value)
+  value <- value[!is.na(value)]
+  parts <- unlist(strsplit(value, extra_split_regex))
+  parts <- extra_strip_quotes(trimws(parts))
+  parts <- gsub("\\s+", "", parts)
+  parts <- parts[nzchar(parts) & !(toupper(parts) %in% c("NA", "NAN", "NULL", "NONE"))]
+  unique(parts)
+}
+
+extra_config_value <- function(config, name, env_name = NULL, default = NULL) {
+  if (!is.null(env_name)) {
+    env_value <- trimws(Sys.getenv(env_name, unset = ""))
+    if (nzchar(env_value)) return(env_value)
+  }
+  value <- config[[name]]
+  if (!is.null(value) && length(value) > 0 && nzchar(trimws(as.character(value[1])))) {
+    return(as.character(value[1]))
+  }
+  default
+}
+
+extra_config_clusters <- function(config, name, env_name = NULL, default = character(0)) {
+  if (!is.null(env_name)) {
+    env_value <- trimws(Sys.getenv(env_name, unset = ""))
+    if (nzchar(env_value)) return(extra_parse_clusters(env_value))
+  }
+  parsed <- extra_parse_clusters(config[[name]])
+  if (length(parsed) > 0) return(parsed)
+  extra_parse_clusters(default)
+}
+
+extra_path_component <- function(x) {
+  if (exists("sanitize_path_component", mode = "function")) {
+    return(sanitize_path_component(x))
+  }
+  x <- gsub("[^A-Za-z0-9._-]+", "_", as.character(x))
+  x <- gsub("_+", "_", x)
+  x <- gsub("^_|_$", "", x)
+  ifelse(nzchar(x), x, "value")
+}
+
+extra_branch_label <- function(path) basename(normalizePath(path, mustWork = FALSE))
+
+extra_root_end_from_branch <- function(branch) {
+  root <- sub("^ROOT_", "", branch)
+  root <- sub("_END_.*$", "", root)
+  end <- sub("^.*_END_", "", branch)
+  data.frame(root_cluster = root, end_cluster = end, stringsAsFactors = FALSE)
+}
+
+extra_root_from_branch <- function(branch) {
+  sub("^ROOT_", "", branch)
+}
+
+extra_order_scenarios <- function(specs) {
+  if (nrow(specs) == 0) return(specs)
+  end_rank <- ifelse(specs$end_cluster %in% c(NA_character_, "", "NULL"), 0L, 1L)
+  specs[order(suppressWarnings(as.numeric(specs$root_cluster)), specs$root_cluster, end_rank, suppressWarnings(as.numeric(specs$end_cluster)), specs$end_cluster), , drop = FALSE]
+}
+
+extra_expected_roots <- function(config) {
+  extra_config_clusters(
+    config,
+    "Trajectory_root_clusters",
+    "TRAJECTORY_ROOT_CLUSTERS",
+    default = extra_config_value(config, "PseudoTrajectory_root_cluster", "PSEUDOTRAJECTORY_ROOT_CLUSTER", default = "14")
+  )
+}
+
+extra_expected_ends <- function(config) {
+  extra_config_clusters(config, "Trajectory_end_clusters", "TRAJECTORY_END_CLUSTERS", default = "13")
+}
+
+extra_discover_trajectory_method_scenarios <- function(trajectory_result_root, method_dir, config = NULL, expected_end_null_only = FALSE) {
+  branch_dirs <- if (dir.exists(trajectory_result_root)) {
+    list.dirs(trajectory_result_root, recursive = FALSE, full.names = TRUE)
+  } else {
+    character(0)
+  }
+  branch_dirs <- branch_dirs[grepl("^ROOT_.+_END_.+$", basename(branch_dirs))]
+  method_roots <- file.path(branch_dirs, method_dir)
+  keep <- dir.exists(method_roots)
+  if (any(keep)) {
+    branch_dirs <- branch_dirs[keep]
+    method_roots <- method_roots[keep]
+    branches <- basename(branch_dirs)
+    parsed <- do.call(rbind, lapply(branches, extra_root_end_from_branch))
+    specs <- data.frame(
+      scenario_id = branches,
+      trajectory_branch = branches,
+      root_cluster = parsed$root_cluster,
+      end_cluster = parsed$end_cluster,
+      branch_root = normalizePath(branch_dirs, mustWork = FALSE),
+      trajectory_root = normalizePath(method_roots, mustWork = FALSE),
+      stringsAsFactors = FALSE
+    )
+    if (isTRUE(expected_end_null_only)) {
+      specs <- specs[specs$end_cluster == "NULL", , drop = FALSE]
+    }
+    return(extra_order_scenarios(specs))
+  }
+
+  if (is.null(config)) return(data.frame())
+  roots <- extra_expected_roots(config)
+  ends <- if (isTRUE(expected_end_null_only)) "NULL" else unique(c("NULL", extra_expected_ends(config)))
+  if (length(roots) == 0 || length(ends) == 0) return(data.frame())
+  rows <- list()
+  for (root in roots) {
+    root_label <- extra_path_component(root)
+    for (end in ends) {
+      end_label <- if (identical(end, "NULL")) "NULL" else extra_path_component(end)
+      branch <- paste0("ROOT_", root_label, "_END_", end_label)
+      branch_root <- file.path(trajectory_result_root, branch)
+      rows[[length(rows) + 1L]] <- data.frame(
+        scenario_id = branch,
+        trajectory_branch = branch,
+        root_cluster = root,
+        end_cluster = end,
+        branch_root = normalizePath(branch_root, mustWork = FALSE),
+        trajectory_root = normalizePath(file.path(branch_root, method_dir), mustWork = FALSE),
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  extra_order_scenarios(dplyr::bind_rows(rows))
+}
+
+extra_discover_scvelo_scenarios <- function(trajectory_result_root, config = NULL) {
+  extra_discover_trajectory_method_scenarios(
+    trajectory_result_root = trajectory_result_root,
+    method_dir = "scvelo",
+    config = config,
+    expected_end_null_only = FALSE
+  )
+}
+
+extra_discover_paga_scenarios <- function(trajectory_result_root, config = NULL) {
+  extra_discover_trajectory_method_scenarios(
+    trajectory_result_root = trajectory_result_root,
+    method_dir = "PAGA",
+    config = config,
+    expected_end_null_only = TRUE
+  )
+}
+
+extra_discover_monocle3_scenarios <- function(pseudotrajectory_root, config = NULL) {
+  branch_dirs <- if (dir.exists(pseudotrajectory_root)) {
+    list.dirs(pseudotrajectory_root, recursive = FALSE, full.names = TRUE)
+  } else {
+    character(0)
+  }
+  branch_dirs <- branch_dirs[grepl("^ROOT_.+$", basename(branch_dirs))]
+  if (length(branch_dirs) > 0) {
+    branches <- basename(branch_dirs)
+    specs <- data.frame(
+      scenario_id = branches,
+      trajectory_branch = branches,
+      root_cluster = vapply(branches, extra_root_from_branch, character(1)),
+      end_cluster = NA_character_,
+      branch_root = normalizePath(branch_dirs, mustWork = FALSE),
+      trajectory_root = normalizePath(branch_dirs, mustWork = FALSE),
+      stringsAsFactors = FALSE
+    )
+    return(extra_order_scenarios(specs))
+  }
+
+  if (is.null(config)) return(data.frame())
+  roots <- extra_expected_roots(config)
+  if (length(roots) == 0) return(data.frame())
+  rows <- lapply(roots, function(root) {
+    branch <- paste0("ROOT_", extra_path_component(root))
+    branch_root <- file.path(pseudotrajectory_root, branch)
+    data.frame(
+      scenario_id = branch,
+      trajectory_branch = branch,
+      root_cluster = root,
+      end_cluster = NA_character_,
+      branch_root = normalizePath(branch_root, mustWork = FALSE),
+      trajectory_root = normalizePath(branch_root, mustWork = FALSE),
+      stringsAsFactors = FALSE
+    )
+  })
+  extra_order_scenarios(dplyr::bind_rows(rows))
+}
+
 median_finite <- function(x) {
   x <- safe_numeric(x)
   x <- x[is.finite(x)]
@@ -341,21 +536,38 @@ read_velocity_metrics <- function(root_dir) {
 
 read_pseudotrajectory_metrics <- function(root_dir) {
   summary_dir <- file.path(root_dir, "02_summary")
-  files <- c(
-    pseudotrajectory_groups = file.path(summary_dir, "pseudotime_cells_all_pseudotrajectory_groups.csv"),
-    by_dose = file.path(summary_dir, "pseudotime_cells_all_doses.csv"),
-    by_dose_karyotype = file.path(summary_dir, "pseudotime_cells_all_dose_karyotype.csv"),
-    cellline_0mg_tumor_independent = file.path(summary_dir, "pseudotime_cells_all_cellline_0mg_tumor_independent.csv"),
-    cellline_0mg_tumor_combined = file.path(summary_dir, "pseudotime_cells_all_cellline_0mg_tumor_combined.csv"),
-    DEG_comparison = file.path(summary_dir, "pseudotime_cells_all_DEG_comparisons.csv")
-  )
-  files <- files[file.exists(files) & file.info(files)$size > 0]
+  group_dir <- file.path(root_dir, "01_pseudotrajectory_groups")
+  group_files <- if (dir.exists(group_dir)) {
+    list.files(group_dir, pattern = "^cells_pseudotime\\.csv$", full.names = TRUE, recursive = TRUE)
+  } else {
+    character(0)
+  }
+  group_files <- group_files[file.exists(group_files) & file.info(group_files)$size > 0]
+  if (length(group_files) > 0) {
+    files <- sort(normalizePath(group_files, mustWork = TRUE))
+    file_names <- vapply(dirname(files), function(x) {
+      rel <- sub(paste0("^", normalizePath(group_dir, mustWork = FALSE), .Platform$file.sep), "", normalizePath(x, mustWork = FALSE))
+      rel <- gsub(.Platform$file.sep, "/", rel, fixed = TRUE)
+      paste0("pseudotrajectory_groups/", rel)
+    }, character(1))
+    names(files) <- file_names
+  } else {
+    files <- c(
+      pseudotrajectory_groups = file.path(summary_dir, "pseudotime_cells_all_pseudotrajectory_groups.csv"),
+      by_dose = file.path(summary_dir, "pseudotime_cells_all_doses.csv"),
+      by_dose_karyotype = file.path(summary_dir, "pseudotime_cells_all_dose_karyotype.csv"),
+      cellline_0mg_tumor_independent = file.path(summary_dir, "pseudotime_cells_all_cellline_0mg_tumor_independent.csv"),
+      cellline_0mg_tumor_combined = file.path(summary_dir, "pseudotime_cells_all_cellline_0mg_tumor_combined.csv"),
+      DEG_comparison = file.path(summary_dir, "pseudotime_cells_all_DEG_comparisons.csv")
+    )
+    files <- files[file.exists(files) & file.info(files)$size > 0]
+  }
   if (length(files) == 0) {
-    warning("No pseudotime summary files found under ", summary_dir, call. = FALSE)
+    warning("No pseudotime cell files found under ", root_dir, call. = FALSE)
     return(data.frame())
   }
 
-  keep_cols <- unique(c(metadata_cols, pseudo_metric_cols, "pseudotime_raw"))
+  keep_cols <- unique(c(metadata_cols, pseudo_metric_cols, "pseudotime_raw", "root_cluster", "monocle3_matrix_source"))
   out <- vector("list", length(files))
   manifest <- data.frame(
     source_dataset = names(files),
@@ -370,9 +582,17 @@ read_pseudotrajectory_metrics <- function(root_dir) {
     for (col in intersect(c(pseudo_metric_cols, "pseudotime_raw"), names(df))) df[[col]] <- safe_numeric(df[[col]])
     df$source_file <- unname(files[i])
     df$source_dir <- dirname(unname(files[i]))
-    source_context <- dplyr::recode(names(files)[i], pseudotrajectory_groups = "monocle3_groups", .default = names(files)[i])
+    source_context <- if (startsWith(names(files)[i], "pseudotrajectory_groups")) {
+      "monocle3_groups"
+    } else {
+      dplyr::recode(names(files)[i], pseudotrajectory_groups = "monocle3_groups", .default = names(files)[i])
+    }
     df$source_context <- source_context
-    df$source_label <- source_context
+    df$source_label <- if (startsWith(names(files)[i], "pseudotrajectory_groups/")) {
+      sub("^pseudotrajectory_groups/", "", names(files)[i])
+    } else {
+      source_context
+    }
     df$method <- method_monocle3
     df$metric_family <- "pseudotime"
     out[[i]] <- df
@@ -4720,7 +4940,7 @@ add_method_group_label <- function(df) {
   df <- ensure_columns(df, c(
     "source_context", "source_label", "trajectory_analysis_group", "AnalysisGroup",
     "trajectory_group", "trajectory_context", "trajectory_tn_scope", "trajectory_ploidy_scope",
-    "trajectory_branch", "TN", "Ploidy", "sampleID", "sample"
+    "trajectory_branch", "TN", "Ploidy", "sampleID", "sample", "analysis_display_label"
   ))
   df %>%
     dplyr::mutate(
@@ -4748,7 +4968,8 @@ add_method_group_label <- function(df) {
       ),
       TN = as_clean_chr(.data$TN),
       Ploidy = as_clean_chr(.data$Ploidy),
-      sampleID = coalesce_chr(.data$sampleID, .data$sample)
+      sampleID = coalesce_chr(.data$sampleID, .data$sample),
+      analysis_display_label = coalesce_chr(.data$analysis_display_label, .data$analysis_group)
     )
 }
 
@@ -5225,12 +5446,18 @@ run_group_cluster_timing_outputs <- function(df, out_dir, method_label, time_col
   )
   analysis_order <- analysis_order[analysis_order %in% unique(df$analysis_group)]
   analysis_order <- unique(c(analysis_order, setdiff(unique(df$analysis_group), analysis_order)))
+  pick_all_cells_display <- function(plot_df, fallback) {
+    vals <- unique(as_clean_chr(plot_df$analysis_display_label))
+    vals <- vals[!is.na(vals) & nzchar(vals) & grepl("^all_cells", vals)]
+    if (length(vals) == 1L) vals else fallback
+  }
   for (grp in analysis_order) {
     group_df <- df %>% dplyr::filter(.data$analysis_group == grp)
     if (nrow(group_df) == 0) next
+    group_label <- pick_all_cells_display(group_df, grp)
     status_rows[[paste0("umap_", safe_file_stub(grp))]] <- plot_cluster_time_core_umap(
       group_df,
-      label = paste0(method_label, " ", grp, " cluster ", time_label, " UMAP"),
+      label = paste0(method_label, " ", group_label, " cluster ", time_label, " UMAP"),
       output_stub = file.path(umap_dir, paste0(safe_file_stub(grp), "_cluster_pseudotime_umap")),
       time_col = ".time_value",
       split_cols = character(0),
@@ -5243,10 +5470,11 @@ run_group_cluster_timing_outputs <- function(df, out_dir, method_label, time_col
     tn_df <- df %>%
       dplyr::filter(.data$analysis_tn_scope == tn_label, .data$analysis_ploidy_scope == "ploidy_all", .data$Ploidy %in% c("2N", "4N"))
     if (nrow(tn_df) == 0) next
+    tn_display_label <- pick_all_cells_display(tn_df, tn_label)
 
     status_rows[[paste0("umap_", tn_label, "_ploidy")]] <- plot_cluster_time_core_umap(
       tn_df,
-      label = paste0(method_label, " ", tn_label, " 2N and 4N cluster ", time_label, " UMAP"),
+      label = paste0(method_label, " ", tn_display_label, " 2N and 4N cluster ", time_label, " UMAP"),
       output_stub = file.path(umap_dir, paste0(tolower(tn_label), "_2N_4N_cluster_pseudotime_umap")),
       time_col = ".time_value",
       split_cols = c("Ploidy"),
@@ -5258,14 +5486,14 @@ run_group_cluster_timing_outputs <- function(df, out_dir, method_label, time_col
     write_table_csv(hist_df, file.path(tables_dir, paste0(tolower(tn_label), "_ploidy_pseudotime_frequency_histogram.csv")))
     plot_ploidy_frequency_histogram(
       hist_df,
-      label = paste0(method_label, " ", tn_label, " 2N vs 4N ", time_label, " frequency histogram"),
+      label = paste0(method_label, " ", tn_display_label, " 2N vs 4N ", time_label, " frequency histogram"),
       output_stub = file.path(hist_dir, paste0(tolower(tn_label), "_ploidy_pseudotime_frequency_histogram")),
       x_label = x_label
     )
 
     histogram_rows[[paste0(tn_label, "_sample_pages")]] <- plot_sample_frequency_histogram_pages(
       tn_df,
-      tn_label = tn_label,
+      tn_label = tn_display_label,
       output_pdf = file.path(hist_dir, paste0(tolower(tn_label), "_sample_ploidy_pseudotime_frequency_histograms.pdf")),
       output_plot_dir = file.path(hist_dir, paste0(tolower(tn_label), "_sample_pages")),
       time_col = ".time_value",

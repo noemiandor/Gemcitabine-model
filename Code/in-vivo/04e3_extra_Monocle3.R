@@ -29,6 +29,7 @@ resolve_in_vivo_script_dir <- function() {
 script_dir <- resolve_in_vivo_script_dir()
 source(file.path(script_dir, "Utils.R"))
 source(file.path(script_dir, "04c_extra_helpers.R"))
+source(file.path(script_dir, "04e_all_cells_extra_helpers.R"))
 
 required_packages <- c("dplyr", "ggplot2", "readr", "tibble", "tidyr")
 missing_packages <- required_packages[
@@ -132,10 +133,15 @@ run_monocle3_scenario <- function(spec, output_base, deg_root, gsea_root) {
   write_table_csv(gsea_inputs, file.path(out_inputs, "hallmark_gsea_tables_used.csv"))
   write_table_csv(deg_marker_summary, file.path(out_inputs, "deg_marker_top_gene_summary_used.csv"))
 
-  monocle3_cells <- read_pseudotrajectory_metrics(pseudotrajectory_root)
-  if (nrow(monocle3_cells) == 0) stop("No Monocle3 metric rows found for ", spec$scenario_id, call. = FALSE)
-  monocle3_cells$extra_scenario <- spec$scenario_id
-  monocle3_cells$extra_trajectory_branch <- spec$trajectory_branch
+  raw_monocle3_cells <- extra_all_cells_read_monocle3_metrics(pseudotrajectory_root)
+  if (nrow(raw_monocle3_cells) == 0) stop("No All_cells Monocle3 metric rows found for ", spec$scenario_id, call. = FALSE)
+  raw_monocle3_cells$extra_scenario <- spec$scenario_id
+  raw_monocle3_cells$extra_trajectory_branch <- spec$trajectory_branch
+  write_table_csv(
+    extra_all_cells_tn_split_summary(raw_monocle3_cells),
+    file.path(out_inputs, "all_cells_tn_split_summary.csv")
+  )
+  monocle3_cells <- extra_all_cells_expand_metrics(raw_monocle3_cells)
   write_table_csv(monocle3_cells, file.path(out_tables, "Monocle3_cell_metrics_long.csv"))
 
   monocle3_suite <- run_comparison_suite(monocle3_cells, pseudo_metric_cols, method_monocle3)
@@ -150,7 +156,7 @@ run_monocle3_scenario <- function(spec, output_base, deg_root, gsea_root) {
     dplyr::filter(.data$metric == "pseudotime")
   write_table_csv(time_metric_tests, file.path(out_summary, "time_metric_tests_for_interpretation.csv"))
 
-  monocle3_separate <- write_method_separate_outputs(
+  monocle3_separate <- write_method_separate_outputs_all_cells_derived(
     monocle3_cells,
     metric_col = "pseudotime",
     method_label = method_monocle3,
@@ -159,7 +165,7 @@ run_monocle3_scenario <- function(spec, output_base, deg_root, gsea_root) {
     out_umap_dir = out_umap_monocle3,
     cluster_annotations = cluster_annotations
   )
-  method_answer_summary <- make_method_answer_summary(monocle3_separate, method_monocle3)
+  method_answer_summary <- make_method_answer_summary_all_cells_derived(monocle3_separate, method_monocle3)
   write_table_csv(method_answer_summary, file.path(out_summary, "method_separate_answer_summary.csv"))
 
   monocle3_tn_ploidy <- write_tn_ploidy_cluster_outputs(
@@ -208,10 +214,10 @@ run_monocle3_scenario <- function(spec, output_base, deg_root, gsea_root) {
   plot_gsea_trajectory_association(pathway_trajectory)
   plot_hypoxia_timing(hypoxia_timing)
   plot_pathway_timing_summary(pathway_timing_summary)
-  plot_monocle3_graph_overlays(pseudotrajectory_root, out_flow_monocle3, out_umap_monocle3)
+  plot_monocle3_graph_overlays_all_cells(pseudotrajectory_root, out_flow_monocle3, out_umap_monocle3)
   if (nrow(gsea_inputs) > 0) {
-    plot_cluster_hypoxia_umap(
-      monocle3_separate$desc,
+    plot_cluster_hypoxia_umap_all_cells_derived(
+      monocle3_separate,
       gsea_inputs,
       method_label = method_monocle3,
       metric_col = "pseudotime",
@@ -222,12 +228,13 @@ run_monocle3_scenario <- function(spec, output_base, deg_root, gsea_root) {
   }
 
   run_summary_lines <- c(
-    "04c3 extra Monocle3 analysis completed.",
+    "04e3 extra Monocle3 All_cells-derived analysis completed.",
     paste0("Scenario: ", spec$scenario_id),
     paste0("Trajectory branch: ", spec$trajectory_branch),
     paste0("Pseudotrajectory root: ", normalizePath(pseudotrajectory_root, mustWork = FALSE)),
     paste0("Output root: ", normalizePath(output_root, mustWork = FALSE)),
-    paste0("Monocle3 cell rows: ", nrow(monocle3_cells)),
+    paste0("All_cells Monocle3 input rows: ", nrow(raw_monocle3_cells)),
+    paste0("All_cells-derived Monocle3 analysis rows: ", nrow(monocle3_cells)),
     paste0("Stat test rows: ", nrow(stat_tests)),
     paste0("Group summary rows: ", nrow(group_summaries)),
     paste0("GSEA pseudotime rows: ", nrow(pathway_trajectory)),
@@ -267,7 +274,7 @@ results_root <- get_env_scalar("EXTRA_RESULTS_ROOT", get_results_root(config))
 pseudotrajectory_result_root <- get_env_scalar("EXTRA_PSEUDOTRAJECTORY_ROOT", file.path(results_root, "04a_psudo_rajectory"))
 deg_root <- get_env_scalar("EXTRA_DEG_ROOT", file.path(results_root, "03a_DEGs"))
 gsea_root <- get_env_scalar("EXTRA_GSEA_ROOT", file.path(results_root, "03b_cluster_annotation_and_GSEA"))
-output_base <- get_env_scalar("EXTRA_MONOCLE3_OUTPUT_ROOT", file.path(results_root, "04c3_extra_Monocle3"))
+output_base <- get_env_scalar("EXTRA_04E3_MONOCLE3_OUTPUT_ROOT", file.path(results_root, "04e3_extra_Monocle3"))
 
 scenario_specs <- extra_discover_monocle3_scenarios(pseudotrajectory_result_root, config)
 if (nrow(scenario_specs) == 0) {
@@ -280,5 +287,5 @@ summary_rows <- lapply(seq_len(nrow(scenario_specs)), function(i) {
 })
 summary_df <- dplyr::bind_rows(summary_rows)
 .ensure_dir(output_base)
-write_table_csv(summary_df, file.path(output_base, "04c3_Monocle3_scenario_summary.csv"))
-message("04c3 extra Monocle3 scenarios completed: ", paste(summary_df$scenario_id, collapse = ", "))
+write_table_csv(summary_df, file.path(output_base, "04e3_Monocle3_scenario_summary.csv"))
+message("04e3 extra Monocle3 All_cells-derived scenarios completed: ", paste(summary_df$scenario_id, collapse = ", "))

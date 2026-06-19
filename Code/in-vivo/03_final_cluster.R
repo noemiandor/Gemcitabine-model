@@ -146,6 +146,116 @@ save_plot_pdf_png_tiff <- function(plot_obj, file_stub, width = 9, height = 7, d
   )
 }
 
+write_numeric_score_umap <- function(
+  obj,
+  output_dir,
+  score_values,
+  score_label,
+  file_stub,
+  title,
+  width = 9,
+  height = 7
+) {
+  if (!("umap" %in% names(obj@reductions))) {
+    warning("Skipping ", score_label, " UMAP because the Seurat object has no 'umap' reduction.", call. = FALSE)
+    return(FALSE)
+  }
+
+  umap_mat <- Embeddings(obj, reduction = "umap")
+  if (ncol(umap_mat) < 2L) {
+    warning("Skipping ", score_label, " UMAP because the 'umap' reduction has fewer than two dimensions.", call. = FALSE)
+    return(FALSE)
+  }
+  if (length(score_values) != nrow(obj@meta.data)) {
+    warning("Skipping ", score_label, " UMAP because score length does not match metadata rows.", call. = FALSE)
+    return(FALSE)
+  }
+
+  umap_df <- as.data.frame(umap_mat[, seq_len(2), drop = FALSE])
+  colnames(umap_df) <- c("UMAP_1", "UMAP_2")
+  names(score_values) <- rownames(obj@meta.data)
+  umap_df[["score_value"]] <- suppressWarnings(as.numeric(score_values[rownames(umap_df)]))
+  if (all(is.na(umap_df[["score_value"]]))) {
+    warning("Skipping ", score_label, " UMAP because all score values are NA or non-numeric.", call. = FALSE)
+    return(FALSE)
+  }
+
+  umap_df <- umap_df[order(is.na(umap_df[["score_value"]]), umap_df[["score_value"]]), , drop = FALSE]
+  p <- ggplot(umap_df, aes(x = UMAP_1, y = UMAP_2, color = score_value)) +
+    geom_point(size = 0.25, alpha = 0.85) +
+    scale_color_gradientn(
+      colors = c("#313695", "#74ADD1", "#FFFFBF", "#F46D43", "#A50026"),
+      na.value = "grey85",
+      name = score_label
+    ) +
+    coord_equal() +
+    labs(
+      title = title,
+      x = "UMAP 1",
+      y = "UMAP 2"
+    ) +
+    theme_classic(base_size = 12) +
+    theme(plot.title = element_text(hjust = 0.5))
+
+  save_plot_pdf_png_tiff(
+    plot_obj = p,
+    file_stub = file.path(output_dir, file_stub),
+    width = width,
+    height = height
+  )
+  TRUE
+}
+
+write_s_score_umap <- function(obj, output_dir, file_stub = "umap_by_S_Score", width = 9, height = 7) {
+  if (!("S.Score" %in% colnames(obj@meta.data))) {
+    warning("Skipping S.Score UMAP because metadata column 'S.Score' is missing.", call. = FALSE)
+    return(FALSE)
+  }
+  write_numeric_score_umap(
+    obj = obj,
+    output_dir = output_dir,
+    score_values = suppressWarnings(as.numeric(obj@meta.data[["S.Score"]])),
+    score_label = "S.Score",
+    file_stub = file_stub,
+    title = "UMAP colored by S phase score",
+    width = width,
+    height = height
+  )
+}
+
+write_g1_score_umap <- function(obj, output_dir, file_stub = "umap_by_G1_Score", width = 9, height = 7) {
+  if ("G1.Score" %in% colnames(obj@meta.data)) {
+    g1_score <- suppressWarnings(as.numeric(obj@meta.data[["G1.Score"]]))
+    score_label <- "G1.Score"
+    title <- "UMAP colored by G1 score"
+  } else if (all(c("S.Score", "G2M.Score") %in% colnames(obj@meta.data))) {
+    s_score <- suppressWarnings(as.numeric(obj@meta.data[["S.Score"]]))
+    g2m_score <- suppressWarnings(as.numeric(obj@meta.data[["G2M.Score"]]))
+    cycling_score <- pmax(s_score, g2m_score, na.rm = TRUE)
+    cycling_score[is.infinite(cycling_score)] <- NA_real_
+    g1_score <- -cycling_score
+    score_label <- "G1.Score (derived)"
+    title <- "UMAP colored by derived G1 score"
+  } else {
+    warning(
+      "Skipping G1.Score UMAP because metadata column 'G1.Score' is missing and S.Score/G2M.Score are not both available.",
+      call. = FALSE
+    )
+    return(FALSE)
+  }
+
+  write_numeric_score_umap(
+    obj = obj,
+    output_dir = output_dir,
+    score_values = g1_score,
+    score_label = score_label,
+    file_stub = file_stub,
+    title = title,
+    width = width,
+    height = height
+  )
+}
+
 choose_pca_assay <- function(obj, preferred_assays) {
   hit <- preferred_assays[preferred_assays %in% names(obj@assays)]
   if (length(hit) == 0) {
@@ -585,6 +695,8 @@ run_final_cluster_plot_only <- function(input_path, output_root, cluster_col, sa
     cluster_col = cluster_col,
     sample_col = sample_col
   )
+  s_score_umap_written <- write_s_score_umap(obj, out_plots)
+  g1_score_umap_written <- write_g1_score_umap(obj, out_plots)
 
   plot_only_summary <- c(
     "03 final cluster plot-only completed.",
@@ -594,6 +706,8 @@ run_final_cluster_plot_only <- function(input_path, output_root, cluster_col, sa
     paste0("Cluster column: ", cluster_col),
     paste0("Sample column: ", sample_col),
     paste0("Cells plotted: ", nrow(meta)),
+    paste0("S.Score UMAP written: ", s_score_umap_written),
+    paste0("G1.Score UMAP written: ", g1_score_umap_written),
     "New cluster-x stacked bar plots written for TN, sample, and Ploidy as count and percent views.",
     "Integration workflow: skipped",
     "PCA/UMAP workflow: skipped",
@@ -842,6 +956,8 @@ for (group_col in plot_group_cols) {
     height = 7
   )
 }
+s_score_umap_written <- write_s_score_umap(obj_filtered, out_plots)
+g1_score_umap_written <- write_g1_score_umap(obj_filtered, out_plots)
 
 message("Writing cluster stacked bar plots.")
 sample_stack_width <- max(10, 0.45 * length(unique(as.character(obj_filtered@meta.data[[sample_col]]))) + 5)
@@ -909,6 +1025,8 @@ summary_lines <- c(
   paste0("PCA assay: ", pca_assay),
   paste0("PCA components computed: ", pca_npcs_compute),
   paste0("UMAP dims used: ", paste(dims_use, collapse = ",")),
+  paste0("S.Score UMAP written: ", s_score_umap_written),
+  paste0("G1.Score UMAP written: ", g1_score_umap_written),
   "Derived metadata columns added from IDs: Ploidy and TN.",
   "Cluster stacked bar plots written for sample, Ploidy, and TN as count and percent views.",
   "Cluster-x stacked bar plots written for TN, sample, and Ploidy as count and percent views.",

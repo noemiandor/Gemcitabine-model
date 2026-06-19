@@ -107,13 +107,19 @@ ensure_trajectory_split_cols <- function(df) {
 }
 
 run_scvelo_scenario <- function(spec, results_root, output_base, deg_root, gsea_root) {
-  trajectory_root <- file.path(results_root, spec$trajectory_subdir)
-  output_root <- file.path(output_base, spec$scenario_id)
+  trajectory_root <- if ("trajectory_root" %in% names(spec) && nzchar(as.character(spec$trajectory_root[1]))) {
+    as.character(spec$trajectory_root[1])
+  } else {
+    file.path(results_root, spec$trajectory_subdir[1])
+  }
+  output_root <- file.path(output_base, spec$scenario_id[1])
   setup_scvelo_outputs(output_root)
 
   message("Input roots:")
   message("  scenario: ", spec$scenario_id)
   message("  trajectory_branch: ", spec$trajectory_branch)
+  if ("root_cluster" %in% names(spec)) message("  root_cluster: ", spec$root_cluster)
+  if ("end_cluster" %in% names(spec)) message("  end_cluster: ", spec$end_cluster)
   message("  trajectory_root: ", trajectory_root)
   message("  deg_root: ", deg_root)
   message("  gsea_root: ", gsea_root)
@@ -269,13 +275,12 @@ results_root <- get_env_scalar("EXTRA_RESULTS_ROOT", get_results_root(config))
 deg_root <- get_env_scalar("EXTRA_DEG_ROOT", file.path(results_root, "03a_DEGs"))
 gsea_root <- get_env_scalar("EXTRA_GSEA_ROOT", file.path(results_root, "03b_cluster_annotation_and_GSEA"))
 output_base <- get_env_scalar("EXTRA_SCVELO_OUTPUT_ROOT", file.path(results_root, "04c1_extra_scVelo"))
+trajectory_result_root <- get_env_scalar("EXTRA_TRAJECTORY_ROOT", file.path(results_root, "04_trajectory"))
 
-scenario_specs <- data.frame(
-  scenario_id = c("root14_end13", "root14_NOend"),
-  trajectory_branch = c("root14_end13", "root14_no_end"),
-  trajectory_subdir = c("04_trajectory", "0401_trajectory"),
-  stringsAsFactors = FALSE
-)
+scenario_specs <- extra_discover_scvelo_scenarios(trajectory_result_root, config)
+if (nrow(scenario_specs) == 0) {
+  stop("No scVelo scenarios found or configured under: ", trajectory_result_root, call. = FALSE)
+}
 scenario_specs <- select_scenarios(scenario_specs)
 
 summary_rows <- lapply(seq_len(nrow(scenario_specs)), function(i) {
