@@ -1,0 +1,104 @@
+#!/usr/bin/env Rscript
+
+suppressPackageStartupMessages({
+  library(ggplot2)
+})
+
+cmd_args <- commandArgs(FALSE)
+file_arg <- grep("^--file=", cmd_args, value = TRUE)
+script_path <- if (length(file_arg) > 0) {
+  normalizePath(sub("^--file=", "", file_arg[[1]]))
+} else {
+  normalizePath("ploidy_vs_TGI")
+}
+repo_root <- normalizePath(file.path(dirname(script_path), "..", ".."))
+input_csv <- file.path(
+  repo_root,
+  "Data",
+  "in-vivo",
+  "CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+)
+fig_dir <- file.path(repo_root, "Figs")
+
+df <- read.csv(input_csv, check.names = FALSE, stringsAsFactors = FALSE)
+
+required_cols <- c(
+  "sample_id",
+  "gemcitabine_dose",
+  "gemcitabine_dose_mg_per_kg",
+  "cell_ploidy",
+  "TGI_percent_Day_24"
+)
+missing_cols <- setdiff(required_cols, names(df))
+if (length(missing_cols) > 0) {
+  stop("Missing required column(s): ", paste(missing_cols, collapse = ", "))
+}
+
+treated_df <- df[df$gemcitabine_dose_mg_per_kg > 0, ]
+if (nrow(treated_df) == 0) {
+  stop("No treated cells found in input.")
+}
+
+treated <- do.call(
+  rbind,
+  lapply(sort(unique(treated_df$sample_id)), function(sample_id) {
+    sample_df <- treated_df[treated_df$sample_id == sample_id, ]
+    meta <- unique(sample_df[, c(
+      "sample_id",
+      "gemcitabine_dose",
+      "gemcitabine_dose_mg_per_kg",
+      "TGI_percent_Day_24"
+    )])
+    if (nrow(meta) != 1) {
+      stop("Sample has inconsistent metadata: ", sample_id)
+    }
+
+    data.frame(
+      sample_id = sample_id,
+      dose = meta$gemcitabine_dose,
+      dose_mg = meta$gemcitabine_dose_mg_per_kg,
+      tgi_day24 = meta$TGI_percent_Day_24,
+      ploidy_p90 = as.numeric(stats::quantile(
+        sample_df$cell_ploidy,
+        probs = 0.90,
+        na.rm = TRUE,
+        names = FALSE,
+        type = 7
+      )),
+      stringsAsFactors = FALSE
+    )
+  })
+)
+
+treated$dose <- factor(
+  treated$dose,
+  levels = unique(treated$dose[order(treated$dose_mg)])
+)
+
+dose_cols <- c("30mg/kg" = "#fdae61", "120mg/kg" = "#7b3294")
+dose_cols <- dose_cols[names(dose_cols) %in% levels(treated$dose)]
+
+p <- ggplot(treated, aes(x = ploidy_p90, y = tgi_day24, color = dose)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.8) +
+  geom_text(
+    aes(label = sample_id),
+    size = 3,
+    nudge_y = 2.5,
+    check_overlap = TRUE,
+    show.legend = FALSE
+  ) +
+  scale_color_manual(values = dose_cols, name = "dose") +
+  labs(
+    title = "Day 24 TGI versus 90th-percentile ploidy in treated samples",
+    x = "90th pct cell ploidy",
+    y = "TGI percent: Day 24"
+  ) +
+  theme_bw(base_size = 11) +
+  theme(panel.grid.minor = element_blank())
+
+png_path <- file.path(fig_dir, "ploidy_vs_TGI_Day24_p90_treated_by_dose.png")
+pdf_path <- file.path(fig_dir, "ploidy_vs_TGI_Day24_p90_treated_by_dose.pdf")
+
+suppressMessages(ggsave(png_path, p, width = 7, height = 5, dpi = 300))
+suppressMessages(ggsave(pdf_path, p, width = 7, height = 5))
