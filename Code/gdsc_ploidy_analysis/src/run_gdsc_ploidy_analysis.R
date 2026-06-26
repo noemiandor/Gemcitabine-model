@@ -40,6 +40,59 @@ suppressPackageStartupMessages({
 })
 source(file.path(src_dir, "annotations.R"))
 source(file.path(src_dir, "analysis_helpers.R"))
+
+find_python_for_plotting <- function() {
+  python <- Sys.which("python3")
+  if (!nzchar(python)) {
+    python <- Sys.which("python")
+  }
+  if (!nzchar(python)) {
+    stop("Could not find python3 or python to generate enrichment heatmaps.", call. = FALSE)
+  }
+  unname(python)
+}
+
+run_python_plot_script <- function(script, args, description) {
+  if (!file.exists(script)) {
+    stop("Missing plotting script for ", description, ": ", script, call. = FALSE)
+  }
+  python <- find_python_for_plotting()
+  message("Generating ", description, " with ", basename(script))
+  status <- system2(
+    python,
+    args = c(normalizePath(script), args),
+    stdout = "",
+    stderr = ""
+  )
+  if (!identical(status, 0L)) {
+    stop("Failed to generate ", description, " with exit status ", status, ".", call. = FALSE)
+  }
+}
+
+run_enrichment_heatmap_plots <- function(workbook, output_dir, source_dir) {
+  if (!file.exists(workbook)) {
+    stop("Cannot generate enrichment heatmaps because workbook is missing: ", workbook, call. = FALSE)
+  }
+  run_python_plot_script(
+    file.path(source_dir, "plot_ploidy_enrichment_panels.py"),
+    c(
+      normalizePath(workbook),
+      "--out-prefix",
+      file.path(output_dir, "ploidy_enrichment_panels_ABC")
+    ),
+    "manuscript-style ploidy-enrichment panels"
+  )
+  run_python_plot_script(
+    file.path(source_dir, "plot_ploidy_enrichment_clustered_heatmaps.py"),
+    c(
+      normalizePath(workbook),
+      "--out-prefix",
+      file.path(output_dir, "ploidy_enrichment_clustered")
+    ),
+    "clustered ploidy-enrichment heatmaps"
+  )
+}
+
 data_dir <- file.path(base_dir, "data")
 raw_data_dir <- file.path(data_dir, "raw")
 out_dir <- normalizePath(arg_value("output-dir", file.path(base_dir, "output")), mustWork = FALSE)
@@ -496,6 +549,12 @@ dev.off()
 write_tsv(
   do.call(rbind, ploidy_sensitivity_plot_tables),
   file.path(tables_dir, "ploidyVsDrugSensitivity_plot_values_Z_SCORE.tsv")
+)
+
+run_enrichment_heatmap_plots(
+  workbook = file.path(out_dir, "drugsVsPloidyCorr.xlsx"),
+  output_dir = out_dir,
+  source_dir = src_dir
 )
 
 write_session_metadata(file.path(metadata_dir, "session_info.txt"))
