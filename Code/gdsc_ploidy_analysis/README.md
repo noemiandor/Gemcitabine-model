@@ -108,7 +108,7 @@ Rscript Code/gdsc_ploidy_analysis/tests/smoke_test.R
 Rscript Code/gdsc_ploidy_analysis/run_gdsc_ploidy_analysis.R
 ```
 
-The main run accepts `--analysis-mode=dev` or `--analysis-mode=manuscript`. `dev` is the default and uses 300 enrichment permutations; `manuscript` uses 1000 unless overridden with `--enrichment-permute-n=<n>`. Category assignment defaults to `--category-mode=curated`, which requires `data/manual/drug_class_category_schema.tsv` and `data/manual/drug_class_final_curated.tsv`. Manuscript mode refuses `legacy` or `proposal` category modes. The selected mode, category inputs, and checksums are recorded in `output/metadata/run_parameters.tsv` and `output/metadata/category_mode_artifacts.tsv`.
+The main run accepts `--analysis-mode=dev` or `--analysis-mode=manuscript`. Both modes use 300 enrichment permutations by default unless overridden with `--enrichment-permute-n=<n>`. Category assignment defaults to `--category-mode=curated`, which requires `data/manual/drug_class_category_schema.tsv` and `data/manual/drug_class_final_curated.tsv`. Manuscript mode refuses `legacy` or `proposal` category modes. The selected mode, category inputs, and checksums are recorded in `output/metadata/run_parameters.tsv` and `output/metadata/category_mode_artifacts.tsv`.
 
 To run an isolated full validation:
 
