@@ -1,0 +1,85 @@
+# Candidate code files for removal
+# Generated on 2026-06-26 from docs/UnmappedRepoFiles.md plus user clarification.
+#
+# Scope:
+# - Code/script files only.
+# - In vivo code is intentionally excluded because those results are pending.
+# - Current GDSC, CCLE, PKPD, metabolomics corrected-analysis, and live-cell overlay
+#   scripts are excluded when they still map to current or likely manuscript panels.
+# - This is a review list, not an executed deletion list.
+# - Tracked companion inputs/outputs are listed after the code-file section.
+
+PRIORITY 1 - Highest-confidence removals
+
+[ ] Code/GemcitabineModel_imagingPipeline_DiagramR.R
+    Reason: old imaging-pipeline diagram script; no current figure mapping.
+
+[ ] Code/Gemcitabine_Metabolomics_Heatmap/Pathway_enrichment_heatmap_Gemcitabine_2fold.py
+    Reason: outdated metabolomics enrichment script; replaced by
+    Code/Gemcitabine_Metabolomics_Heatmap/Pathway_enrichment_heatmap_Gemcitabine_2fold_corrected.py.
+    Note: this file is already deleted in the current worktree; keep that deletion if reviewed/approved.
+
+[ ] Code/wassersteinFun/ws_distance.m
+    Reason: standalone MATLAB helper; no current mapped manuscript analysis depends on it.
+
+PRIORITY 2 - Add based on clarification: tracking and local MATLAB model code are not used in this paper
+
+[ ] Code/Gemcitabine_TrackingResultsAnalysis_V2.R
+    Reason: tracking/WGD analysis script; user clarified tracking scripts are not used in this paper.
+
+[ ] Code/cellCyclePseudotime.R
+    Reason: tracking-derived cell-cycle pseudotime/SVM workflow; not mapped to current paper figures.
+
+[ ] Code/preprocessing/TrackingQC_1.qmd
+    Reason: tracking QC document/script; user clarified tracking scripts are not used in this paper.
+
+[ ] Code/Manager_combined.m
+    Reason: local legacy MATLAB model driver; user clarified MATLAB model files are not used in this paper.
+
+[ ] Code/combined_cost.m
+    Reason: local legacy MATLAB model cost function; user clarified MATLAB model files are not used in this paper.
+
+[ ] Code/combined_ODE.m
+    Reason: local legacy MATLAB ODE model; user clarified MATLAB model files are not used in this paper.
+
+PRIORITY 3 - Review before removing; likely obsolete, but could still support methods/source-image provenance
+
+[ ] Code/modelDiagram.R
+    Reason: older model schematic script; Figure 5A appears manually assembled or externally generated, not clearly from this file.
+
+TRACKED COMPANION INPUTS - review carefully before removing
+
+[ ] Data/matlab/B_4.txt
+[ ] Data/matlab/B_5.txt
+[ ] Data/matlab/B_6.txt
+    Used by: Code/Manager_combined.m as local MATLAB-model cell-count inputs.
+    Removal note: these are part of the broader Data/matlab/*.txt output set listed below.
+
+
+TRACKED COMPANION OUTPUTS OR GENERATED ARTIFACTS - likely removable with candidate code
+
+[ ] Code/svmFeatures.RObj
+[ ] Code/svm_A2_InterDivision.RObj
+[ ] Code/svm_B2_InterDivision.RObj
+[ ] Code/svm_C2_InterDivision.RObj
+[ ] Code/svm_D2_InterDivision.RObj
+[ ] Code/svm_E2_InterDivision.RObj
+[ ] Code/svm_F2_InterDivision.RObj
+[ ] Code/svm_G2_InterDivision.RObj
+    Produced/used by: Code/cellCyclePseudotime.R.
+    Reason: tracked SVM feature/model artifacts from the tracking-derived cell-cycle pseudotime workflow.
+
+[ ] Data/matlab/*.txt
+    Produced by: Code/Gemcitabine_TrackingResultsAnalysis_V2.R.
+    Consumed by: Code/Manager_combined.m for at least B_4, B_5, and B_6.
+    Tracked count: 80 files.
+    Reason: local tracking-to-MATLAB model outputs; user clarified tracking and MATLAB model code are not used in this paper.
+
+[ ] Code/solutions.mat
+    Associated with: Code/Manager_combined.m.
+    Reason: tracked legacy MATLAB solution artifact; the current save call is commented, but the artifact belongs to the local MATLAB-model workflow.
+
+[ ] Figs/ODE_model.png
+[ ] Figs/ccmodel.png
+    Associated with: Code/modelDiagram.R and older model schematic assets.
+    Reason: tracked legacy diagram outputs/assets not mapped to current manuscript figures.
