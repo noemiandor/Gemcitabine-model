@@ -165,7 +165,7 @@ high_ploidy_pvalue_cutoff <- as.numeric(arg_value("high-ploidy-pvalue-cutoff", "
 tissue_model_min_n <- as.integer(arg_value("tissue-model-min-n", "20"))
 tissue_model_min_tissues <- as.integer(arg_value("tissue-model-min-tissues", "3"))
 tissue_model_min_rows_per_tissue <- as.integer(arg_value("tissue-model-min-rows-per-tissue", "2"))
-ploidy_sensitivity_plot_abs_r_threshold <- as.numeric(arg_value("ploidy-sensitivity-plot-abs-r-threshold", "0.1"))
+ploidy_sensitivity_plot_abs_r_threshold <- as.numeric(arg_value("ploidy-sensitivity-plot-abs-r-threshold", "0.185"))
 
 metadata_dir <- file.path(out_dir, "metadata")
 tables_dir <- file.path(out_dir, "tables")
