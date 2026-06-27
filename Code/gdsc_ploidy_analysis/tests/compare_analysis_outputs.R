@@ -71,6 +71,25 @@ append_diff <- function(path, status, detail) {
   diffs <<- rbind(diffs, data.frame(path = path, status = status, detail = detail, stringsAsFactors = FALSE))
 }
 
+stage_for_path <- function(path) {
+  if (grepl("drug_class_curation_input|drug_class_curation_evidence", path)) {
+    return("curation input")
+  }
+  if (grepl("drug_class_final_used|drug_class_assignment_diff|drug_class_category_counts|drug_class_low_count|drug_class_reviewed_exclusions", path)) {
+    return("final category mapping")
+  }
+  if (grepl("class_enrichment_selected_drugs", path)) {
+    return("selected drug table")
+  }
+  if (grepl("class_enrichment|drugsVsPloidyCorr_.*\\.xlsx|workbook_", path)) {
+    return("enrichment matrix")
+  }
+  if (grepl("ploidy_enrichment", path)) {
+    return("heatmap rendering")
+  }
+  "other tracked artifact"
+}
+
 append_checksum_diffs <- function(b, c) {
   b_sum <- read_tsv(b)
   c_sum <- read_tsv(c)
@@ -113,12 +132,14 @@ for (rel in all_rel) {
 write_tsv(diffs, diff_file)
 
 changed <- nrow(diffs) > 0
+first_changed_stage <- if (changed) stage_for_path(diffs$path[[1]]) else "none"
 report <- c(
   "# Regression Report",
   "",
   paste0("- Baseline: `", baseline_dir, "`"),
   paste0("- Candidate: `", candidate_dir, "`"),
   paste0("- Final result changed: `", if (changed) "yes" else "no", "`"),
+  paste0("- First changed stage: `", first_changed_stage, "`"),
   paste0("- Difference count: `", nrow(diffs), "`"),
   "",
   "## Difference Summary",

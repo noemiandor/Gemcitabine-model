@@ -61,23 +61,43 @@ input_files <- c(
   file.path(data_dir, "ploidyAcrossCellLines_V1.txt"),
   file.path(data_dir, "small_molecule_20200407234909.csv"),
   file.path(base_dir, "data", "manual", "custom_set_candidate.tsv"),
-  file.path(base_dir, "data", "derived", "pubchem_drug_annotations.tsv")
+  file.path(base_dir, "data", "manual", "drug_class_category_schema.tsv"),
+  file.path(base_dir, "data", "manual", "drug_class_final_curated.tsv"),
+  file.path(base_dir, "data", "derived", "pubchem_drug_annotations.tsv"),
+  file.path(base_dir, "tests", "fixtures", "wrong_assignment_examples.tsv")
 )
 
 output_files <- c(
   file.path(output_dir, "drugsVsPloidyCorr.RData"),
   file.path(output_dir, "coxIn.RData"),
   file.path(output_dir, "drugsVsPloidyCorr.xlsx"),
+  file.path(output_dir, "drugsVsPloidyCorr_curated_Z_SCORE.xlsx"),
   file.path(output_dir, "drugsVsPloidyCorr.pdf"),
   file.path(output_dir, "ploidyVsDrugSensitivity.pdf"),
   file.path(output_dir, "metadata", "run_config.tsv"),
+  file.path(output_dir, "metadata", "category_mode_artifacts.tsv"),
   file.path(output_dir, "metadata", "input_manifest.tsv"),
   file.path(output_dir, "metadata", "session_info.txt"),
-  file.path(output_dir, "tables", "drug_category_counts_before_filter.tsv"),
-  file.path(output_dir, "tables", "drug_category_counts_after_filter.tsv"),
+  file.path(output_dir, "tables", "drug_class_correlation_eligible_drugs.tsv"),
+  file.path(output_dir, "tables", "drug_class_curation_evidence_by_drug_id.tsv"),
+  file.path(output_dir, "tables", "drug_class_curation_input.tsv"),
+  file.path(output_dir, "tables", "drug_class_final_used.tsv"),
+  file.path(output_dir, "tables", "drug_class_assignment_diff.tsv"),
+  file.path(output_dir, "tables", "drug_class_category_counts.tsv"),
+  file.path(output_dir, "tables", "drug_class_low_count_actions.tsv"),
+  file.path(output_dir, "tables", "drug_class_reviewed_exclusions.tsv"),
+  file.path(output_dir, "tables", "class_enrichment_curated_Z_SCORE.tsv"),
+  file.path(output_dir, "tables", "class_enrichment_curated_metadata.tsv"),
+  file.path(output_dir, "tables", "class_enrichment_selected_drugs_curated_Z_SCORE.tsv"),
   file.path(output_dir, "qc", "duplicate_drug_cell_line_records.tsv"),
   file.path(output_dir, "qc", "duplicate_resolution_summary.tsv")
 )
+top_level_generated <- list.files(
+  output_dir,
+  pattern = "^(ploidy_enrichment|drugsVsPloidyCorr_).*\\.(png|pdf|xlsx)$",
+  full.names = TRUE
+)
+output_files <- c(output_files, top_level_generated)
 generated_detail_files <- unlist(lapply(
   file.path(output_dir, c("metadata", "tables", "qc")),
   function(dir) {
@@ -154,7 +174,10 @@ if (file.exists(annotation_file)) {
   }
 }
 
-workbook_file <- file.path(output_dir, "drugsVsPloidyCorr.xlsx")
+workbook_file <- file.path(output_dir, "drugsVsPloidyCorr_curated_Z_SCORE.xlsx")
+if (!file.exists(workbook_file)) {
+  workbook_file <- file.path(output_dir, "drugsVsPloidyCorr.xlsx")
+}
 if (file.exists(workbook_file) && requireNamespace("openxlsx", quietly = TRUE)) {
   sheets <- openxlsx::getSheetNames(workbook_file)
   append_summary("workbook_sheet_count", length(sheets))

@@ -461,7 +461,7 @@ build_ploidy_sensitivity_plot_table <- function(cancer_type,
   )
 }
 
-normalize_drug_key <- function(x) {
+normalize_drug_alias_key <- function(x) {
   x <- toupper(as.character(x))
   gsub("[^A-Z0-9]", "", x)
 }
@@ -469,8 +469,8 @@ normalize_drug_key <- function(x) {
 write_gemcitabine_rank_summary <- function(cor_dt,
                                            path,
                                            aliases = c("GEMCITABINE", "GEMZAR")) {
-  aliases <- normalize_drug_key(aliases)
-  out <- cor_dt[normalize_drug_key(cor_dt$drug) %in% aliases, , drop = FALSE]
+  aliases <- normalize_drug_alias_key(aliases)
+  out <- cor_dt[normalize_drug_alias_key(cor_dt$drug) %in% aliases, , drop = FALSE]
   write_tsv(out, path)
   invisible(out)
 }
