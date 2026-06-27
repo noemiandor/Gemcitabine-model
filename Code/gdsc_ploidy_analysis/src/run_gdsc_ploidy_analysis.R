@@ -158,7 +158,7 @@ if (!analysis_mode %in% c("dev", "manuscript")) {
 if (analysis_mode == "manuscript" && category_mode != "curated") {
   stop("Manuscript analysis requires --category-mode=curated.", call. = FALSE)
 }
-default_enrichment_permute_n <- if (analysis_mode == "manuscript") 10000L else 300L
+default_enrichment_permute_n <- if (analysis_mode == "manuscript") 1000L else 300L
 enrichment_permute_n <- as.integer(arg_value("enrichment-permute-n", as.character(default_enrichment_permute_n)))
 low_ploidy_pvalue_cutoff <- as.numeric(arg_value("low-ploidy-pvalue-cutoff", "0.05"))
 high_ploidy_pvalue_cutoff <- as.numeric(arg_value("high-ploidy-pvalue-cutoff", "0.1"))

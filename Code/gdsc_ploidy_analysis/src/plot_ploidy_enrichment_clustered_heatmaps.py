@@ -55,6 +55,18 @@ def ordered_labels(labels):
     return [display_label(label) for label in labels]
 
 
+def set_seaborn_x_labels(ax, labels, fontsize=8):
+    """Place x labels at seaborn heatmap cell centers."""
+    ax.set_xticks(np.arange(len(labels)) + 0.5)
+    ax.set_xticklabels(labels, fontsize=fontsize)
+    for label in ax.get_xticklabels():
+        label.set_rotation(45)
+        label.set_ha("right")
+        label.set_va("top")
+        label.set_rotation_mode("anchor")
+    ax.tick_params(axis="x", which="major", pad=3)
+
+
 def add_significance_stars(ax, pvalues, row_order, col_order):
     """Mark cells with nominal enrichment p <= 0.05."""
     ordered = pvalues.iloc[row_order, col_order].to_numpy(dtype=float)
@@ -117,13 +129,13 @@ def save_shared_order_heatmap(low, high, low_scores, high_scores, out_prefix):
             cbar=False,
             linewidths=0.25,
             linecolor="#E8E8E8",
-            xticklabels=ordered_labels(ordered_scores.columns),
+            xticklabels=False,
             yticklabels=ordered_scores.index,
         )
+        set_seaborn_x_labels(ax, ordered_labels(ordered_scores.columns), fontsize=8)
         add_significance_stars(ax, pvalues, row_order, col_order)
         ax.set_title(title, fontsize=12, pad=10)
         ax.set_xlabel("Drug class")
-        ax.tick_params(axis="x", labelrotation=45, labelsize=8)
         ax.tick_params(axis="y", labelsize=8)
 
     axes[1].set_ylabel("")
@@ -156,17 +168,22 @@ def save_clustermap(scores, pvalues, title, out_prefix, vmax):
         cbar_kws={"label": "-log10(enrichment p-value)"},
         dendrogram_ratio=(0.16, 0.14),
         cbar_pos=(0.91, 0.34, 0.022, 0.30),
+        xticklabels=False,
     )
     grid.fig.subplots_adjust(right=0.82, top=0.92, bottom=0.16)
     grid.ax_cbar.set_position((0.91, 0.34, 0.022, 0.30))
     grid.fig.suptitle(title, fontsize=13, y=1.02)
     grid.ax_heatmap.set_xlabel("Drug class")
     grid.ax_heatmap.set_ylabel("")
-    grid.ax_heatmap.tick_params(axis="x", labelrotation=45, labelsize=8)
     grid.ax_heatmap.tick_params(axis="y", labelsize=8)
 
     row_order = grid.dendrogram_row.reordered_ind
     col_order = grid.dendrogram_col.reordered_ind
+    set_seaborn_x_labels(
+        grid.ax_heatmap,
+        [score_df.columns[i] for i in col_order],
+        fontsize=8,
+    )
     add_significance_stars(grid.ax_heatmap, pvalues, row_order, col_order)
 
     for suffix in (".png", ".pdf"):

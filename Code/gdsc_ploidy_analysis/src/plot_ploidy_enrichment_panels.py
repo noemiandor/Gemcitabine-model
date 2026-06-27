@@ -101,6 +101,18 @@ def pretty_label(x):
     return label
 
 
+def set_imshow_x_labels(ax, labels, fontsize=8):
+    """Place x labels at imshow cell centers and anchor rotated text to ticks."""
+    ax.set_xticks(np.arange(len(labels)))
+    ax.set_xticklabels(labels, fontsize=fontsize)
+    for label in ax.get_xticklabels():
+        label.set_rotation(35)
+        label.set_ha("right")
+        label.set_va("top")
+        label.set_rotation_mode("anchor")
+    ax.tick_params(axis="x", which="major", pad=3)
+
+
 def add_workflow_panel(ax):
     """Draw Panel A: workflow schematic."""
     ax.set_axis_off()
@@ -148,8 +160,7 @@ def add_heatmap_panel(ax, data, pvalues, title, panel_letter, vmin, vmax):
     im = ax.imshow(masked, aspect="auto", vmin=vmin, vmax=vmax, cmap=cmap)
 
     ax.set_title(title, fontsize=12, pad=12)
-    ax.set_xticks(np.arange(pvalues.shape[1]))
-    ax.set_xticklabels([pretty_label(c) for c in pvalues.columns], rotation=35, ha="right", fontsize=8)
+    set_imshow_x_labels(ax, [pretty_label(c) for c in pvalues.columns], fontsize=8)
     ax.set_yticks(np.arange(pvalues.shape[0]))
     ax.set_yticklabels([str(i) for i in pvalues.index], fontsize=8)
 
