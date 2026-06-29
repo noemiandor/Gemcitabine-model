@@ -33,7 +33,6 @@ cleanup_paths="$(mktemp "${TMPDIR:-/tmp}/gemcitabine_cleanup_paths.XXXXXX")"
     'Code/wassersteinFun/ws_distance.m' \
     'Code/Gemcitabine_TrackingResultsAnalysis_V2.R' \
     'Code/cellCyclePseudotime.R' \
-    'Code/preprocessing/TrackingQC_1.qmd' \
     'Code/Manager_combined.m' \
     'Code/combined_cost.m' \
     'Code/combined_ODE.m' \
@@ -55,7 +54,7 @@ cleanup_paths="$(mktemp "${TMPDIR:-/tmp}/gemcitabine_cleanup_paths.XXXXXX")"
 # 2. Review the exact removal set.
 cat "$cleanup_paths"
 wc -l "$cleanup_paths"
-test "$(wc -l < "$cleanup_paths" | tr -d ' ')" -eq 101
+test "$(wc -l < "$cleanup_paths" | tr -d ' ')" -eq 100
 
 # 3. Stage only those tracked removals.
 git --literal-pathspecs rm --pathspec-from-file="$cleanup_paths"
@@ -74,12 +73,12 @@ git commit -m "Remove unused paper cleanup candidates"
 
 The command should remove:
 
-- 21 explicitly listed files.
+- 20 explicitly listed files.
 - 80 tracked files expanded from `Data/matlab/*.txt`.
 
-Expected total: 101 staged `D` entries.
+Expected total: 100 staged `D` entries.
 
-One explicit file, `Code/Gemcitabine_Metabolomics_Heatmap/Pathway_enrichment_heatmap_Gemcitabine_2fold.py`, may already be deleted in the worktree before running this plan. It is still tracked, so the expected result remains 101 staged deletions, not necessarily 101 newly removed files from disk.
+One explicit file, `Code/Gemcitabine_Metabolomics_Heatmap/Pathway_enrichment_heatmap_Gemcitabine_2fold.py`, may already be deleted in the worktree before running this plan. It is still tracked, so the expected result remains 100 staged deletions, not necessarily 100 newly removed files from disk.
 
 ## Safety Checks
 

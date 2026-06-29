@@ -30,9 +30,6 @@ PRIORITY 2 - Add based on clarification: tracking and local MATLAB model code ar
 [ ] Code/cellCyclePseudotime.R
     Reason: tracking-derived cell-cycle pseudotime/SVM workflow; not mapped to current paper figures.
 
-[ ] Code/preprocessing/TrackingQC_1.qmd
-    Reason: tracking QC document/script; user clarified tracking scripts are not used in this paper.
-
 [ ] Code/Manager_combined.m
     Reason: local legacy MATLAB model driver; user clarified MATLAB model files are not used in this paper.
 
