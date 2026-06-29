@@ -26,6 +26,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
@@ -576,6 +577,192 @@ def plot_combined_dfdctp_signal_curves(
     plt.close(fig)
 
 
+def get_live_dead_dose_items(
+    fit_config: invitro_fitting.JointFitConfig,
+) -> list[Tuple[str, float]]:
+    paths = invitro_fitting.default_experiment_paths()
+    df = invitro_fitting.assemble_modeling_dataset(paths=paths, fit_config=fit_config)
+    dose_labels = sorted(
+        [dose for dose in df["gem"].dropna().unique()],
+        key=lambda x: float(str(x).split()[0]),
+    )
+    dose_items = []
+    for dose_label in dose_labels:
+        dose_uM = float(str(dose_label).split()[0]) / 1000.0
+        if dose_uM > 0:
+            dose_items.append((str(dose_label), dose_uM))
+    return dose_items
+
+
+def format_nm_dose_label(dose_uM: float) -> str:
+    return f"{float(dose_uM) * 1000.0:g} nM"
+
+
+def plot_effective_dfdctp_signal_curves(
+    best_row: pd.Series,
+    fit_config: invitro_fitting.JointFitConfig,
+    curves_by_ploidy: Dict[str, invitro_fitting.DfdctpSignalSurface],
+    output_path: Path,
+) -> None:
+    available_curves = {
+        ploidy: curve
+        for ploidy, curve in curves_by_ploidy.items()
+        if len(curve.calibration_profiles_by_dose) > 0
+    }
+    if not available_curves:
+        raise ValueError("No calibrated dFdCTP signal curves are available")
+
+    max_time = max(
+        float(profile.time_days.max())
+        for curve in available_curves.values()
+        for profile in curve.calibration_profiles_by_dose.values()
+        if len(profile.time_days) > 0
+    )
+    positive_times = [
+        float(time_value)
+        for curve in available_curves.values()
+        for profile in curve.calibration_profiles_by_dose.values()
+        for time_value in np.asarray(profile.time_days, dtype=float)
+        if np.isfinite(time_value) and time_value > 0
+    ]
+    min_positive_time = min(positive_times) if positive_times else 1.0 / 24.0
+    max_plot_time = max(5.0, max_time)
+    t_grid = np.geomspace(min_positive_time, max_plot_time, 400)
+
+    plotted_doses_uM = {
+        float(dose_uM)
+        for _dose_label, dose_uM in get_live_dead_dose_items(fit_config)
+        if float(dose_uM) > 0
+    }
+    plotted_doses_uM.update(
+        float(dose)
+        for curve in available_curves.values()
+        for dose in curve.calibration_doses_uM
+        if float(dose) > 0
+    )
+    dose_items = [
+        (format_nm_dose_label(dose_uM), dose_uM)
+        for dose_uM in sorted(plotted_doses_uM)
+    ]
+    dose_colors = {
+        dose_label: color
+        for (dose_label, _dose_uM), color in zip(
+            dose_items,
+            plt.cm.viridis(np.linspace(0.12, 0.88, len(dose_items))),
+        )
+    }
+
+    gate_ec50 = row_float(best_row, "dose_gate_ec50_uM", fit_config.fixed_dose_gate_ec50_uM)
+    gate_hill = row_float(best_row, "dose_gate_hill", fit_config.fixed_dose_gate_hill)
+    use_hill = bool(
+        fit_config.use_hill_dose_gate
+        and np.isfinite(gate_ec50)
+        and gate_ec50 > 0
+        and np.isfinite(gate_hill)
+        and gate_hill > 0
+    )
+
+    fig, axes = plt.subplots(1, 2, figsize=(12.0, 4.5), sharex=True, sharey=True)
+    for ax, ploidy in zip(axes, ("2N", "4N")):
+        if ploidy not in available_curves:
+            ax.set_axis_off()
+            continue
+        curve = available_curves[ploidy]
+        params = ploidy_parameter_dict(best_row, ploidy, fit_config)
+        beta_dose = float(params.get("beta_dose", fit_config.fixed_beta_dose))
+        reference_dose = invitro_fitting.get_dose_scaling_reference_uM(curve)
+        calibrated_doses = np.asarray(curve.calibration_doses_uM, dtype=float)
+        for dose_label, dose_uM in dose_items:
+            pk_signal = np.asarray(curve(t_grid, dose_uM), dtype=float)
+            effective_signal = np.asarray(
+                [
+                    invitro_fitting.apply_effective_dose_correction(
+                        signal_uM=float(signal_value),
+                        dose_uM=float(dose_uM),
+                        reference_dose_uM=reference_dose,
+                        beta_dose=beta_dose,
+                        use_hill_dose_gate=use_hill,
+                        dose_gate_ec50_uM=gate_ec50 if use_hill else None,
+                        dose_gate_hill=gate_hill if use_hill else None,
+                    )
+                    for signal_value in pk_signal
+                ],
+                dtype=float,
+            )
+            is_calibrated_pk_dose = bool(np.any(np.isclose(calibrated_doses, dose_uM, rtol=1e-6, atol=1e-9)))
+            ax.plot(
+                t_grid,
+                effective_signal,
+                color=dose_colors[dose_label],
+                linestyle="-" if is_calibrated_pk_dose else "--",
+                linewidth=1.8,
+                alpha=0.95,
+                label=dose_label,
+            )
+
+        ax.set_xscale("log")
+        ax.set_xlim(min_positive_time, max_plot_time)
+        ax.set_title(f"{ploidy} effective signal", fontsize=10)
+        ax.grid(True, alpha=0.25)
+        ax.tick_params(axis="both", labelsize=9)
+        ax.text(
+            0.03,
+            0.96,
+            f"beta={beta_dose:.3g}\nref={reference_dose * 1000.0:.3g} nM",
+            transform=ax.transAxes,
+            va="top",
+            ha="left",
+            fontsize=8,
+            bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.82, "edgecolor": "0.75"},
+        )
+
+    axes[0].set_ylabel("Effective dFdCTP signal (uM-equivalent)", fontsize=10)
+    for ax in axes:
+        ax.set_xlabel("Time (days, log scale; t=0 omitted)", fontsize=10)
+    correction_label = "beta + Hill corrected" if use_hill else "beta corrected"
+    fig.suptitle(f"Fitted effective intracellular dFdCTP signal ({correction_label})", fontsize=11)
+    handles, labels = axes[-1].get_legend_handles_labels()
+    if handles:
+        fig.legend(
+            handles,
+            labels,
+            loc="center left",
+            bbox_to_anchor=(1.01, 0.5),
+            fontsize=8,
+            title="Dose",
+            title_fontsize=8,
+        )
+    if use_hill:
+        fig.text(
+            0.5,
+            0.005,
+            f"Shared Hill gate: EC50={gate_ec50 * 1000.0:.3g} nM, h={gate_hill:.3g}",
+            ha="center",
+            fontsize=8,
+        )
+    style_handles = [
+        Line2D([0], [0], color="0.25", linestyle="-", linewidth=1.8, label="PK-calibrated dose"),
+        Line2D([0], [0], color="0.25", linestyle="--", linewidth=1.8, label="Interpolated/scaled dose"),
+    ]
+    fig.legend(
+        handles=style_handles,
+        loc="lower left",
+        bbox_to_anchor=(0.01, 0.005),
+        fontsize=8,
+        frameon=False,
+    )
+    fig.text(
+        0.5,
+        0.025,
+        "Effective signal is zero at t=0; t=0 is omitted from the log-scale curves.",
+        ha="center",
+        fontsize=8,
+    )
+    fig.tight_layout(rect=(0.0, 0.08, 0.88, 0.95))
+    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
 def build_cohort_dose_data_list(
     df: pd.DataFrame,
     gem_doses: Iterable[str],
@@ -984,6 +1171,7 @@ def main() -> None:
     fold_change_path = output_folder / "ploidy_parameter_log2_fold_change.png"
     paired_path = output_folder / "ploidy_parameter_paired_values.png"
     dfdctp_path = output_folder / "dfdctp_signal_curve_combined_ploidy.png"
+    effective_dfdctp_path = output_folder / "effective_dfdctp_signal_curve_combined_ploidy.png"
     dose_response_table_path = output_folder / "dose_response_ploidy_comparison.tsv"
     dose_response_plot_path = output_folder / "dose_response_ploidy_comparison.png"
     cohort_2n_path = output_folder / "cohort_joint_fit_2n.png"
@@ -1002,6 +1190,7 @@ def main() -> None:
             invitro_fitting.plot_dfdctp_signal_curve(ploidy, curves_by_ploidy[ploidy], output_dir=output_folder)
             invitro_fitting.plot_dfdctp_amplitude_scaling(ploidy, curves_by_ploidy[ploidy], output_dir=output_folder)
         plot_combined_dfdctp_signal_curves(curves_by_ploidy, dfdctp_path)
+        plot_effective_dfdctp_signal_curves(best_row, fit_config, curves_by_ploidy, effective_dfdctp_path)
     dose_response_df = build_dose_response_comparison_table(best_row, fit_config, curves_by_ploidy)
     dose_response_df.to_csv(dose_response_table_path, sep="\t", index=False)
     plot_dose_response_comparison(dose_response_df, dose_response_plot_path)
@@ -1026,6 +1215,7 @@ def main() -> None:
         print(f"Wrote {output_folder / 'dfdctp_amplitude_scaling_2n.png'}")
         print(f"Wrote {output_folder / 'dfdctp_amplitude_scaling_4n.png'}")
         print(f"Wrote {dfdctp_path}")
+        print(f"Wrote {effective_dfdctp_path}")
     print(f"Wrote {dose_response_table_path}")
     print(f"Wrote {dose_response_plot_path}")
     if not args.skip_cohort:

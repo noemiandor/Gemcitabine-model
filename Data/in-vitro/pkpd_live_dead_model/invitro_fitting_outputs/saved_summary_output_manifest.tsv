@@ -10,6 +10,7 @@ common	dfdctp_signal_curve_4n.png	png		1480	930
 common	dfdctp_amplitude_scaling_2n.png	png		1280	858
 common	dfdctp_amplitude_scaling_4n.png	png		1280	858
 common	dfdctp_signal_curve_combined_ploidy.png	png		1949	1159
+common	effective_dfdctp_signal_curve_combined_ploidy.png	png			
 common	dose_response_ploidy_comparison.png	png			
 common	cohort_joint_fit_2n.png	png		2219	3441
 common	cohort_joint_fit_4n.png	png		2219	3441
