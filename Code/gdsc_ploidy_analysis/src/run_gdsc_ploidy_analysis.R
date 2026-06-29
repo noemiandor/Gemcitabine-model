@@ -96,7 +96,16 @@ run_enrichment_heatmap_plots <- function(workbook, output_dir, source_dir, categ
 
 data_dir <- file.path(base_dir, "data")
 raw_data_dir <- file.path(data_dir, "raw")
-out_dir <- normalizePath(arg_value("output-dir", file.path(base_dir, "output")), mustWork = FALSE)
+repo_root <- normalizePath(file.path(base_dir, "..", ".."), mustWork = TRUE)
+default_out_dir <- file.path(
+  repo_root,
+  "Results",
+  "public_data",
+  "gdsc_ploidy_analysis",
+  "runs",
+  paste0(format(Sys.time(), "%Y%m%dT%H%M%S"), "_gdsc")
+)
+out_dir <- normalizePath(arg_value("output-dir", default_out_dir), mustWork = FALSE)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 gdsc_file <- file.path(raw_data_dir, "GDSC2_fitted_dose_response_24Jul22.txt")

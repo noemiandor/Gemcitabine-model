@@ -69,6 +69,14 @@ parse_args <- function(args) {
 }
 
 parsed_args <- parse_args(args)
+default_output_dir <- file.path(
+  repo_root,
+  "Results",
+  "in-vitro",
+  "drug_response",
+  "runs",
+  paste0(format(Sys.time(), "%Y%m%dT%H%M%S"), "_drug_response")
+)
 input_file <- if (!is.null(parsed_args$input_file)) {
   parsed_args$input_file
 } else {
@@ -77,15 +85,16 @@ input_file <- if (!is.null(parsed_args$input_file)) {
 out_dir <- if (!is.null(parsed_args$output_dir)) {
   parsed_args$output_dir
 } else {
-  file.path(repo_root, "Figs")
+  default_output_dir
 }
 ploidy_file <- if (!is.null(parsed_args$ploidy_file)) {
   parsed_args$ploidy_file
 } else {
   file.path(repo_root, "Data/in-vitro/drug_response/fig3h_cloneid_ploidy.tsv")
 }
-fig_dir <- if (isTRUE(parsed_args$used_named_output_dir)) file.path(out_dir, "figures") else out_dir
-table_dir <- if (isTRUE(parsed_args$used_named_output_dir)) file.path(out_dir, "tables") else out_dir
+canonical_output <- isTRUE(parsed_args$used_named_output_dir) || is.null(parsed_args$output_dir)
+fig_dir <- if (canonical_output) file.path(out_dir, "figures") else out_dir
+table_dir <- if (canonical_output) file.path(out_dir, "tables") else out_dir
 dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(table_dir, recursive = TRUE, showWarnings = FALSE)
 

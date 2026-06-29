@@ -1,0 +1,61 @@
+Set,Pathway_class,Selected_count,Background_count,Set_size,Background_size,p_value,FDR_BH
+2N_up_after_gem_2fold,Amino acid/nitrogen,3,57,17,472,0.3378595071553453,0.8120147409454167
+2N_up_after_gem_2fold,Carnitine/FAO,0,20,17,472,1.0,1.0
+2N_up_after_gem_2fold,Fatty acids/lipids,2,22,17,472,0.1848218171452435,0.8120147409454167
+2N_up_after_gem_2fold,Folate/one-carbon/methylation,0,10,17,472,1.0,1.0
+2N_up_after_gem_2fold,Kennedy/choline-phospholipid,1,10,17,472,0.30956070945108316,0.8120147409454167
+2N_up_after_gem_2fold,PPP/glycolysis/carbohydrate,7,40,17,472,0.00019239515240890295,0.0019239515240890295
+2N_up_after_gem_2fold,Purine metabolism,1,47,17,472,0.8372918700753154,1.0
+2N_up_after_gem_2fold,Pyrimidine metabolism,1,29,17,472,0.6662240889463933,1.0
+2N_up_after_gem_2fold,Cofactors/vitamins/redox,1,14,17,472,0.40600737047270835,0.8120147409454167
+2N_up_after_gem_2fold,Other,1,232,17,472,0.9999923922727814,1.0
+2N_down_after_gem_2fold,Amino acid/nitrogen,10,57,28,472,0.0007075631063908438,0.0037990721756098974
+2N_down_after_gem_2fold,Carnitine/FAO,3,20,28,472,0.10798181328332138,0.3349532356989371
+2N_down_after_gem_2fold,Fatty acids/lipids,0,22,28,472,1.0,1.0
+2N_down_after_gem_2fold,Folate/one-carbon/methylation,0,10,28,472,1.0,1.0
+2N_down_after_gem_2fold,Kennedy/choline-phospholipid,0,10,28,472,1.0,1.0
+2N_down_after_gem_2fold,PPP/glycolysis/carbohydrate,2,40,28,472,0.7079830764990589,1.0
+2N_down_after_gem_2fold,Purine metabolism,5,47,28,472,0.13398129427957484,0.3349532356989371
+2N_down_after_gem_2fold,Pyrimidine metabolism,7,29,28,472,0.0007598144351219795,0.0037990721756098974
+2N_down_after_gem_2fold,Cofactors/vitamins/redox,0,14,28,472,1.0,1.0
+2N_down_after_gem_2fold,Other,1,232,28,472,0.9999999973784752,1.0
+4N_up_after_gem_2fold,Amino acid/nitrogen,0,57,14,472,1.0,1.0
+4N_up_after_gem_2fold,Carnitine/FAO,0,20,14,472,1.0,1.0
+4N_up_after_gem_2fold,Fatty acids/lipids,5,22,14,472,0.00020884701863330422,0.002088470186333042
+4N_up_after_gem_2fold,Folate/one-carbon/methylation,2,10,14,472,0.03212209379625685,0.1367061501977655
+4N_up_after_gem_2fold,Kennedy/choline-phospholipid,0,10,14,472,1.0,1.0
+4N_up_after_gem_2fold,PPP/glycolysis/carbohydrate,2,40,14,472,0.3358868319477199,0.6957867536284825
+4N_up_after_gem_2fold,Purine metabolism,4,47,14,472,0.041011845059329644,0.1367061501977655
+4N_up_after_gem_2fold,Pyrimidine metabolism,0,29,14,472,1.0,1.0
+4N_up_after_gem_2fold,Cofactors/vitamins/redox,1,14,14,472,0.34789337681424126,0.6957867536284825
+4N_up_after_gem_2fold,Other,0,232,14,472,1.0,1.0
+4N_down_after_gem_2fold,Amino acid/nitrogen,2,57,9,472,0.2976727933611232,0.744181983402808
+4N_down_after_gem_2fold,Carnitine/FAO,0,20,9,472,1.0,1.0
+4N_down_after_gem_2fold,Fatty acids/lipids,0,22,9,472,1.0,1.0
+4N_down_after_gem_2fold,Folate/one-carbon/methylation,0,10,9,472,1.0,1.0
+4N_down_after_gem_2fold,Kennedy/choline-phospholipid,0,10,9,472,1.0,1.0
+4N_down_after_gem_2fold,PPP/glycolysis/carbohydrate,2,40,9,472,0.1725918194600891,0.5753060648669638
+4N_down_after_gem_2fold,Purine metabolism,3,47,9,472,0.05068898285851287,0.5016849160677986
+4N_down_after_gem_2fold,Pyrimidine metabolism,2,29,9,472,0.10033698321355974,0.5016849160677986
+4N_down_after_gem_2fold,Cofactors/vitamins/redox,0,14,9,472,1.0,1.0
+4N_down_after_gem_2fold,Other,0,232,9,472,1.0,1.0
+Differential_response_2fold,Amino acid/nitrogen,4,57,23,472,0.2973732766198042,0.7434331915495105
+Differential_response_2fold,Carnitine/FAO,0,20,23,472,1.0,1.0
+Differential_response_2fold,Fatty acids/lipids,1,22,23,472,0.6753193515243964,1.0
+Differential_response_2fold,Folate/one-carbon/methylation,0,10,23,472,1.0,1.0
+Differential_response_2fold,Kennedy/choline-phospholipid,0,10,23,472,1.0,1.0
+Differential_response_2fold,PPP/glycolysis/carbohydrate,6,40,23,472,0.008662781285513543,0.04331390642756771
+Differential_response_2fold,Purine metabolism,5,47,23,472,0.06712414250953833,0.2237471416984611
+Differential_response_2fold,Pyrimidine metabolism,6,29,23,472,0.0015376933956014333,0.015376933956014333
+Differential_response_2fold,Cofactors/vitamins/redox,0,14,23,472,1.0,1.0
+Differential_response_2fold,Other,1,232,23,472,0.9999998981560135,1.0
+Interaction_p05,Amino acid/nitrogen,30,57,131,472,1.9044614345942644e-05,0.00019044614345942643
+Interaction_p05,Carnitine/FAO,10,20,131,472,0.025955823677280172,0.08699830146823075
+Interaction_p05,Fatty acids/lipids,4,22,131,472,0.9029644040595708,0.9998915171058058
+Interaction_p05,Folate/one-carbon/methylation,2,10,131,472,0.8154162980914335,0.9998915171058058
+Interaction_p05,Kennedy/choline-phospholipid,5,10,131,472,0.11209936228417465,0.28024840571043663
+Interaction_p05,PPP/glycolysis/carbohydrate,17,40,131,472,0.026099490440469223,0.08699830146823075
+Interaction_p05,Purine metabolism,8,47,131,472,0.9758879011888628,0.9998915171058058
+Interaction_p05,Pyrimidine metabolism,7,29,131,472,0.740720312548553,0.9998915171058058
+Interaction_p05,Cofactors/vitamins/redox,2,14,131,472,0.9355180168631904,0.9998915171058058
+Interaction_p05,Other,47,232,131,472,0.9998915171058058,0.9998915171058058

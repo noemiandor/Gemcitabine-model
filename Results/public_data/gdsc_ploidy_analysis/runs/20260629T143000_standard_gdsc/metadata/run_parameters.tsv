@@ -1,0 +1,25 @@
+parameter	value
+metric	Z_SCORE
+metric_label	GDSC Z-score
+canonical_metric	Z_SCORE
+supplemental_metrics	Z_SCORE;LN_IC50;AUC
+canonical_matching_mode	legacy_raw_name_matching
+supplemental_matching_mode	normalized_cell_line_key
+ploidy_collision_tolerance	0.05
+correlation_min_n	10
+spearman_ci_method	approximate_fisher_transform_for_estimable_spearman_ci
+analysis_mode	manuscript
+category_mode	curated
+category_schema_file	/Users/4470246/Repositories/Gemcitabine-model/Code/gdsc_ploidy_analysis/data/manual/drug_class_category_schema.tsv
+category_schema_checksum	dce3fa39f10c48182bcd96eb17fab124
+curated_mapping_file	/Users/4470246/Repositories/Gemcitabine-model/Code/gdsc_ploidy_analysis/data/manual/drug_class_final_curated.tsv
+curated_mapping_checksum	5a783d67d9f73cfaa9b3ded8c98ab02d
+enrichment_permute_n	300
+low_ploidy_pvalue_cutoff	0.05
+high_ploidy_pvalue_cutoff	0.1
+tissue_model_min_n	20
+tissue_model_min_tissues	3
+tissue_model_min_rows_per_tissue	2
+ploidy_sensitivity_plot_abs_r_threshold	0.185
+duplicate_strategy	lowest_rmse
+duplicate_strategy_required_columns	DRUG_NAME;CELL_LINE_NAME;Z_SCORE;RMSE

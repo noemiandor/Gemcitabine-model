@@ -1,0 +1,287 @@
+drug	drug_key	legacy_group_used_for_enrichment	approved_final_category_id	approved_final_display_label	include_in_enrichment	included_in_enrichment	exclusion_reason_code	low_count_filter_status	category_changed	evidence_summary
+123138	123138		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+123829	123829		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+150412	150412		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+5-azacytidine	5-AZACYTIDINE	METABOLICINHIBITOR	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: DNA methyltransferases
+5-Fluorouracil	5-FLUOROURACIL	DERMATOLOGICAL MEDICINES > MEDICINES AFFECTING SKIN DIFFERENTIATION AND PROLIFERATION	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: Antimetabolite (DNA & RNA)
+50869	50869		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+615590	615590		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+630600	630600		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+667880	667880		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+720427	720427		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+729189	729189		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+741909	741909		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+743380	743380		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+765771	765771		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+776928	776928		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+A-366	A-366	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone methylation; target: "EHMT1, EHMT2"
+ABT737	ABT737	CYTOTOXIC	APOPTOSIS	Apoptosis regulation	TRUE	TRUE		retained	TRUE	GDSC pathway: Apoptosis regulation; target: "BCL2, BCL-XL,  BCL-W, BCL-B, BFL1"
+Acetalax	ACETALAX		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+Afatinib	AFATINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: EGFR signaling; target: "EGFR, ERBB2"
+Afuresertib	AFURESERTIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: "AKT1, AKT2, AKT3"
+AGI-5198	AGI-5198		METABOLISM	Metabolism	TRUE	TRUE		retained		GDSC pathway: Metabolism; target: IDH1 (R132H)
+AGI-6780	AGI-6780		METABOLISM	Metabolism	TRUE	TRUE		retained		GDSC pathway: Metabolism; target: IDH2 R140Q mutant
+AGK2	AGK2	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone acetylation; target: "BAZ2A, BAZ2B"
+Alisertib	ALISERTIB	SIGNALING	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Mitosis; target: AURKA
+Alpelisib	ALPELISIB	ANTINEOPLASTIC AGENTS	SIGNALING	Signaling	TRUE	TRUE		retained	TRUE	GDSC pathway: PI3K/MTOR signaling; target: PI3Kalpha
+alpha-lipoic acid	ALPHA-LIPOIC ACID		METABOLISM	Metabolism	TRUE	TRUE		retained		GDSC pathway: Metabolism; target: Metabolism
+AMG-319	AMG-319	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: PI3K (beta sparing)
+ascorbate (vitamin C)	ASCORBATE (VITAMIN C)		METABOLISM	Metabolism	TRUE	TRUE		retained		GDSC pathway: Other; target: anti-oxidant proteins
+AT13148	AT13148	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: AKT1
+Avagacestat	AVAGACESTAT		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Other; target: "Amyloid beta20, Amyloid beta40"
+Axitinib	AXITINIB	TYROSINE KINASE INHIBITORS	SIGNALING	Signaling	TRUE	TRUE		retained	TRUE	GDSC pathway: RTK signaling; target: "PDGFR, KIT, VEGFR"
+AZ6102	AZ6102		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: WNT signaling; target: "TNKS1, TNKS2"
+AZ960	AZ960	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: "Other, kinases"; target: "JAK2, JAK3"
+AZD1208	AZD1208	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: "Other, kinases"; target: "PIM1, PIM2, PIM3"
+AZD1332	AZD1332		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: RTK signaling; target: "NTRK1, NTRK2, NTRK3"
+AZD2014	AZD2014	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: "mTORC1, mTORC2"
+AZD3759	AZD3759	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: EGFR signaling; target: EGFR
+AZD4547	AZD4547	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: RTK signaling; target: "FGFR1, FGFR2, FGFR3"
+AZD5153	AZD5153	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin other; target: BRD4
+AZD5363	AZD5363	PROTEIN KINASE INHIBITORS	SIGNALING	Signaling	TRUE	TRUE		retained	TRUE	GDSC pathway: "Other, kinases"; target: "AKT1, AKT2, AKT3, ROCK2"
+AZD5438	AZD5438	SIGNALING	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Cell cycle; target: CDK2
+AZD5582	AZD5582	CYTOTOXIC	APOPTOSIS	Apoptosis regulation	TRUE	TRUE		retained	TRUE	GDSC pathway: Apoptosis regulation; target: "XIAP, cIAP"
+AZD5991	AZD5991	CYTOTOXIC	APOPTOSIS	Apoptosis regulation	TRUE	TRUE		retained	TRUE	GDSC pathway: Apoptosis regulation; target: MCL1
+AZD6482	AZD6482	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: PI3Kbeta
+AZD6738	AZD6738	SIGNALING	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: Genome integrity; target: ATR
+AZD7762	AZD7762	SIGNALING	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Cell cycle; target: "CHEK1, CHEK2"
+AZD8055	AZD8055	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: "MTORC1, MTORC2"
+AZD8186	AZD8186	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: "PI3Kalpha, PI3Kbeta"
+BDF00022089a	BDF00022089A		EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained		GDSC pathway: Chromatin histone acetylation; target: "BRPF1, BRPF2, BRPF3"
+BDILV000379a	BDILV000379A		EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained		GDSC pathway: Chromatin histone acetylation; target: "BAZ2A, BAZ2B"
+BDOCA000347a	BDOCA000347A		EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained		GDSC pathway: Chromatin histone acetylation; target: "BRPF1, BRPF2, BRPF3"
+BDP-00009066	BDP-00009066		CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained		GDSC pathway: Cytoskeleton; target: MRCKB_HUMAN
+BEN	BEN		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+BI-2536	BI-2536		CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained		GDSC pathway: Cell cycle; target: "PLK1, PLK2, PLK3"
+BIBR-1532	BIBR-1532		GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained		GDSC pathway: Genome integrity; target: TERT
+Bicalutamide	BICALUTAMIDE	HORMONES AND ANTIHORMONES	HORMONE_RELATED	Hormone related	TRUE	TRUE		retained	TRUE	GDSC pathway: Hormone-related; target: AR
+Bleomycin	BLEOMYCIN	CYTOTOXIC	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: dsDNA break induction
+Bleomycin (50 uM)	BLEOMYCIN (50 UM)		GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained		GDSC pathway: DNA replication; target: dsDNA break induction
+BMS-345541	BMS-345541	SIGNALING	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: "IKK-1, IKK-2"
+BMS-536924	BMS-536924	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: IGF1R signaling; target: "IGF1R, IR"
+BMS-754807	BMS-754807	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: IGF1R signaling; target: "IGF1R, IR"
+Bortezomib	BORTEZOMIB	SIGNALING	PROTEIN_DEGRADATION	Protein stability and degradation	TRUE	TRUE		retained	TRUE	GDSC pathway: Protein stability and degradation; target: Proteasome
+Bosutinib	BOSUTINIB	TYROSINE KINASE INHIBITORS	SIGNALING	Signaling	TRUE	TRUE		retained	TRUE	GDSC pathway: "Other, kinases"; target: "SRC, ABL, TEC"
+BPD-00008900	BPD-00008900		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Other; target: 
+Bromosporine	BROMOSPORINE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin other; target: "CECR2, BRD2, BRD4, BRD9"
+Buparlisib	BUPARLISIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: "PI3Kalpha, PI3Kdelta, PI3Kbeta, PI3Kgamma"
+BX795	BX795		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: "Other, kinases"; target: "TBK1, PDK1 (PDPK1), IKK, AURKB, AURKC"
+Camptothecin	CAMPTOTHECIN	CYTOTOXIC	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: TOP1
+CCT-018159	CCT-018159		PROTEIN_DEGRADATION	Protein stability and degradation	TRUE	TRUE		retained		GDSC pathway: Protein stability and degradation; target: HSP90
+CCT007093	CCT007093		CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained		GDSC pathway: Cell cycle; target: PPM1D
+CDK9_5038	CDK9_5038	EPIGENETICS AND TRANSCRIPTION	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Cell cycle; target: CDK9
+CDK9_5576	CDK9_5576	EPIGENETICS AND TRANSCRIPTION	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Cell cycle; target: CDK9
+Cediranib	CEDIRANIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: RTK signaling; target: "VEGFR, FLT1, FLT2, FLT3, FLT4, KIT, PDGFRB"
+CHIR-99021	CHIR-99021		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: WNT signaling; target: "GSK3A, GSK3B"
+Cisplatin	CISPLATIN	CYTOTOXIC	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: DNA crosslinker
+CPI-637	CPI-637	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone methylation; target: EP300
+Crizotinib	CRIZOTINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: RTK signaling; target: "MET, ALK, ROS1"
+CT7033-2	CT7033-2		EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained		GDSC pathway: Chromatin histone methylation; target: "KDM4A, KDM4C, KDM4E, KDM3A, KDM6B"
+Cyclophosphamide	CYCLOPHOSPHAMIDE	CYTOTOXIC	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: Alkylating agent
+Cytarabine	CYTARABINE	CYTOTOXIC	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: Antimetabolite
+CZC24832	CZC24832		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: PI3K/MTOR signaling; target: PI3Kgamma
+Dabrafenib	DABRAFENIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: ERK MAPK signaling; target: BRAF
+Dacarbazine	DACARBAZINE	CYTOTOXIC	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: CP11A
+Dactinomycin	DACTINOMYCIN	CYTOTOXIC	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: RNA polymerase
+Dactolisib	DACTOLISIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: "PI3K (class 1), MTORC1, MTORC2"
+Daporinad	DAPORINAD		METABOLISM	Metabolism	TRUE	TRUE		retained		GDSC pathway: Metabolism; target: NAMPT
+Dasatinib	DASATINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: "Other, kinases"; target: "ABL, SRC, Ephrins, PDGFR, KIT"
+Dihydrorotenone	DIHYDROROTENONE		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+Dinaciclib	DINACICLIB	SIGNALING	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Cell cycle; target: "CDK1, CDK2, CDK5, CDK9"
+Docetaxel	DOCETAXEL	CYTOTOXIC	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Mitosis; target: Microtubule stabiliser
+Doramapimod	DORAMAPIMOD	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: JNK and p38 signaling; target: "p38, JNK2"
+Eg5_9814	EG5_9814		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Other; target: KSP11
+EHT-1864	EHT-1864		CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained		GDSC pathway: Cytoskeleton; target: "RAC1, RAC2, RAC3"
+Elephantin	ELEPHANTIN		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+Elesclomol	ELESCLOMOL	SIGNALING	PROTEIN_DEGRADATION	Protein stability and degradation	TRUE	TRUE		retained	TRUE	GDSC pathway: Protein stability and degradation; target: HSP90
+Entinostat	ENTINOSTAT	SIGNALING	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone acetylation; target: "HDAC1, HDAC3"
+Entospletinib	ENTOSPLETINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: "Other, kinases"; target: SYK
+Epirubicin	EPIRUBICIN	CYTOTOXIC	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: Anthracycline
+EPZ004777	EPZ004777	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone methylation; target: DOT1L
+EPZ5676	EPZ5676	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone methylation; target: DOT1L
+ERK_2440	ERK_2440	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: ERK MAPK signaling; target: "ERK1,ERK2"
+ERK_6604	ERK_6604		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: ERK MAPK signaling; target: "ERK1,ERK2"
+Erlotinib	ERLOTINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: EGFR signaling; target: EGFR
+Fludarabine	FLUDARABINE	CYTOTOXIC	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: Antimetabolite
+Foretinib	FORETINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: RTK signaling; target: "MET, KDR, TIE2, VEGFR3/FLT4, RON, PDGFR, FGFR1, EGFR"
+Fulvestrant	FULVESTRANT	ESTROGEN RECEPTOR ANTAGONISTS	HORMONE_RELATED	Hormone related	TRUE	TRUE		retained	TRUE	GDSC pathway: Hormone-related; target: ESR
+Gallibiscoquinazole	GALLIBISCOQUINAZOLE		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+GDC0810	GDC0810	HORMONES AND ANTIHORMONES	HORMONE_RELATED	Hormone related	TRUE	TRUE		retained	TRUE	GDSC pathway: Hormone-related; target: "ESR1, ESR2"
+Gefitinib	GEFITINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: EGFR signaling; target: EGFR
+Gemcitabine	GEMCITABINE	CYTOTOXIC	METABOLISM	Metabolism	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: Pyrimidine antimetabolite
+glutathione	GLUTATHIONE	METABOLICINHIBITOR	METABOLISM	Metabolism	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: anti-oxidant proteins
+GNE-317	GNE-317	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: PI3Kalpha
+GSK-LSD1	GSK-LSD1	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone methylation; target: KDM1
+GSK-LSD1-2HCl 	GSK-LSD1-2HCL	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone methylation; target: LSD1
+GSK1904529A	GSK1904529A	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: IGF1R signaling; target: "IGF1R, IR"
+GSK2110183B	GSK2110183B		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: PI3K/MTOR signaling; target: "AKT1, AKT2, AKT3"
+GSK2256098C	GSK2256098C		CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained		GDSC pathway: Cytoskeleton; target: FAK1
+GSK2276186C	GSK2276186C		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: "Other, kinases"; target: "JAK1, JAK2, JAK3"
+GSK2578215A	GSK2578215A		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: "Other, kinases"; target: LRRK2
+GSK2606414	GSK2606414	SIGNALING	METABOLISM	Metabolism	TRUE	TRUE		retained	TRUE	GDSC pathway: Metabolism; target: PERK
+GSK269962A	GSK269962A	SIGNALING	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Cytoskeleton; target: "ROCK1, ROCK2"
+GSK2801	GSK2801	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin other; target: 
+GSK2830371	GSK2830371	SIGNALING	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: WIP1
+GSK2830371A	GSK2830371A	SIGNALING	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: PPM1D
+GSK3337463A	GSK3337463A		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: "Other, kinases"; target: NIK
+GSK343	GSK343	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone methylation; target: EZH2
+GSK591	GSK591	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone methylation; target: PMRT5
+GSK626616AC	GSK626616AC	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: "Other, kinases"; target: DYRK1A
+GW441756	GW441756		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: RTK signaling; target: NTRK1
+HKMTI-1-005	HKMTI-1-005	EPIGENETICS AND TRANSCRIPTION	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Unclassified; target: 
+I-BET-762	I-BET-762	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin other; target: "BRD2, BRD3, BRD4"
+I-BRD9	I-BRD9	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin other; target: BRD9
+IAP_5620	IAP_5620		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Other; target: IAP
+Ibrutinib	IBRUTINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: "Other, kinases"; target: BTK
+ICL-SIRT078	ICL-SIRT078	EPIGENETICS AND TRANSCRIPTION	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: SIR2
+IGF1R_3801	IGF1R_3801	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: IGF1R signaling; target: IGFR1
+IOX2	IOX2		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Other; target: EGLN1
+Ipatasertib	IPATASERTIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: "AKT1, AKT, AKT3"
+IRAK4_4710	IRAK4_4710	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: "Other, kinases"; target: IRAK4
+Irinotecan	IRINOTECAN	CYTOTOXIC	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: TOP1
+IWP-2	IWP-2		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: WNT signaling; target: PORCN
+JAK_8517	JAK_8517	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: "Other, kinases"; target: "JAK1, JAK2"
+JAK1_8709	JAK1_8709	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: "Other, kinases"; target: JAK1
+JNK Inhibitor VIII	JNK INHIBITOR VIII		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: JNK and p38 signaling; target: JNK
+JQ1	JQ1	IMMUNOSUPPRESSIVE AGENTS	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin other; target: "BRD2, BRD3, BRD4, BRDT"
+KRAS (G12C) Inhibitor-12	KRAS (G12C) INHIBITOR-12	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: ERK MAPK signaling; target: KRAS (G12C)
+KU-55933	KU-55933		GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained		GDSC pathway: Genome integrity; target: ATM
+L-Oxonoreleagnine	L-OXONORELEAGNINE		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+Lapatinib	LAPATINIB	TYROSINE KINASE INHIBITORS	SIGNALING	Signaling	TRUE	TRUE		retained	TRUE	GDSC pathway: EGFR signaling; target: "EGFR, ERBB2"
+LCL161	LCL161	CYTOTOXIC	APOPTOSIS	Apoptosis regulation	TRUE	TRUE		retained	TRUE	GDSC pathway: Apoptosis regulation; target: "XIAP, IAP1, IAP2"
+Leflunomide	LEFLUNOMIDE	SIGNALING	METABOLISM	Metabolism	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: Pyrimidine synthesis inhibitor
+Lenalidomide	LENALIDOMIDE	IMMUNOSUPPRESSIVE AGENTS	PROTEIN_DEGRADATION	Protein stability and degradation	TRUE	TRUE		retained	TRUE	GDSC pathway: Protein stability and degradation; target: CRBN
+Lestaurtinib	LESTAURTINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: "Other, kinases"; target: "FLT3, JAK2, NTRK1, NTRK2, NTRK3"
+LGK974	LGK974	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: WNT signaling; target: PORCN
+Linsitinib	LINSITINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: IGF1R signaling; target: IGF1R
+LJI308	LJI308	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: "RSK2, RSK1, RSK3"
+LMB_AB1	LMB_AB1		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Other; target: "ADRA1A, ADRB1"
+LMB_AB2	LMB_AB2		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: GADD34
+LMB_AB3	LMB_AB3		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Other; target: PPP1R15B
+LMP744	LMP744		GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained		GDSC pathway: DNA replication; target: TOP1
+Luminespib	LUMINESPIB		PROTEIN_DEGRADATION	Protein stability and degradation	TRUE	TRUE		retained		GDSC pathway: Protein stability and degradation; target: HSP90
+LY2109761	LY2109761	SIGNALING	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: TGFB1
+Methotrexate	METHOTREXATE	DISEASE-MODIFYING ANTI-RHEUMATIC DRUGS (DMARDS)	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: Antimetabolite
+MG-132	MG-132		PROTEIN_DEGRADATION	Protein stability and degradation	TRUE	TRUE		retained		GDSC pathway: Protein stability and degradation; target: "Proteasome, CAPN1"
+MIM1	MIM1		APOPTOSIS	Apoptosis regulation	TRUE	TRUE		retained		GDSC pathway: Apoptosis regulation; target: MCL1
+MIRA-1	MIRA-1		P53_PATHWAY	p53 pathway	TRUE	TRUE		retained		GDSC pathway: p53 pathway; target: TP53
+Mirin	MIRIN		GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained		GDSC pathway: Genome integrity; target: MRE11
+Mitoxantrone	MITOXANTRONE	ANTINEOPLASTIC AGENTS	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: TOP2
+MK-1775	MK-1775	SIGNALING	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Cell cycle; target: "WEE1, PLK1"
+MK-2206	MK-2206	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: "AKT1, AKT2"
+MK-8776	MK-8776	CYTOTOXIC	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Cell cycle; target: "CHEK1, CHEK2, CDK2"
+ML323	ML323		PROTEIN_DEGRADATION	Protein stability and degradation	TRUE	TRUE		retained		GDSC pathway: Protein stability and degradation; target: "USP1, UAF1"
+MN-64	MN-64		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: WNT signaling; target: "TNKS1, TNKS2"
+Motesanib	MOTESANIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: RTK signaling; target: "VEGFR, RET, KIT, PDGFR"
+Mycophenolic acid	MYCOPHENOLIC ACID	IMMUNOSUPPRESSIVE AGENTS	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Unclassified; target: 
+N-acetyl cysteine	N-ACETYL CYSTEINE		METABOLISM	Metabolism	TRUE	TRUE		retained		GDSC pathway: Metabolism; target: Metabolism
+N25720-51-A1	N25720-51-A1		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+N27922-53-1	N27922-53-1		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+N29087-69-1	N29087-69-1		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+N30652-18-1	N30652-18-1		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+Navitoclax	NAVITOCLAX	CYTOTOXIC	APOPTOSIS	Apoptosis regulation	TRUE	TRUE		retained	TRUE	GDSC pathway: Apoptosis regulation; target: "BCL2, BCL-XL, BCL-W"
+Nelarabine	NELARABINE	ANTINEOPLASTIC AGENTS	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: 
+Nilotinib	NILOTINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: ABL signaling; target: ABL
+Niraparib	NIRAPARIB	SIGNALING	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: Genome integrity; target: "PARP1, PARP2"
+NU7441	NU7441		GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained		GDSC pathway: Genome integrity; target: DNAPK
+Nutlin-3a (-)	NUTLIN-3A (-)		P53_PATHWAY	p53 pathway	TRUE	TRUE		retained		GDSC pathway: p53 pathway; target: MDM2
+NVP-ADW742	NVP-ADW742	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: IGF1R signaling; target: IGF1R
+Obatoclax Mesylate	OBATOCLAX MESYLATE	CYTOTOXIC	APOPTOSIS	Apoptosis regulation	TRUE	TRUE		retained	TRUE	GDSC pathway: Apoptosis regulation; target: "BCL2, BCL-XL, BCL-W, MCL1"
+OF-1	OF-1		EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained		GDSC pathway: Chromatin histone acetylation; target: "BRPF1B, BRPF2"
+Olaparib	OLAPARIB	SIGNALING	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: Genome integrity; target: "PARP1, PARP2"
+OSI-027	OSI-027	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: "MTORC1, MTORC2"
+Osimertinib	OSIMERTINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: EGFR signaling; target: EGFR
+OTX015	OTX015	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin other; target: "BRD2, BRD3, BRD4"
+Oxaliplatin	OXALIPLATIN	CYTOTOXIC	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: DNA alkylating agent
+P22077	P22077		PROTEIN_DEGRADATION	Protein stability and degradation	TRUE	TRUE		retained		GDSC pathway: Protein stability and degradation; target: "USP7, USP47"
+Paclitaxel	PACLITAXEL	CYTOTOXIC	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Mitosis; target: Microtubule stabiliser
+PAK_5339	PAK_5339		CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained		GDSC pathway: Cytoskeleton; target: "PAK1, PAK2"
+Palbociclib	PALBOCICLIB	SIGNALING	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Cell cycle; target: "CDK4, CDK6"
+PBD-288	PBD-288	CYTOTOXIC	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Unclassified; target: 
+PCI-34051	PCI-34051		EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained		GDSC pathway: Chromatin histone acetylation; target: "HDAC8, HDAC6, HDAC1"
+PD0325901	PD0325901	MEK INHIBITORS	SIGNALING	Signaling	TRUE	TRUE		retained	TRUE	GDSC pathway: ERK MAPK signaling; target: "MEK1, MEK2"
+PD173074	PD173074	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: RTK signaling; target: "FGFR1, FGFR2, FGFR3"
+Pevonedistat	PEVONEDISTAT		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Other; target: NAE
+PF-4708671	PF-4708671	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: S6K1
+PFI-1	PFI-1	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin other; target: BRD4
+PFI3	PFI3	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin other; target: "Polybromo 1, SMARCA4, SMARCA2"
+Picolinici-acid	PICOLINICI-ACID		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Other; target: Inflammatory related
+Pictilisib	PICTILISIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: PI3K (class 1)
+Piperlongumine	PIPERLONGUMINE		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Other; target: Induces reactive oxygen species
+PLX-4720	PLX-4720	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: ERK MAPK signaling; target: BRAF
+Podophyllotoxin bromide	PODOPHYLLOTOXIN BROMIDE	CYTOTOXIC	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Unclassified; target: 
+POMHEX	POMHEX		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+PRIMA-1MET	PRIMA-1MET		P53_PATHWAY	p53 pathway	TRUE	TRUE		retained		GDSC pathway: p53 pathway; target: TP53 activation
+PRT062607	PRT062607	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: "Other, kinases"; target: SYK
+Pyridostatin	PYRIDOSTATIN		GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained		GDSC pathway: DNA replication; target: G-quadruplex stabiliser
+Rapamycin	RAPAMYCIN	IMMUNOSUPPRESSIVE AGENTS	SIGNALING	Signaling	TRUE	TRUE		retained	TRUE	GDSC pathway: PI3K/MTOR signaling; target: MTORC1
+Refametinib	REFAMETINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: ERK MAPK signaling; target: "MEK1, MEK2"
+Remodelin	REMODELIN		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+Ribociclib	RIBOCICLIB	SIGNALING	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Cell cycle; target: "CDK4, CDK6"
+RO-3306	RO-3306	SIGNALING	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Cell cycle; target: CDK1
+Romidepsin	ROMIDEPSIN	ANTINEOPLASTIC AGENTS	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone acetylation; target: "HDAC1, HDAC2, HDAC3, HDAC8"
+Rucaparib	RUCAPARIB	SIGNALING	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: Genome integrity; target: "PARP1, PARP2"
+Ruxolitinib	RUXOLITINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: "Other, kinases"; target: "JAK1, JAK2"
+RVX-208	RVX-208	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin other; target: BRD4
+Sabutoclax	SABUTOCLAX	CYTOTOXIC	APOPTOSIS	Apoptosis regulation	TRUE	TRUE		retained	TRUE	GDSC pathway: Apoptosis regulation; target: "BCL2,  BCL-XL,  BFL1, MCL1"
+Sapitinib	SAPITINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: EGFR signaling; target: "EGFR, ERBB2, ERBB3"
+Savolitinib	SAVOLITINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: RTK signaling; target: MET
+SB216763	SB216763		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: WNT signaling; target: "GSK3A, GSK3B"
+SB505124	SB505124	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: RTK signaling; target: "TGFBR1, ACVR1B, ACVR1C"
+SB590885	SB590885	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: ERK MAPK signaling; target: BRAF
+SCH772984	SCH772984	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: ERK MAPK signaling; target: "ERK1, ERK2"
+Schweinfurthin A	SCHWEINFURTHIN A		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+Selumetinib	SELUMETINIB	MEK INHIBITORS	SIGNALING	Signaling	TRUE	TRUE		retained	TRUE	GDSC pathway: ERK MAPK signaling; target: "MEK1, MEK2"
+Sepantronium bromide	SEPANTRONIUM BROMIDE	CYTOTOXIC	APOPTOSIS	Apoptosis regulation	TRUE	TRUE		retained	TRUE	GDSC pathway: Apoptosis regulation; target: BIRC5
+Serdemetan	SERDEMETAN		P53_PATHWAY	p53 pathway	TRUE	TRUE		retained		GDSC pathway: p53 pathway; target: MDM2
+SGC-CBP30	SGC-CBP30	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone acetylation; target: "EP300, CBP"
+SGC0946	SGC0946	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone methylation; target: DOT1L
+Sinularin	SINULARIN		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Unclassified; target: 
+SL0101	SL0101		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: "Other, kinases"; target: "RSK, AURKB, PIM1, PIM3"
+SN-38	SN-38	CYTOTOXIC	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: TOP1
+Sorafenib	SORAFENIB	TYROSINE KINASE INHIBITORS	SIGNALING	Signaling	TRUE	TRUE		retained	TRUE	GDSC pathway: "Other, kinases"; target: "PDGFR, KIT, VEGFR, RAF"
+Staurosporine	STAUROSPORINE		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: RTK signaling; target: Broad spectrum kinase inhibitor
+TAF1_5496	TAF1_5496	EPIGENETICS AND TRANSCRIPTION	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: TAF1
+Talazoparib	TALAZOPARIB	SIGNALING	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: Genome integrity; target: "PARP1, PARP2"
+Tamoxifen	TAMOXIFEN	HORMONES AND ANTIHORMONES	HORMONE_RELATED	Hormone related	TRUE	TRUE		retained	TRUE	GDSC pathway: Hormone-related; target: ESR1
+Tanespimycin	TANESPIMYCIN		PROTEIN_DEGRADATION	Protein stability and degradation	TRUE	TRUE		retained		GDSC pathway: Protein stability and degradation; target: HSP90
+Taselisib	TASELISIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: PI3K (beta sparing)
+Telomerase Inhibitor IX	TELOMERASE INHIBITOR IX		GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained		GDSC pathway: Genome integrity; target: Telomerase
+Temozolomide	TEMOZOLOMIDE	ALKYLATING	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: DNA alkylating agent
+Temsirolimus	TEMSIROLIMUS	IMMUNOSUPPRESSIVE AGENTS	SIGNALING	Signaling	TRUE	TRUE		retained	TRUE	GDSC pathway: PI3K/MTOR signaling; target: MTOR
+Teniposide	TENIPOSIDE	CYTOTOXIC	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: 
+THR-101	THR-101		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: PI3K/MTOR signaling; target: Mutant RAS
+THR-102	THR-102		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: PI3K/MTOR signaling; target: Mutant RAS
+THR-103	THR-103		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: PI3K/MTOR signaling; target: Mutant RAS
+Topotecan	TOPOTECAN	CYTOTOXIC	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: DNA replication; target: TOP1
+Tozasertib	TOZASERTIB	SIGNALING	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Mitosis; target: "AURKA, AURKB, AURKC, others"
+Trametinib	TRAMETINIB	MEK INHIBITORS	SIGNALING	Signaling	TRUE	TRUE		retained	TRUE	GDSC pathway: ERK MAPK signaling; target: "MEK1, MEK2"
+Tretinoin	TRETINOIN	SIGNALING	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: Retinoic acid
+TW 37	TW 37	CYTOTOXIC	APOPTOSIS	Apoptosis regulation	TRUE	TRUE		retained	TRUE	GDSC pathway: Apoptosis regulation; target: "BCL2, BCL-XL, MCL1"
+Ulixertinib	ULIXERTINIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: ERK MAPK signaling; target: "ERK1, ERK2"
+ULK1_4989	ULK1_4989		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: "Other, kinases"; target: ULK1
+UMI-77	UMI-77	CYTOTOXIC	APOPTOSIS	Apoptosis regulation	TRUE	TRUE		retained	TRUE	GDSC pathway: Apoptosis regulation; target: MCL1
+UNC0379	UNC0379	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone methylation; target: SETD8
+UNC0638	UNC0638	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone methylation; target: "G9A, GLP"
+Uprosertib	UPROSERTIB	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: PI3K/MTOR signaling; target: "AKT1, AKT2, AKT3"
+VE-822	VE-822		GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained		GDSC pathway: Genome integrity; target: ATR
+VE821	VE821		GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained		GDSC pathway: Genome integrity; target: ATR
+Veliparib	VELIPARIB	CYTOTOXIC	GENOME_INTEGRITY_DNA_DAMAGE	Genome integrity and DNA damage	TRUE	TRUE		retained	TRUE	GDSC pathway: Genome integrity; target: "PARP1, PARP2"
+Venetoclax	VENETOCLAX	ANTINEOPLASTIC AGENTS	APOPTOSIS	Apoptosis regulation	TRUE	TRUE		retained	TRUE	GDSC pathway: Apoptosis regulation; target: BCL2
+Vinblastine	VINBLASTINE	CYTOTOXIC	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Mitosis; target: Microtubule destabiliser
+Vinorelbine	VINORELBINE	CYTOTOXIC	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Mitosis; target: Microtubule destabiliser
+Vismodegib	VISMODEGIB	SIGNALING	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: SMO
+Vorinostat	VORINOSTAT	ANTINEOPLASTIC AGENTS	EPIGENETICS_TRANSCRIPTION	Epigenetics and transcription	TRUE	TRUE		retained	TRUE	GDSC pathway: Chromatin histone acetylation; target: "HDAC inhibitor Class I, IIa, IIb, IV"
+VSP34_8731	VSP34_8731		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Other; target: VSP34
+VTP-A	VTP-A	SIGNALING	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Unclassified; target: 
+VTP-B	VTP-B	SIGNALING	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Unclassified; target: 
+VX-11e	VX-11E	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: ERK MAPK signaling; target: ERK2
+Wee1 Inhibitor	WEE1 INHIBITOR	SIGNALING	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Cell cycle; target: "WEE1, CHEK1"
+WEHI-539	WEHI-539	CYTOTOXIC	APOPTOSIS	Apoptosis regulation	TRUE	TRUE		retained	TRUE	GDSC pathway: Apoptosis regulation; target: BCL-XL
+WIKI4	WIKI4		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: WNT signaling; target: "TNKS1, TNKS2"
+Wnt-C59	WNT-C59	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: WNT signaling; target: PORCN
+WZ4003	WZ4003		SIGNALING	Signaling	TRUE	TRUE		retained		GDSC pathway: "Other, kinases"; target: "NUAK1, NUAK2"
+XAV939	XAV939	SIGNALING	SIGNALING	Signaling	TRUE	TRUE		retained	FALSE	GDSC pathway: WNT signaling; target: "TNKS1, TNKS2"
+YK-4-279	YK-4-279		OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained		GDSC pathway: Other; target: RNA helicase A
+ZM447439	ZM447439	SIGNALING	CELL_CYCLE_MITOSIS	Cell cycle and mitosis	TRUE	TRUE		retained	TRUE	GDSC pathway: Mitosis; target: "AURKA, AURKB"
+Zoledronate	ZOLEDRONATE	SUPPORTIVE MEDICINES	OTHER_REVIEWED	Other reviewed	TRUE	TRUE		retained	TRUE	GDSC pathway: Other; target: 

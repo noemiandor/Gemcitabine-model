@@ -1,0 +1,287 @@
+drug	drug_key	pubchem_category	legacy_group_used_for_enrichment	custom_set_candidate_category	would_manual_override_change_legacy_group	would_manual_override_change_pubchem_group	all_pubchem_categories	parsed_pubchem_category_tokens	annotation_source	annotation_status	multi_category_flag	notes
+123138	123138				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+123829	123829				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+150412	150412				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+5-azacytidine	5-AZACYTIDINE	MetabolicInhibitor	METABOLICINHIBITOR		FALSE	FALSE	MetabolicInhibitor	MetabolicInhibitor	baseline_coxIn_RData	cached	FALSE	
+5-Fluorouracil	5-FLUOROURACIL	Breast Feeding; Lactation; Milk, Human; Antimetabolites; Antineoplastic Agents; Antimetabolites, Antineoplastic; Immunosuppressive Agents; Cytotoxic medicines; Dermatological medicines > Medicines affecting skin differentiation and proliferation	DERMATOLOGICAL MEDICINES > MEDICINES AFFECTING SKIN DIFFERENTIATION AND PROLIFERATION		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antimetabolites; Antineoplastic Agents; Antimetabolites, Antineoplastic; Immunosuppressive Agents; Cytotoxic medicines; Dermatological medicines > Medicines affecting skin differentiation and proliferation	Breast Feeding;Lactation;Milk, Human;Antimetabolites;Antineoplastic Agents;Antimetabolites, Antineoplastic;Immunosuppressive Agents;Cytotoxic medicines;Dermatological medicines > Medicines affecting skin differentiation and proliferation	baseline_coxIn_RData	cached	TRUE	
+50869	50869				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+615590	615590				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+630600	630600				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+667880	667880				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+720427	720427				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+729189	729189				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+741909	741909				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+743380	743380				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+765771	765771				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+776928	776928				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+A-366	A-366	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+ABT737	ABT737	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+Acetalax	ACETALAX				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Afatinib	AFATINIB	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors; Targeted therapies	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors; Targeted therapies	Breast Feeding;Lactation;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors;Tyrosine Kinase Inhibitors;Targeted therapies	baseline_coxIn_RData	cached	TRUE	
+Afuresertib	AFURESERTIB	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+AGI-5198	AGI-5198				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+AGI-6780	AGI-6780				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+AGK2	AGK2	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+Alisertib	ALISERTIB	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Alpelisib	ALPELISIB	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents	ANTINEOPLASTIC AGENTS		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents	baseline_coxIn_RData	cached	TRUE	
+alpha-lipoic acid	ALPHA-LIPOIC ACID				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+AMG-319	AMG-319	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+ascorbate (vitamin C)	ASCORBATE (VITAMIN C)				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+AT13148	AT13148	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Avagacestat	AVAGACESTAT				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Axitinib	AXITINIB	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors	TYROSINE KINASE INHIBITORS	SIGNALING	TRUE	TRUE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors;Tyrosine Kinase Inhibitors	baseline_coxIn_RData	cached	TRUE	
+AZ6102	AZ6102				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+AZ960	AZ960	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+AZD1208	AZD1208	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+AZD1332	AZD1332				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+AZD2014	AZD2014	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+AZD3759	AZD3759	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+AZD4547	AZD4547	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+AZD5153	AZD5153	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+AZD5363	AZD5363	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors	PROTEIN KINASE INHIBITORS		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors	baseline_coxIn_RData	cached	TRUE	
+AZD5438	AZD5438	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+AZD5582	AZD5582	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+AZD5991	AZD5991	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+AZD6482	AZD6482	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+AZD6738	AZD6738	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+AZD7762	AZD7762	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+AZD8055	AZD8055	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+AZD8186	AZD8186	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+BDF00022089a	BDF00022089A				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+BDILV000379a	BDILV000379A				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+BDOCA000347a	BDOCA000347A				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+BDP-00009066	BDP-00009066				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+BEN	BEN				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+BI-2536	BI-2536				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+BIBR-1532	BIBR-1532				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Bicalutamide	BICALUTAMIDE	Antineoplastic Agents; Hormones and antihormones	HORMONES AND ANTIHORMONES		FALSE	FALSE	Antineoplastic Agents; Hormones and antihormones	Antineoplastic Agents;Hormones and antihormones	baseline_coxIn_RData	cached	TRUE	
+Bleomycin	BLEOMYCIN	Breast Feeding; Lactation; Antineoplastic Agents; Antibiotics, Antineoplastic; Cytotoxic medicines	CYTOTOXIC		FALSE	FALSE	Breast Feeding; Lactation; Antineoplastic Agents; Antibiotics, Antineoplastic; Cytotoxic medicines	Breast Feeding;Lactation;Antineoplastic Agents;Antibiotics, Antineoplastic;Cytotoxic medicines	baseline_coxIn_RData	cached	TRUE	
+Bleomycin (50 uM)	BLEOMYCIN (50 UM)				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+BMS-345541	BMS-345541	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+BMS-536924	BMS-536924	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+BMS-754807	BMS-754807	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Bortezomib	BORTEZOMIB	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Proteasome Inhibitors; Targeted therapies	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Proteasome Inhibitors; Targeted therapies	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Proteasome Inhibitors;Targeted therapies	baseline_coxIn_RData	cached	TRUE	
+Bosutinib	BOSUTINIB	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors	TYROSINE KINASE INHIBITORS	SIGNALING	TRUE	TRUE	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors	Breast Feeding;Lactation;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors;Tyrosine Kinase Inhibitors	baseline_coxIn_RData	cached	TRUE	
+BPD-00008900	BPD-00008900				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Bromosporine	BROMOSPORINE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+Buparlisib	BUPARLISIB	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+BX795	BX795				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Camptothecin	CAMPTOTHECIN	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+CCT-018159	CCT-018159				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+CCT007093	CCT007093				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+CDK9_5038	CDK9_5038	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+CDK9_5576	CDK9_5576	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+Cediranib	CEDIRANIB	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+CHIR-99021	CHIR-99021				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Cisplatin	CISPLATIN	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Platinum Compounds; Cytotoxic medicines	CYTOTOXIC		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Platinum Compounds; Cytotoxic medicines	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Platinum Compounds;Cytotoxic medicines	baseline_coxIn_RData	cached	TRUE	
+CPI-637	CPI-637	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+Crizotinib	CRIZOTINIB	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+CT7033-2	CT7033-2				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Cyclophosphamide	CYCLOPHOSPHAMIDE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Alkylating Agents; Cytotoxic medicines	CYTOTOXIC		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Alkylating Agents; Cytotoxic medicines	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Alkylating Agents;Cytotoxic medicines	baseline_coxIn_RData	cached	TRUE	
+Cytarabine	CYTARABINE	Breast Feeding; Lactation; Milk, Human; Antimetabolites, Antineoplastic; Immunosuppressive Agents; Nucleosides; Cytotoxic medicines	CYTOTOXIC		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antimetabolites, Antineoplastic; Immunosuppressive Agents; Nucleosides; Cytotoxic medicines	Breast Feeding;Lactation;Milk, Human;Antimetabolites, Antineoplastic;Immunosuppressive Agents;Nucleosides;Cytotoxic medicines	baseline_coxIn_RData	cached	TRUE	
+CZC24832	CZC24832				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Dabrafenib	DABRAFENIB	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors;	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors;	Breast Feeding;Lactation;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors	baseline_coxIn_RData	cached	TRUE	
+Dacarbazine	DACARBAZINE	Cytotoxic	CYTOTOXIC		FALSE	FALSE	Cytotoxic	Cytotoxic	baseline_coxIn_RData	cached	FALSE	
+Dactinomycin	DACTINOMYCIN	Breast Feeding; Lactation; Antineoplastic Agents; Antibiotics, Antineoplastic; Protein Synthesis Inhibitors; Nucleic Acid Synthesis Inhibitors;; Cytotoxic medicines	CYTOTOXIC		FALSE	FALSE	Breast Feeding; Lactation; Antineoplastic Agents; Antibiotics, Antineoplastic; Protein Synthesis Inhibitors; Nucleic Acid Synthesis Inhibitors;; Cytotoxic medicines	Breast Feeding;Lactation;Antineoplastic Agents;Antibiotics, Antineoplastic;Protein Synthesis Inhibitors;Nucleic Acid Synthesis Inhibitors;Cytotoxic medicines	baseline_coxIn_RData	cached	TRUE	
+Dactolisib	DACTOLISIB	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Daporinad	DAPORINAD				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Dasatinib	DASATINIB	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors; Targeted therapies	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors; Targeted therapies	Breast Feeding;Lactation;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors;Tyrosine Kinase Inhibitors;Targeted therapies	baseline_coxIn_RData	cached	TRUE	
+Dihydrorotenone	DIHYDROROTENONE				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Dinaciclib	DINACICLIB	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Docetaxel	DOCETAXEL	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+Doramapimod	DORAMAPIMOD	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Eg5_9814	EG5_9814				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+EHT-1864	EHT-1864				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Elephantin	ELEPHANTIN				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Elesclomol	ELESCLOMOL	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Entinostat	ENTINOSTAT	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Entospletinib	ENTOSPLETINIB	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Epirubicin	EPIRUBICIN	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Anthracyclines; Antibiotics, Antineoplastic; Topoisomerase II Inhibitors	CYTOTOXIC		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Anthracyclines; Antibiotics, Antineoplastic; Topoisomerase II Inhibitors	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Anthracyclines;Antibiotics, Antineoplastic;Topoisomerase II Inhibitors	baseline_coxIn_RData	cached	TRUE	
+EPZ004777	EPZ004777	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+EPZ5676	EPZ5676	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+ERK_2440	ERK_2440	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+ERK_6604	ERK_6604				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Erlotinib	ERLOTINIB	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors;; Targeted therapies	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors;; Targeted therapies	Breast Feeding;Lactation;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors;Tyrosine Kinase Inhibitors;Targeted therapies	baseline_coxIn_RData	cached	TRUE	
+Fludarabine	FLUDARABINE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Cytotoxic medicines	CYTOTOXIC		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Cytotoxic medicines	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Cytotoxic medicines	baseline_coxIn_RData	cached	TRUE	
+Foretinib	FORETINIB	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Fulvestrant	FULVESTRANT	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents, Hormonal; Estrogen Receptor Antagonists	ESTROGEN RECEPTOR ANTAGONISTS		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents, Hormonal; Estrogen Receptor Antagonists	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents, Hormonal;Estrogen Receptor Antagonists	baseline_coxIn_RData	cached	TRUE	
+Gallibiscoquinazole	GALLIBISCOQUINAZOLE				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+GDC0810	GDC0810	HORMONES AND ANTIHORMONES	HORMONES AND ANTIHORMONES	HORMONES AND ANTIHORMONES	FALSE	FALSE	HORMONES AND ANTIHORMONES	HORMONES AND ANTIHORMONES	baseline_coxIn_RData	cached	FALSE	
+Gefitinib	GEFITINIB	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Gemcitabine	GEMCITABINE	Breast Feeding; Lactation; Milk, Human; Antimetabolites; Antineoplastic Agents; Enzyme Inhibitors; Immunosuppressive Agents; Cytotoxic medicines	CYTOTOXIC		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antimetabolites; Antineoplastic Agents; Enzyme Inhibitors; Immunosuppressive Agents; Cytotoxic medicines	Breast Feeding;Lactation;Milk, Human;Antimetabolites;Antineoplastic Agents;Enzyme Inhibitors;Immunosuppressive Agents;Cytotoxic medicines	baseline_coxIn_RData	cached	TRUE	
+glutathione	GLUTATHIONE	MetabolicInhibitor	METABOLICINHIBITOR		FALSE	FALSE	MetabolicInhibitor	MetabolicInhibitor	baseline_coxIn_RData	cached	FALSE	
+GNE-317	GNE-317	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+GSK-LSD1	GSK-LSD1	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+GSK-LSD1-2HCl 	GSK-LSD1-2HCL 	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+GSK1904529A	GSK1904529A	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+GSK2110183B	GSK2110183B				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+GSK2256098C	GSK2256098C				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+GSK2276186C	GSK2276186C				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+GSK2578215A	GSK2578215A				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+GSK2606414	GSK2606414	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+GSK269962A	GSK269962A	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+GSK2801	GSK2801	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+GSK2830371	GSK2830371	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+GSK2830371A	GSK2830371A	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+GSK3337463A	GSK3337463A				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+GSK343	GSK343	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+GSK591	GSK591	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+GSK626616AC	GSK626616AC	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+GW441756	GW441756				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+HKMTI-1-005	HKMTI-1-005	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+I-BET-762	I-BET-762	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+I-BRD9	I-BRD9	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+IAP_5620	IAP_5620				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Ibrutinib	IBRUTINIB	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Targeted therapies	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Targeted therapies	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors;Targeted therapies	baseline_coxIn_RData	cached	TRUE	
+ICL-SIRT078	ICL-SIRT078	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+IGF1R_3801	IGF1R_3801	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+IOX2	IOX2				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Ipatasertib	IPATASERTIB	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+IRAK4_4710	IRAK4_4710	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Irinotecan	IRINOTECAN	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Topoisomerase I Inhibitors; Cytotoxic medicines	CYTOTOXIC		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Topoisomerase I Inhibitors; Cytotoxic medicines	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Enzyme Inhibitors;Topoisomerase I Inhibitors;Cytotoxic medicines	baseline_coxIn_RData	cached	TRUE	
+IWP-2	IWP-2				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+JAK_8517	JAK_8517	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+JAK1_8709	JAK1_8709	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+JNK Inhibitor VIII	JNK INHIBITOR VIII				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+JQ1	JQ1	(Anti-)Inflammatory	IMMUNOSUPPRESSIVE AGENTS		FALSE	FALSE	(Anti-)Inflammatory	(Anti-)Inflammatory	baseline_coxIn_RData	cached	FALSE	
+KRAS (G12C) Inhibitor-12	KRAS (G12C) INHIBITOR-12	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+KU-55933	KU-55933				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+L-Oxonoreleagnine	L-OXONORELEAGNINE				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Lapatinib	LAPATINIB	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors;	TYROSINE KINASE INHIBITORS	SIGNALING	TRUE	TRUE	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors;	Breast Feeding;Lactation;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors;Tyrosine Kinase Inhibitors	baseline_coxIn_RData	cached	TRUE	
+LCL161	LCL161	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+Leflunomide	LEFLUNOMIDE	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Lenalidomide	LENALIDOMIDE	(Anti-)Inflammatory	IMMUNOSUPPRESSIVE AGENTS		FALSE	FALSE	(Anti-)Inflammatory	(Anti-)Inflammatory	baseline_coxIn_RData	cached	FALSE	
+Lestaurtinib	LESTAURTINIB	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+LGK974	LGK974	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Linsitinib	LINSITINIB	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+LJI308	LJI308	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+LMB_AB1	LMB_AB1				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+LMB_AB2	LMB_AB2				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+LMB_AB3	LMB_AB3				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+LMP744	LMP744				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Luminespib	LUMINESPIB				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+LY2109761	LY2109761	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Methotrexate	METHOTREXATE	Breast Feeding; Lactation; Milk, Human; Abortifacient Agents, Nonsteroidal; Antimetabolites, Antineoplastic; Antirheumatic Agents; Folic Acid Antagonists; Immunosuppressive Agents; Cytotoxic medicines; Dermatological medicines > Medicines affecting skin differentiation and proliferation; Disease-modifying anti-rheumatic drugs (DMARDs)	DISEASE-MODIFYING ANTI-RHEUMATIC DRUGS (DMARDS)		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Abortifacient Agents, Nonsteroidal; Antimetabolites, Antineoplastic; Antirheumatic Agents; Folic Acid Antagonists; Immunosuppressive Agents; Cytotoxic medicines; Dermatological medicines > Medicines affecting skin differentiation and proliferation; Disease-modifying anti-rheumatic drugs (DMARDs)	Breast Feeding;Lactation;Milk, Human;Abortifacient Agents, Nonsteroidal;Antimetabolites, Antineoplastic;Antirheumatic Agents;Folic Acid Antagonists;Immunosuppressive Agents;Cytotoxic medicines;Dermatological medicines > Medicines affecting skin differentiation and proliferation;Disease-modifying anti-rheumatic drugs (DMARDs)	baseline_coxIn_RData	cached	TRUE	
+MG-132	MG-132				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+MIM1	MIM1				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+MIRA-1	MIRA-1				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Mirin	MIRIN				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Mitoxantrone	MITOXANTRONE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents	ANTINEOPLASTIC AGENTS		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents	baseline_coxIn_RData	cached	TRUE	
+MK-1775	MK-1775	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+MK-2206	MK-2206	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+MK-8776	MK-8776	Cytotoxic	CYTOTOXIC		FALSE	FALSE	Cytotoxic	Cytotoxic	baseline_coxIn_RData	cached	FALSE	
+ML323	ML323				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+MN-64	MN-64				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Motesanib	MOTESANIB	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Mycophenolic acid	MYCOPHENOLIC ACID	IMMUNOSUPPRESSIVE AGENTS	IMMUNOSUPPRESSIVE AGENTS	IMMUNOSUPPRESSIVE AGENTS	FALSE	FALSE	IMMUNOSUPPRESSIVE AGENTS	IMMUNOSUPPRESSIVE AGENTS	baseline_coxIn_RData	cached	FALSE	
+N-acetyl cysteine	N-ACETYL CYSTEINE				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+N25720-51-A1	N25720-51-A1				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+N27922-53-1	N27922-53-1				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+N29087-69-1	N29087-69-1				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+N30652-18-1	N30652-18-1				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Navitoclax	NAVITOCLAX	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+Nelarabine	NELARABINE	Antineoplastic Agents	ANTINEOPLASTIC AGENTS		FALSE	FALSE	Antineoplastic Agents	Antineoplastic Agents	baseline_coxIn_RData	cached	FALSE	
+Nilotinib	NILOTINIB	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors; Targeted therapies	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors; Targeted therapies	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors;Tyrosine Kinase Inhibitors;Targeted therapies	baseline_coxIn_RData	cached	TRUE	
+Niraparib	NIRAPARIB	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Signal Transduction Inhibitors; PARP Inhibitors;	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Signal Transduction Inhibitors; PARP Inhibitors;	Breast Feeding;Lactation;Antineoplastic Agents;Enzyme Inhibitors;Signal Transduction Inhibitors;PARP Inhibitors	baseline_coxIn_RData	cached	TRUE	
+NU7441	NU7441				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Nutlin-3a (-)	NUTLIN-3A (-)				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+NVP-ADW742	NVP-ADW742	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Obatoclax Mesylate	OBATOCLAX MESYLATE	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+OF-1	OF-1				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Olaparib	OLAPARIB	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Signal Transduction Inhibitors; PARP inhibitors	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Signal Transduction Inhibitors; PARP inhibitors	Breast Feeding;Lactation;Antineoplastic Agents;Enzyme Inhibitors;Signal Transduction Inhibitors;PARP inhibitors	baseline_coxIn_RData	cached	TRUE	
+OSI-027	OSI-027	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Osimertinib	OSIMERTINIB	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors	Breast Feeding;Lactation;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors	baseline_coxIn_RData	cached	TRUE	
+OTX015	OTX015	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+Oxaliplatin	OXALIPLATIN	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+P22077	P22077				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Paclitaxel	PACLITAXEL	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+PAK_5339	PAK_5339				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Palbociclib	PALBOCICLIB	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors	baseline_coxIn_RData	cached	TRUE	
+PBD-288	PBD-288	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+PCI-34051	PCI-34051				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+PD0325901	PD0325901	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; MEK inhibitors	MEK INHIBITORS	SIGNALING	TRUE	TRUE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; MEK inhibitors	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;MEK inhibitors	baseline_coxIn_RData	cached	TRUE	
+PD173074	PD173074	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Pevonedistat	PEVONEDISTAT				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+PF-4708671	PF-4708671	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+PFI-1	PFI-1	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+PFI3	PFI3	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+Picolinici-acid	PICOLINICI-ACID				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Pictilisib	PICTILISIB	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Piperlongumine	PIPERLONGUMINE				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+PLX-4720	PLX-4720	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Podophyllotoxin bromide	PODOPHYLLOTOXIN BROMIDE	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+POMHEX	POMHEX				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+PRIMA-1MET	PRIMA-1MET				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+PRT062607	PRT062607	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Pyridostatin	PYRIDOSTATIN				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Rapamycin	RAPAMYCIN	Breast Feeding; Lactation; Milk, Human; Immunosuppressive Agents	IMMUNOSUPPRESSIVE AGENTS		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Immunosuppressive Agents	Breast Feeding;Lactation;Milk, Human;Immunosuppressive Agents	baseline_coxIn_RData	cached	TRUE	
+Refametinib	REFAMETINIB	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Remodelin	REMODELIN				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Ribociclib	RIBOCICLIB	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors	baseline_coxIn_RData	cached	TRUE	
+RO-3306	RO-3306	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Romidepsin	ROMIDEPSIN	Antineoplastic Agents	ANTINEOPLASTIC AGENTS		FALSE	FALSE	Antineoplastic Agents	Antineoplastic Agents	baseline_coxIn_RData	cached	FALSE	
+Rucaparib	RUCAPARIB	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Signal Transduction Inhibitors; PARP Inhibitors	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Signal Transduction Inhibitors; PARP Inhibitors	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Enzyme Inhibitors;Signal Transduction Inhibitors;PARP Inhibitors	baseline_coxIn_RData	cached	TRUE	
+Ruxolitinib	RUXOLITINIB	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Janus Kinase Inhibitors; JAK Inhibitors	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Janus Kinase Inhibitors; JAK Inhibitors	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors;Janus Kinase Inhibitors;JAK Inhibitors	baseline_coxIn_RData	cached	TRUE	
+RVX-208	RVX-208	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+Sabutoclax	SABUTOCLAX	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+Sapitinib	SAPITINIB	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Savolitinib	SAVOLITINIB	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+SB216763	SB216763				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+SB505124	SB505124	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+SB590885	SB590885	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+SCH772984	SCH772984	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Schweinfurthin A	SCHWEINFURTHIN A				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Selumetinib	SELUMETINIB	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Tyrosine Kinase Inhibitors; Signal Transduction Inhibitors; MEK Inhibitors	MEK INHIBITORS	SIGNALING	TRUE	TRUE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Tyrosine Kinase Inhibitors; Signal Transduction Inhibitors; MEK Inhibitors	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Tyrosine Kinase Inhibitors;Signal Transduction Inhibitors;MEK Inhibitors	baseline_coxIn_RData	cached	TRUE	
+Sepantronium bromide	SEPANTRONIUM BROMIDE	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+Serdemetan	SERDEMETAN				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+SGC-CBP30	SGC-CBP30	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+SGC0946	SGC0946	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+Sinularin	SINULARIN				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+SL0101	SL0101				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+SN-38	SN-38	Cytotoxic	CYTOTOXIC		FALSE	FALSE	Cytotoxic	Cytotoxic	baseline_coxIn_RData	cached	FALSE	
+Sorafenib	SORAFENIB	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors;	TYROSINE KINASE INHIBITORS	SIGNALING	TRUE	TRUE	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; Tyrosine Kinase Inhibitors;	Breast Feeding;Lactation;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors;Tyrosine Kinase Inhibitors	baseline_coxIn_RData	cached	TRUE	
+Staurosporine	STAUROSPORINE				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+TAF1_5496	TAF1_5496	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+Talazoparib	TALAZOPARIB	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Signal Transduction Inhibitors; PARP Inhibitors	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Signal Transduction Inhibitors; PARP Inhibitors	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Enzyme Inhibitors;Signal Transduction Inhibitors;PARP Inhibitors	baseline_coxIn_RData	cached	TRUE	
+Tamoxifen	TAMOXIFEN	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Estrogen Antagonists; Hormones and antihormones	HORMONES AND ANTIHORMONES		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Estrogen Antagonists; Hormones and antihormones	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Estrogen Antagonists;Hormones and antihormones	baseline_coxIn_RData	cached	TRUE	
+Tanespimycin	TANESPIMYCIN				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Taselisib	TASELISIB	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Telomerase Inhibitor IX	TELOMERASE INHIBITOR IX				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Temozolomide	TEMOZOLOMIDE	Breast Feeding; Lactation; Antineoplastic Agents; Antineoplastic Agents, Alkylating	ALKYLATING		FALSE	FALSE	Breast Feeding; Lactation; Antineoplastic Agents; Antineoplastic Agents, Alkylating	Breast Feeding;Lactation;Antineoplastic Agents;Antineoplastic Agents, Alkylating	baseline_coxIn_RData	cached	TRUE	
+Temsirolimus	TEMSIROLIMUS	Breast Feeding; Lactation; Immunosuppressive Agents	IMMUNOSUPPRESSIVE AGENTS		FALSE	FALSE	Breast Feeding; Lactation; Immunosuppressive Agents	Breast Feeding;Lactation;Immunosuppressive Agents	baseline_coxIn_RData	cached	TRUE	
+Teniposide	TENIPOSIDE	Cytotoxic	CYTOTOXIC		FALSE	FALSE	Cytotoxic	Cytotoxic	baseline_coxIn_RData	cached	FALSE	
+THR-101	THR-101				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+THR-102	THR-102				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+THR-103	THR-103				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Topotecan	TOPOTECAN	Breast Feeding; Lactation; Antineoplastic Agents; Topoisomerase I Inhibitors	CYTOTOXIC		FALSE	FALSE	Breast Feeding; Lactation; Antineoplastic Agents; Topoisomerase I Inhibitors	Breast Feeding;Lactation;Antineoplastic Agents;Topoisomerase I Inhibitors	baseline_coxIn_RData	cached	TRUE	
+Tozasertib	TOZASERTIB	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Trametinib	TRAMETINIB	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; MEK Inhibitors	MEK INHIBITORS	SIGNALING	TRUE	TRUE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors; MEK Inhibitors	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors;MEK Inhibitors	baseline_coxIn_RData	cached	TRUE	
+Tretinoin	TRETINOIN	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Dermatologic Agents; Keratolytic Agents; Retinoids; Targeted therapies	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Dermatologic Agents; Keratolytic Agents; Retinoids; Targeted therapies	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Dermatologic Agents;Keratolytic Agents;Retinoids;Targeted therapies	baseline_coxIn_RData	cached	TRUE	
+TW 37	TW 37	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+Ulixertinib	ULIXERTINIB	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+ULK1_4989	ULK1_4989				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+UMI-77	UMI-77	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+UNC0379	UNC0379	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+UNC0638	UNC0638	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	FALSE	FALSE	EPIGENETICS AND TRANSCRIPTION	EPIGENETICS AND TRANSCRIPTION	baseline_coxIn_RData	cached	FALSE	
+Uprosertib	UPROSERTIB	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+VE-822	VE-822				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+VE821	VE821				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Veliparib	VELIPARIB	Cytotoxic	CYTOTOXIC		FALSE	FALSE	Cytotoxic	Cytotoxic	baseline_coxIn_RData	cached	FALSE	
+Venetoclax	VENETOCLAX	Breast Feeding; Lactation; Antineoplastic Agents	ANTINEOPLASTIC AGENTS		FALSE	FALSE	Breast Feeding; Lactation; Antineoplastic Agents	Breast Feeding;Lactation;Antineoplastic Agents	baseline_coxIn_RData	cached	TRUE	
+Vinblastine	VINBLASTINE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Antimitotic Agents; Cytotoxic medicines	CYTOTOXIC		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Antimitotic Agents; Cytotoxic medicines	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Antimitotic Agents;Cytotoxic medicines	baseline_coxIn_RData	cached	TRUE	
+Vinorelbine	VINORELBINE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Antimitotic Agents; Cytotoxic medicines	CYTOTOXIC		FALSE	FALSE	Breast Feeding; Lactation; Milk, Human; Antineoplastic Agents; Antimitotic Agents; Cytotoxic medicines	Breast Feeding;Lactation;Milk, Human;Antineoplastic Agents;Antimitotic Agents;Cytotoxic medicines	baseline_coxIn_RData	cached	TRUE	
+Vismodegib	VISMODEGIB	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors	SIGNALING		FALSE	FALSE	Breast Feeding; Lactation; Antineoplastic Agents; Enzyme Inhibitors; Protein Kinase Inhibitors; Signal Transduction Inhibitors	Breast Feeding;Lactation;Antineoplastic Agents;Enzyme Inhibitors;Protein Kinase Inhibitors;Signal Transduction Inhibitors	baseline_coxIn_RData	cached	TRUE	
+Vorinostat	VORINOSTAT	Antineoplastic Agents	ANTINEOPLASTIC AGENTS		FALSE	FALSE	Antineoplastic Agents	Antineoplastic Agents	baseline_coxIn_RData	cached	FALSE	
+VSP34_8731	VSP34_8731				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+VTP-A	VTP-A	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+VTP-B	VTP-B	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+VX-11e	VX-11E	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+Wee1 Inhibitor	WEE1 INHIBITOR	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+WEHI-539	WEHI-539	CYTOTOXIC	CYTOTOXIC	CYTOTOXIC	FALSE	FALSE	CYTOTOXIC	CYTOTOXIC	baseline_coxIn_RData	cached	FALSE	
+WIKI4	WIKI4				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+Wnt-C59	WNT-C59	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+WZ4003	WZ4003				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+XAV939	XAV939	SIGNALING	SIGNALING	SIGNALING	FALSE	FALSE	SIGNALING	SIGNALING	baseline_coxIn_RData	cached	FALSE	
+YK-4-279	YK-4-279				FALSE	FALSE			baseline_coxIn_RData	unclassified	FALSE	
+ZM447439	ZM447439	Signaling	SIGNALING		FALSE	FALSE	Signaling	Signaling	baseline_coxIn_RData	cached	FALSE	
+Zoledronate	ZOLEDRONATE	Breast Feeding; Lactation; Bisphosphonates; Bone Density Conservation Agents; Diphosphonates;; Medicines for endocrine disorders; Supportive medicines	SUPPORTIVE MEDICINES		FALSE	FALSE	Breast Feeding; Lactation; Bisphosphonates; Bone Density Conservation Agents; Diphosphonates;; Medicines for endocrine disorders; Supportive medicines	Breast Feeding;Lactation;Bisphosphonates;Bone Density Conservation Agents;Diphosphonates;Medicines for endocrine disorders;Supportive medicines	baseline_coxIn_RData	cached	TRUE	

@@ -1,0 +1,2 @@
+drug	response_metric	response_metric_label	response_metric_scale	ploidy_stat	ploidy_stat_label	n_samples	pearson_r	p_value
+Gemcitabine	ec50	EC50	log10_uM	max	maximum	12	0.334331888666773	0.288159778843612

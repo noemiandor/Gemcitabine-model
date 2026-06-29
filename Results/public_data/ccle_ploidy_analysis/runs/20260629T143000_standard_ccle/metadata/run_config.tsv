@@ -1,0 +1,13 @@
+key	value
+metric	IC50
+metric_label	IC50
+metric_source	grbrowser
+metric_note	MEP-LINCS grbrowser metric.
+response_column	IC50
+lower_metric_more_sensitive	TRUE
+sensitivity_direction_assumption	Lower IC50 values are treated as more sensitive.
+correlation_threshold	0.2
+drug_coverage_threshold_fraction	0.8
+drug_coverage_cutoff	20.8
+drug_filter	
+module_dir	/Users/4470246/Repositories/Gemcitabine-model/Code/ccle_ploidy_analysis

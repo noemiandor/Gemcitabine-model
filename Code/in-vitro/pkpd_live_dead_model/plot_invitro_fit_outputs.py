@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import os
 from pathlib import Path
 import sys
@@ -45,7 +46,7 @@ REPO_ROOT = invitro_fitting.PROJECT_ROOT
 DATA_ROOT = REPO_ROOT / "Data" / "in-vitro" / "pkpd_live_dead_model"
 FIT_OUTPUTS_ROOT = DATA_ROOT / "invitro_fitting_outputs"
 
-DEFAULT_OUTPUT_FOLDER = (
+DEFAULT_FIT_OUTPUT_FOLDER = (
     FIT_OUTPUTS_ROOT
     / "alsoGoodFit_20260514T093906"
 )
@@ -66,6 +67,17 @@ DEFAULT_PARAMETERS = [
     "mu_base_death",
     "mu_confluence_death",
 ]
+
+
+def default_output_folder() -> Path:
+    return (
+        REPO_ROOT
+        / "Results"
+        / "in-vitro"
+        / "pkpd_live_dead_model"
+        / "runs"
+        / f"{datetime.now().strftime('%Y%m%dT%H%M%S')}_pkpd_saved_fit"
+    )
 
 
 DISPLAY_NAMES = {
@@ -1102,10 +1114,10 @@ def parse_args() -> argparse.Namespace:
         "output_folder",
         type=Path,
         nargs="?",
-        default=DEFAULT_OUTPUT_FOLDER,
+        default=DEFAULT_FIT_OUTPUT_FOLDER,
         help=(
             "Legacy positional folder containing joint_fit_summary.tsv. "
-            "When --output-dir is omitted, plots are also written here."
+            "Generated plots now default to a timestamped Results/ run unless --output-dir is supplied."
         ),
     )
     parser.add_argument(
@@ -1118,7 +1130,7 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help=(
             "Directory for generated plots/tables. If omitted, outputs are written "
-            "back into the fit-output folder for legacy compatibility."
+            "to a timestamped Results/in-vitro/pkpd_live_dead_model/runs directory."
         ),
     )
     parser.add_argument(
@@ -1181,7 +1193,7 @@ def main() -> None:
     if not summary_path.exists():
         raise FileNotFoundError(f"Missing summary file: {summary_path}")
 
-    output_folder = args.output_dir or fit_output_folder
+    output_folder = args.output_dir or default_output_folder()
     if not output_folder.is_absolute():
         output_folder = REPO_ROOT / output_folder
     output_folder = output_folder.resolve()

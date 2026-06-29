@@ -1,0 +1,2 @@
+metric	metric_label	metric_source	response_column	n_cell_lines	n_drugs_after_coverage_filter	n_plotted_drugs	min_plotted_estimate	max_plotted_estimate	plot_file
+IC50	IC50	grbrowser	IC50	26	16	9	-0.248464033186007	0.595294321681249	ccle_drug_ploidy_correlations_ic50.pdf

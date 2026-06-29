@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import os
 from pathlib import Path
 import sys
@@ -18,9 +19,11 @@ MODULE_ROOT = Path(__file__).resolve().parent
 SRC_DIR = MODULE_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
+TOOLS_DIR = MODULE_ROOT.parents[1] / "tools"
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
 
-import pandas as pd
-
+from figure_output_contract import MODULE_MANIFEST_COLUMNS, sha256_file, write_tsv
 import invitro_fitting
 
 
@@ -171,21 +174,59 @@ def check_expected_inputs(paths: invitro_fitting.ExperimentPaths, fit_config: in
     if not required_doses.issubset(dose_labels):
         raise ValueError(f"Missing expected dose labels: {sorted(required_doses.difference(dose_labels))}")
 
+    def local_manifest_row(path: Path, role: str, source_kind: str, notes: str) -> dict[str, Any]:
+        resolved = path.resolve()
+        stat = resolved.stat()
+        return {
+            "path": repo_relative(resolved),
+            "repo_relative_path": repo_relative(resolved),
+            "absolute_path": str(resolved),
+            "role": role,
+            "source_kind": source_kind,
+            "module": "pkpd_live_dead_model",
+            "generated_by": "Code/in-vitro/pkpd_live_dead_model/run_invitro_fit.py --check-inputs",
+            "command_id": "pkpd_check_inputs",
+            "sha256": sha256_file(resolved),
+            "checksum_unavailable_reason": "",
+            "byte_size": stat.st_size,
+            "mtime_utc": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+            "figure": "",
+            "panel": "",
+            "notes": notes,
+        }
+
+    def in_memory_manifest_row(resource: str, notes: str) -> dict[str, Any]:
+        return {
+            "path": "",
+            "repo_relative_path": "",
+            "absolute_path": "",
+            "role": "validated_input_resource",
+            "source_kind": "derived_in_memory",
+            "module": "pkpd_live_dead_model",
+            "generated_by": "Code/in-vitro/pkpd_live_dead_model/run_invitro_fit.py --check-inputs",
+            "command_id": "pkpd_check_inputs",
+            "sha256": "",
+            "checksum_unavailable_reason": "No standalone local file; resource is generated in memory during input validation.",
+            "byte_size": "",
+            "mtime_utc": "",
+            "figure": "",
+            "panel": "",
+            "notes": f"{resource}: {notes}",
+        }
+
     rows: list[dict[str, Any]] = [
-        {"resource": "counts_agg_path", "path": repo_relative(paths.counts_agg), "row_count": len(counts_df), "details": "cleaned aggregated count rows"},
-        {"resource": "platemap_path", "path": repo_relative(paths.platemap), "row_count": len(platemap_df), "details": "standardized platemap wells"},
-        {"resource": "pkpd_workbook_path", "path": repo_relative(paths.pkpd_constants), "row_count": sum(len(sheet) for sheet in pk_sheets.values()), "details": f"{len(pk_sheets)} workbook sheets"},
-        {"resource": "modeling_dataset", "path": "", "row_count": len(modeling_df), "details": f"ploidies={','.join(ploidies)}; doses={','.join(dose_labels)}; max_days={fit_config.max_days:g}"},
+        local_manifest_row(paths.counts_agg, "input_data", "processed_input", f"cleaned aggregated count rows={len(counts_df)}"),
+        local_manifest_row(paths.platemap, "input_data", "raw_input", f"standardized platemap rows={len(platemap_df)}"),
+        local_manifest_row(paths.pkpd_constants, "input_data", "raw_input", f"PKPD workbook rows={sum(len(sheet) for sheet in pk_sheets.values())}; sheets={len(pk_sheets)}"),
+        in_memory_manifest_row("modeling_dataset", f"rows={len(modeling_df)}; ploidies={','.join(ploidies)}; doses={','.join(dose_labels)}; max_days={fit_config.max_days:g}"),
     ]
 
     for ploidy, surface in surfaces.items():
         rows.append(
-            {
-                "resource": f"dfdctp_surface_{ploidy}",
-                "path": "",
-                "row_count": len(surface.calibration_profiles_by_dose),
-                "details": f"calibrated_doses_uM={','.join(f'{dose:g}' for dose in surface.calibration_doses_uM)}",
-            }
+            in_memory_manifest_row(
+                f"dfdctp_surface_{ploidy}",
+                f"calibration_profiles={len(surface.calibration_profiles_by_dose)}; calibrated_doses_uM={','.join(f'{dose:g}' for dose in surface.calibration_doses_uM)}",
+            )
         )
 
     for ploidy in sorted(required_ploidies):
@@ -201,29 +242,27 @@ def check_expected_inputs(paths: invitro_fitting.ExperimentPaths, fit_config: in
             if replicate_count <= 0:
                 raise ValueError(f"No aligned replicates for {ploidy} {dose_label}")
             rows.append(
-                {
-                    "resource": f"aligned_live_dead_{ploidy}_{invitro_fitting.slugify_label(dose_label)}",
-                    "path": "",
-                    "row_count": len(aligned["t"]),
-                    "details": (
+                in_memory_manifest_row(
+                    f"aligned_live_dead_{ploidy}_{invitro_fitting.slugify_label(dose_label)}",
+                    (
+                        f"rows={len(aligned['t'])}; "
                         f"replicates={replicate_count}; "
                         f"time_min={float(aligned['t'].min()):g}; "
                         f"time_max={float(aligned['t'].max()):g}; "
                         f"dropped_timepoints={aligned['dropped_timepoints']}; "
                         f"dropped_replicates={aligned['dropped_replicates']}"
                     ),
-                }
+                )
             )
 
     manifest_path = paths.output_dir / "metadata" / "input_manifest.tsv"
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(rows).to_csv(manifest_path, sep="\t", index=False)
+    write_tsv(manifest_path, rows, MODULE_MANIFEST_COLUMNS)
     return manifest_path
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-dir", type=Path, help="Output directory for fitting results. Defaults to a timestamped folder under Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs.")
+    parser.add_argument("--output-dir", type=Path, help="Output directory for fitting results. Defaults to a timestamped folder under Results/in-vitro/pkpd_live_dead_model/runs.")
     parser.add_argument("--max-days", type=float, help="Maximum live/dead observation time, mapped to JointFitConfig.max_days.")
     parser.add_argument("--fit-t-max", type=float, help="Maximum aligned fitting time, mapped to JointFitConfig.fit_t_max.")
     parser.add_argument("--n-starts", type=int, help="Use the first N optimizer starts from the existing start grid.")

@@ -1,0 +1,24 @@
+Raw_substring_pathway_class,Corrected_pathway_class,n_features
+Folate/one-carbon/methylation,PPP/glycolysis/carbohydrate,6
+Other,Amino acid/nitrogen,5
+Fatty acids/lipids,Other,5
+Kennedy/choline-phospholipid; Pyrimidine metabolism,Kennedy/choline-phospholipid,4
+Purine metabolism; Cofactors/vitamins/redox,Cofactors/vitamins/redox,4
+Other,PPP/glycolysis/carbohydrate,4
+Other,Fatty acids/lipids,4
+Folate/one-carbon/methylation,Folate/one-carbon/methylation; Purine metabolism,3
+Pyrimidine metabolism; Folate/one-carbon/methylation,PPP/glycolysis/carbohydrate,2
+Purine metabolism; PPP/glycolysis/carbohydrate,Purine metabolism,2
+Purine metabolism,PPP/glycolysis/carbohydrate; Purine metabolism,2
+Pyrimidine metabolism; PPP/glycolysis/carbohydrate,PPP/glycolysis/carbohydrate,2
+Folate/one-carbon/methylation,Fatty acids/lipids,2
+Folate/one-carbon/methylation,Amino acid/nitrogen; Folate/one-carbon/methylation,2
+Folate/one-carbon/methylation,Amino acid/nitrogen,2
+Carnitine/FAO,Other,1
+Kennedy/choline-phospholipid,Fatty acids/lipids; Kennedy/choline-phospholipid,1
+Folate/one-carbon/methylation,Other,1
+PPP/glycolysis/carbohydrate,Other,1
+Purine metabolism,Other,1
+Pyrimidine metabolism,PPP/glycolysis/carbohydrate,1
+Cofactors/vitamins/redox,Other,1
+Carnitine/FAO,Fatty acids/lipids,1

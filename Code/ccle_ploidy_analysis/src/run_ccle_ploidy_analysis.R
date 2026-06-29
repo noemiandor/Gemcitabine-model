@@ -27,6 +27,18 @@ default_paths <- function(base_dir) {
   )
 }
 
+default_output_dir <- function(base_dir) {
+  repo_root <- normalizePath(file.path(base_dir, "..", ".."), mustWork = TRUE)
+  file.path(
+    repo_root,
+    "Results",
+    "public_data",
+    "ccle_ploidy_analysis",
+    "runs",
+    paste0(format(Sys.time(), "%Y%m%dT%H%M%S"), "_ccle")
+  )
+}
+
 load_common_inputs <- function(base_dir, require_primary_adherent = FALSE) {
   paths <- default_paths(base_dir)
   required <- unlist(paths[c("app_cl", "expression_columns", "ploidy", "drug_aliases")])
@@ -336,7 +348,7 @@ write_outputs <- function(result, base_dir, out_dir, correlation_threshold, drug
 }
 
 run_ccle_ploidy_analysis <- function(base_dir,
-                                     out_dir = file.path(base_dir, "output"),
+                                     out_dir = default_output_dir(base_dir),
                                      metric = "Z_SCORE",
                                      metric_source = NULL,
                                      correlation_threshold = 0.2,
@@ -374,7 +386,7 @@ run_ccle_ploidy_analysis <- function(base_dir,
 
 ccle_ploidy_analysis_main <- function(base_dir) {
   args <- commandArgs(trailingOnly = TRUE)
-  out_dir <- normalizePath(arg_value(args, "output-dir", file.path(base_dir, "output")), mustWork = FALSE)
+  out_dir <- normalizePath(arg_value(args, "output-dir", default_output_dir(base_dir)), mustWork = FALSE)
   metric <- arg_value(args, "metric", "Z_SCORE")
   metric_source <- arg_value(args, "metric-source", arg_value(args, "ic50-source", NULL))
   correlation_threshold <- as.numeric(arg_value(args, "correlation-threshold", "0.2"))

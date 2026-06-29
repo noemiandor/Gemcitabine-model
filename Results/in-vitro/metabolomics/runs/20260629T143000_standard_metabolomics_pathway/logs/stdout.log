@@ -1,0 +1,4 @@
+Loaded 472 metabolite features.
+Changed annotations after correction: 57
+Heatmap matrix shape: 8 pathway classes x 6 response sets.
+Saved corrected heatmap and tables to: Results/in-vitro/metabolomics/runs/20260629T143000_standard_metabolomics_pathway

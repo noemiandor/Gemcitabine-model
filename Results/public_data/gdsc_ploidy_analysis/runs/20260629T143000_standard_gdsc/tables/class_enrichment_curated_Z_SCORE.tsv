@@ -1,0 +1,481 @@
+direction	metric	cancer_type	group	pvalue
+low_ploidy_sensitive	Z_SCORE	allcancers	Signaling	0.99
+low_ploidy_sensitive	Z_SCORE	allcancers	Epigenetics and transcription	0.59
+low_ploidy_sensitive	Z_SCORE	allcancers	Genome integrity and DNA damage	0
+low_ploidy_sensitive	Z_SCORE	allcancers	Cell cycle and mitosis	0.00333333333333333
+low_ploidy_sensitive	Z_SCORE	allcancers	Apoptosis regulation	0.253333333333333
+low_ploidy_sensitive	Z_SCORE	allcancers	Protein stability and degradation	0.943333333333333
+low_ploidy_sensitive	Z_SCORE	allcancers	Metabolism	0.226666666666667
+low_ploidy_sensitive	Z_SCORE	allcancers	Hormone related	0.693333333333333
+low_ploidy_sensitive	Z_SCORE	allcancers	p53 pathway	0.156666666666667
+low_ploidy_sensitive	Z_SCORE	allcancers	Other reviewed	0.00333333333333333
+low_ploidy_sensitive	Z_SCORE	STAD	Signaling	0.713333333333333
+low_ploidy_sensitive	Z_SCORE	STAD	Epigenetics and transcription	0.783333333333333
+low_ploidy_sensitive	Z_SCORE	STAD	Genome integrity and DNA damage	0.22
+low_ploidy_sensitive	Z_SCORE	STAD	Cell cycle and mitosis	0.213333333333333
+low_ploidy_sensitive	Z_SCORE	STAD	Apoptosis regulation	0.0933333333333333
+low_ploidy_sensitive	Z_SCORE	STAD	Protein stability and degradation	0.396666666666667
+low_ploidy_sensitive	Z_SCORE	STAD	Metabolism	0.473333333333333
+low_ploidy_sensitive	Z_SCORE	STAD	Hormone related	0.813333333333333
+low_ploidy_sensitive	Z_SCORE	STAD	p53 pathway	0.746666666666667
+low_ploidy_sensitive	Z_SCORE	STAD	Other reviewed	0.09
+low_ploidy_sensitive	Z_SCORE	GBM	Signaling	0.983333333333333
+low_ploidy_sensitive	Z_SCORE	GBM	Epigenetics and transcription	0.76
+low_ploidy_sensitive	Z_SCORE	GBM	Genome integrity and DNA damage	0
+low_ploidy_sensitive	Z_SCORE	GBM	Cell cycle and mitosis	0.936666666666667
+low_ploidy_sensitive	Z_SCORE	GBM	Apoptosis regulation	0.196666666666667
+low_ploidy_sensitive	Z_SCORE	GBM	Protein stability and degradation	0.453333333333333
+low_ploidy_sensitive	Z_SCORE	GBM	Metabolism	0.236666666666667
+low_ploidy_sensitive	Z_SCORE	GBM	Hormone related	0.903333333333333
+low_ploidy_sensitive	Z_SCORE	GBM	p53 pathway	0.0233333333333333
+low_ploidy_sensitive	Z_SCORE	GBM	Other reviewed	0.39
+low_ploidy_sensitive	Z_SCORE	BLCA	Signaling	0.833333333333333
+low_ploidy_sensitive	Z_SCORE	BLCA	Epigenetics and transcription	0.943333333333333
+low_ploidy_sensitive	Z_SCORE	BLCA	Genome integrity and DNA damage	0
+low_ploidy_sensitive	Z_SCORE	BLCA	Cell cycle and mitosis	0.00666666666666667
+low_ploidy_sensitive	Z_SCORE	BLCA	Apoptosis regulation	0.813333333333333
+low_ploidy_sensitive	Z_SCORE	BLCA	Protein stability and degradation	0.02
+low_ploidy_sensitive	Z_SCORE	BLCA	Metabolism	0.95
+low_ploidy_sensitive	Z_SCORE	BLCA	Hormone related	0.946666666666667
+low_ploidy_sensitive	Z_SCORE	BLCA	p53 pathway	0.38
+low_ploidy_sensitive	Z_SCORE	BLCA	Other reviewed	0.546666666666667
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Signaling	0.933333333333333
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Epigenetics and transcription	0.99
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Genome integrity and DNA damage	0.0166666666666667
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Cell cycle and mitosis	0.35
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Apoptosis regulation	0.903333333333333
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Protein stability and degradation	0.6
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Metabolism	0.91
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Hormone related	0.0533333333333333
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	p53 pathway	0.506666666666667
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Other reviewed	0.01
+low_ploidy_sensitive	Z_SCORE	KIRC	Signaling	0.82
+low_ploidy_sensitive	Z_SCORE	KIRC	Epigenetics and transcription	0.156666666666667
+low_ploidy_sensitive	Z_SCORE	KIRC	Genome integrity and DNA damage	0.226666666666667
+low_ploidy_sensitive	Z_SCORE	KIRC	Cell cycle and mitosis	0.363333333333333
+low_ploidy_sensitive	Z_SCORE	KIRC	Apoptosis regulation	0.443333333333333
+low_ploidy_sensitive	Z_SCORE	KIRC	Protein stability and degradation	0.94
+low_ploidy_sensitive	Z_SCORE	KIRC	Metabolism	0.3
+low_ploidy_sensitive	Z_SCORE	KIRC	Hormone related	0.85
+low_ploidy_sensitive	Z_SCORE	KIRC	p53 pathway	0.2
+low_ploidy_sensitive	Z_SCORE	KIRC	Other reviewed	0.25
+low_ploidy_sensitive	Z_SCORE	THCA	Signaling	0.546666666666667
+low_ploidy_sensitive	Z_SCORE	THCA	Epigenetics and transcription	1
+low_ploidy_sensitive	Z_SCORE	THCA	Genome integrity and DNA damage	0.143333333333333
+low_ploidy_sensitive	Z_SCORE	THCA	Cell cycle and mitosis	0
+low_ploidy_sensitive	Z_SCORE	THCA	Apoptosis regulation	0.113333333333333
+low_ploidy_sensitive	Z_SCORE	THCA	Protein stability and degradation	0.683333333333333
+low_ploidy_sensitive	Z_SCORE	THCA	Metabolism	0.636666666666667
+low_ploidy_sensitive	Z_SCORE	THCA	Hormone related	0.843333333333333
+low_ploidy_sensitive	Z_SCORE	THCA	p53 pathway	0.19
+low_ploidy_sensitive	Z_SCORE	THCA	Other reviewed	0.26
+low_ploidy_sensitive	Z_SCORE	SKCM	Signaling	0.456666666666667
+low_ploidy_sensitive	Z_SCORE	SKCM	Epigenetics and transcription	0.996666666666667
+low_ploidy_sensitive	Z_SCORE	SKCM	Genome integrity and DNA damage	0.00666666666666667
+low_ploidy_sensitive	Z_SCORE	SKCM	Cell cycle and mitosis	0.28
+low_ploidy_sensitive	Z_SCORE	SKCM	Apoptosis regulation	0.83
+low_ploidy_sensitive	Z_SCORE	SKCM	Protein stability and degradation	0.173333333333333
+low_ploidy_sensitive	Z_SCORE	SKCM	Metabolism	0.2
+low_ploidy_sensitive	Z_SCORE	SKCM	Hormone related	0.47
+low_ploidy_sensitive	Z_SCORE	SKCM	p53 pathway	0.623333333333333
+low_ploidy_sensitive	Z_SCORE	SKCM	Other reviewed	0.89
+low_ploidy_sensitive	Z_SCORE	DLBC	Signaling	0
+low_ploidy_sensitive	Z_SCORE	DLBC	Epigenetics and transcription	0.34
+low_ploidy_sensitive	Z_SCORE	DLBC	Genome integrity and DNA damage	0.98
+low_ploidy_sensitive	Z_SCORE	DLBC	Cell cycle and mitosis	0.706666666666667
+low_ploidy_sensitive	Z_SCORE	DLBC	Apoptosis regulation	0.0566666666666667
+low_ploidy_sensitive	Z_SCORE	DLBC	Protein stability and degradation	0.48
+low_ploidy_sensitive	Z_SCORE	DLBC	Metabolism	0.983333333333333
+low_ploidy_sensitive	Z_SCORE	DLBC	Hormone related	0.316666666666667
+low_ploidy_sensitive	Z_SCORE	DLBC	p53 pathway	0.293333333333333
+low_ploidy_sensitive	Z_SCORE	DLBC	Other reviewed	0.846666666666667
+low_ploidy_sensitive	Z_SCORE	LUAD	Signaling	0.73
+low_ploidy_sensitive	Z_SCORE	LUAD	Epigenetics and transcription	0.3
+low_ploidy_sensitive	Z_SCORE	LUAD	Genome integrity and DNA damage	1
+low_ploidy_sensitive	Z_SCORE	LUAD	Cell cycle and mitosis	0.00666666666666667
+low_ploidy_sensitive	Z_SCORE	LUAD	Apoptosis regulation	0.856666666666667
+low_ploidy_sensitive	Z_SCORE	LUAD	Protein stability and degradation	0.88
+low_ploidy_sensitive	Z_SCORE	LUAD	Metabolism	0.596666666666667
+low_ploidy_sensitive	Z_SCORE	LUAD	Hormone related	0.78
+low_ploidy_sensitive	Z_SCORE	LUAD	p53 pathway	0.293333333333333
+low_ploidy_sensitive	Z_SCORE	LUAD	Other reviewed	0
+low_ploidy_sensitive	Z_SCORE	ALL	Signaling	1
+low_ploidy_sensitive	Z_SCORE	ALL	Epigenetics and transcription	0.903333333333333
+low_ploidy_sensitive	Z_SCORE	ALL	Genome integrity and DNA damage	0.0733333333333333
+low_ploidy_sensitive	Z_SCORE	ALL	Cell cycle and mitosis	0.133333333333333
+low_ploidy_sensitive	Z_SCORE	ALL	Apoptosis regulation	0.326666666666667
+low_ploidy_sensitive	Z_SCORE	ALL	Protein stability and degradation	0.976666666666667
+low_ploidy_sensitive	Z_SCORE	ALL	Metabolism	0.34
+low_ploidy_sensitive	Z_SCORE	ALL	Hormone related	0.49
+low_ploidy_sensitive	Z_SCORE	ALL	p53 pathway	0.973333333333333
+low_ploidy_sensitive	Z_SCORE	ALL	Other reviewed	0
+low_ploidy_sensitive	Z_SCORE	MM	Signaling	0.01
+low_ploidy_sensitive	Z_SCORE	MM	Epigenetics and transcription	0.61
+low_ploidy_sensitive	Z_SCORE	MM	Genome integrity and DNA damage	0
+low_ploidy_sensitive	Z_SCORE	MM	Cell cycle and mitosis	0.913333333333333
+low_ploidy_sensitive	Z_SCORE	MM	Apoptosis regulation	0.116666666666667
+low_ploidy_sensitive	Z_SCORE	MM	Protein stability and degradation	0.176666666666667
+low_ploidy_sensitive	Z_SCORE	MM	Metabolism	0.933333333333333
+low_ploidy_sensitive	Z_SCORE	MM	Hormone related	0.556666666666667
+low_ploidy_sensitive	Z_SCORE	MM	p53 pathway	0.276666666666667
+low_ploidy_sensitive	Z_SCORE	MM	Other reviewed	0.906666666666667
+low_ploidy_sensitive	Z_SCORE	PAAD	Signaling	0.303333333333333
+low_ploidy_sensitive	Z_SCORE	PAAD	Epigenetics and transcription	0.32
+low_ploidy_sensitive	Z_SCORE	PAAD	Genome integrity and DNA damage	0.97
+low_ploidy_sensitive	Z_SCORE	PAAD	Cell cycle and mitosis	0.146666666666667
+low_ploidy_sensitive	Z_SCORE	PAAD	Apoptosis regulation	0.9
+low_ploidy_sensitive	Z_SCORE	PAAD	Protein stability and degradation	0.206666666666667
+low_ploidy_sensitive	Z_SCORE	PAAD	Metabolism	0.996666666666667
+low_ploidy_sensitive	Z_SCORE	PAAD	Hormone related	0.82
+low_ploidy_sensitive	Z_SCORE	PAAD	p53 pathway	0.503333333333333
+low_ploidy_sensitive	Z_SCORE	PAAD	Other reviewed	0.583333333333333
+low_ploidy_sensitive	Z_SCORE	BRCA	Signaling	1
+low_ploidy_sensitive	Z_SCORE	BRCA	Epigenetics and transcription	0.443333333333333
+low_ploidy_sensitive	Z_SCORE	BRCA	Genome integrity and DNA damage	0
+low_ploidy_sensitive	Z_SCORE	BRCA	Cell cycle and mitosis	0.106666666666667
+low_ploidy_sensitive	Z_SCORE	BRCA	Apoptosis regulation	0.186666666666667
+low_ploidy_sensitive	Z_SCORE	BRCA	Protein stability and degradation	0.766666666666667
+low_ploidy_sensitive	Z_SCORE	BRCA	Metabolism	0.45
+low_ploidy_sensitive	Z_SCORE	BRCA	Hormone related	0.01
+low_ploidy_sensitive	Z_SCORE	BRCA	p53 pathway	0.18
+low_ploidy_sensitive	Z_SCORE	BRCA	Other reviewed	0.213333333333333
+low_ploidy_sensitive	Z_SCORE	HNSC	Signaling	1
+low_ploidy_sensitive	Z_SCORE	HNSC	Epigenetics and transcription	0.763333333333333
+low_ploidy_sensitive	Z_SCORE	HNSC	Genome integrity and DNA damage	0.00666666666666667
+low_ploidy_sensitive	Z_SCORE	HNSC	Cell cycle and mitosis	0.00333333333333333
+low_ploidy_sensitive	Z_SCORE	HNSC	Apoptosis regulation	0.343333333333333
+low_ploidy_sensitive	Z_SCORE	HNSC	Protein stability and degradation	0.896666666666667
+low_ploidy_sensitive	Z_SCORE	HNSC	Metabolism	0.193333333333333
+low_ploidy_sensitive	Z_SCORE	HNSC	Hormone related	0.54
+low_ploidy_sensitive	Z_SCORE	HNSC	p53 pathway	0.343333333333333
+low_ploidy_sensitive	Z_SCORE	HNSC	Other reviewed	0.00333333333333333
+low_ploidy_sensitive	Z_SCORE	NB	Signaling	0.78
+low_ploidy_sensitive	Z_SCORE	NB	Epigenetics and transcription	0.44
+low_ploidy_sensitive	Z_SCORE	NB	Genome integrity and DNA damage	0.9
+low_ploidy_sensitive	Z_SCORE	NB	Cell cycle and mitosis	0.65
+low_ploidy_sensitive	Z_SCORE	NB	Apoptosis regulation	0.0333333333333333
+low_ploidy_sensitive	Z_SCORE	NB	Protein stability and degradation	0.423333333333333
+low_ploidy_sensitive	Z_SCORE	NB	Metabolism	0.926666666666667
+low_ploidy_sensitive	Z_SCORE	NB	Hormone related	0.78
+low_ploidy_sensitive	Z_SCORE	NB	p53 pathway	0.34
+low_ploidy_sensitive	Z_SCORE	NB	Other reviewed	0.583333333333333
+low_ploidy_sensitive	Z_SCORE	COREAD	Signaling	1
+low_ploidy_sensitive	Z_SCORE	COREAD	Epigenetics and transcription	0.07
+low_ploidy_sensitive	Z_SCORE	COREAD	Genome integrity and DNA damage	0
+low_ploidy_sensitive	Z_SCORE	COREAD	Cell cycle and mitosis	0.406666666666667
+low_ploidy_sensitive	Z_SCORE	COREAD	Apoptosis regulation	0.863333333333333
+low_ploidy_sensitive	Z_SCORE	COREAD	Protein stability and degradation	0.413333333333333
+low_ploidy_sensitive	Z_SCORE	COREAD	Metabolism	0.0866666666666667
+low_ploidy_sensitive	Z_SCORE	COREAD	Hormone related	0.646666666666667
+low_ploidy_sensitive	Z_SCORE	COREAD	p53 pathway	0.166666666666667
+low_ploidy_sensitive	Z_SCORE	COREAD	Other reviewed	0.23
+low_ploidy_sensitive	Z_SCORE	LIHC	Signaling	0.1
+low_ploidy_sensitive	Z_SCORE	LIHC	Epigenetics and transcription	0.806666666666667
+low_ploidy_sensitive	Z_SCORE	LIHC	Genome integrity and DNA damage	0.303333333333333
+low_ploidy_sensitive	Z_SCORE	LIHC	Cell cycle and mitosis	0.813333333333333
+low_ploidy_sensitive	Z_SCORE	LIHC	Apoptosis regulation	0.82
+low_ploidy_sensitive	Z_SCORE	LIHC	Protein stability and degradation	0.756666666666667
+low_ploidy_sensitive	Z_SCORE	LIHC	Metabolism	0.0133333333333333
+low_ploidy_sensitive	Z_SCORE	LIHC	Hormone related	0.233333333333333
+low_ploidy_sensitive	Z_SCORE	LIHC	p53 pathway	0.92
+low_ploidy_sensitive	Z_SCORE	LIHC	Other reviewed	0.06
+low_ploidy_sensitive	Z_SCORE	LAML	Signaling	0.00666666666666667
+low_ploidy_sensitive	Z_SCORE	LAML	Epigenetics and transcription	0.123333333333333
+low_ploidy_sensitive	Z_SCORE	LAML	Genome integrity and DNA damage	0.83
+low_ploidy_sensitive	Z_SCORE	LAML	Cell cycle and mitosis	0.723333333333333
+low_ploidy_sensitive	Z_SCORE	LAML	Apoptosis regulation	0.0666666666666667
+low_ploidy_sensitive	Z_SCORE	LAML	Protein stability and degradation	0.246666666666667
+low_ploidy_sensitive	Z_SCORE	LAML	Metabolism	0.203333333333333
+low_ploidy_sensitive	Z_SCORE	LAML	Hormone related	0.0933333333333333
+low_ploidy_sensitive	Z_SCORE	LAML	p53 pathway	0.51
+low_ploidy_sensitive	Z_SCORE	LAML	Other reviewed	0.986666666666667
+low_ploidy_sensitive	Z_SCORE	SCLC	Signaling	0
+low_ploidy_sensitive	Z_SCORE	SCLC	Epigenetics and transcription	0.753333333333333
+low_ploidy_sensitive	Z_SCORE	SCLC	Genome integrity and DNA damage	0.996666666666667
+low_ploidy_sensitive	Z_SCORE	SCLC	Cell cycle and mitosis	0.176666666666667
+low_ploidy_sensitive	Z_SCORE	SCLC	Apoptosis regulation	0.153333333333333
+low_ploidy_sensitive	Z_SCORE	SCLC	Protein stability and degradation	0.0766666666666667
+low_ploidy_sensitive	Z_SCORE	SCLC	Metabolism	0.773333333333333
+low_ploidy_sensitive	Z_SCORE	SCLC	Hormone related	0.176666666666667
+low_ploidy_sensitive	Z_SCORE	SCLC	p53 pathway	0.14
+low_ploidy_sensitive	Z_SCORE	SCLC	Other reviewed	0.863333333333333
+low_ploidy_sensitive	Z_SCORE	ESCA	Signaling	0.47
+low_ploidy_sensitive	Z_SCORE	ESCA	Epigenetics and transcription	0.616666666666667
+low_ploidy_sensitive	Z_SCORE	ESCA	Genome integrity and DNA damage	0.973333333333333
+low_ploidy_sensitive	Z_SCORE	ESCA	Cell cycle and mitosis	0.2
+low_ploidy_sensitive	Z_SCORE	ESCA	Apoptosis regulation	0.613333333333333
+low_ploidy_sensitive	Z_SCORE	ESCA	Protein stability and degradation	0.0866666666666667
+low_ploidy_sensitive	Z_SCORE	ESCA	Metabolism	0.593333333333333
+low_ploidy_sensitive	Z_SCORE	ESCA	Hormone related	0.626666666666667
+low_ploidy_sensitive	Z_SCORE	ESCA	p53 pathway	0.633333333333333
+low_ploidy_sensitive	Z_SCORE	ESCA	Other reviewed	0.746666666666667
+low_ploidy_sensitive	Z_SCORE	OV	Signaling	1
+low_ploidy_sensitive	Z_SCORE	OV	Epigenetics and transcription	0.08
+low_ploidy_sensitive	Z_SCORE	OV	Genome integrity and DNA damage	0.446666666666667
+low_ploidy_sensitive	Z_SCORE	OV	Cell cycle and mitosis	0.566666666666667
+low_ploidy_sensitive	Z_SCORE	OV	Apoptosis regulation	0.15
+low_ploidy_sensitive	Z_SCORE	OV	Protein stability and degradation	0.593333333333333
+low_ploidy_sensitive	Z_SCORE	OV	Metabolism	0.293333333333333
+low_ploidy_sensitive	Z_SCORE	OV	Hormone related	0.866666666666667
+low_ploidy_sensitive	Z_SCORE	OV	p53 pathway	0.6
+low_ploidy_sensitive	Z_SCORE	OV	Other reviewed	0
+low_ploidy_sensitive	Z_SCORE	LUSC	Signaling	0.06
+low_ploidy_sensitive	Z_SCORE	LUSC	Epigenetics and transcription	0.106666666666667
+low_ploidy_sensitive	Z_SCORE	LUSC	Genome integrity and DNA damage	0.983333333333333
+low_ploidy_sensitive	Z_SCORE	LUSC	Cell cycle and mitosis	1
+low_ploidy_sensitive	Z_SCORE	LUSC	Apoptosis regulation	0
+low_ploidy_sensitive	Z_SCORE	LUSC	Protein stability and degradation	0.793333333333333
+low_ploidy_sensitive	Z_SCORE	LUSC	Metabolism	0.17
+low_ploidy_sensitive	Z_SCORE	LUSC	Hormone related	0.0866666666666667
+low_ploidy_sensitive	Z_SCORE	LUSC	p53 pathway	0.606666666666667
+low_ploidy_sensitive	Z_SCORE	LUSC	Other reviewed	0.123333333333333
+low_ploidy_sensitive	Z_SCORE	LGG	Signaling	0.276666666666667
+low_ploidy_sensitive	Z_SCORE	LGG	Epigenetics and transcription	1
+low_ploidy_sensitive	Z_SCORE	LGG	Genome integrity and DNA damage	1
+low_ploidy_sensitive	Z_SCORE	LGG	Cell cycle and mitosis	0.116666666666667
+low_ploidy_sensitive	Z_SCORE	LGG	Apoptosis regulation	0.193333333333333
+low_ploidy_sensitive	Z_SCORE	LGG	Protein stability and degradation	0.716666666666667
+low_ploidy_sensitive	Z_SCORE	LGG	Metabolism	0.28
+low_ploidy_sensitive	Z_SCORE	LGG	Hormone related	0.883333333333333
+low_ploidy_sensitive	Z_SCORE	LGG	p53 pathway	0.45
+low_ploidy_sensitive	Z_SCORE	LGG	Other reviewed	0.403333333333333
+high_ploidy_sensitive	Z_SCORE	allcancers	Signaling	0
+high_ploidy_sensitive	Z_SCORE	allcancers	Epigenetics and transcription	0.363333333333333
+high_ploidy_sensitive	Z_SCORE	allcancers	Genome integrity and DNA damage	0.976666666666667
+high_ploidy_sensitive	Z_SCORE	allcancers	Cell cycle and mitosis	0.966666666666667
+high_ploidy_sensitive	Z_SCORE	allcancers	Apoptosis regulation	0.533333333333333
+high_ploidy_sensitive	Z_SCORE	allcancers	Protein stability and degradation	0.00666666666666667
+high_ploidy_sensitive	Z_SCORE	allcancers	Metabolism	0.403333333333333
+high_ploidy_sensitive	Z_SCORE	allcancers	Hormone related	0.413333333333333
+high_ploidy_sensitive	Z_SCORE	allcancers	p53 pathway	0.813333333333333
+high_ploidy_sensitive	Z_SCORE	allcancers	Other reviewed	0.943333333333333
+high_ploidy_sensitive	Z_SCORE	STAD	Signaling	0.303333333333333
+high_ploidy_sensitive	Z_SCORE	STAD	Epigenetics and transcription	0
+high_ploidy_sensitive	Z_SCORE	STAD	Genome integrity and DNA damage	0.99
+high_ploidy_sensitive	Z_SCORE	STAD	Cell cycle and mitosis	0.743333333333333
+high_ploidy_sensitive	Z_SCORE	STAD	Apoptosis regulation	0.623333333333333
+high_ploidy_sensitive	Z_SCORE	STAD	Protein stability and degradation	0.856666666666667
+high_ploidy_sensitive	Z_SCORE	STAD	Metabolism	0.53
+high_ploidy_sensitive	Z_SCORE	STAD	Hormone related	0.04
+high_ploidy_sensitive	Z_SCORE	STAD	p53 pathway	0.42
+high_ploidy_sensitive	Z_SCORE	STAD	Other reviewed	0.85
+high_ploidy_sensitive	Z_SCORE	GBM	Signaling	0
+high_ploidy_sensitive	Z_SCORE	GBM	Epigenetics and transcription	0.466666666666667
+high_ploidy_sensitive	Z_SCORE	GBM	Genome integrity and DNA damage	1
+high_ploidy_sensitive	Z_SCORE	GBM	Cell cycle and mitosis	0.24
+high_ploidy_sensitive	Z_SCORE	GBM	Apoptosis regulation	0.763333333333333
+high_ploidy_sensitive	Z_SCORE	GBM	Protein stability and degradation	0.726666666666667
+high_ploidy_sensitive	Z_SCORE	GBM	Metabolism	0.963333333333333
+high_ploidy_sensitive	Z_SCORE	GBM	Hormone related	0.226666666666667
+high_ploidy_sensitive	Z_SCORE	GBM	p53 pathway	0.953333333333333
+high_ploidy_sensitive	Z_SCORE	GBM	Other reviewed	0.653333333333333
+high_ploidy_sensitive	Z_SCORE	BLCA	Signaling	0.0466666666666667
+high_ploidy_sensitive	Z_SCORE	BLCA	Epigenetics and transcription	0
+high_ploidy_sensitive	Z_SCORE	BLCA	Genome integrity and DNA damage	0.99
+high_ploidy_sensitive	Z_SCORE	BLCA	Cell cycle and mitosis	0.98
+high_ploidy_sensitive	Z_SCORE	BLCA	Apoptosis regulation	0.38
+high_ploidy_sensitive	Z_SCORE	BLCA	Protein stability and degradation	0.956666666666667
+high_ploidy_sensitive	Z_SCORE	BLCA	Metabolism	0.136666666666667
+high_ploidy_sensitive	Z_SCORE	BLCA	Hormone related	0.133333333333333
+high_ploidy_sensitive	Z_SCORE	BLCA	p53 pathway	0.663333333333333
+high_ploidy_sensitive	Z_SCORE	BLCA	Other reviewed	0.86
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Signaling	0.216666666666667
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Epigenetics and transcription	0.00333333333333333
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Genome integrity and DNA damage	0.923333333333333
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Cell cycle and mitosis	0.456666666666667
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Apoptosis regulation	0.03
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Protein stability and degradation	0.453333333333333
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Metabolism	0.17
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Hormone related	0.973333333333333
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	p53 pathway	0.563333333333333
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Other reviewed	0.88
+high_ploidy_sensitive	Z_SCORE	KIRC	Signaling	0.163333333333333
+high_ploidy_sensitive	Z_SCORE	KIRC	Epigenetics and transcription	0.74
+high_ploidy_sensitive	Z_SCORE	KIRC	Genome integrity and DNA damage	0.586666666666667
+high_ploidy_sensitive	Z_SCORE	KIRC	Cell cycle and mitosis	0.23
+high_ploidy_sensitive	Z_SCORE	KIRC	Apoptosis regulation	0.23
+high_ploidy_sensitive	Z_SCORE	KIRC	Protein stability and degradation	0.0466666666666667
+high_ploidy_sensitive	Z_SCORE	KIRC	Metabolism	0.57
+high_ploidy_sensitive	Z_SCORE	KIRC	Hormone related	0.23
+high_ploidy_sensitive	Z_SCORE	KIRC	p53 pathway	0.756666666666667
+high_ploidy_sensitive	Z_SCORE	KIRC	Other reviewed	0.956666666666667
+high_ploidy_sensitive	Z_SCORE	THCA	Signaling	0.0833333333333333
+high_ploidy_sensitive	Z_SCORE	THCA	Epigenetics and transcription	0.246666666666667
+high_ploidy_sensitive	Z_SCORE	THCA	Genome integrity and DNA damage	0.553333333333333
+high_ploidy_sensitive	Z_SCORE	THCA	Cell cycle and mitosis	0.806666666666667
+high_ploidy_sensitive	Z_SCORE	THCA	Apoptosis regulation	0.933333333333333
+high_ploidy_sensitive	Z_SCORE	THCA	Protein stability and degradation	0.07
+high_ploidy_sensitive	Z_SCORE	THCA	Metabolism	0.846666666666667
+high_ploidy_sensitive	Z_SCORE	THCA	Hormone related	0.233333333333333
+high_ploidy_sensitive	Z_SCORE	THCA	p53 pathway	0.81
+high_ploidy_sensitive	Z_SCORE	THCA	Other reviewed	1
+high_ploidy_sensitive	Z_SCORE	SKCM	Signaling	0.623333333333333
+high_ploidy_sensitive	Z_SCORE	SKCM	Epigenetics and transcription	0.02
+high_ploidy_sensitive	Z_SCORE	SKCM	Genome integrity and DNA damage	0.98
+high_ploidy_sensitive	Z_SCORE	SKCM	Cell cycle and mitosis	0.3
+high_ploidy_sensitive	Z_SCORE	SKCM	Apoptosis regulation	0.176666666666667
+high_ploidy_sensitive	Z_SCORE	SKCM	Protein stability and degradation	0.996666666666667
+high_ploidy_sensitive	Z_SCORE	SKCM	Metabolism	0.763333333333333
+high_ploidy_sensitive	Z_SCORE	SKCM	Hormone related	0.433333333333333
+high_ploidy_sensitive	Z_SCORE	SKCM	p53 pathway	0.446666666666667
+high_ploidy_sensitive	Z_SCORE	SKCM	Other reviewed	0.1
+high_ploidy_sensitive	Z_SCORE	DLBC	Signaling	1
+high_ploidy_sensitive	Z_SCORE	DLBC	Epigenetics and transcription	0.853333333333333
+high_ploidy_sensitive	Z_SCORE	DLBC	Genome integrity and DNA damage	0.0833333333333333
+high_ploidy_sensitive	Z_SCORE	DLBC	Cell cycle and mitosis	0.0866666666666667
+high_ploidy_sensitive	Z_SCORE	DLBC	Apoptosis regulation	0.72
+high_ploidy_sensitive	Z_SCORE	DLBC	Protein stability and degradation	0.303333333333333
+high_ploidy_sensitive	Z_SCORE	DLBC	Metabolism	0.0433333333333333
+high_ploidy_sensitive	Z_SCORE	DLBC	Hormone related	0.396666666666667
+high_ploidy_sensitive	Z_SCORE	DLBC	p53 pathway	0.676666666666667
+high_ploidy_sensitive	Z_SCORE	DLBC	Other reviewed	0.00333333333333333
+high_ploidy_sensitive	Z_SCORE	LUAD	Signaling	0.00333333333333333
+high_ploidy_sensitive	Z_SCORE	LUAD	Epigenetics and transcription	0.363333333333333
+high_ploidy_sensitive	Z_SCORE	LUAD	Genome integrity and DNA damage	0.00333333333333333
+high_ploidy_sensitive	Z_SCORE	LUAD	Cell cycle and mitosis	0.883333333333333
+high_ploidy_sensitive	Z_SCORE	LUAD	Apoptosis regulation	0.0766666666666667
+high_ploidy_sensitive	Z_SCORE	LUAD	Protein stability and degradation	0.09
+high_ploidy_sensitive	Z_SCORE	LUAD	Metabolism	0.646666666666667
+high_ploidy_sensitive	Z_SCORE	LUAD	Hormone related	0.653333333333333
+high_ploidy_sensitive	Z_SCORE	LUAD	p53 pathway	0.236666666666667
+high_ploidy_sensitive	Z_SCORE	LUAD	Other reviewed	1
+high_ploidy_sensitive	Z_SCORE	ALL	Signaling	0
+high_ploidy_sensitive	Z_SCORE	ALL	Epigenetics and transcription	0.03
+high_ploidy_sensitive	Z_SCORE	ALL	Genome integrity and DNA damage	0.983333333333333
+high_ploidy_sensitive	Z_SCORE	ALL	Cell cycle and mitosis	0.92
+high_ploidy_sensitive	Z_SCORE	ALL	Apoptosis regulation	0.58
+high_ploidy_sensitive	Z_SCORE	ALL	Protein stability and degradation	0.1
+high_ploidy_sensitive	Z_SCORE	ALL	Metabolism	0.686666666666667
+high_ploidy_sensitive	Z_SCORE	ALL	Hormone related	0.25
+high_ploidy_sensitive	Z_SCORE	ALL	p53 pathway	0.186666666666667
+high_ploidy_sensitive	Z_SCORE	ALL	Other reviewed	0.856666666666667
+high_ploidy_sensitive	Z_SCORE	MM	Signaling	0.963333333333333
+high_ploidy_sensitive	Z_SCORE	MM	Epigenetics and transcription	0.14
+high_ploidy_sensitive	Z_SCORE	MM	Genome integrity and DNA damage	1
+high_ploidy_sensitive	Z_SCORE	MM	Cell cycle and mitosis	0
+high_ploidy_sensitive	Z_SCORE	MM	Apoptosis regulation	0.57
+high_ploidy_sensitive	Z_SCORE	MM	Protein stability and degradation	0.903333333333333
+high_ploidy_sensitive	Z_SCORE	MM	Metabolism	0.11
+high_ploidy_sensitive	Z_SCORE	MM	Hormone related	0.643333333333333
+high_ploidy_sensitive	Z_SCORE	MM	p53 pathway	0.54
+high_ploidy_sensitive	Z_SCORE	MM	Other reviewed	0.09
+high_ploidy_sensitive	Z_SCORE	PAAD	Signaling	0.93
+high_ploidy_sensitive	Z_SCORE	PAAD	Epigenetics and transcription	0.816666666666667
+high_ploidy_sensitive	Z_SCORE	PAAD	Genome integrity and DNA damage	0.09
+high_ploidy_sensitive	Z_SCORE	PAAD	Cell cycle and mitosis	0.79
+high_ploidy_sensitive	Z_SCORE	PAAD	Apoptosis regulation	0.4
+high_ploidy_sensitive	Z_SCORE	PAAD	Protein stability and degradation	0.49
+high_ploidy_sensitive	Z_SCORE	PAAD	Metabolism	0.00666666666666667
+high_ploidy_sensitive	Z_SCORE	PAAD	Hormone related	0.413333333333333
+high_ploidy_sensitive	Z_SCORE	PAAD	p53 pathway	0.393333333333333
+high_ploidy_sensitive	Z_SCORE	PAAD	Other reviewed	0.65
+high_ploidy_sensitive	Z_SCORE	BRCA	Signaling	0
+high_ploidy_sensitive	Z_SCORE	BRCA	Epigenetics and transcription	0.243333333333333
+high_ploidy_sensitive	Z_SCORE	BRCA	Genome integrity and DNA damage	0.83
+high_ploidy_sensitive	Z_SCORE	BRCA	Cell cycle and mitosis	0.976666666666667
+high_ploidy_sensitive	Z_SCORE	BRCA	Apoptosis regulation	1
+high_ploidy_sensitive	Z_SCORE	BRCA	Protein stability and degradation	0.133333333333333
+high_ploidy_sensitive	Z_SCORE	BRCA	Metabolism	0.536666666666667
+high_ploidy_sensitive	Z_SCORE	BRCA	Hormone related	0.843333333333333
+high_ploidy_sensitive	Z_SCORE	BRCA	p53 pathway	0.843333333333333
+high_ploidy_sensitive	Z_SCORE	BRCA	Other reviewed	0.463333333333333
+high_ploidy_sensitive	Z_SCORE	HNSC	Signaling	0
+high_ploidy_sensitive	Z_SCORE	HNSC	Epigenetics and transcription	0.57
+high_ploidy_sensitive	Z_SCORE	HNSC	Genome integrity and DNA damage	0.936666666666667
+high_ploidy_sensitive	Z_SCORE	HNSC	Cell cycle and mitosis	0.953333333333333
+high_ploidy_sensitive	Z_SCORE	HNSC	Apoptosis regulation	0.753333333333333
+high_ploidy_sensitive	Z_SCORE	HNSC	Protein stability and degradation	0.0233333333333333
+high_ploidy_sensitive	Z_SCORE	HNSC	Metabolism	0.506666666666667
+high_ploidy_sensitive	Z_SCORE	HNSC	Hormone related	0.276666666666667
+high_ploidy_sensitive	Z_SCORE	HNSC	p53 pathway	0.253333333333333
+high_ploidy_sensitive	Z_SCORE	HNSC	Other reviewed	0.97
+high_ploidy_sensitive	Z_SCORE	NB	Signaling	0.81
+high_ploidy_sensitive	Z_SCORE	NB	Epigenetics and transcription	1
+high_ploidy_sensitive	Z_SCORE	NB	Genome integrity and DNA damage	0.19
+high_ploidy_sensitive	Z_SCORE	NB	Cell cycle and mitosis	0.673333333333333
+high_ploidy_sensitive	Z_SCORE	NB	Apoptosis regulation	0.746666666666667
+high_ploidy_sensitive	Z_SCORE	NB	Protein stability and degradation	0.653333333333333
+high_ploidy_sensitive	Z_SCORE	NB	Metabolism	0.07
+high_ploidy_sensitive	Z_SCORE	NB	Hormone related	0.0933333333333333
+high_ploidy_sensitive	Z_SCORE	NB	p53 pathway	0.706666666666667
+high_ploidy_sensitive	Z_SCORE	NB	Other reviewed	1
+high_ploidy_sensitive	Z_SCORE	COREAD	Signaling	0
+high_ploidy_sensitive	Z_SCORE	COREAD	Epigenetics and transcription	0.993333333333333
+high_ploidy_sensitive	Z_SCORE	COREAD	Genome integrity and DNA damage	0.99
+high_ploidy_sensitive	Z_SCORE	COREAD	Cell cycle and mitosis	0.23
+high_ploidy_sensitive	Z_SCORE	COREAD	Apoptosis regulation	0.21
+high_ploidy_sensitive	Z_SCORE	COREAD	Protein stability and degradation	0.676666666666667
+high_ploidy_sensitive	Z_SCORE	COREAD	Metabolism	0.78
+high_ploidy_sensitive	Z_SCORE	COREAD	Hormone related	0.0766666666666667
+high_ploidy_sensitive	Z_SCORE	COREAD	p53 pathway	0.953333333333333
+high_ploidy_sensitive	Z_SCORE	COREAD	Other reviewed	0.656666666666667
+high_ploidy_sensitive	Z_SCORE	LIHC	Signaling	0.723333333333333
+high_ploidy_sensitive	Z_SCORE	LIHC	Epigenetics and transcription	0.0133333333333333
+high_ploidy_sensitive	Z_SCORE	LIHC	Genome integrity and DNA damage	0.406666666666667
+high_ploidy_sensitive	Z_SCORE	LIHC	Cell cycle and mitosis	0.143333333333333
+high_ploidy_sensitive	Z_SCORE	LIHC	Apoptosis regulation	0.0633333333333333
+high_ploidy_sensitive	Z_SCORE	LIHC	Protein stability and degradation	0.626666666666667
+high_ploidy_sensitive	Z_SCORE	LIHC	Metabolism	0.92
+high_ploidy_sensitive	Z_SCORE	LIHC	Hormone related	0.5
+high_ploidy_sensitive	Z_SCORE	LIHC	p53 pathway	0.0333333333333333
+high_ploidy_sensitive	Z_SCORE	LIHC	Other reviewed	0.91
+high_ploidy_sensitive	Z_SCORE	LAML	Signaling	0.94
+high_ploidy_sensitive	Z_SCORE	LAML	Epigenetics and transcription	0.576666666666667
+high_ploidy_sensitive	Z_SCORE	LAML	Genome integrity and DNA damage	0.0566666666666667
+high_ploidy_sensitive	Z_SCORE	LAML	Cell cycle and mitosis	0.0933333333333333
+high_ploidy_sensitive	Z_SCORE	LAML	Apoptosis regulation	0.56
+high_ploidy_sensitive	Z_SCORE	LAML	Protein stability and degradation	0.09
+high_ploidy_sensitive	Z_SCORE	LAML	Metabolism	0.236666666666667
+high_ploidy_sensitive	Z_SCORE	LAML	Hormone related	0.953333333333333
+high_ploidy_sensitive	Z_SCORE	LAML	p53 pathway	0.35
+high_ploidy_sensitive	Z_SCORE	LAML	Other reviewed	0.0433333333333333
+high_ploidy_sensitive	Z_SCORE	SCLC	Signaling	0.996666666666667
+high_ploidy_sensitive	Z_SCORE	SCLC	Epigenetics and transcription	0.433333333333333
+high_ploidy_sensitive	Z_SCORE	SCLC	Genome integrity and DNA damage	0
+high_ploidy_sensitive	Z_SCORE	SCLC	Cell cycle and mitosis	0.67
+high_ploidy_sensitive	Z_SCORE	SCLC	Apoptosis regulation	0.316666666666667
+high_ploidy_sensitive	Z_SCORE	SCLC	Protein stability and degradation	0.71
+high_ploidy_sensitive	Z_SCORE	SCLC	Metabolism	0.13
+high_ploidy_sensitive	Z_SCORE	SCLC	Hormone related	0.943333333333333
+high_ploidy_sensitive	Z_SCORE	SCLC	p53 pathway	0.89
+high_ploidy_sensitive	Z_SCORE	SCLC	Other reviewed	0.253333333333333
+high_ploidy_sensitive	Z_SCORE	ESCA	Signaling	0.643333333333333
+high_ploidy_sensitive	Z_SCORE	ESCA	Epigenetics and transcription	0.833333333333333
+high_ploidy_sensitive	Z_SCORE	ESCA	Genome integrity and DNA damage	0.0866666666666667
+high_ploidy_sensitive	Z_SCORE	ESCA	Cell cycle and mitosis	0.846666666666667
+high_ploidy_sensitive	Z_SCORE	ESCA	Apoptosis regulation	0.923333333333333
+high_ploidy_sensitive	Z_SCORE	ESCA	Protein stability and degradation	0.833333333333333
+high_ploidy_sensitive	Z_SCORE	ESCA	Metabolism	0.573333333333333
+high_ploidy_sensitive	Z_SCORE	ESCA	Hormone related	0.0266666666666667
+high_ploidy_sensitive	Z_SCORE	ESCA	p53 pathway	0.39
+high_ploidy_sensitive	Z_SCORE	ESCA	Other reviewed	0.253333333333333
+high_ploidy_sensitive	Z_SCORE	OV	Signaling	0.00333333333333333
+high_ploidy_sensitive	Z_SCORE	OV	Epigenetics and transcription	0.81
+high_ploidy_sensitive	Z_SCORE	OV	Genome integrity and DNA damage	0.266666666666667
+high_ploidy_sensitive	Z_SCORE	OV	Cell cycle and mitosis	0.776666666666667
+high_ploidy_sensitive	Z_SCORE	OV	Apoptosis regulation	0.763333333333333
+high_ploidy_sensitive	Z_SCORE	OV	Protein stability and degradation	0.196666666666667
+high_ploidy_sensitive	Z_SCORE	OV	Metabolism	0.623333333333333
+high_ploidy_sensitive	Z_SCORE	OV	Hormone related	0.483333333333333
+high_ploidy_sensitive	Z_SCORE	OV	p53 pathway	0.206666666666667
+high_ploidy_sensitive	Z_SCORE	OV	Other reviewed	1
+high_ploidy_sensitive	Z_SCORE	LUSC	Signaling	0.08
+high_ploidy_sensitive	Z_SCORE	LUSC	Epigenetics and transcription	0.776666666666667
+high_ploidy_sensitive	Z_SCORE	LUSC	Genome integrity and DNA damage	0.0133333333333333
+high_ploidy_sensitive	Z_SCORE	LUSC	Cell cycle and mitosis	0.05
+high_ploidy_sensitive	Z_SCORE	LUSC	Apoptosis regulation	0.64
+high_ploidy_sensitive	Z_SCORE	LUSC	Protein stability and degradation	0.276666666666667
+high_ploidy_sensitive	Z_SCORE	LUSC	Metabolism	0.883333333333333
+high_ploidy_sensitive	Z_SCORE	LUSC	Hormone related	0.81
+high_ploidy_sensitive	Z_SCORE	LUSC	p53 pathway	0.193333333333333
+high_ploidy_sensitive	Z_SCORE	LUSC	Other reviewed	0.05
+high_ploidy_sensitive	Z_SCORE	LGG	Signaling	0.513333333333333
+high_ploidy_sensitive	Z_SCORE	LGG	Epigenetics and transcription	0.0133333333333333
+high_ploidy_sensitive	Z_SCORE	LGG	Genome integrity and DNA damage	0.0266666666666667
+high_ploidy_sensitive	Z_SCORE	LGG	Cell cycle and mitosis	0.89
+high_ploidy_sensitive	Z_SCORE	LGG	Apoptosis regulation	0.52
+high_ploidy_sensitive	Z_SCORE	LGG	Protein stability and degradation	0.8
+high_ploidy_sensitive	Z_SCORE	LGG	Metabolism	0.63
+high_ploidy_sensitive	Z_SCORE	LGG	Hormone related	0.0833333333333333
+high_ploidy_sensitive	Z_SCORE	LGG	p53 pathway	0.436666666666667
+high_ploidy_sensitive	Z_SCORE	LGG	Other reviewed	1

@@ -37,19 +37,23 @@ parse_args <- function(args) {
 }
 
 args <- parse_args(commandArgs(TRUE))
+default_output_dir <- file.path(
+  repo_root,
+  "Results",
+  "in-vivo",
+  "pseudotime_associations",
+  "runs",
+  paste0(format(Sys.time(), "%Y%m%dT%H%M%S"), "_pseudotime_associations")
+)
 input_csv <- if (!is.null(args$input)) args$input else file.path(
   repo_root,
   "Data",
   "in-vivo",
   "CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
 )
-if (!is.null(args$output_dir)) {
-  fig_dir <- file.path(args$output_dir, "figures")
-  table_dir <- file.path(args$output_dir, "tables")
-} else {
-  fig_dir <- file.path(repo_root, "Figs")
-  table_dir <- fig_dir
-}
+out_dir <- if (!is.null(args$output_dir)) args$output_dir else default_output_dir
+fig_dir <- file.path(out_dir, "figures")
+table_dir <- file.path(out_dir, "tables")
 dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(table_dir, recursive = TRUE, showWarnings = FALSE)
 

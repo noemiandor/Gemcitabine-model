@@ -24,6 +24,7 @@ Methods:
 """
 
 import argparse
+from datetime import datetime
 import os
 import re
 import warnings
@@ -258,13 +259,24 @@ def make_ordered_zscore_heatmap(X_log2, ordered_cols, results, output_png, outpu
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, help="Input .xlsm/.xlsx metabolomics file")
-    parser.add_argument("--outdir", default="ordered_response_heatmap_output", help="Output directory")
+    parser.add_argument("--outdir", help="Output directory")
     parser.add_argument("--output-dir", help="Canonical output directory; writes plots to figures/ and tables to tables/.")
     args = parser.parse_args()
 
-    canonical_output = args.output_dir is not None
+    canonical_output = args.output_dir is not None or args.outdir is None
     if canonical_output:
-        args.outdir = args.output_dir
+        if args.output_dir:
+            args.outdir = args.output_dir
+        else:
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            args.outdir = os.path.join(
+                repo_root,
+                "Results",
+                "in-vitro",
+                "metabolomics",
+                "runs",
+                f"{datetime.now().strftime('%Y%m%dT%H%M%S')}_metabolomics_zscore",
+            )
 
     os.makedirs(args.outdir, exist_ok=True)
     figdir = os.path.join(args.outdir, "figures") if canonical_output else args.outdir

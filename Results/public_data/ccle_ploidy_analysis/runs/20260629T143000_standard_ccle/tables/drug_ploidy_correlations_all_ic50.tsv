@@ -1,0 +1,17 @@
+drug	estimate	p.value	n	drugName	pathway_name	drugCategory	display_drug
+crizotinib	-0.248464033186007	0.220982578800984	26	crizotinib	ALK/HGFR Inhibitor		Crizotinib
+pd0325901	-0.243698659650185	0.230255200432483	26	pd0325901	MEK Inhibitor		Pd0325901
+erlotinib	-0.174106098587395	0.394973091529635	26	erlotinib	EGFR Inhibitor		Erlotinib
+lapatinib	-0.0904190743514658	0.660461958957821	26	lapatinib	HER1/EGFR/ERBB1 Inhibitor		Lapatinib
+rapamycin	-0.0732930150354339	0.727710851272903	25	rapamycin	Other		Rapamycin
+gdc0941	0.0335335362787299	0.873567982367386	25	gdc0941	Other		Gdc0941
+thapsigargin	0.0617474394594462	0.769361051644988	25	thapsigargin	Other		Thapsigargin
+doxorubicin	0.279844000789068	0.175469062169747	25	doxorubicin	Other		Doxorubicin
+bortezomib	0.280671671283859	0.174141901223165	25	bortezomib	Other		Bortezomib
+docetaxel	0.314134370834652	0.126197128548764	25	docetaxel	Other		Docetaxel
+vorinostat	0.318668011813858	0.120527794036964	25	vorinostat	Other		Vorinostat
+gemcitabine	0.322700550865162	0.115643366961218	25	gemcitabine	Other		Gemcitabine
+irinotecan	0.366481976571712	0.0715639194004933	25	irinotecan	DNA replication		Irinotecan
+paclitaxel	0.595294321681249	0.00133579788568766	26	paclitaxel	Other		Paclitaxel
+ms275			25	ms275	Other		Ms275
+bid1870			25	bid1870	Other		Bid1870

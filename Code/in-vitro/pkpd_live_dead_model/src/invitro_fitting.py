@@ -590,7 +590,14 @@ def default_experiment_paths(project_root: Optional[Path] = None) -> ExperimentP
     root = (project_root or PROJECT_ROOT).resolve()
     exp_base = root / "Data" / "in-vitro" / "pkpd_live_dead_model"
     count_base = root / "Data" / "GemDelayKillTerm" / "processed"
-    output_dir = exp_base / "invitro_fitting_outputs" / datetime.now().strftime("%Y%m%dT%H%M%S")
+    output_dir = (
+        root
+        / "Results"
+        / "in-vitro"
+        / "pkpd_live_dead_model"
+        / "runs"
+        / f"{datetime.now().strftime('%Y%m%dT%H%M%S')}_pkpd_fit"
+    )
     return ExperimentPaths(
         project_root=root,
         exp_base=exp_base,

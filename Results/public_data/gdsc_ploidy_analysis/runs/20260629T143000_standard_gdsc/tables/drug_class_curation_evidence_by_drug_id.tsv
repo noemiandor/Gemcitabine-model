@@ -1,0 +1,296 @@
+drug_key	DRUG_ID	DRUG_NAME	PUTATIVE_TARGET	PATHWAY_NAME
+123138	1824	123138		Unclassified
+123829	1820	123829		Unclassified
+150412	1836	150412		Unclassified
+5-AZACYTIDINE	2156	5-azacytidine	DNA methyltransferases	Other
+5-FLUOROURACIL	1073	5-Fluorouracil	Antimetabolite (DNA & RNA)	Other
+50869	1826	50869		Unclassified
+615590	1839	615590		Unclassified
+630600	1840	630600		Unclassified
+667880	1829	667880		Unclassified
+720427	1828	720427		Unclassified
+729189	1832	729189		Unclassified
+741909	1833	741909		Unclassified
+743380	1834	743380		Unclassified
+765771	1821	765771		Unclassified
+776928	1844	776928		Unclassified
+A-366	2157	A-366	EHMT1, EHMT2	Chromatin histone methylation
+ABT737	1910	ABT737	BCL2, BCL-XL,  BCL-W, BCL-B, BFL1	Apoptosis regulation
+ACETALAX	1803	Acetalax		Unclassified
+ACETALAX	1804	Acetalax		Unclassified
+AFATINIB	1032	Afatinib	EGFR, ERBB2	EGFR signaling
+AFURESERTIB	1912	Afuresertib	AKT1, AKT2, AKT3	PI3K/MTOR signaling
+AGI-5198	1913	AGI-5198	IDH1 (R132H)	Metabolism
+AGI-6780	1634	AGI-6780	IDH2 R140Q mutant	Metabolism
+AGK2	2039	AGK2	BAZ2A, BAZ2B	Chromatin histone acetylation
+ALISERTIB	1051	Alisertib	AURKA	Mitosis
+ALPELISIB	1560	Alpelisib	PI3Kalpha	PI3K/MTOR signaling
+ALPHA-LIPOIC ACID	2498	alpha-lipoic acid	Metabolism	Metabolism
+AMG-319	2045	AMG-319	PI3K (beta sparing)	PI3K/MTOR signaling
+ASCORBATE (VITAMIN C)	2438	ascorbate (vitamin C)	anti-oxidant proteins	Other
+AT13148	2170	AT13148	AKT1	PI3K/MTOR signaling
+AVAGACESTAT	1072	Avagacestat	Amyloid beta20, Amyloid beta40	Other
+AXITINIB	1021	Axitinib	PDGFR, KIT, VEGFR	RTK signaling
+AZ6102	2109	AZ6102	TNKS1, TNKS2	WNT signaling
+AZ960	1250	AZ960	JAK2, JAK3	Other, kinases
+AZD1208	1449	AZD1208	PIM1, PIM2, PIM3	Other, kinases
+AZD1332	1463	AZD1332	NTRK1, NTRK2, NTRK3	RTK signaling
+AZD2014	1441	AZD2014	mTORC1, mTORC2	PI3K/MTOR signaling
+AZD3759	1915	AZD3759	EGFR	EGFR signaling
+AZD4547	1786	AZD4547	FGFR1, FGFR2, FGFR3	RTK signaling
+AZD5153	1706	AZD5153	BRD4	Chromatin other
+AZD5363	1916	AZD5363	AKT1, AKT2, AKT3, ROCK2	Other, kinases
+AZD5438	1401	AZD5438	CDK2	Cell cycle
+AZD5582	1617	AZD5582	XIAP, cIAP	Apoptosis regulation
+AZD5991	1720	AZD5991	MCL1	Apoptosis regulation
+AZD6482	2169	AZD6482	PI3Kbeta	PI3K/MTOR signaling
+AZD6738	1917	AZD6738	ATR	Genome integrity
+AZD7762	1022	AZD7762	CHEK1, CHEK2	Cell cycle
+AZD8055	1059	AZD8055	MTORC1, MTORC2	PI3K/MTOR signaling
+AZD8186	1918	AZD8186	PI3Kalpha, PI3Kbeta	PI3K/MTOR signaling
+BDF00022089A	1585	BDF00022089a	BRPF1, BRPF2, BRPF3	Chromatin histone acetylation
+BDILV000379A	1586	BDILV000379a	BAZ2A, BAZ2B	Chromatin histone acetylation
+BDOCA000347A	1584	BDOCA000347a	BRPF1, BRPF2, BRPF3	Chromatin histone acetylation
+BDP-00009066	1866	BDP-00009066	MRCKB_HUMAN	Cytoskeleton
+BEN	1847	BEN		Unclassified
+BI-2536	1086	BI-2536	PLK1, PLK2, PLK3	Cell cycle
+BIBR-1532	2043	BIBR-1532	TERT	Genome integrity
+BICALUTAMIDE	1502	Bicalutamide	AR	Hormone-related
+BLEOMYCIN	1812	Bleomycin	dsDNA break induction	DNA replication
+BLEOMYCIN (50 UM)	1378	Bleomycin (50 uM)	dsDNA break induction	DNA replication
+BMS-345541	1249	BMS-345541	IKK-1, IKK-2	Other
+BMS-536924	1091	BMS-536924	IGF1R, IR	IGF1R signaling
+BMS-754807	2171	BMS-754807	IGF1R, IR	IGF1R signaling
+BORTEZOMIB	1191	Bortezomib	Proteasome	Protein stability and degradation
+BOSUTINIB	1019	Bosutinib	SRC, ABL, TEC	Other, kinases
+BPD-00008900	1998	BPD-00008900		Other
+BROMOSPORINE	1581	Bromosporine	CECR2, BRD2, BRD4, BRD9	Chromatin other
+BUPARLISIB	1873	Buparlisib	PI3Kalpha, PI3Kdelta, PI3Kbeta, PI3Kgamma	PI3K/MTOR signaling
+BX795	1037	BX795	TBK1, PDK1 (PDPK1), IKK, AURKB, AURKC	Other, kinases
+CAMPTOTHECIN	1003	Camptothecin	TOP1	DNA replication
+CCT-018159	1170	CCT-018159	HSP90	Protein stability and degradation
+CCT007093	1067	CCT007093	PPM1D	Cell cycle
+CDK9_5038	1709	CDK9_5038	CDK9	Cell cycle
+CDK9_5576	1708	CDK9_5576	CDK9	Cell cycle
+CEDIRANIB	1922	Cediranib	VEGFR, FLT1, FLT2, FLT3, FLT4, KIT, PDGFRB	RTK signaling
+CHIR-99021	2175	CHIR-99021	GSK3A, GSK3B	WNT signaling
+CISPLATIN	1005	Cisplatin	DNA crosslinker	DNA replication
+CPI-637	2158	CPI-637	EP300	Chromatin histone methylation
+CRIZOTINIB	1083	Crizotinib	MET, ALK, ROS1	RTK signaling
+CT7033-2	2149	CT7033-2	KDM4A, KDM4C, KDM4E, KDM3A, KDM6B	Chromatin histone methylation
+CYCLOPHOSPHAMIDE	1512	Cyclophosphamide	Alkylating agent	DNA replication
+CYTARABINE	1006	Cytarabine	Antimetabolite	Other
+CZC24832	1615	CZC24832	PI3Kgamma	PI3K/MTOR signaling
+DABRAFENIB	1373	Dabrafenib	BRAF	ERK MAPK signaling
+DACARBAZINE	1815	Dacarbazine	CP11A	Other
+DACTINOMYCIN	1811	Dactinomycin	RNA polymerase	Other
+DACTINOMYCIN	1911	Dactinomycin	RNA polymerase	Other
+DACTOLISIB	1057	Dactolisib	PI3K (class 1), MTORC1, MTORC2	PI3K/MTOR signaling
+DAPORINAD	1248	Daporinad	NAMPT	Metabolism
+DASATINIB	1079	Dasatinib	ABL, SRC, Ephrins, PDGFR, KIT	Other, kinases
+DIHYDROROTENONE	1827	Dihydrorotenone		Unclassified
+DINACICLIB	1180	Dinaciclib	CDK1, CDK2, CDK5, CDK9	Cell cycle
+DOCETAXEL	1007	Docetaxel	Microtubule stabiliser	Mitosis
+DOCETAXEL	1819	Docetaxel	Microtubule stabiliser	Mitosis
+DORAMAPIMOD	1042	Doramapimod	p38, JNK2	JNK and p38 signaling
+EG5_9814	1712	Eg5_9814	KSP11	Other
+EHT-1864	1069	EHT-1864	RAC1, RAC2, RAC3	Cytoskeleton
+ELEPHANTIN	1835	Elephantin		Unclassified
+ELESCLOMOL	1031	Elesclomol	HSP90	Protein stability and degradation
+ENTINOSTAT	1593	Entinostat	HDAC1, HDAC3	Chromatin histone acetylation
+ENTOSPLETINIB	1630	Entospletinib	SYK	Other, kinases
+EPIRUBICIN	1511	Epirubicin	Anthracycline	DNA replication
+EPZ004777	1237	EPZ004777	DOT1L	Chromatin histone methylation
+EPZ5676	1563	EPZ5676	DOT1L	Chromatin histone methylation
+ERK_2440	1713	ERK_2440	ERK1,ERK2	ERK MAPK signaling
+ERK_6604	1714	ERK_6604	ERK1,ERK2	ERK MAPK signaling
+ERLOTINIB	1168	Erlotinib	EGFR	EGFR signaling
+FLUDARABINE	1813	Fludarabine	Antimetabolite	DNA replication
+FORETINIB	2040	Foretinib	MET, KDR, TIE2, VEGFR3/FLT4, RON, PDGFR, FGFR1, EGFR	RTK signaling
+FULVESTRANT	1200	Fulvestrant	ESR	Hormone-related
+FULVESTRANT	1816	Fulvestrant	ESR	Hormone-related
+GALLIBISCOQUINAZOLE	1830	Gallibiscoquinazole		Unclassified
+GDC0810	1925	GDC0810	ESR1, ESR2	Hormone-related
+GEFITINIB	1010	Gefitinib	EGFR	EGFR signaling
+GEMCITABINE	1190	Gemcitabine	Pyrimidine antimetabolite	DNA replication
+GLUTATHIONE	2439	glutathione	anti-oxidant proteins	Other
+GNE-317	1926	GNE-317	PI3Kalpha	PI3K/MTOR signaling
+GSK-LSD1	1583	GSK-LSD1	KDM1	Chromatin histone methylation
+GSK-LSD1-2HCL	2154	GSK-LSD1-2HCl 	LSD1	Chromatin histone methylation
+GSK1904529A	1093	GSK1904529A	IGF1R, IR	IGF1R signaling
+GSK2110183B	1778	GSK2110183B	AKT1, AKT2, AKT3	PI3K/MTOR signaling
+GSK2256098C	1776	GSK2256098C	FAK1	Cytoskeleton
+GSK2276186C	1777	GSK2276186C	JAK1, JAK2, JAK3	Other, kinases
+GSK2578215A	1927	GSK2578215A	LRRK2	Other, kinases
+GSK2606414	1618	GSK2606414	PERK	Metabolism
+GSK269962A	1192	GSK269962A	ROCK1, ROCK2	Cytoskeleton
+GSK2801	1580	GSK2801		Chromatin other
+GSK2830371	2359	GSK2830371	WIP1	Other
+GSK2830371A	1782	GSK2830371A	PPM1D	Other
+GSK3337463A	1780	GSK3337463A	NIK	Other, kinases
+GSK343	1627	GSK343	EZH2	Chromatin histone methylation
+GSK343	2037	GSK343	EZH2	Chromatin histone methylation
+GSK591	2110	GSK591	PMRT5	Chromatin histone methylation
+GSK626616AC	1779	GSK626616AC	DYRK1A	Other, kinases
+GW441756	1023	GW441756	NTRK1	RTK signaling
+HKMTI-1-005	2010	HKMTI-1-005		Unclassified
+I-BET-762	1624	I-BET-762	BRD2, BRD3, BRD4	Chromatin other
+I-BRD9	1928	I-BRD9	BRD9	Chromatin other
+IAP_5620	1428	IAP_5620	IAP	Other
+IBRUTINIB	1799	Ibrutinib	BTK	Other, kinases
+ICL-SIRT078	2011	ICL-SIRT078	SIR2	Other
+IGF1R_3801	1738	IGF1R_3801	IGFR1	IGF1R signaling
+IOX2	2174	IOX2	EGLN1	Other
+IPATASERTIB	1924	Ipatasertib	AKT1, AKT, AKT3	PI3K/MTOR signaling
+IRAK4_4710	1716	IRAK4_4710	IRAK4	Other, kinases
+IRINOTECAN	1088	Irinotecan	TOP1	DNA replication
+IWP-2	1576	IWP-2	PORCN	WNT signaling
+JAK_8517	1739	JAK_8517	JAK1, JAK2	Other, kinases
+JAK1_8709	1718	JAK1_8709	JAK1	Other, kinases
+JNK INHIBITOR VIII	1043	JNK Inhibitor VIII	JNK	JNK and p38 signaling
+JQ1	2172	JQ1	BRD2, BRD3, BRD4, BRDT	Chromatin other
+KRAS (G12C) INHIBITOR-12	1855	KRAS (G12C) Inhibitor-12	KRAS (G12C)	ERK MAPK signaling
+KU-55933	1030	KU-55933	ATM	Genome integrity
+L-OXONORELEAGNINE	1831	L-Oxonoreleagnine		Unclassified
+LAPATINIB	1558	Lapatinib	EGFR, ERBB2	EGFR signaling
+LCL161	1557	LCL161	XIAP, IAP1, IAP2	Apoptosis regulation
+LEFLUNOMIDE	1578	Leflunomide	Pyrimidine synthesis inhibitor	DNA replication
+LENALIDOMIDE	1020	Lenalidomide	CRBN	Protein stability and degradation
+LESTAURTINIB	1024	Lestaurtinib	FLT3, JAK2, NTRK1, NTRK2, NTRK3	Other, kinases
+LGK974	1598	LGK974	PORCN	WNT signaling
+LINSITINIB	1510	Linsitinib	IGF1R	IGF1R signaling
+LJI308	2107	LJI308	RSK2, RSK1, RSK3	PI3K/MTOR signaling
+LMB_AB1	1783	LMB_AB1	ADRA1A, ADRB1	Other
+LMB_AB2	1784	LMB_AB2	GADD34	Unclassified
+LMB_AB3	1785	LMB_AB3	PPP1R15B	Other
+LMP744	1843	LMP744	TOP1	DNA replication
+LUMINESPIB	1559	Luminespib	HSP90	Protein stability and degradation
+LY2109761	1852	LY2109761	TGFB1	Other
+METHOTREXATE	1008	Methotrexate	Antimetabolite	DNA replication
+MG-132	1862	MG-132	Proteasome, CAPN1	Protein stability and degradation
+MIM1	1996	MIM1	MCL1	Apoptosis regulation
+MIRA-1	1931	MIRA-1	TP53	p53 pathway
+MIRIN	1048	Mirin	MRE11	Genome integrity
+MITOXANTRONE	1810	Mitoxantrone	TOP2	DNA replication
+MK-1775	1179	MK-1775	WEE1, PLK1	Cell cycle
+MK-2206	1053	MK-2206	AKT1, AKT2	PI3K/MTOR signaling
+MK-8776	2046	MK-8776	CHEK1, CHEK2, CDK2	Cell cycle
+ML323	1629	ML323	USP1, UAF1	Protein stability and degradation
+MN-64	1854	MN-64	TNKS1, TNKS2	WNT signaling
+MOTESANIB	1029	Motesanib	VEGFR, RET, KIT, PDGFR	RTK signaling
+MYCOPHENOLIC ACID	2055	Mycophenolic acid		Unclassified
+N-ACETYL CYSTEINE	2499	N-acetyl cysteine	Metabolism	Metabolism
+N25720-51-A1	1999	N25720-51-A1		Unclassified
+N27922-53-1	2000	N27922-53-1		Unclassified
+N29087-69-1	2003	N29087-69-1		Unclassified
+N30652-18-1	2002	N30652-18-1		Unclassified
+NAVITOCLAX	1011	Navitoclax	BCL2, BCL-XL, BCL-W	Apoptosis regulation
+NELARABINE	1814	Nelarabine		DNA replication
+NILOTINIB	1013	Nilotinib	ABL	ABL signaling
+NIRAPARIB	1177	Niraparib	PARP1, PARP2	Genome integrity
+NU7441	1038	NU7441	DNAPK	Genome integrity
+NUTLIN-3A (-)	1047	Nutlin-3a (-)	MDM2	p53 pathway
+NVP-ADW742	1932	NVP-ADW742	IGF1R	IGF1R signaling
+OBATOCLAX MESYLATE	1068	Obatoclax Mesylate	BCL2, BCL-XL, BCL-W, MCL1	Apoptosis regulation
+OF-1	1853	OF-1	BRPF1B, BRPF2	Chromatin histone acetylation
+OLAPARIB	1017	Olaparib	PARP1, PARP2	Genome integrity
+OSI-027	1594	OSI-027	MTORC1, MTORC2	PI3K/MTOR signaling
+OSIMERTINIB	1919	Osimertinib	EGFR	EGFR signaling
+OTX015	1626	OTX015	BRD2, BRD3, BRD4	Chromatin other
+OXALIPLATIN	1089	Oxaliplatin	DNA alkylating agent	DNA replication
+OXALIPLATIN	1806	Oxaliplatin	DNA alkylating agent	DNA replication
+P22077	1933	P22077	USP7, USP47	Protein stability and degradation
+PACLITAXEL	1080	Paclitaxel	Microtubule stabiliser	Mitosis
+PAK_5339	1730	PAK_5339	PAK1, PAK2	Cytoskeleton
+PALBOCICLIB	1054	Palbociclib	CDK4, CDK6	Cell cycle
+PBD-288	2145	PBD-288		Unclassified
+PCI-34051	1621	PCI-34051	HDAC8, HDAC6, HDAC1	Chromatin histone acetylation
+PD0325901	1060	PD0325901	MEK1, MEK2	ERK MAPK signaling
+PD173074	1049	PD173074	FGFR1, FGFR2, FGFR3	RTK signaling
+PEVONEDISTAT	1529	Pevonedistat	NAE	Other
+PF-4708671	1129	PF-4708671	S6K1	PI3K/MTOR signaling
+PFI-1	2173	PFI-1	BRD4	Chromatin other
+PFI3	1620	PFI3	Polybromo 1, SMARCA4, SMARCA2	Chromatin other
+PICOLINICI-ACID	1635	Picolinici-acid	Inflammatory related	Other
+PICTILISIB	1058	Pictilisib	PI3K (class 1)	PI3K/MTOR signaling
+PIPERLONGUMINE	1243	Piperlongumine	Induces reactive oxygen species	Other
+PLX-4720	1036	PLX-4720	BRAF	ERK MAPK signaling
+PODOPHYLLOTOXIN BROMIDE	1825	Podophyllotoxin bromide		Unclassified
+POMHEX	2148	POMHEX		Unclassified
+PRIMA-1MET	1131	PRIMA-1MET	TP53 activation	p53 pathway
+PRT062607	1631	PRT062607	SYK	Other, kinases
+PYRIDOSTATIN	2044	Pyridostatin	G-quadruplex stabiliser	DNA replication
+RAPAMYCIN	1084	Rapamycin	MTORC1	PI3K/MTOR signaling
+REFAMETINIB	1014	Refametinib	MEK1, MEK2	ERK MAPK signaling
+REMODELIN	2057	Remodelin		Unclassified
+RIBOCICLIB	1632	Ribociclib	CDK4, CDK6	Cell cycle
+RO-3306	1052	RO-3306	CDK1	Cell cycle
+ROMIDEPSIN	1817	Romidepsin	HDAC1, HDAC2, HDAC3, HDAC8	Chromatin histone acetylation
+RUCAPARIB	1175	Rucaparib	PARP1, PARP2	Genome integrity
+RUXOLITINIB	1507	Ruxolitinib	JAK1, JAK2	Other, kinases
+RVX-208	1625	RVX-208	BRD4	Chromatin other
+SABUTOCLAX	1849	Sabutoclax	BCL2,  BCL-XL,  BFL1, MCL1	Apoptosis regulation
+SAPITINIB	1549	Sapitinib	EGFR, ERBB2, ERBB3	EGFR signaling
+SAVOLITINIB	1936	Savolitinib	MET	RTK signaling
+SB216763	1025	SB216763	GSK3A, GSK3B	WNT signaling
+SB505124	1194	SB505124	TGFBR1, ACVR1B, ACVR1C	RTK signaling
+SB590885	1061	SB590885	BRAF	ERK MAPK signaling
+SCH772984	1564	SCH772984	ERK1, ERK2	ERK MAPK signaling
+SCHWEINFURTHIN A	1845	Schweinfurthin A		Unclassified
+SELUMETINIB	1062	Selumetinib	MEK1, MEK2	ERK MAPK signaling
+SELUMETINIB	1736	Selumetinib	MEK1, MEK2	ERK MAPK signaling
+SEPANTRONIUM BROMIDE	1941	Sepantronium bromide	BIRC5	Apoptosis regulation
+SERDEMETAN	1133	Serdemetan	MDM2	p53 pathway
+SGC-CBP30	1582	SGC-CBP30	EP300, CBP	Chromatin histone acetylation
+SGC0946	2177	SGC0946	DOT1L	Chromatin histone methylation
+SINULARIN	1838	Sinularin		Unclassified
+SL0101	1039	SL0101	RSK, AURKB, PIM1, PIM3	Other, kinases
+SN-38	1494	SN-38	TOP1	DNA replication
+SORAFENIB	1085	Sorafenib	PDGFR, KIT, VEGFR, RAF	Other, kinases
+STAUROSPORINE	1034	Staurosporine	Broad spectrum kinase inhibitor	RTK signaling
+TAF1_5496	1732	TAF1_5496	TAF1	Other
+TALAZOPARIB	1259	Talazoparib	PARP1, PARP2	Genome integrity
+TAMOXIFEN	1199	Tamoxifen	ESR1	Hormone-related
+TANESPIMYCIN	1026	Tanespimycin	HSP90	Protein stability and degradation
+TASELISIB	1561	Taselisib	PI3K (beta sparing)	PI3K/MTOR signaling
+TELOMERASE INHIBITOR IX	1930	Telomerase Inhibitor IX	Telomerase	Genome integrity
+TEMOZOLOMIDE	1375	Temozolomide	DNA alkylating agent	DNA replication
+TEMSIROLIMUS	1016	Temsirolimus	MTOR	PI3K/MTOR signaling
+TENIPOSIDE	1809	Teniposide		DNA replication
+THR-101	2360	THR-101	Mutant RAS	PI3K/MTOR signaling
+THR-102	2361	THR-102	Mutant RAS	PI3K/MTOR signaling
+THR-103	2362	THR-103	Mutant RAS	PI3K/MTOR signaling
+TOPOTECAN	1808	Topotecan	TOP1	DNA replication
+TOZASERTIB	1096	Tozasertib	AURKA, AURKB, AURKC, others	Mitosis
+TRAMETINIB	1372	Trametinib	MEK1, MEK2	ERK MAPK signaling
+TRETINOIN	1009	Tretinoin	Retinoic acid	Other
+TW 37	1149	TW 37	BCL2, BCL-XL, MCL1	Apoptosis regulation
+ULIXERTINIB	1908	Ulixertinib	ERK1, ERK2	ERK MAPK signaling
+ULIXERTINIB	2047	Ulixertinib	ERK1, ERK2	ERK MAPK signaling
+ULK1_4989	1733	ULK1_4989	ULK1	Other, kinases
+UMI-77	1939	UMI-77	MCL1	Apoptosis regulation
+UNC0379	2159	UNC0379	SETD8	Chromatin histone methylation
+UNC0638	2038	UNC0638	G9A, GLP	Chromatin histone methylation
+UPROSERTIB	1553	Uprosertib	AKT1, AKT2, AKT3	PI3K/MTOR signaling
+UPROSERTIB	2106	Uprosertib	AKT1, AKT2, AKT3	PI3K/MTOR signaling
+VE-822	1613	VE-822	ATR	Genome integrity
+VE821	2111	VE821	ATR	Genome integrity
+VELIPARIB	1018	Veliparib	PARP1, PARP2	Genome integrity
+VENETOCLAX	1909	Venetoclax	BCL2	Apoptosis regulation
+VINBLASTINE	1004	Vinblastine	Microtubule destabiliser	Mitosis
+VINORELBINE	2048	Vinorelbine	Microtubule destabiliser	Mitosis
+VISMODEGIB	1033	Vismodegib	SMO	Other
+VORINOSTAT	1012	Vorinostat	HDAC inhibitor Class I, IIa, IIb, IV	Chromatin histone acetylation
+VSP34_8731	1734	VSP34_8731	VSP34	Other
+VTP-A	2112	VTP-A		Unclassified
+VTP-B	2113	VTP-B		Unclassified
+VX-11E	2096	VX-11e	ERK2	ERK MAPK signaling
+WEE1 INHIBITOR	1046	Wee1 Inhibitor	WEE1, CHEK1	Cell cycle
+WEHI-539	1997	WEHI-539	BCL-XL	Apoptosis regulation
+WIKI4	1940	WIKI4	TNKS1, TNKS2	WNT signaling
+WNT-C59	1622	Wnt-C59	PORCN	WNT signaling
+WZ4003	1614	WZ4003	NUAK1, NUAK2	Other, kinases
+XAV939	1268	XAV939	TNKS1, TNKS2	WNT signaling
+YK-4-279	1239	YK-4-279	RNA helicase A	Other
+ZM447439	1050	ZM447439	AURKA, AURKB	Mitosis
+ZOLEDRONATE	1802	Zoledronate	 	Other

@@ -13,7 +13,29 @@ This document maps each manuscript figure panel to code, data, and generated out
 - **Missing/Ambiguous**: no convincing code-to-panel mapping was found, or multiple possible sources exist without a clear link.
 - **Manual/External**: the panel appears to be a schematic, microscopy/image selection, immunoblot, PowerPoint assembly, or a cited external figure rather than a code-generated plot.
 
-Important global caveat: `GemcitabinePaper.tex` points to a lowercase `figures/` directory, but this repo does not contain the main composite files `figures/Figure1_v3_Overleaf.png` through `figures/Figure6_v5_Overleaf.png` or `figures/Supp_Figure1_Overleaf.png`. The repo does contain several source plots and PowerPoint files under `Figs/`, especially `Figs/GemcitabinePaper_Figures.pptx`, but no script that assembles the final Overleaf composites was found. Cross-repo mappings below identify likely source plots, not the final assembled manuscript composites. The PKPD/live-dead model source plots are now imported locally for saved-fit reproduction under `Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py`. The fitting entrypoint is also imported locally through `Code/in-vitro/pkpd_live_dead_model/run_invitro_fit.py` and `Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py`; a full local beta/Hill/confluence refit has also completed under `Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/20260629T_full_parallel6_beta_hill_confluence_logged/`.
+Important global caveat: `GemcitabinePaper.tex` points to a lowercase `figures/` directory. This repo now contains manager-generated manuscript-facing source-panel assets and per-figure manifests under `figures/Figure*/` and `figures/Supplementary/`, but it still does not contain the final assembled Overleaf composite files `figures/Figure1_v3_Overleaf.png` through `figures/Figure6_v5_Overleaf.png` or `figures/Supp_Figure1_Overleaf.png`. The repo also contains several historical source plots and PowerPoint files under `Figs/`, especially `Figs/GemcitabinePaper_Figures.pptx`, but no script that assembles the final Overleaf composites was found. Cross-repo mappings below identify likely source plots, not the final assembled manuscript composites. The PKPD/live-dead model source plots are now imported locally for saved-fit reproduction under `Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py`. The fitting entrypoint is also imported locally through `Code/in-vitro/pkpd_live_dead_model/run_invitro_fit.py` and `Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py`; a full local beta/Hill/confluence refit has also completed under `Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/20260629T_full_parallel6_beta_hill_confluence_logged/`.
+
+## Canonical Manager Outputs
+
+The standardized manuscript-panel workflow is now rooted at `Manager.sh`. The validated standard run is:
+
+```text
+bash Manager.sh --mode standard --run-id 20260629T143000_standard --overwrite --no-update-latest
+```
+
+That run writes module outputs under `Results/.../runs/20260629T143000_standard_*`, writes standard input/output manifests for each module, and materializes selected manuscript-facing source assets under `figures/`. The current canonical source-panel assets are:
+
+| Figure | Manuscript-facing asset(s) | Canonical Results source |
+|---|---|---|
+| Figure 1 | `figures/Figure1/panel_1ABC_gdsc_ploidy_enrichment.png`; `panel_1B_gdsc_low_ploidy_clustered_heatmap.png`; `panel_1C_gdsc_high_ploidy_clustered_heatmap.png` | `Results/public_data/gdsc_ploidy_analysis/runs/20260629T143000_standard_gdsc/` |
+| Figure 2 | `figures/Figure2/panel_2B_ccle_drug_ploidy_correlations_ic50.pdf` | `Results/public_data/ccle_ploidy_analysis/runs/20260629T143000_standard_ccle/` |
+| Figure 3 | `figures/Figure3/panel_3H_gemcitabine_normalized_dose_response_fits.png`; `panel_3H_delta_auc_vs_delta_mean_ploidy.png` | `Results/in-vitro/drug_response/runs/20260629T143000_standard_drug_response/` |
+| Figure 4 | `figures/Figure4/panel_4B_dfdctp_signal_driver_combined_ploidy.png` | `Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_standard_pkpd_saved_fit/` |
+| Figure 5 | `figures/Figure5/panel_5B_cohort_joint_fit_2n.png`; `panel_5B_cohort_joint_fit_4n.png`; `panel_5C_effective_dfdctp_signal_combined_ploidy.png`; `panel_5D_ploidy_parameter_log2_fold_change.png`; `panel_5D_dose_response_ploidy_comparison.png` | `Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_standard_pkpd_saved_fit/` |
+| Figure 6 | `figures/Figure6/panel_6A_metabolomics_pca_unlabeled.png`; `panel_6C_corrected_curated_pathway_enrichment_heatmap_2fold.png`; `panel_6D_ordered_response_heatmap_reproduced.png`; `panel_6E_volcano_black_red_unlabeled.png` | `Results/in-vitro/metabolomics/runs/20260629T143000_standard_metabolomics*` |
+| Supplementary | `figures/Supplementary/panel_SuppFig1A_cohort_joint_fit_2n.png`; `panel_SuppFig1B_cohort_joint_fit_4n.png` | `Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_standard_pkpd_saved_fit/` |
+
+Each `figures/Figure*/manifest.tsv` records the source file, generating command, input data, run ID, caption role, and manual/external caveats. The historical mappings below remain useful for provenance and unresolved/manual panels, but manuscript-facing generated assets should now be resolved through these manifests first.
 
 ## Main Figures
 

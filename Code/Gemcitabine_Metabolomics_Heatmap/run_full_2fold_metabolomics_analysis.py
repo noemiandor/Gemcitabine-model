@@ -23,6 +23,7 @@ Run:
 """
 
 import argparse
+from datetime import datetime
 import os
 import re
 import zipfile
@@ -344,11 +345,21 @@ def make_figures(df, X_log2, meta, group_cols, ordered_cols, results, figdir):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
-    parser.add_argument("--out", default="metabolomics_2fold_full_package")
+    parser.add_argument("--out")
     parser.add_argument("--output-dir", help="Canonical output directory alias for --out.")
     args = parser.parse_args()
     if args.output_dir:
         args.out = args.output_dir
+    if not args.out:
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        args.out = os.path.join(
+            repo_root,
+            "Results",
+            "in-vitro",
+            "metabolomics",
+            "runs",
+            f"{datetime.now().strftime('%Y%m%dT%H%M%S')}_metabolomics",
+        )
 
     figdir = os.path.join(args.out, "figures")
     tabledir = os.path.join(args.out, "tables")
