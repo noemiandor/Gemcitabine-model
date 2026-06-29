@@ -170,6 +170,10 @@ class JointFitConfig:
     high_dose_weight: float = 1.0
     n_tr_values: Tuple[int, ...] = tuple(range(2, 8))
     max_nfev: int = 3000
+    optimizer_start_indices: Optional[Tuple[int, ...]] = None
+    fit_dose_labels: Optional[Tuple[str, ...]] = None
+    max_replicates_per_ploidy_dose: Optional[int] = None
+    accept_incomplete_optimizer: bool = False
     large_objective_penalty: float = 1e30
     optimizer_method: str = "L-BFGS-B"
     solver_method: str = "LSODA"
@@ -231,6 +235,28 @@ class JointFitConfig:
             raise ValueError("confluence_death_exponent must be finite and > 0")
         if not np.isfinite(self.prior_sd_log_mu_confluence_death) or self.prior_sd_log_mu_confluence_death <= 0:
             raise ValueError("prior_sd_log_mu_confluence_death must be finite and > 0")
+        if int(self.n_jobs) != self.n_jobs:
+            raise ValueError("n_jobs must be an integer")
+        if int(self.n_jobs) == 0:
+            raise ValueError("n_jobs must be nonzero; use 1 for serial execution or a negative value for all cores")
+        if int(self.max_nfev) <= 0:
+            raise ValueError("max_nfev must be positive")
+        if not self.n_tr_values:
+            raise ValueError("n_tr_values must contain at least one value")
+        if any(int(value) != value or int(value) < 1 for value in self.n_tr_values):
+            raise ValueError("n_tr_values must be positive integers")
+        if self.optimizer_start_indices is not None:
+            if not self.optimizer_start_indices:
+                raise ValueError("optimizer_start_indices must be None or contain at least one index")
+            if any(int(value) != value or int(value) < 0 for value in self.optimizer_start_indices):
+                raise ValueError("optimizer_start_indices must contain nonnegative integer indices")
+        if self.fit_dose_labels is not None and not self.fit_dose_labels:
+            raise ValueError("fit_dose_labels must be None or contain at least one dose label")
+        if self.max_replicates_per_ploidy_dose is not None:
+            if int(self.max_replicates_per_ploidy_dose) != self.max_replicates_per_ploidy_dose:
+                raise ValueError("max_replicates_per_ploidy_dose must be an integer")
+            if int(self.max_replicates_per_ploidy_dose) <= 0:
+                raise ValueError("max_replicates_per_ploidy_dose must be positive")
         if self.use_hill_dose_gate:
             if not np.isfinite(self.fixed_dose_gate_ec50_uM) or self.fixed_dose_gate_ec50_uM <= 0:
                 raise ValueError("fixed_dose_gate_ec50_uM must be positive and finite when Hill gate is enabled")
@@ -293,11 +319,21 @@ def joint_fit_config_from_preset(preset: str, **overrides: Any) -> JointFitConfi
 
 def resolve_joint_fit_config(fit_config: Optional[JointFitConfig] = None, **overrides: Any) -> JointFitConfig:
     if fit_config is None:
+        if overrides.get("model_preset") is not None:
+            preset = overrides.pop("model_preset")
+            return joint_fit_config_from_preset(preset, **overrides)
         return JointFitConfig(**overrides) if overrides else JointFitConfig()
     if fit_config.model_preset is not None:
+        default_values = asdict(JointFitConfig())
+        requested_values = asdict(fit_config)
+        preset_overrides = {
+            key: value
+            for key, value in requested_values.items()
+            if key != "model_preset" and value != default_values[key]
+        }
         resolved = joint_fit_config_from_preset(
             fit_config.model_preset,
-            **{k: v for k, v in asdict(fit_config).items() if k != "model_preset"},
+            **preset_overrides,
         )
     else:
         resolved = fit_config
@@ -4009,6 +4045,7 @@ def build_joint_fit_trajectories(
     gem_doses: Sequence[str],
     fit_t_max: Optional[float],
     count_transitional_as_alive: bool = False,
+    max_replicates_per_ploidy_dose: Optional[int] = None,
 ) -> List[ReplicateTrajectory]:
     trajectories: List[ReplicateTrajectory] = []
     total_dropped_nonfinite = 0
@@ -4021,7 +4058,10 @@ def build_joint_fit_trajectories(
                 t_max=fit_t_max,
                 count_transitional_as_alive=count_transitional_as_alive,
             )
-            for rep_idx, replicate_id in enumerate(aligned["replicate_columns"]):
+            replicate_items = list(enumerate(aligned["replicate_columns"]))
+            if max_replicates_per_ploidy_dose is not None:
+                replicate_items = replicate_items[:int(max_replicates_per_ploidy_dose)]
+            for rep_idx, replicate_id in replicate_items:
                 t_rep, alive, dead, dropped_nonfinite = trim_finite_live_dead_observations(
                     aligned["t"],
                     aligned["y_alive"][:, rep_idx],
@@ -4572,6 +4612,11 @@ def fit_joint_partial_pooling_model(
             max_abs_grad_idx = int(np.argmax(np.abs(jac))) if jac.size > 0 else -1
             bound_flags = coordinate_bound_flags(result.x, lower_bounds, upper_bounds, coordinate_names)
             final_debug = debug_objective_evaluation(result.x)
+            fit_is_usable = bool(
+                (result.success or fit_config.accept_incomplete_optimizer)
+                and np.isfinite(final_value)
+                and final_value < fit_config.large_objective_penalty
+            )
             if diagnostic_output_dir is not None and diagnostic_label is not None and start_idx == 0:
                 manual_gradients = None
                 if diagnostic_task_set is None or "manual_gradient" in diagnostic_task_set or "gradient_comparison" in diagnostic_task_set or "line_search_gradient" in diagnostic_task_set:
@@ -4687,14 +4732,14 @@ def fit_joint_partial_pooling_model(
                 "final_simulations_attempted": final_debug["simulations_attempted"],
                 "final_simulations_failed": final_debug["simulations_failed"],
                 "final_failure_messages": final_debug["failure_messages_joined"],
-                "success": bool(result.success and np.isfinite(final_value) and final_value < fit_config.large_objective_penalty),
+                "success": fit_is_usable,
                 "message": result.message,
             }
             attempt_row.update(bound_flags)
             add_unpacked_attempt_parameters(attempt_row, "initial", x0)
             add_unpacked_attempt_parameters(attempt_row, "final", result.x)
             attempt_rows.append(attempt_row)
-            if bool(result.success) and np.isfinite(final_value) and final_value < best_value:
+            if fit_is_usable and final_value < best_value:
                 best_value = float(final_value)
                 best_result = result
                 best_unpacked = unpack_parameters(result.x)
@@ -4798,6 +4843,7 @@ def fit_one_n_tr_worker(
             dfdctp_signal_curve_by_ploidy=dfdctp_signal_curve_by_ploidy,
             fit_config=fit_config,
             n_tr=n_tr,
+            start_indices=fit_config.optimizer_start_indices,
         )
     except Exception as exc:
         result = {
@@ -4876,6 +4922,9 @@ def run_n_tr_model_selection(
             "fit_mu_confluence_death": fit_config.fit_mu_confluence_death,
             "fixed_mu_confluence_death": fit_config.fixed_mu_confluence_death,
             "confluence_death_exponent": fit_config.confluence_death_exponent,
+            "fit_dose_labels": ",".join(fit_config.fit_dose_labels) if fit_config.fit_dose_labels else "",
+            "max_replicates_per_ploidy_dose": fit_config.max_replicates_per_ploidy_dose,
+            "accept_incomplete_optimizer": fit_config.accept_incomplete_optimizer,
             "mu_log_r": population.get("r"),
             "mu_log_K": population.get("K"),
             "mu_log_k_tr": population.get("k_tr"),
@@ -5187,6 +5236,12 @@ def main(
     df = assemble_modeling_dataset(paths=paths, fit_config=fit_config)
     ploidy_options = [p for p in df['ploidy'].unique() if pd.notna(p)]
     gem_doses = sorted([d for d in df['gem'].unique() if pd.notna(d)], key=lambda x: float(x.split()[0]))
+    if fit_config.fit_dose_labels is not None:
+        requested_doses = set(fit_config.fit_dose_labels)
+        missing_doses = sorted(requested_doses.difference(gem_doses), key=lambda x: float(x.split()[0]))
+        if missing_doses:
+            raise ValueError(f"Requested fit dose labels are absent from the modeling dataset: {missing_doses}")
+        gem_doses = [dose for dose in gem_doses if dose in requested_doses]
     live_dead_dose_uM_values = [float(dose.split()[0]) / 1000.0 for dose in gem_doses if dose != "0 nM"]
 
     for ploidy_key in ["2N", "4N"]:
@@ -5204,6 +5259,7 @@ def main(
         gem_doses=gem_doses,
         fit_t_max=fit_config.fit_t_max,
         count_transitional_as_alive=fit_config.count_transitional_as_alive,
+        max_replicates_per_ploidy_dose=fit_config.max_replicates_per_ploidy_dose,
     )
 
     summary_rows, attempt_frames, best_fit, best_n_tr = run_n_tr_model_selection(
