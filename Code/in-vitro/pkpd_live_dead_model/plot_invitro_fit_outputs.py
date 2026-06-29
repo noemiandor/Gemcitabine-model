@@ -504,7 +504,17 @@ def plot_combined_dfdctp_signal_curves(
         for profile in curve.calibration_profiles_by_dose.values()
         if len(profile.time_days) > 0
     )
+    positive_times = [
+        float(time_value)
+        for curve in available_curves.values()
+        for profile in curve.calibration_profiles_by_dose.values()
+        for time_value in np.asarray(profile.time_days, dtype=float)
+        if np.isfinite(time_value) and time_value > 0
+    ]
+    min_positive_time = min(positive_times) if positive_times else 1.0 / 24.0
+    log_time_floor = min_positive_time / 2.0
     t_grid = np.linspace(0.0, max(5.0, max_time), 400)
+    t_plot_grid = np.maximum(t_grid, log_time_floor)
     all_doses = sorted(
         {
             float(dose)
@@ -528,15 +538,16 @@ def plot_combined_dfdctp_signal_curves(
             profile = curve.calibration_profiles_by_dose[dose]
             color = dose_colors[dose]
             ax.plot(
-                t_grid,
+                t_plot_grid,
                 curve(t_grid, dose),
                 color=color,
                 linestyle=style["linestyle"],
                 linewidth=2.0,
                 label=f"{ploidy}, {dose:g} uM",
             )
+            time_plot = np.maximum(np.asarray(profile.time_days, dtype=float), log_time_floor)
             ax.scatter(
-                profile.time_days,
+                time_plot,
                 profile.induced_signal_uM_values,
                 color=color,
                 marker=style["marker"],
@@ -546,7 +557,9 @@ def plot_combined_dfdctp_signal_curves(
                 linewidth=0.35,
             )
 
-    ax.set_xlabel("Time (days)", fontsize=10)
+    ax.set_xscale("log")
+    ax.set_xlim(log_time_floor, max(5.0, max_time))
+    ax.set_xlabel("Time (days, log scale; day 0 shown at plotting floor)", fontsize=10)
     ax.set_ylabel("Baseline-subtracted intracellular dFdCTP (uM)", fontsize=10)
     ax.set_title("Intracellular dFdCTP signal drivers by ploidy", fontsize=11)
     ax.tick_params(axis="both", labelsize=9)

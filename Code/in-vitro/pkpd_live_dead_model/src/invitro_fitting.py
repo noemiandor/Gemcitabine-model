@@ -1241,21 +1241,31 @@ def plot_dfdctp_signal_curve(
     if len(curve.calibration_profiles_by_dose) == 0:
         return
     max_time = max(float(profile.time_days.max()) for profile in curve.calibration_profiles_by_dose.values() if len(profile.time_days) > 0)
+    positive_times = [
+        float(time_value)
+        for profile in curve.calibration_profiles_by_dose.values()
+        for time_value in np.asarray(profile.time_days, dtype=float)
+        if np.isfinite(time_value) and time_value > 0
+    ]
+    min_positive_time = min(positive_times) if positive_times else 1.0 / 24.0
+    log_time_floor = min_positive_time / 2.0
     t_grid = np.linspace(0.0, max(5.0, max_time), 400)
+    t_plot_grid = np.maximum(t_grid, log_time_floor)
 
     fig, ax = plt.subplots(figsize=(7.5, 4.8))
     for idx, dose in enumerate(curve.calibration_doses_uM):
         profile = curve.calibration_profiles_by_dose[float(dose)]
         modeled_signal = curve(t_grid, float(dose))
         ax.plot(
-            t_grid,
+            t_plot_grid,
             modeled_signal,
             linewidth=2.0,
             label=f"Modeled {dose:.3f} uM profile",
         )
         if len(profile.time_days) > 0:
+            time_plot = np.maximum(np.asarray(profile.time_days, dtype=float), log_time_floor)
             ax.scatter(
-                profile.time_days,
+                time_plot,
                 profile.raw_signal_uM_values,
                 s=35,
                 alpha=0.55,
@@ -1263,7 +1273,7 @@ def plot_dfdctp_signal_curve(
                 color="goldenrod",
             )
             ax.scatter(
-                profile.time_days,
+                time_plot,
                 profile.induced_signal_uM_values,
                 s=55,
                 alpha=0.9,
@@ -1276,7 +1286,7 @@ def plot_dfdctp_signal_curve(
         preview_dose = curve.min_calibration_dose_uM / 10.0
         preview_signal = curve(t_grid, preview_dose)
         ax.plot(
-            t_grid,
+            t_plot_grid,
             preview_signal,
             linestyle="--",
             linewidth=1.5,
@@ -1284,7 +1294,9 @@ def plot_dfdctp_signal_curve(
             alpha=0.9,
             label=f"Below-range policy preview ({preview_dose:.3f} uM)",
         )
-    ax.set_xlabel("Time (Days)")
+    ax.set_xscale("log")
+    ax.set_xlim(log_time_floor, max(5.0, max_time))
+    ax.set_xlabel("Time (Days, log scale; day 0 shown at plotting floor)")
     ax.set_ylabel("Intracellular dFdCTP Signal (uM)")
     ax.set_title(f"{ploidy_label} dFdCTP Signal Driver")
     ax.text(
