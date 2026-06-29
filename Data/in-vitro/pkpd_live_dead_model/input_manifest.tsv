@@ -1,5 +1,5 @@
 resource	path	row_count	details
-counts_agg_path	Data/in-vitro/pkpd_live_dead_model/processed/counts_by_well_time_wellAggregated.parquet	13148	cleaned aggregated count rows
+counts_agg_path	Data/GemDelayKillTerm/processed/counts_by_well_time_wellAggregated.parquet	13148	cleaned aggregated count rows
 platemap_path	Data/in-vitro/pkpd_live_dead_model/raw/Gemcitabine_PlateMap_20240111.xlsx	96	standardized platemap wells
 pkpd_workbook_path	Data/in-vitro/pkpd_live_dead_model/raw/drugKinetics/GemcitabineExposure_PKPD.xlsx	66	4 workbook sheets
 modeling_dataset		13148	ploidies=2N,4N; doses=0 nM,3.125 nM,6.25 nM,12.5 nM,25 nM,50 nM,100 nM,200 nM,400 nM,800 nM; max_days=5

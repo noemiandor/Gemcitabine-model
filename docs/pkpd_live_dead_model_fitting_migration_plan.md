@@ -33,7 +33,7 @@ Committed migration:
 - `Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py`
 - `Code/plot_invitro_fit_outputs.py`
 - `Data/in-vitro/pkpd_live_dead_model/raw/`
-- `Data/in-vitro/pkpd_live_dead_model/processed/`
+- `Data/GemDelayKillTerm/processed/`
 - `Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/{alsoGoodFit_20260514T093906,bestFitSoFar_20260513T164159}/`
 
 Current reproduction commands:

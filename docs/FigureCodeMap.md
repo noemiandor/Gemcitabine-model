@@ -116,6 +116,6 @@ Manuscript asset: `figures/Supp_Figure1_Overleaf.png` at `GemcitabinePaper.tex:1
 - Add or regenerate the final manuscript composite assets under the path used by LaTeX (`figures/`), or update LaTeX to point to the actual tracked paths.
 - Add a small script or Makefile target that assembles each composite figure from source outputs. At present, the likely assembly step is manual/PowerPoint-based.
 - Resolve the metric wording for GDSC panels: the current packaged output names emphasize `Z_SCORE`, while manuscript captions repeatedly say IC50.
-- Complete the PKPD/live-dead fitting migration so this repo can regenerate new `joint_fit_summary.tsv` and `optimizer_attempts.tsv` files, not only reproduce plots from imported saved summaries.
+- Validate the full PKPD/live-dead beta/Hill/confluence refit so this repo has a completed local default `joint_fit_summary.tsv` and `optimizer_attempts.tsv`, not only saved-summary reproduction and smoke-fit coverage.
 - Add plotting/statistical provenance for Figure 3A dose-response curves and flow cytometry, Figure 4A/4C, the final Figure 5A schematic graphic, Figure 5E/5F, and the dFdU portion of Figure 4B, or explicitly document them as manually assembled experimental panels.
 - Give Figure 6 a distinct LaTeX label from Figure 5 before relying on cross-references.

@@ -589,12 +589,13 @@ def trim_finite_live_dead_observations(
 def default_experiment_paths(project_root: Optional[Path] = None) -> ExperimentPaths:
     root = (project_root or PROJECT_ROOT).resolve()
     exp_base = root / "Data" / "in-vitro" / "pkpd_live_dead_model"
+    count_base = root / "Data" / "GemDelayKillTerm" / "processed"
     output_dir = exp_base / "invitro_fitting_outputs" / datetime.now().strftime("%Y%m%dT%H%M%S")
     return ExperimentPaths(
         project_root=root,
         exp_base=exp_base,
-        counts_raw=exp_base / "processed" / "counts_by_well_time.parquet",
-        counts_agg=exp_base / "processed" / "counts_by_well_time_wellAggregated.parquet",
+        counts_raw=count_base / "counts_by_well_time.parquet",
+        counts_agg=count_base / "counts_by_well_time_wellAggregated.parquet",
         platemap=exp_base / "raw" / "Gemcitabine_PlateMap_20240111.xlsx",
         pkpd_constants=exp_base / "raw" / "drugKinetics" / "GemcitabineExposure_PKPD.xlsx",
         output_dir=output_dir,
