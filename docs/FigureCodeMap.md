@@ -1,0 +1,121 @@
+# Figure-Code Map
+
+Generated from `GemcitabinePaper.tex` on 2026-06-26.
+
+## Scope And Legend
+
+This document maps each manuscript figure panel to code, data, and generated outputs found in this repository. This revision also checks `/Users/4470246/Repositories/miningcloneid` for source analyses that are not copied into this repo, and notes where source analyses have since been imported locally. A mapping is marked as:
+
+- **Mapped**: the repo contains code that appears to generate the panel or its direct source plot.
+- **Mapped (saved-fit local)**: the repo contains local code, raw/support inputs, saved fit summaries, and generated outputs sufficient to reproduce the plotted source panel from saved fitting summaries, but the full optimizer/fitting regeneration workflow is not yet validated here.
+- **Mapped (cross-repo)**: the generating code or direct source plot was found in `/Users/4470246/Repositories/miningcloneid`, but not in this repo.
+- **Partial**: the repo contains source analysis or intermediate outputs, but not enough to regenerate the exact manuscript panel/composite.
+- **Missing/Ambiguous**: no convincing code-to-panel mapping was found, or multiple possible sources exist without a clear link.
+- **Manual/External**: the panel appears to be a schematic, microscopy/image selection, immunoblot, PowerPoint assembly, or a cited external figure rather than a code-generated plot.
+
+Important global caveat: `GemcitabinePaper.tex` points to a lowercase `figures/` directory, but this repo does not contain the main composite files `figures/Figure1_v3_Overleaf.png` through `figures/Figure6_v5_Overleaf.png` or `figures/Supp_Figure1_Overleaf.png`. The repo does contain several source plots and PowerPoint files under `Figs/`, especially `Figs/GemcitabinePaper_Figures.pptx`, but no script that assembles the final Overleaf composites was found. Cross-repo mappings below identify likely source plots, not the final assembled manuscript composites. The PKPD/live-dead model source plots are now imported locally for saved-fit reproduction under `Code/in-vitro/pkpd_live_dead_model/`, but full fitting regeneration remains a planned follow-up.
+
+## Main Figures
+
+### Figure 1: Ploidy-Associated Drug-Class Enrichment
+
+Manuscript asset: `figures/Figure1_v3_Overleaf.png` at `GemcitabinePaper.tex:238`. Exact composite asset not found.
+
+| Panel | Manuscript content | Code/data mapping | Output found | Status |
+|---|---|---|---|---|
+| 1A | GDSC/ploidy workflow schematic | `Code/gdsc_ploidy_analysis/src/plot_ploidy_enrichment_panels.py:104-140` draws the workflow panel. | `Code/gdsc_ploidy_analysis/output/ploidy_enrichment_panels_ABC.png`; `.pdf` also present. | **Mapped** for source panel; exact Overleaf composite missing. |
+| 1B | Low-ploidy-selective drug-class enrichment heatmap | Enrichment workbook is written by `Code/gdsc_ploidy_analysis/src/run_gdsc_ploidy_analysis.R:338-452`; heatmap panel is drawn by `Code/gdsc_ploidy_analysis/src/plot_ploidy_enrichment_panels.py:176-230`. | `Code/gdsc_ploidy_analysis/output/drugsVsPloidyCorr.xlsx`; `Code/gdsc_ploidy_analysis/output/ploidy_enrichment_panels_ABC.png`. | **Mapped** for source panel; exact Overleaf composite missing. |
+| 1C | High-ploidy-selective drug-class enrichment heatmap | Same pipeline as 1B. High-ploidy sheet is written at `Code/gdsc_ploidy_analysis/src/run_gdsc_ploidy_analysis.R:451-452`; panel title and plotting occur at `Code/gdsc_ploidy_analysis/src/plot_ploidy_enrichment_panels.py:202-210`. | Same as 1B. | **Mapped** for source panel; exact Overleaf composite missing. |
+
+Note: the packaged GDSC module writes outputs named around `Z_SCORE` in several tables. The manuscript captions describe Pearson correlations with IC50, so the metric used in the plotted version should be checked before final submission.
+
+### Figure 2: Convergent Public-Dataset Evidence For Gemcitabine
+
+Manuscript asset: `figures/Figure2_v3_Overleaf.png` at `GemcitabinePaper.tex:257`. Exact composite asset not found.
+
+| Panel | Manuscript content | Code/data mapping | Output found | Status |
+|---|---|---|---|---|
+| 2A | GDSC BRCA drug-response/ploidy correlations for gemcitabine and other agents | Candidate source: `Code/gdsc_ploidy_analysis/src/run_gdsc_ploidy_analysis.R:183-197` writes per-cancer correlation tables; `Code/gdsc_ploidy_analysis/src/run_gdsc_ploidy_analysis.R:269-302` writes `drugsVsPloidyCorr.pdf`; `Code/gdsc_ploidy_analysis/src/run_gdsc_ploidy_analysis.R:465-499` writes `ploidyVsDrugSensitivity.pdf`. | `Code/gdsc_ploidy_analysis/output/drugsVsPloidyCorr.pdf`; `Code/gdsc_ploidy_analysis/output/ploidyVsDrugSensitivity.pdf`; correlation tables under `Code/gdsc_ploidy_analysis/output/tables/` in milestone outputs. | **Partial**. The source analysis exists, but the exact Figure 2A panel and metric identity are ambiguous. |
+| 2B | CCLE breast cancer ploidy versus response across 46 drugs; caption says figure taken from Kimmel | Repo has a CCLE reproduction module: `Code/ccle_ploidy_analysis/src/run_ccle_ploidy_analysis.R:154-318` computes IC50/GR-browser correlations and writes a barplot. Older reference code also exists in `Code/ccle_ploidy_analysis/references/BREAST_CCLE_PathwaysPloidy.R`. | `Code/ccle_ploidy_analysis/output/ccle_drug_ploidy_correlations_ic50.pdf`. | **Partial / External**. The caption says this panel is taken from Kimmel, so repo code may reproduce or reanalyze related data but is not clearly the panel provenance. |
+| 2C | NCI-60 / standard-therapy analysis identifying gemcitabine as low-ploidy selective | No matching NCI-60 analysis code was found in this repo. The manuscript text cites Choudhary et al. for this evidence. | None found. | **Manual/External**. |
+
+### Figure 3: Isogenic Gemcitabine Sensitivity And Live-Cell Imaging
+
+Manuscript asset: `figures/Figure3_v4_Overleaf.png` at `GemcitabinePaper.tex:281`. Exact composite asset not found.
+
+| Panel | Manuscript content | Code/data mapping | Output found | Status |
+|---|---|---|---|---|
+| 3A | Isogenic-pair dose-response curves plus flow-cytometric DNA-content distributions | No clear code was found for CellTiter-Glo dose-response fitting, EC50 plotting, or flow-cytometry DNA-content histograms used in this panel. Cross-repo candidate raw dose-response inputs exist under `/Users/4470246/Repositories/miningcloneid/data/DrugResponseData_PloidyJumps/DrugResponseData/`, including `Gemcitabine3.txt`, `MDAMB231_Gemcitabine.txt`, `Hybrids_Gemcitabine.txt`, `HybridsPlusMDA_Gemcitabine.txt`, `SUMPlusMDA_Gemcitabine3.txt`, `MCFPlusSUMPlusMDA_Gemcitabine3.txt`, and `MCF10A_Gemcitabine.txt`; ploidy annotations are in `data/DrugResponseData_PloidyJumps/ploidyPerCL_HeteroAndHomotypic.txt`. | Cross-repo raw dose-response tables only; no generated Figure 3A source plot or flow-cytometry histogram output confidently linked. | **Partial / Missing plotting code**. Raw dose-response data likely exist cross-repo, but the plotted curves, EC50/statistics, DNA-content histograms, and exact composite remain unmapped. |
+| 3B | SUM-159 near-2N/near-4N live-cell imaging response to gemcitabine | Source processing exists: `Code/Gemcitabine_Incucyte.R:74-177` reads classifier outputs and constructs live/dead object sets; `Code/Gemcitabine_Incucyte.R:284-330` writes per-well plots and live/dead count tables. Image overlay helpers exist in `Code/lci_overlays/generate_class_colored_overlay.py` and `Code/lci_overlays/generate_timecourse_overlays.py:1-330`. | Many trained classifier plots under `Figs/trained_*`; overlay outputs are not present as final Figure 3B assets. | **Partial**. Processing/overlay code exists, but the exact representative panels and final composite are not mapped. |
+| 3H | Association between ploidy and gemcitabine response across low/high isogenic or lineage-related pairs | Local reconstruction now exists in `Code/in-vitro/drug_response/plot_gemcitabine_ploidy_auc_association.R`, with CLONEID ploidy retrieval in `Code/in-vitro/drug_response/query_cloneid_fig3h_ploidy.R`. The plotting script reads `Data/in-vitro/drug_response/Gemcitabine.txt`, normalizes each sample to its untreated mean, fits LL.4 dose-response curves over each sample's full available dose range, and computes standardized AUC over the common fitted interval `0.005-0.9 uM` for downstream comparisons. It now writes both paired difference analyses (`Delta AUC = AUC_high - AUC_low` versus `Delta Ploidy`) and absolute analyses (`AUC` versus absolute ploidy), with parallel EC50 and IC50 alternatives. Ploidy values for matched CLONEID samples are computed from genomePerspective profiles as total ploidy: `cloneid::calcPloidy(...) + marker_chromosome_ploidy`, where `marker_chromosome_ploidy` is read from `9999:1-999`; `999:1-999` is retained as marker-chromosome count metadata. The query script also records the requested alias, target ID, closest genomePerspective ID, exact-match status, and fallback status. Legacy unmatched samples (`SUM-159_2N`, `SUM-159_4N`, `MDAMB231_2N`, `MDAMB231_4N`) still use explicit fallback scalar ploidies. The archived source artifact remains outside this repo in `/Users/4470246/Dropbox/Apps/Overleaf/R01_2026_PloidyTargetedTherapy/Data/Tagal_DrugScreen2/DrugResponseDataMerged/Ploidy_Drug_Associations_with_AUC.pdf`, page 4; its saved `Association_Stats_AUC.csv` reports `N = 6`, `Cor_Rel_AUC = 0.850141747736466`, and `Pval_Rel_AUC = 0.0320035231239564`. The exact archived multi-drug plotting/AUC script was not found. | Local input: `Data/in-vitro/drug_response/Gemcitabine.txt`. Local CLONEID-derived ploidy tables: `Data/in-vitro/drug_response/fig3h_cloneid_ploidy.tsv`, `fig3h_cloneid_ploidy_profile_details.tsv`, and `fig3h_cloneid_id_mapping.tsv`. Local code: `Code/in-vitro/drug_response/query_cloneid_fig3h_ploidy.R`; `Code/in-vitro/drug_response/plot_gemcitabine_ploidy_auc_association.R`. Local outputs include normalized dose-response fits, dose-response fit parameters, paired delta AUC/EC50/IC50 versus delta ploidy plots and tables, and absolute AUC/EC50/IC50 versus ploidy plots and tables across mean, median, q10, q75, q90, min, and max ploidy metrics. External comparison: `Ploidy_Drug_Associations_with_AUC.pdf` page 4; `Association_Stats_AUC.csv`; `Fitted_Parameters_Individual.csv`. | **Mapped (local reconstruction) / Archived exact-code missing**. The repo can regenerate a Gemcitabine-only version of the analysis from the requested raw table and CLONEID-derived total-ploidy tables. The exact archived multi-drug PDF remains partially external because its final plotting/AUC script was not found. |
+
+### Figure 4: Gemcitabine Metabolism, PKPD, And Representative Imaging
+
+Manuscript asset: `figures/Figure4_v4_Overleaf.png` at `GemcitabinePaper.tex:302`. Exact composite asset not found.
+
+| Panel | Manuscript content | Code/data mapping | Output found | Status |
+|---|---|---|---|---|
+| 4A | Gemcitabine uptake/metabolism schematic | No code-generated schematic matching this panel was found. | None found. | **Manual/External**. |
+| 4B | Time-resolved dFdU and dFdCTP measurements in 2N/4N SUM-159 cells | Local saved-fit reproduction exists in `Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py` and `Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py`. The imported workflow reads `Data/in-vitro/pkpd_live_dead_model/raw/drugKinetics/GemcitabineExposure_PKPD.xlsx`, builds dFdCTP signal surfaces, and regenerates dFdCTP model-driver plots from saved summaries. Older preparation code remains in `Code/Gemcitabine_PKPDvisualization.R:5-45`. | `Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/alsoGoodFit_20260514T093906/dfdctp_signal_curve_2n.png`, `dfdctp_signal_curve_4n.png`, `dfdctp_signal_curve_combined_ploidy.png`, `dfdctp_amplitude_scaling_2n.png`, `dfdctp_amplitude_scaling_4n.png`, and `pk_tail_fit_diagnostics.tsv`; same outputs also exist under `bestFitSoFar_20260513T164159/`. | **Partial / Mapped (saved-fit local)** for dFdCTP source plots. The dFdU panel component and exact Figure 4B composite remain unmapped; full fitting regeneration is pending. |
+| 4C | Representative bright-field/NLS-mCherry images showing live/dead response | Image-generation and overlay code exists in `Code/preprocessing/Gem_image_generation.R`, `Code/gemcitabine.R:439-570`, and `Code/lci_overlays/`, but no exact selected fields/timepoints for the manuscript panel were identified. | Not confidently linked. | **Missing/Ambiguous**. |
+
+### Figure 5: Model, PKPD Signal, Parameters, Checkpoint, And dCMP
+
+Manuscript asset: `figures/Figure5_v4_Overleaf.png` at `GemcitabinePaper.tex:376`. Exact composite asset not found.
+
+| Panel | Manuscript content | Code/data mapping | Output found | Status |
+|---|---|---|---|---|
+| 5A | Delay-aware live/dead model schematic | `Code/modelDiagram.R:1-29` draws an older cell-cycle system diagram, but it does not clearly match the delay-aware live/dead model in the caption. The delay-aware model implementation is now locally available in `Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py`, including model simulation and saved-summary reconstruction support. The full fitting-entrypoint migration is planned in `docs/pkpd_live_dead_model_fitting_migration_plan.md`. | `Figs/ODE_model.png`; `Figs/ccmodel.png` may be related older assets. No exact code-generated schematic asset found. | **Partial / Manual schematic**. Local executable model code is now available for provenance, but the exact schematic graphic is still not code-generated or not found. |
+| 5B | Predicted and observed live/dead dynamics | Local saved-fit reproduction exists in `Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py`, using saved summaries and model functions in `Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py`. Live/dead source export provenance also exists in `Code/Gemcitabine_Incucyte.R:314-320`. | `Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/alsoGoodFit_20260514T093906/cohort_joint_fit_2n.png`, `cohort_joint_fit_4n.png`, and `joint_fit_summary.tsv`; same source plots also exist under `bestFitSoFar_20260513T164159/`. Local older assets remain in `Figs/invitrojointfits.png`, `Figs/ODEModelFits.png`, and `Figs/new_data/matlab_results/ODEfit.png`. | **Mapped (saved-fit local)** for live/dead source plots. Exact Overleaf composite missing; full fitting regeneration is pending. |
+| 5C | Intracellular dFdCTP signal drivers used for the model | Local dFdCTP signal-surface construction and plotting are now in `Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py` and `Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py`. Older PKPD preparation remains in `Code/Gemcitabine_PKPDvisualization.R:5-45`. | `Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/alsoGoodFit_20260514T093906/dfdctp_signal_curve_2n.png`, `dfdctp_signal_curve_4n.png`, `dfdctp_signal_curve_combined_ploidy.png`, `dfdctp_amplitude_scaling_2n.png`, `dfdctp_amplitude_scaling_4n.png`, and `pk_tail_fit_diagnostics.tsv`; same outputs also exist under `bestFitSoFar_20260513T164159/`. | **Mapped (saved-fit local)** for source dFdCTP signal plots. Exact Overleaf composite missing; full fitting regeneration is pending. |
+| 5D | Log2 fold-change of fitted parameters, 4N versus 2N | Local plotting code builds the 2N/4N parameter comparison table and fold-change plot in `Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py` from saved `joint_fit_summary.tsv` rows. | `Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/alsoGoodFit_20260514T093906/ploidy_parameter_comparison.tsv`, `ploidy_parameter_log2_fold_change.png`, and `ploidy_parameter_paired_values.png`; same outputs also exist under `bestFitSoFar_20260513T164159/`. Older local asset: `Figs/ploidy_parameter_log2_fold_change.png`. | **Mapped (saved-fit local)** for source plot; final Overleaf composite missing. |
+| 5E | pCHK1/pCHK2 immunoblot/checkpoint activation | No immunoblot quantification or plotting code was found. | None found. | **Manual/External**. |
+| 5F | dCMP abundance/fold-change after gemcitabine | Metabolomics statistics are computed by `Code/Gemcitabine_Metabolomics_Heatmap/run_full_2fold_metabolomics_analysis.py:231-268` and `Code/Gemcitabine_Metabolomics_Heatmap/Metabolomics_Heatmap_Gemcitabine_zscore.py:115-201`; dCMP may appear in those tables/heatmaps. No dCMP-specific panel script was found. | Metabolomics outputs under `Code/Gemcitabine_Metabolomics_Heatmap/`; no exact dCMP panel asset confidently linked. | **Partial**. Source analysis exists, exact dCMP panel code missing/ambiguous. |
+
+### Figure 6: Untargeted Metabolomics
+
+Manuscript asset: `figures/Figure6_v5_Overleaf.png` at `GemcitabinePaper.tex:397`. Exact composite asset not found. Figure 6 currently shares the same LaTeX label as Figure 5, which makes references ambiguous.
+
+| Panel | Manuscript content | Code/data mapping | Output found | Status |
+|---|---|---|---|---|
+| 6A | PCA of untargeted metabolomics profiles | `Code/Gemcitabine_Metabolomics_Heatmap/run_full_2fold_metabolomics_analysis.py:271-299` generates PCA plots from log2-imputed intensities. | Expected outputs: `01_PCA_unlabeled.png`, `02_PCA_labeled.png` under the script's output `figures/` directory. | **Mapped** for source panel; final composite missing. |
+| 6B | Response-category counts at 2-fold and p < 0.05 threshold | `Code/Gemcitabine_Metabolomics_Heatmap/run_full_2fold_metabolomics_analysis.py:231-268` assigns response classes; `Code/Gemcitabine_Metabolomics_Heatmap/run_full_2fold_metabolomics_analysis.py:359-365` writes `response_category_counts_2fold.csv`. | Expected table: `response_category_counts_2fold.csv`. | **Partial**. Counts are generated, but no bar/count plot code was found. |
+| 6C | Curated pathway-class enrichment heatmap | `Code/Gemcitabine_Metabolomics_Heatmap/Pathway_enrichment_heatmap_Gemcitabine_2fold_corrected.py:466-585` computes response sets and hypergeometric enrichment; `Code/Gemcitabine_Metabolomics_Heatmap/Pathway_enrichment_heatmap_Gemcitabine_2fold_corrected.py:588-646` draws the heatmap; `Code/Gemcitabine_Metabolomics_Heatmap/Pathway_enrichment_heatmap_Gemcitabine_2fold_corrected.py:689-693` writes outputs. | Expected outputs: `corrected_curated_pathway_enrichment_heatmap_2fold.png`; `.pdf`; matrix CSV. | **Mapped** for source panel; final composite missing. |
+| 6D | Metabolite heatmap ordered by response class | `Code/Gemcitabine_Metabolomics_Heatmap/Metabolomics_Heatmap_Gemcitabine_zscore.py:204-255` draws row-scaled z-score heatmap; `Code/Gemcitabine_Metabolomics_Heatmap/Metabolomics_Heatmap_Gemcitabine_zscore.py:258-285` writes PNG/PDF/matrices. | Expected outputs: `ordered_response_heatmap_reproduced.png`; `.pdf`; z-score matrix CSV. | **Mapped** for source panel; final composite missing. |
+| 6E | Volcano plots for 2N, 4N, and differential response | `Code/Gemcitabine_Metabolomics_Heatmap/run_full_2fold_metabolomics_analysis.py:301-341` generates the three-panel volcano outputs. | Expected outputs: `03_volcano_black_red_unlabeled.png`; `04_volcano_black_red_labeled_top_hits.png`. | **Mapped** for source panel; final composite missing. |
+
+## Supplementary Figures
+
+### Supplementary Figure: SI_GDSC_vs_ploidy_A
+
+Manuscript asset: `figures/SI_GDSC_vs_ploidy_A.png` at `GemcitabinePaper.tex:1085`. Exact PNG exists as `Figs/SI_GDSC_vs_ploidy_A.png`, but not at the manuscript `figures/` path.
+
+| Panel | Manuscript content | Code/data mapping | Output found | Status |
+|---|---|---|---|---|
+| SI_GDSC_vs_ploidy_A | Cytotoxic-agent enrichment among drugs to which low-ploidy cell lines are sensitive | Source analysis is `Code/gdsc_ploidy_analysis/src/run_gdsc_ploidy_analysis.R:338-452`, especially the low-ploidy enrichment workbook sheet. `Code/gdsc_ploidy_analysis/src/plot_ploidy_enrichment_panels.py` can render the low-ploidy heatmap as part of Figure 1B/C. | `Figs/SI_GDSC_vs_ploidy_A.png`; `Code/gdsc_ploidy_analysis/output/drugsVsPloidyCorr.xlsx`. | **Partial**. Exact PNG exists, but the exact export/copy path from code to `Figs/` was not found. |
+
+### Supplementary Figure: SI_GDSC_vs_ploidy_B
+
+Manuscript asset: `figures/SI_GDSC_vs_ploidy_B.png` at `GemcitabinePaper.tex:1094`. Exact PNG exists as `Figs/SI_GDSC_vs_ploidy_B.png`, but not at the manuscript `figures/` path.
+
+| Panel | Manuscript content | Code/data mapping | Output found | Status |
+|---|---|---|---|---|
+| SI_GDSC_vs_ploidy_B | Signaling-agent enrichment among drugs to which high-ploidy cell lines are sensitive | Source analysis is `Code/gdsc_ploidy_analysis/src/run_gdsc_ploidy_analysis.R:338-452`, especially the high-ploidy enrichment workbook sheet. `Code/gdsc_ploidy_analysis/src/plot_ploidy_enrichment_panels.py` can render the high-ploidy heatmap as part of Figure 1B/C. | `Figs/SI_GDSC_vs_ploidy_B.png`; `Code/gdsc_ploidy_analysis/output/drugsVsPloidyCorr.xlsx`. | **Partial**. Exact PNG exists, but the exact export/copy path from code to `Figs/` was not found. |
+
+### Supplementary Figure 1: Default Gemcitabine Live/Dead Model Fits
+
+Manuscript asset: `figures/Supp_Figure1_Overleaf.png` at `GemcitabinePaper.tex:1172`. Exact composite asset not found.
+
+| Panel | Manuscript content | Code/data mapping | Output found | Status |
+|---|---|---|---|---|
+| Supp. Fig. 1A | Cohort-level joint fits for 2N model | Local saved-fit reproduction is in `Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py`; related source data export exists in `Code/Gemcitabine_Incucyte.R:314-320`. | `Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/alsoGoodFit_20260514T093906/cohort_joint_fit_2n.png`; same source plot also exists under `bestFitSoFar_20260513T164159/`. Local older assets: `Figs/invitrojointfits.png`; `Figs/ODEModelFits.png`. | **Mapped (saved-fit local)** for source plot; exact supplementary composite missing. |
+| Supp. Fig. 1B | Cohort-level joint fits for 4N model | Same local saved-fit reproduction workflow as Supp. Fig. 1A. | `Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/alsoGoodFit_20260514T093906/cohort_joint_fit_4n.png`; same source plot also exists under `bestFitSoFar_20260513T164159/`. Local older assets: `Figs/invitrojointfits.png`; `Figs/ODEModelFits.png`. | **Mapped (saved-fit local)** for source plot; exact supplementary composite missing. |
+
+## Unresolved Items To Fix Or Clarify
+
+- Add or regenerate the final manuscript composite assets under the path used by LaTeX (`figures/`), or update LaTeX to point to the actual tracked paths.
+- Add a small script or Makefile target that assembles each composite figure from source outputs. At present, the likely assembly step is manual/PowerPoint-based.
+- Resolve the metric wording for GDSC panels: the current packaged output names emphasize `Z_SCORE`, while manuscript captions repeatedly say IC50.
+- Complete the PKPD/live-dead fitting migration so this repo can regenerate new `joint_fit_summary.tsv` and `optimizer_attempts.tsv` files, not only reproduce plots from imported saved summaries.
+- Add plotting/statistical provenance for Figure 3A dose-response curves and flow cytometry, Figure 4A/4C, the final Figure 5A schematic graphic, Figure 5E/5F, and the dFdU portion of Figure 4B, or explicitly document them as manually assembled experimental panels.
+- Give Figure 6 a distinct LaTeX label from Figure 5 before relying on cross-references.
