@@ -7,7 +7,7 @@ Migrate the in vitro gemcitabine PKPD/live-dead fitting workflow from `/Users/44
 1. Reproduce manuscript figures from saved `joint_fit_summary.tsv` files.
 2. Regenerate new timestamped fit-output folders containing `joint_fit_summary.tsv`, `optimizer_attempts.tsv`, and all downstream plots.
 
-The current repository already satisfies the first goal through `Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py`, the compatibility entrypoint `Code/plot_invitro_fit_outputs.py`, copied raw inputs, copied saved summaries, and regenerated figure outputs. The next migration phase should make the fitting machinery itself maintainable and testable in this repo.
+The current repository already satisfies the first goal through `Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py`, copied raw inputs, copied saved summaries, and regenerated figure outputs. The next migration phase should make the fitting machinery itself maintainable and testable in this repo.
 
 ## Scope
 
@@ -31,7 +31,6 @@ Committed migration:
 
 - `Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py`
 - `Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py`
-- `Code/plot_invitro_fit_outputs.py`
 - `Data/in-vitro/pkpd_live_dead_model/raw/`
 - `Data/GemDelayKillTerm/processed/`
 - `Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/{alsoGoodFit_20260514T093906,bestFitSoFar_20260513T164159}/`
@@ -39,16 +38,16 @@ Committed migration:
 Current reproduction commands:
 
 ```bash
-python3 -m py_compile Code/plot_invitro_fit_outputs.py
-python3 Code/plot_invitro_fit_outputs.py
-python3 Code/plot_invitro_fit_outputs.py \
+python3 -m py_compile Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py
+python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py
+python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py \
   Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/bestFitSoFar_20260513T164159
-python3 Code/plot_invitro_fit_outputs.py \
+python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py \
   Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/bestFitSoFar_20260513T164159 \
   --comparison-dose '25 nM'
 ```
 
-The compatibility entrypoint also accepts legacy-style positional paths containing `code/invitro_fitting_outputs/...`, but canonical target-repo documentation and tests should use `Code/` and `Data/` paths so the workflow remains portable to case-sensitive filesystems.
+The plotter also accepts legacy-style positional paths containing `code/invitro_fitting_outputs/...`, but canonical target-repo documentation and tests should use `Code/` and `Data/` paths so the workflow remains portable to case-sensitive filesystems.
 
 The copied `src/invitro_fitting.py` already contains the core fitting functions, but it is still a compatibility snapshot. The migration is not complete until there is a documented fitting entrypoint and validation that a new fit folder can be generated and fed back into the plotter. Do not broadly refactor or split this snapshot until the wrapper can run `--check-inputs`, run a smoke fit, produce `joint_fit_summary.tsv`, and feed that summary back into `plot_invitro_fit_outputs.py`.
 
@@ -85,11 +84,11 @@ Current plot styling must remain stable unless deliberately changed:
 Canonical validation commands for this contract:
 
 ```bash
-python3 -m py_compile Code/plot_invitro_fit_outputs.py Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py
-python3 Code/plot_invitro_fit_outputs.py
-python3 Code/plot_invitro_fit_outputs.py \
+python3 -m py_compile Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py
+python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py
+python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py \
   Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/bestFitSoFar_20260513T164159
-python3 Code/plot_invitro_fit_outputs.py \
+python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py \
   Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/bestFitSoFar_20260513T164159 \
   --comparison-dose '25 nM'
 ```
@@ -143,11 +142,11 @@ Actions:
 Validation:
 
 ```bash
-python3 -m py_compile Code/plot_invitro_fit_outputs.py Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py
-python3 Code/plot_invitro_fit_outputs.py
-python3 Code/plot_invitro_fit_outputs.py \
+python3 -m py_compile Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py
+python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py
+python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py \
   Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/bestFitSoFar_20260513T164159
-python3 Code/plot_invitro_fit_outputs.py \
+python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py \
   Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/bestFitSoFar_20260513T164159 \
   --comparison-dose '25 nM'
 ```
@@ -329,9 +328,9 @@ Rules:
 Required after each milestone:
 
 ```bash
-python3 -m py_compile Code/plot_invitro_fit_outputs.py Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py
-python3 Code/plot_invitro_fit_outputs.py --skip-cohort --skip-dose-comparison
-python3 Code/plot_invitro_fit_outputs.py \
+python3 -m py_compile Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py
+python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py --skip-cohort --skip-dose-comparison
+python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py \
   Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/bestFitSoFar_20260513T164159 \
   --skip-cohort --skip-dose-comparison
 ```
@@ -359,7 +358,7 @@ python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py <new-outp
 
 The fitting migration is complete when:
 
-- `python3 Code/plot_invitro_fit_outputs.py` still reproduces saved-fit plots.
+- `python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py` still reproduces saved-fit plots.
 - `python3 Code/in-vitro/pkpd_live_dead_model/run_invitro_fit.py --smoke-test --n-starts 1 --max-parallel 1` creates a new output folder without requiring multiprocessing.
 - The new folder contains `joint_fit_summary.tsv` and `optimizer_attempts.tsv`.
 - The new `joint_fit_summary.tsv` can be passed back into `plot_invitro_fit_outputs.py`.

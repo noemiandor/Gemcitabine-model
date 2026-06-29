@@ -6,7 +6,7 @@ Updated: 2026-06-29
 
 The migration plan in `docs/pkpd_live_dead_model_fitting_migration_plan.md` has been executed through the compatibility milestone:
 
-- Saved `joint_fit_summary.tsv` folders reproduce downstream plots through `Code/plot_invitro_fit_outputs.py` and `Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py`.
+- Saved `joint_fit_summary.tsv` folders reproduce downstream plots through `Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py`.
 - `Code/in-vitro/pkpd_live_dead_model/run_invitro_fit.py` can validate inputs with `--check-inputs`.
 - `run_invitro_fit.py --smoke-test --n-starts 1 --max-parallel 1` runs the real fitting path serially, writes `joint_fit_summary.tsv` and `optimizer_attempts.tsv`, and does not require multiprocessing.
 - A new smoke-fit summary can be passed back into the plotter for both 50 nM and 25 nM single-dose comparison plots.
@@ -37,9 +37,9 @@ after each extraction.
 The following validations passed in the current environment:
 
 ```bash
-python3 -m py_compile Code/plot_invitro_fit_outputs.py Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py Code/in-vitro/pkpd_live_dead_model/run_invitro_fit.py Code/in-vitro/pkpd_live_dead_model/tests/smoke_test_saved_summary.py Code/in-vitro/pkpd_live_dead_model/tests/smoke_test_fit.py
-python3 Code/plot_invitro_fit_outputs.py --skip-cohort --skip-dose-comparison
-python3 Code/plot_invitro_fit_outputs.py Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/bestFitSoFar_20260513T164159 --skip-cohort --skip-dose-comparison
+python3 -m py_compile Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py Code/in-vitro/pkpd_live_dead_model/src/invitro_fitting.py Code/in-vitro/pkpd_live_dead_model/run_invitro_fit.py Code/in-vitro/pkpd_live_dead_model/tests/smoke_test_saved_summary.py Code/in-vitro/pkpd_live_dead_model/tests/smoke_test_fit.py
+python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py --skip-cohort --skip-dose-comparison
+python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/bestFitSoFar_20260513T164159 --skip-cohort --skip-dose-comparison
 python3 Code/in-vitro/pkpd_live_dead_model/run_invitro_fit.py --check-inputs
 python3 Code/in-vitro/pkpd_live_dead_model/run_invitro_fit.py --smoke-test --n-starts 1 --max-parallel 1
 python3 Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/20260629T070102
