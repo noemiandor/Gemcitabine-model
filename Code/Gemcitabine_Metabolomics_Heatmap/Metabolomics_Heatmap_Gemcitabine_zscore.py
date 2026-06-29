@@ -259,18 +259,27 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, help="Input .xlsm/.xlsx metabolomics file")
     parser.add_argument("--outdir", default="ordered_response_heatmap_output", help="Output directory")
+    parser.add_argument("--output-dir", help="Canonical output directory; writes plots to figures/ and tables to tables/.")
     args = parser.parse_args()
 
+    canonical_output = args.output_dir is not None
+    if canonical_output:
+        args.outdir = args.output_dir
+
     os.makedirs(args.outdir, exist_ok=True)
+    figdir = os.path.join(args.outdir, "figures") if canonical_output else args.outdir
+    tabledir = os.path.join(args.outdir, "tables") if canonical_output else args.outdir
+    os.makedirs(figdir, exist_ok=True)
+    os.makedirs(tabledir, exist_ok=True)
 
     df, X_log2, meta, group_cols, ordered_cols, id_col = load_and_preprocess(args.input)
     results = compute_statistics(df, X_log2, meta, group_cols, id_col)
 
-    output_png = os.path.join(args.outdir, "ordered_response_heatmap_reproduced.png")
-    output_pdf = os.path.join(args.outdir, "ordered_response_heatmap_reproduced.pdf")
-    matrix_csv = os.path.join(args.outdir, "ordered_response_heatmap_zscore_matrix.csv")
-    metabolites_csv = os.path.join(args.outdir, "ordered_response_heatmap_metabolites.csv")
-    results_csv = os.path.join(args.outdir, "ordered_response_heatmap_statistics.csv")
+    output_png = os.path.join(figdir, "ordered_response_heatmap_reproduced.png")
+    output_pdf = os.path.join(figdir, "ordered_response_heatmap_reproduced.pdf")
+    matrix_csv = os.path.join(tabledir, "ordered_response_heatmap_zscore_matrix.csv")
+    metabolites_csv = os.path.join(tabledir, "ordered_response_heatmap_metabolites.csv")
+    results_csv = os.path.join(tabledir, "ordered_response_heatmap_statistics.csv")
 
     strong, heatmap_matrix = make_ordered_zscore_heatmap(
         X_log2,

@@ -20,22 +20,74 @@ script_path <- if (length(file_arg) > 0) {
 repo_root <- normalizePath(file.path(dirname(script_path), "../../.."), mustWork = TRUE)
 
 args <- commandArgs(trailingOnly = TRUE)
-input_file <- if (length(args) >= 1) {
-  args[[1]]
+
+parse_args <- function(args) {
+  out <- list(
+    input_file = NULL,
+    output_dir = NULL,
+    ploidy_file = NULL,
+    used_named_output_dir = FALSE,
+    positional = character()
+  )
+  i <- 1
+  while (i <= length(args)) {
+    arg <- args[[i]]
+    if (startsWith(arg, "--input=")) {
+      out$input_file <- sub("^--input=", "", arg)
+    } else if (arg == "--input") {
+      i <- i + 1
+      out$input_file <- args[[i]]
+    } else if (startsWith(arg, "--output-dir=")) {
+      out$output_dir <- sub("^--output-dir=", "", arg)
+      out$used_named_output_dir <- TRUE
+    } else if (arg == "--output-dir") {
+      i <- i + 1
+      out$output_dir <- args[[i]]
+      out$used_named_output_dir <- TRUE
+    } else if (startsWith(arg, "--ploidy-file=")) {
+      out$ploidy_file <- sub("^--ploidy-file=", "", arg)
+    } else if (arg == "--ploidy-file") {
+      i <- i + 1
+      out$ploidy_file <- args[[i]]
+    } else if (startsWith(arg, "--")) {
+      stop(sprintf("Unknown argument: %s", arg), call. = FALSE)
+    } else {
+      out$positional <- c(out$positional, arg)
+    }
+    i <- i + 1
+  }
+  if (is.null(out$input_file) && length(out$positional) >= 1) {
+    out$input_file <- out$positional[[1]]
+  }
+  if (is.null(out$output_dir) && length(out$positional) >= 2) {
+    out$output_dir <- out$positional[[2]]
+  }
+  if (is.null(out$ploidy_file) && length(out$positional) >= 3) {
+    out$ploidy_file <- out$positional[[3]]
+  }
+  out
+}
+
+parsed_args <- parse_args(args)
+input_file <- if (!is.null(parsed_args$input_file)) {
+  parsed_args$input_file
 } else {
   file.path(repo_root, "Data/in-vitro/drug_response/Gemcitabine.txt")
 }
-out_dir <- if (length(args) >= 2) {
-  args[[2]]
+out_dir <- if (!is.null(parsed_args$output_dir)) {
+  parsed_args$output_dir
 } else {
   file.path(repo_root, "Figs")
 }
-ploidy_file <- if (length(args) >= 3) {
-  args[[3]]
+ploidy_file <- if (!is.null(parsed_args$ploidy_file)) {
+  parsed_args$ploidy_file
 } else {
   file.path(repo_root, "Data/in-vitro/drug_response/fig3h_cloneid_ploidy.tsv")
 }
-dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+fig_dir <- if (isTRUE(parsed_args$used_named_output_dir)) file.path(out_dir, "figures") else out_dir
+table_dir <- if (isTRUE(parsed_args$used_named_output_dir)) file.path(out_dir, "tables") else out_dir
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(table_dir, recursive = TRUE, showWarnings = FALSE)
 
 common_auc_min_uM <- 0.005
 common_auc_max_uM <- 0.9
@@ -975,7 +1027,7 @@ write_table_to_bases <- function(table, bases, suffix) {
   for (base in unique(bases)) {
     write.table(
       table,
-      file = file.path(out_dir, paste0(base, suffix, ".tsv")),
+      file = file.path(table_dir, paste0(base, suffix, ".tsv")),
       sep = "\t",
       quote = FALSE,
       row.names = FALSE
@@ -986,14 +1038,14 @@ write_table_to_bases <- function(table, bases, suffix) {
 save_plot_to_bases <- function(plot_obj, bases, width, height) {
   for (base in unique(bases)) {
     ggsave(
-      filename = file.path(out_dir, paste0(base, ".png")),
+      filename = file.path(fig_dir, paste0(base, ".png")),
       plot = plot_obj,
       width = width,
       height = height,
       dpi = 300
     )
     ggsave(
-      filename = file.path(out_dir, paste0(base, ".pdf")),
+      filename = file.path(fig_dir, paste0(base, ".pdf")),
       plot = plot_obj,
       width = width,
       height = height
@@ -1082,7 +1134,7 @@ dose_response_plot <- ggplot() +
 
 write.table(
   fit_results_mean,
-  file = file.path(out_dir, "gemcitabine_dose_response_fit_parameters.tsv"),
+  file = file.path(table_dir, "gemcitabine_dose_response_fit_parameters.tsv"),
   sep = "\t",
   quote = FALSE,
   row.names = FALSE
@@ -1238,28 +1290,28 @@ combined_absolute_correlations <- do.call(rbind, absolute_correlation_list)
 
 write.table(
   combined_delta_pair_stats,
-  file = file.path(out_dir, "gemcitabine_delta_auc_vs_delta_ploidy_all_ploidy_stats_pair_stats.tsv"),
+  file = file.path(table_dir, "gemcitabine_delta_auc_vs_delta_ploidy_all_ploidy_stats_pair_stats.tsv"),
   sep = "\t",
   quote = FALSE,
   row.names = FALSE
 )
 write.table(
   combined_delta_correlations,
-  file = file.path(out_dir, "gemcitabine_delta_auc_vs_delta_ploidy_all_ploidy_stats_correlation.tsv"),
+  file = file.path(table_dir, "gemcitabine_delta_auc_vs_delta_ploidy_all_ploidy_stats_correlation.tsv"),
   sep = "\t",
   quote = FALSE,
   row.names = FALSE
 )
 write.table(
   combined_absolute_auc_stats,
-  file = file.path(out_dir, "gemcitabine_absolute_auc_vs_ploidy_all_ploidy_stats_sample_stats.tsv"),
+  file = file.path(table_dir, "gemcitabine_absolute_auc_vs_ploidy_all_ploidy_stats_sample_stats.tsv"),
   sep = "\t",
   quote = FALSE,
   row.names = FALSE
 )
 write.table(
   combined_absolute_correlations,
-  file = file.path(out_dir, "gemcitabine_absolute_auc_vs_ploidy_all_ploidy_stats_correlation.tsv"),
+  file = file.path(table_dir, "gemcitabine_absolute_auc_vs_ploidy_all_ploidy_stats_correlation.tsv"),
   sep = "\t",
   quote = FALSE,
   row.names = FALSE
@@ -1279,28 +1331,28 @@ for (metric_i in seq_len(nrow(concentration_metric_specs))) {
 
   write.table(
     combined_concentration_delta_pair_stats[metric_delta_rows, , drop = FALSE],
-    file = file.path(out_dir, paste0(metric_spec$delta_base, "_all_ploidy_stats_pair_stats.tsv")),
+    file = file.path(table_dir, paste0(metric_spec$delta_base, "_all_ploidy_stats_pair_stats.tsv")),
     sep = "\t",
     quote = FALSE,
     row.names = FALSE
   )
   write.table(
     combined_concentration_delta_correlations[metric_delta_correlation_rows, , drop = FALSE],
-    file = file.path(out_dir, paste0(metric_spec$delta_base, "_all_ploidy_stats_correlation.tsv")),
+    file = file.path(table_dir, paste0(metric_spec$delta_base, "_all_ploidy_stats_correlation.tsv")),
     sep = "\t",
     quote = FALSE,
     row.names = FALSE
   )
   write.table(
     combined_concentration_absolute_stats[metric_absolute_rows, , drop = FALSE],
-    file = file.path(out_dir, paste0(metric_spec$absolute_base, "_all_ploidy_stats_sample_stats.tsv")),
+    file = file.path(table_dir, paste0(metric_spec$absolute_base, "_all_ploidy_stats_sample_stats.tsv")),
     sep = "\t",
     quote = FALSE,
     row.names = FALSE
   )
   write.table(
     combined_concentration_absolute_correlations[metric_absolute_correlation_rows, , drop = FALSE],
-    file = file.path(out_dir, paste0(metric_spec$absolute_base, "_all_ploidy_stats_correlation.tsv")),
+    file = file.path(table_dir, paste0(metric_spec$absolute_base, "_all_ploidy_stats_correlation.tsv")),
     sep = "\t",
     quote = FALSE,
     row.names = FALSE
@@ -1309,42 +1361,42 @@ for (metric_i in seq_len(nrow(concentration_metric_specs))) {
 
 write.table(
   combined_concentration_delta_pair_stats,
-  file = file.path(out_dir, "gemcitabine_delta_ec50_ic50_vs_delta_ploidy_all_ploidy_stats_pair_stats.tsv"),
+  file = file.path(table_dir, "gemcitabine_delta_ec50_ic50_vs_delta_ploidy_all_ploidy_stats_pair_stats.tsv"),
   sep = "\t",
   quote = FALSE,
   row.names = FALSE
 )
 write.table(
   combined_concentration_delta_correlations,
-  file = file.path(out_dir, "gemcitabine_delta_ec50_ic50_vs_delta_ploidy_all_ploidy_stats_correlation.tsv"),
+  file = file.path(table_dir, "gemcitabine_delta_ec50_ic50_vs_delta_ploidy_all_ploidy_stats_correlation.tsv"),
   sep = "\t",
   quote = FALSE,
   row.names = FALSE
 )
 write.table(
   combined_concentration_absolute_stats,
-  file = file.path(out_dir, "gemcitabine_absolute_ec50_ic50_vs_ploidy_all_ploidy_stats_sample_stats.tsv"),
+  file = file.path(table_dir, "gemcitabine_absolute_ec50_ic50_vs_ploidy_all_ploidy_stats_sample_stats.tsv"),
   sep = "\t",
   quote = FALSE,
   row.names = FALSE
 )
 write.table(
   combined_concentration_absolute_correlations,
-  file = file.path(out_dir, "gemcitabine_absolute_ec50_ic50_vs_ploidy_all_ploidy_stats_correlation.tsv"),
+  file = file.path(table_dir, "gemcitabine_absolute_ec50_ic50_vs_ploidy_all_ploidy_stats_correlation.tsv"),
   sep = "\t",
   quote = FALSE,
   row.names = FALSE
 )
 
 ggsave(
-  filename = file.path(out_dir, "gemcitabine_normalized_dose_response_fits.png"),
+  filename = file.path(fig_dir, "gemcitabine_normalized_dose_response_fits.png"),
   plot = dose_response_plot,
   width = 10.5,
   height = 7.2,
   dpi = 300
 )
 ggsave(
-  filename = file.path(out_dir, "gemcitabine_normalized_dose_response_fits.pdf"),
+  filename = file.path(fig_dir, "gemcitabine_normalized_dose_response_fits.pdf"),
   plot = dose_response_plot,
   width = 10.5,
   height = 7.2

@@ -649,8 +649,13 @@ def make_heatmap(enrichment, output_png, output_pdf=None, output_matrix_csv=None
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, help="Input metabolomics .xlsm/.xlsx file")
-    parser.add_argument("--outdir", required=True, help="Output directory")
+    parser.add_argument("--outdir", help="Output directory")
+    parser.add_argument("--output-dir", help="Canonical output directory alias for --outdir.")
     args = parser.parse_args()
+    if args.output_dir:
+        args.outdir = args.output_dir
+    if not args.outdir:
+        parser.error("--outdir or --output-dir is required")
 
     os.makedirs(args.outdir, exist_ok=True)
     figdir = os.path.join(args.outdir, "figures")

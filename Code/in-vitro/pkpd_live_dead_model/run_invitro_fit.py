@@ -215,7 +215,8 @@ def check_expected_inputs(paths: invitro_fitting.ExperimentPaths, fit_config: in
                 }
             )
 
-    manifest_path = DATA_ROOT / "input_manifest.tsv"
+    manifest_path = paths.output_dir / "metadata" / "input_manifest.tsv"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_csv(manifest_path, sep="\t", index=False)
     return manifest_path
 

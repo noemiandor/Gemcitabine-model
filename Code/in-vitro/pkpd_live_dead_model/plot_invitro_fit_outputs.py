@@ -6,6 +6,9 @@ Usage:
     python Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py
     python Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py \
         Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/bestFitSoFar_20260513T164159
+    python Code/in-vitro/pkpd_live_dead_model/plot_invitro_fit_outputs.py \
+        --fit-output Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/alsoGoodFit_20260514T093906 \
+        --output-dir Results/in-vitro/pkpd_live_dead_model/runs/saved_fit
 """
 
 from __future__ import annotations
@@ -1100,7 +1103,23 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         nargs="?",
         default=DEFAULT_OUTPUT_FOLDER,
-        help="Folder containing joint_fit_summary.tsv.",
+        help=(
+            "Legacy positional folder containing joint_fit_summary.tsv. "
+            "When --output-dir is omitted, plots are also written here."
+        ),
+    )
+    parser.add_argument(
+        "--fit-output",
+        type=Path,
+        help="Folder containing joint_fit_summary.tsv. Overrides the positional folder.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help=(
+            "Directory for generated plots/tables. If omitted, outputs are written "
+            "back into the fit-output folder for legacy compatibility."
+        ),
     )
     parser.add_argument(
         "--fit-t-max",
@@ -1157,10 +1176,16 @@ def resolve_output_folder(output_folder: Path) -> Path:
 
 def main() -> None:
     args = parse_args()
-    output_folder = resolve_output_folder(args.output_folder)
-    summary_path = output_folder / "joint_fit_summary.tsv"
+    fit_output_folder = resolve_output_folder(args.fit_output or args.output_folder)
+    summary_path = fit_output_folder / "joint_fit_summary.tsv"
     if not summary_path.exists():
         raise FileNotFoundError(f"Missing summary file: {summary_path}")
+
+    output_folder = args.output_dir or fit_output_folder
+    if not output_folder.is_absolute():
+        output_folder = REPO_ROOT / output_folder
+    output_folder = output_folder.resolve()
+    output_folder.mkdir(parents=True, exist_ok=True)
 
     summary_df = pd.read_csv(summary_path, sep="\t")
     best_row = choose_best_row(summary_df)
@@ -1211,6 +1236,7 @@ def main() -> None:
             dose_label=args.comparison_dose,
         )
 
+    print(f"Read {summary_path}")
     print(f"Wrote {table_path}")
     print(f"Wrote {fold_change_path}")
     print(f"Wrote {paired_path}")

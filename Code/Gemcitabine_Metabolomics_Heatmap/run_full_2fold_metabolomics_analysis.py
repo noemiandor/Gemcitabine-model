@@ -345,7 +345,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
     parser.add_argument("--out", default="metabolomics_2fold_full_package")
+    parser.add_argument("--output-dir", help="Canonical output directory alias for --out.")
     args = parser.parse_args()
+    if args.output_dir:
+        args.out = args.output_dir
 
     figdir = os.path.join(args.out, "figures")
     tabledir = os.path.join(args.out, "tables")

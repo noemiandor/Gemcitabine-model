@@ -12,14 +12,46 @@ script_path <- if (length(file_arg) > 0) {
   normalizePath("pseudotimeAssociations.R")
 }
 repo_root <- normalizePath(file.path(dirname(script_path), "..", ".."))
-input_csv <- file.path(
+
+parse_args <- function(args) {
+  out <- list(input = NULL, output_dir = NULL)
+  i <- 1
+  while (i <= length(args)) {
+    arg <- args[[i]]
+    if (startsWith(arg, "--input=")) {
+      out$input <- sub("^--input=", "", arg)
+    } else if (arg == "--input") {
+      i <- i + 1
+      out$input <- args[[i]]
+    } else if (startsWith(arg, "--output-dir=")) {
+      out$output_dir <- sub("^--output-dir=", "", arg)
+    } else if (arg == "--output-dir") {
+      i <- i + 1
+      out$output_dir <- args[[i]]
+    } else {
+      stop(sprintf("Unknown argument: %s", arg), call. = FALSE)
+    }
+    i <- i + 1
+  }
+  out
+}
+
+args <- parse_args(commandArgs(TRUE))
+input_csv <- if (!is.null(args$input)) args$input else file.path(
   repo_root,
   "Data",
   "in-vivo",
   "CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
 )
-fig_dir <- file.path(repo_root, "Figs")
+if (!is.null(args$output_dir)) {
+  fig_dir <- file.path(args$output_dir, "figures")
+  table_dir <- file.path(args$output_dir, "tables")
+} else {
+  fig_dir <- file.path(repo_root, "Figs")
+  table_dir <- fig_dir
+}
 dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(table_dir, recursive = TRUE, showWarnings = FALSE)
 
 df <- read.csv(input_csv, check.names = FALSE, stringsAsFactors = FALSE)
 required_cols <- c(
@@ -232,7 +264,7 @@ reported_stats <- data.frame(
 )
 write.csv(
   reported_stats,
-  file.path(fig_dir, "pseudotimeAssociations_reported_stats.csv"),
+  file.path(table_dir, "pseudotimeAssociations_reported_stats.csv"),
   row.names = FALSE
 )
 

@@ -42,6 +42,7 @@ parse_args <- function(args) {
     output = default_output,
     details_output = default_details_output,
     mapping_output = default_mapping_output,
+    output_dir = NULL,
     check_config = FALSE
   )
   i <- 1
@@ -59,12 +60,20 @@ parse_args <- function(args) {
     } else if (arg == "--mapping-output") {
       i <- i + 1
       out$mapping_output <- args[[i]]
+    } else if (arg == "--output-dir") {
+      i <- i + 1
+      out$output_dir <- args[[i]]
     } else if (arg == "--check-config") {
       out$check_config <- TRUE
     } else {
       stop(sprintf("Unknown argument: %s", arg), call. = FALSE)
     }
     i <- i + 1
+  }
+  if (!is.null(out$output_dir)) {
+    out$output <- file.path(out$output_dir, "fig3h_cloneid_ploidy.tsv")
+    out$details_output <- file.path(out$output_dir, "fig3h_cloneid_ploidy_profile_details.tsv")
+    out$mapping_output <- file.path(out$output_dir, "fig3h_cloneid_id_mapping.tsv")
   }
   out
 }
