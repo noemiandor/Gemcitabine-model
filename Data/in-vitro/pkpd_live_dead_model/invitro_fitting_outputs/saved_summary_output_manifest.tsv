@@ -1,0 +1,17 @@
+requirement_group	output_name	output_type	required_columns	width_px	height_px
+common	joint_fit_summary.tsv	tsv	posterior_objective,objective,observation_channels,model_variant,n_tr,theta_alive,theta_dead,2N_r,4N_r,2N_K,4N_K,2N_k_tr,4N_k_tr,2N_k_kill,4N_k_kill,2N_k_clear,4N_k_clear		
+common	ploidy_parameter_comparison.tsv	tsv	parameter,display_name,value_2N,value_4N,ratio_4N_over_2N,log2_ratio_4N_over_2N		
+common	pk_tail_fit_diagnostics.tsv	tsv	sheet_name,ploidy,dose_uM,analyte,n_timepoints_total,n_timepoints_positive_finite,peak_time_days,peak_signal_uM,tail_fit_used,fallback_used,tail_decay_per_day,tail_half_life_days		
+common	dose_response_ploidy_comparison.tsv	tsv	dose_label,dose_uM,endpoint_days,pred_alive_end_2N,pred_dead_end_2N,pred_alive_fraction_control_2N,sensitivity_index_2N,pred_alive_end_4N,pred_dead_end_4N,pred_alive_fraction_control_4N,sensitivity_index_4N,ratio_4N_over_2N_pred_alive_fraction_control,log2_ratio_4N_over_2N_pred_alive_fraction_control		
+common	ploidy_parameter_log2_fold_change.png	png		1980	978
+common	ploidy_parameter_paired_values.png	png		1978	1077
+common	dfdctp_signal_curve_2n.png	png		1480	930
+common	dfdctp_signal_curve_4n.png	png		1480	930
+common	dfdctp_amplitude_scaling_2n.png	png		1280	858
+common	dfdctp_amplitude_scaling_4n.png	png		1280	858
+common	dfdctp_signal_curve_combined_ploidy.png	png		1949	1159
+common	dose_response_ploidy_comparison.png	png			
+common	cohort_joint_fit_2n.png	png		2219	3441
+common	cohort_joint_fit_4n.png	png		2219	3441
+dose_50	dose_50_nm_2n_vs_4n.png	png		2220	872
+dose_25	dose_25_nm_2n_vs_4n.png	png		2220	872
