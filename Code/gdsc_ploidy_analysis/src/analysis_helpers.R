@@ -42,7 +42,7 @@ plot_barplot_or_stop <- function(plot_values,
       horiz = TRUE,
       las = 2,
       cex.lab = 0.7,
-      cex.names = 0.35,
+      cex.names = 0.25,
       xlab = xlab
     ),
     error = function(e) {
