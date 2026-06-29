@@ -3,6 +3,7 @@ import math
 import os
 import re
 import sys
+import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field, replace
@@ -4909,6 +4910,8 @@ def fit_one_n_tr_worker(
     args: Tuple[int, Sequence[ReplicateTrajectory], Dict[str, DfdctpSignalSurface], JointFitConfig]
 ) -> Tuple[int, Dict[str, Any]]:
     n_tr, trajectories, dfdctp_signal_curve_by_ploidy, fit_config = args
+    start_time = time.monotonic()
+    print(f"[n_tr={n_tr}] starting fit in pid {os.getpid()}", flush=True)
     try:
         result = fit_joint_partial_pooling_model(
             trajectories=trajectories,
@@ -4935,6 +4938,13 @@ def fit_one_n_tr_worker(
             "ploidy_parameters": {},
             "dose_gate_params": {},
         }
+    elapsed_seconds = time.monotonic() - start_time
+    posterior_objective = result.get("posterior_objective", np.nan)
+    print(
+        f"[n_tr={n_tr}] finished in {elapsed_seconds:.1f}s; "
+        f"success={result.get('success')}; posterior_objective={posterior_objective}",
+        flush=True,
+    )
     return int(n_tr), result
 
 
@@ -4959,10 +4969,18 @@ def run_n_tr_model_selection(
             f"using {max_workers} worker processes."
         )
         fit_results = []
+        selection_start_time = time.monotonic()
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(fit_one_n_tr_worker, task) for task in tasks]
+            futures = {}
+            for task in tasks:
+                n_tr = int(task[0])
+                print(f"[n_tr={n_tr}] submitted to process pool", flush=True)
+                futures[executor.submit(fit_one_n_tr_worker, task)] = n_tr
             for future in as_completed(futures):
+                n_tr = futures[future]
                 fit_results.append(future.result())
+                elapsed_seconds = time.monotonic() - selection_start_time
+                print(f"[n_tr={n_tr}] result collected after {elapsed_seconds:.1f}s", flush=True)
 
     summary_rows: List[Dict[str, Any]] = []
     attempt_frames: List[pd.DataFrame] = []
