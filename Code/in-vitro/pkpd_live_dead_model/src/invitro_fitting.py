@@ -670,8 +670,11 @@ class DfdctpDoseProfile:
     dose_uM: float
     analyte_column: str
     time_days: np.ndarray
+    replicate_count_values: np.ndarray
     raw_signal_uM_values: np.ndarray
+    raw_signal_uM_sd_values: np.ndarray
     induced_signal_uM_values: np.ndarray
+    induced_signal_uM_sd_values: np.ndarray
     peak_signal_uM: float
     peak_time_days: float
     tail_half_life_days: float
@@ -1265,11 +1268,45 @@ def save_pk_tail_diagnostics(
     diagnostics_df.to_csv(output_path, sep="\t", index=False)
     return output_path
 
+
+def get_dfdctp_signal_curve_y_limits(
+    curves_by_ploidy: Dict[str, DfdctpSignalSurface],
+) -> Tuple[float, float]:
+    y_max_values = []
+    for curve in curves_by_ploidy.values():
+        if len(curve.calibration_profiles_by_dose) == 0:
+            continue
+        max_time = max(
+            float(profile.time_days.max())
+            for profile in curve.calibration_profiles_by_dose.values()
+            if len(profile.time_days) > 0
+        )
+        t_grid = np.linspace(0.0, max(5.0, max_time), 400)
+        for dose in curve.calibration_doses_uM:
+            modeled_signal = np.asarray(curve(t_grid, float(dose)), dtype=float)
+            if np.any(np.isfinite(modeled_signal)):
+                y_max_values.append(float(np.nanmax(modeled_signal)))
+            profile = curve.calibration_profiles_by_dose[float(dose)]
+            measured_upper = np.asarray(profile.induced_signal_uM_values, dtype=float) + np.where(
+                np.isfinite(profile.induced_signal_uM_sd_values),
+                np.asarray(profile.induced_signal_uM_sd_values, dtype=float),
+                0.0,
+            )
+            if np.any(np.isfinite(measured_upper)):
+                y_max_values.append(float(np.nanmax(measured_upper)))
+
+    y_max = max(y_max_values) if y_max_values else 1.0
+    if not np.isfinite(y_max) or y_max <= 0:
+        y_max = 1.0
+    return 0.0, y_max * 1.08
+
+
 def plot_dfdctp_signal_curve(
     ploidy_label: str,
     curve: DfdctpSignalSurface,
     output_dir: Optional[Path] = None,
     close_fig: bool = True,
+    y_limits: Optional[Tuple[float, float]] = None,
 ):
     """
     Plots measured and modeled baseline-subtracted intracellular dFdCTP signal.
@@ -1287,53 +1324,53 @@ def plot_dfdctp_signal_curve(
     log_time_floor = min_positive_time / 2.0
     t_grid = np.linspace(0.0, max(5.0, max_time), 400)
     t_plot_grid = np.maximum(t_grid, log_time_floor)
+    color_values = plt.cm.tab10(np.linspace(0.0, 1.0, max(len(curve.calibration_doses_uM), 1)))
+    dose_colors = {
+        float(dose): color
+        for dose, color in zip(curve.calibration_doses_uM, color_values)
+    }
 
     fig, ax = plt.subplots(figsize=(7.5, 4.8))
-    for idx, dose in enumerate(curve.calibration_doses_uM):
+    for dose in curve.calibration_doses_uM:
+        dose = float(dose)
+        dose_label = f"{dose * 1000.0:g} nM"
         profile = curve.calibration_profiles_by_dose[float(dose)]
         modeled_signal = curve(t_grid, float(dose))
+        color = dose_colors[dose]
         ax.plot(
             t_plot_grid,
             modeled_signal,
+            color=color,
             linewidth=2.0,
-            label=f"Modeled {dose:.3f} uM profile",
+            label=f"{dose_label} driver curve",
         )
         if len(profile.time_days) > 0:
             time_plot = np.maximum(np.asarray(profile.time_days, dtype=float), log_time_floor)
-            ax.scatter(
-                time_plot,
-                profile.raw_signal_uM_values,
-                s=35,
-                alpha=0.55,
-                label="Measured dFdCTP PK (raw uM)" if idx == 0 else None,
-                color="goldenrod",
+            yerr = np.where(
+                np.isfinite(profile.induced_signal_uM_sd_values),
+                profile.induced_signal_uM_sd_values,
+                0.0,
             )
-            ax.scatter(
+            ax.errorbar(
                 time_plot,
                 profile.induced_signal_uM_values,
-                s=55,
-                alpha=0.9,
-                label=f"Baseline-subtracted {profile.sheet_name}",
-                color="darkorange" if dose == np.max(curve.calibration_doses_uM) else "sandybrown",
-                edgecolor="black",
-                linewidth=0.4,
+                yerr=yerr,
+                fmt="o",
+                markersize=5.5,
+                capsize=3.0,
+                elinewidth=1.0,
+                alpha=0.95,
+                color=color,
+                markeredgecolor="black",
+                markeredgewidth=0.45,
+                label=f"{dose_label} measured mean +/- SD ({profile.sheet_name})",
             )
-    if curve.min_calibration_dose_uM > 0:
-        preview_dose = curve.min_calibration_dose_uM / 10.0
-        preview_signal = curve(t_grid, preview_dose)
-        ax.plot(
-            t_plot_grid,
-            preview_signal,
-            linestyle="--",
-            linewidth=1.5,
-            color="slateblue",
-            alpha=0.9,
-            label=f"Below-range policy preview ({preview_dose:.3f} uM)",
-        )
     ax.set_xscale("log")
     ax.set_xlim(log_time_floor, max(5.0, max_time))
+    if y_limits is not None:
+        ax.set_ylim(*y_limits)
     ax.set_xlabel("Time (Days, log scale; day 0 shown at plotting floor)")
-    ax.set_ylabel("Intracellular dFdCTP Signal (uM)")
+    ax.set_ylabel("Baseline-subtracted intracellular dFdCTP (uM)")
     ax.set_title(f"{ploidy_label} dFdCTP Signal Driver")
     ax.text(
         0.02,
@@ -1407,25 +1444,56 @@ def plot_dfdctp_amplitude_scaling(
     elif close_fig:
         plt.close(fig)
 
-def extract_mean_dfdctp_signal_profile(
+def extract_dfdctp_signal_summary(
     df: pd.DataFrame,
     analyte: str = "dFdCTP (ng/mL)",
     molecular_weight_ng_per_nmol: float = DFDCTP_MOLECULAR_WEIGHT_NG_PER_NMOL,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Returns mean dFdCTP measurements converted from ng/mL to intracellular uM."""
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Returns per-timepoint dFdCTP replicate counts, means, and SDs in uM."""
     if "Timepoint" not in df.columns or analyte not in df.columns:
-        return np.array([], dtype=float), np.array([], dtype=float)
+        return (
+            np.array([], dtype=float),
+            np.array([], dtype=int),
+            np.array([], dtype=float),
+            np.array([], dtype=float),
+        )
 
-    mean_data = df.groupby("Timepoint")[analyte].mean().dropna()
-    if mean_data.empty:
-        return np.array([], dtype=float), np.array([], dtype=float)
+    data = df[["Timepoint", analyte]].copy()
+    data[analyte] = pd.to_numeric(data[analyte], errors="coerce")
+    data = data.dropna(subset=["Timepoint", analyte])
+    if data.empty:
+        return (
+            np.array([], dtype=float),
+            np.array([], dtype=int),
+            np.array([], dtype=float),
+            np.array([], dtype=float),
+        )
 
-    time_days = mean_data.index.to_numpy(dtype=float) / 24.0
-    concentration_uM_values = dfdctp_ng_per_ml_to_uM(
-        mean_data.to_numpy(dtype=float),
+    grouped = data.groupby("Timepoint", sort=True)[analyte]
+    summary = grouped.agg(["count", "mean", "std"]).dropna(subset=["mean"])
+    if summary.empty:
+        return (
+            np.array([], dtype=float),
+            np.array([], dtype=int),
+            np.array([], dtype=float),
+            np.array([], dtype=float),
+        )
+
+    time_days = summary.index.to_numpy(dtype=float) / 24.0
+    mean_uM_values = dfdctp_ng_per_ml_to_uM(
+        summary["mean"].to_numpy(dtype=float),
         molecular_weight_ng_per_nmol=molecular_weight_ng_per_nmol,
     )
-    return time_days, np.asarray(concentration_uM_values, dtype=float)
+    sd_uM_values = dfdctp_ng_per_ml_to_uM(
+        summary["std"].to_numpy(dtype=float),
+        molecular_weight_ng_per_nmol=molecular_weight_ng_per_nmol,
+    )
+    return (
+        time_days,
+        summary["count"].to_numpy(dtype=int),
+        np.asarray(mean_uM_values, dtype=float),
+        np.asarray(sd_uM_values, dtype=float),
+    )
 
 def baseline_subtract_treatment_induced_signal(signal_uM) -> np.ndarray:
     """
@@ -1451,7 +1519,7 @@ def build_dfdctp_profile_from_sheet(
     """
     Builds a mean baseline-subtracted dFdCTP profile from one PK sheet.
     """
-    time_days, raw_signal_uM = extract_mean_dfdctp_signal_profile(
+    time_days, replicate_counts, raw_signal_uM, raw_signal_uM_sd = extract_dfdctp_signal_summary(
         df,
         analyte=analyte,
         molecular_weight_ng_per_nmol=molecular_weight_ng_per_nmol,
@@ -1460,6 +1528,7 @@ def build_dfdctp_profile_from_sheet(
         return None
 
     induced_signal_uM = baseline_subtract_treatment_induced_signal(raw_signal_uM)
+    induced_signal_uM_sd = np.asarray(raw_signal_uM_sd, dtype=float)
     if not np.any(np.isfinite(induced_signal_uM)):
         return None
 
@@ -1527,8 +1596,11 @@ def build_dfdctp_profile_from_sheet(
         dose_uM=float(reference_dose_uM),
         analyte_column=analyte,
         time_days=np.asarray(time_days, dtype=float),
+        replicate_count_values=np.asarray(replicate_counts, dtype=int),
         raw_signal_uM_values=np.asarray(raw_signal_uM, dtype=float),
+        raw_signal_uM_sd_values=np.asarray(raw_signal_uM_sd, dtype=float),
         induced_signal_uM_values=np.asarray(induced_signal_uM, dtype=float),
+        induced_signal_uM_sd_values=np.asarray(induced_signal_uM_sd, dtype=float),
         peak_signal_uM=peak_signal_uM,
         peak_time_days=time_of_peak_days,
         tail_half_life_days=tail_half_life_days,
@@ -5243,6 +5315,7 @@ def main(
             raise ValueError(f"Requested fit dose labels are absent from the modeling dataset: {missing_doses}")
         gem_doses = [dose for dose in gem_doses if dose in requested_doses]
     live_dead_dose_uM_values = [float(dose.split()[0]) / 1000.0 for dose in gem_doses if dose != "0 nM"]
+    dfdctp_y_limits = get_dfdctp_signal_curve_y_limits(dfdctp_signal_curve_by_ploidy)
 
     for ploidy_key in ["2N", "4N"]:
         print_dfdctp_signal_curve_summary(
@@ -5250,7 +5323,12 @@ def main(
             dfdctp_signal_curve_by_ploidy[ploidy_key],
             live_dead_dose_uM_values=live_dead_dose_uM_values,
         )
-        plot_dfdctp_signal_curve(ploidy_key, dfdctp_signal_curve_by_ploidy[ploidy_key], output_dir=paths.output_dir)
+        plot_dfdctp_signal_curve(
+            ploidy_key,
+            dfdctp_signal_curve_by_ploidy[ploidy_key],
+            output_dir=paths.output_dir,
+            y_limits=dfdctp_y_limits,
+        )
         plot_dfdctp_amplitude_scaling(ploidy_key, dfdctp_signal_curve_by_ploidy[ploidy_key], output_dir=paths.output_dir)
 
     trajectories = build_joint_fit_trajectories(

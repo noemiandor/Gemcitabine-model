@@ -1186,8 +1186,14 @@ def main() -> None:
     curves_by_ploidy = build_dfdctp_surfaces()
     if not args.skip_dfdctp:
         invitro_fitting.save_pk_tail_diagnostics(curves_by_ploidy, output_folder)
+        dfdctp_y_limits = invitro_fitting.get_dfdctp_signal_curve_y_limits(curves_by_ploidy)
         for ploidy in ("2N", "4N"):
-            invitro_fitting.plot_dfdctp_signal_curve(ploidy, curves_by_ploidy[ploidy], output_dir=output_folder)
+            invitro_fitting.plot_dfdctp_signal_curve(
+                ploidy,
+                curves_by_ploidy[ploidy],
+                output_dir=output_folder,
+                y_limits=dfdctp_y_limits,
+            )
             invitro_fitting.plot_dfdctp_amplitude_scaling(ploidy, curves_by_ploidy[ploidy], output_dir=output_folder)
         plot_combined_dfdctp_signal_curves(curves_by_ploidy, dfdctp_path)
         plot_effective_dfdctp_signal_curves(best_row, fit_config, curves_by_ploidy, effective_dfdctp_path)
