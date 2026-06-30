@@ -112,7 +112,10 @@ def write_tsv(path: Path, rows: Sequence[Mapping[str, object]], columns: Sequenc
         writer = csv.DictWriter(handle, fieldnames=list(columns), delimiter="\t", lineterminator="\n")
         writer.writeheader()
         for row in rows:
-            writer.writerow({key: row.get(key, "") for key in columns})
+            out_row = {key: row.get(key, "") for key in columns}
+            if columns and not str(out_row.get(columns[-1], "")).strip():
+                out_row[columns[-1]] = "."
+            writer.writerow(out_row)
 
 
 def ensure_columns(headers: Sequence[str], required: Sequence[str], manifest_path: Path) -> list[str]:

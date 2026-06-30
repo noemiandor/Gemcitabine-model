@@ -1273,6 +1273,7 @@ def save_pk_tail_diagnostics(
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     diagnostics_df = collect_pk_tail_diagnostics(curves_by_ploidy)
+    diagnostics_df["warning_message"] = diagnostics_df["warning_message"].replace("", ".")
     output_path = output_dir / "pk_tail_fit_diagnostics.tsv"
     diagnostics_df.to_csv(output_path, sep="\t", index=False)
     return output_path

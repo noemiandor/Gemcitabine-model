@@ -1,0 +1,91 @@
+Saving figures to: /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit
+Model configuration:
+  preset: None
+  model_variant: immediate_cytostasis_delayed_death
+  beta: fitted
+  Hill gate: disabled
+  confluence death: disabled
+PK workbook:
+  4N sheet: found Gemcitabine, dFdU, dFdCTP, dFdCDP, dFdCMP
+  2N sheet: found Gemcitabine, dFdU, dFdCTP, dFdCDP, dFdCMP
+  2N_lowInitialGemcitabine sheet: found Gemcitabine, dFdU, dFdCTP
+  4N_lowInitialGemcitabine sheet: found Gemcitabine, dFdU, dFdCTP
+2N intracellular dFdCTP signal:
+  analyte driver: dFdCTP (ng/mL)
+  PK sheets used: 2N, 2N_lowInitialGemcitabine
+  PK sheet reference doses: 2N=1.0000 uM, 2N_lowInitialGemcitabine=0.1000 uM
+  calibration dose range: 0.1000 to 1.0000 uM
+  extrapolation policy: log-dose linear extrapolation
+  dose 0.1000 uM -> peak 0.006559 uM at 1.0000 d; tail t1/2 1.0000 d; tail R^2 n/a
+    warning: Using fallback dFdCTP tail half-life of 1.000 days for 2N_lowInitialGemcitabine because the terminal fit was not identifiable.
+  dose 1.0000 uM -> peak 0.051362 uM at 0.0833 d; tail t1/2 0.4825 d; tail R^2 0.9858
+  warning: Using fallback dFdCTP tail half-life of 1.000 days for 2N_lowInitialGemcitabine because the terminal fit was not identifiable.
+  live/dead dose coverage: live/dead doses extend below the PK calibration range; below-range doses use proportional scaling of the minimum-dose profile
+  below-range policy: doses below 0.1000 uM use proportional scaling of the 0.1000 uM dFdCTP profile (0.003125 to 0.1000 uM)
+4N intracellular dFdCTP signal:
+  analyte driver: dFdCTP (ng/mL)
+  PK sheets used: 4N, 4N_lowInitialGemcitabine
+  PK sheet reference doses: 4N=1.0000 uM, 4N_lowInitialGemcitabine=0.1000 uM
+  calibration dose range: 0.1000 to 1.0000 uM
+  extrapolation policy: log-dose linear extrapolation
+  dose 0.1000 uM -> peak 0.018817 uM at 1.0000 d; tail t1/2 1.0000 d; tail R^2 n/a
+    warning: Using fallback dFdCTP tail half-life of 1.000 days for 4N_lowInitialGemcitabine because the terminal fit was not identifiable.
+  dose 1.0000 uM -> peak 0.080289 uM at 0.0833 d; tail t1/2 0.6418 d; tail R^2 0.9568
+  warning: Using fallback dFdCTP tail half-life of 1.000 days for 4N_lowInitialGemcitabine because the terminal fit was not identifiable.
+  live/dead dose coverage: live/dead doses extend below the PK calibration range; below-range doses use proportional scaling of the minimum-dose profile
+  below-range policy: doses below 0.1000 uM use proportional scaling of the 0.1000 uM dFdCTP profile (0.003125 to 0.1000 uM)
+Joint fit trajectories: dropped 63 non-finite paired alive/dead observations before likelihood evaluation.
+Running n_tr model selection in parallel over 6 values using 6 worker processes.
+[n_tr=2] submitted to process pool
+[n_tr=3] submitted to process pool
+[n_tr=2] starting fit in pid 27644
+[n_tr=4] submitted to process pool
+[n_tr=3] starting fit in pid 27667
+[n_tr=5] submitted to process pool
+[n_tr=4] starting fit in pid 27708
+[n_tr=6] submitted to process pool
+[n_tr=5] starting fit in pid 27729
+[n_tr=7] submitted to process pool
+[n_tr=6] starting fit in pid 27750
+[n_tr=7] starting fit in pid 27845
+[n_tr=2] finished in 2076.0s; success=True; posterior_objective=65956.83425861578
+[n_tr=2] result collected after 2077.4s
+[n_tr=7] finished in 2319.4s; success=True; posterior_objective=66376.95576885043
+[n_tr=7] result collected after 2327.9s
+[n_tr=5] finished in 2634.1s; success=True; posterior_objective=64940.406204320185
+[n_tr=5] result collected after 2639.8s
+[n_tr=4] finished in 2773.4s; success=True; posterior_objective=64748.44849518557
+[n_tr=4] result collected after 2777.6s
+[n_tr=6] finished in 2795.3s; success=True; posterior_objective=66025.36282387195
+[n_tr=6] result collected after 2803.9s
+[n_tr=3] finished in 4605.7s; success=True; posterior_objective=63690.46864979467
+[n_tr=3] result collected after 4608.5s
+Best joint partial-pooling fit used n_tr=3
+Posterior objective = data_nll + prior_penalty = 63690.4686
+Data NLL: 63687.4453
+Prior penalty: 3.0233
+Objective: negative_binomial
+Observation channels: alive_dead
+Model variant: immediate_cytostasis_delayed_death
+Observed compartments: alive = Alive; dead = Dead + Transitional
+Hill dose gate: disabled
+Confluence death: disabled
+2N: r=1.7013, K=31036.2834, k_tr=2.3875, k_kill=295.0408, k_clear=0.3049, beta_dose=0.4643, mu_base_death=0.0885, mu_confluence_death=0.0000, k_cyto=1806.5209
+4N: r=1.4200, K=68867.0956, k_tr=1.5437, k_kill=117.4980, k_clear=0.2409, beta_dose=0.6550, mu_base_death=0.0355, mu_confluence_death=0.0000, k_cyto=612.6595
+Fit output directory: /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit
+Read Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/joint_fit_summary.tsv
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/ploidy_parameter_comparison.tsv
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/ploidy_parameter_log2_fold_change.png
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/ploidy_parameter_paired_values.png
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/pk_tail_fit_diagnostics.tsv
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/dfdctp_signal_curve_2n.png
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/dfdctp_signal_curve_4n.png
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/dfdctp_amplitude_scaling_2n.png
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/dfdctp_amplitude_scaling_4n.png
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/dfdctp_signal_curve_combined_ploidy.png
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/effective_dfdctp_signal_curve_combined_ploidy.png
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/dose_response_ploidy_comparison.tsv
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/dose_response_ploidy_comparison.png
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/cohort_joint_fit_2n.png
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/cohort_joint_fit_4n.png
+Wrote /Users/4470246/Repositories/Gemcitabine-model/Results/in-vitro/pkpd_live_dead_model/runs/20260629T143000_full_refit_pkpd_fit/dose_50_nm_2n_vs_4n.png
