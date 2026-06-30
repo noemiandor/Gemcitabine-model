@@ -1,0 +1,2 @@
+drug	response_metric	response_metric_label	response_metric_scale	ploidy_stat	ploidy_stat_label	n_samples	pearson_r	p_value
+Gemcitabine	ec50	EC50	log10_uM	q90	90th percentile	12	0.366509029449305	0.241275627058576

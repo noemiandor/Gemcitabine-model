@@ -1,0 +1,8 @@
+drug	response_metric	response_metric_label	response_metric_scale	ploidy_stat	ploidy_stat_label	n_pairs	pearson_r	p_value
+Gemcitabine	ec50	EC50	log10_uM	mean	mean	6	0.432527393926904	0.391667509966853
+Gemcitabine	ec50	EC50	log10_uM	median	median	6	0.300606135629793	0.562672790306861
+Gemcitabine	ec50	EC50	log10_uM	q90	90th percentile	6	0.775869329861108	0.06972228344982
+Gemcitabine	ec50	EC50	log10_uM	q10	10th percentile	6	0.446229220704544	0.37508286559839
+Gemcitabine	ec50	EC50	log10_uM	q75	75th percentile	6	0.302810782668322	0.559666847985678
+Gemcitabine	ec50	EC50	log10_uM	max	maximum	6	0.688272543157647	0.130615107932997
+Gemcitabine	ec50	EC50	log10_uM	min	minimum	6	0.37421649049797	0.464877525288483

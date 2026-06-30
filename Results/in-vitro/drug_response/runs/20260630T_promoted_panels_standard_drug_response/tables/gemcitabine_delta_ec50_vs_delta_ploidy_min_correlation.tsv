@@ -1,0 +1,2 @@
+drug	response_metric	response_metric_label	response_metric_scale	ploidy_stat	ploidy_stat_label	n_pairs	pearson_r	p_value
+Gemcitabine	ec50	EC50	log10_uM	min	minimum	6	0.37421649049797	0.464877525288483

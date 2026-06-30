@@ -1,0 +1,2 @@
+drug	response_metric	response_metric_label	response_metric_scale	ploidy_stat	ploidy_stat_label	n_samples	pearson_r	p_value
+Gemcitabine	ec50	EC50	log10_uM	median	median	12	0.397557668738414	0.20062366310914
