@@ -9,6 +9,7 @@ mode="standard"
 modules="gdsc,ccle,drug_response,pkpd,metabolomics"
 output_root="Results"
 figure_root="figures"
+module_registry="docs/manuscript_figure_module_registry.tsv"
 overwrite=false
 dry_run=false
 no_update_latest=false
@@ -137,6 +138,26 @@ require_dir() {
     echo "Missing required directory: ${path}" >&2
     return 1
   fi
+}
+
+registry_module_name() {
+  case "$1" in
+    pkpd|pkpd_fit) printf "pkpd_live_dead_model" ;;
+    *) printf "%s" "$1" ;;
+  esac
+}
+
+validate_module_registry() {
+  local module
+  local registry_name
+  require_file "${module_registry}"
+  for module in "$@"; do
+    registry_name="$(registry_module_name "${module}")"
+    if ! awk -F '\t' -v target="${registry_name}" 'NR > 1 && $1 == target { found = 1 } END { exit found ? 0 : 1 }' "${module_registry}"; then
+      echo "Module is not listed in ${module_registry}: ${module}" >&2
+      return 1
+    fi
+  done
 }
 
 module_run_dir() {
@@ -381,6 +402,8 @@ run_module() {
 
 manager_run_dir="${output_root}/manager/runs/${run_id}"
 module_runs_file="${manager_run_dir}/metadata/module_runs.tsv"
+
+validate_module_registry "${module_list[@]}"
 
 if [[ "${mode}" == "check-only" || "${dry_run}" == true ]]; then
   echo "Manager ${mode} for run_id=${run_id}"
