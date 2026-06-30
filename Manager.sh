@@ -20,6 +20,7 @@ gdsc_analysis_mode="manuscript"
 gdsc_enrichment_permute_n="300"
 
 pkpd_saved_fit="Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/alsoGoodFit_20260514T093906"
+pkpd_fit_model_preset="beta_hill_baseline_confluence"
 pkpd_refit=false
 pkpd_smoke_fit=false
 pkpd_fit_output=""
@@ -269,7 +270,12 @@ command_for_module() {
         --output-dir "${run_dir}"
       ;;
     pkpd_fit)
-      local fit_args=(python3 Code/in-vitro/pkpd_live_dead_model/run_invitro_fit.py --output-dir "${run_dir}" --n-jobs "${jobs}")
+      local fit_args=(
+        python3 Code/in-vitro/pkpd_live_dead_model/run_invitro_fit.py
+        --output-dir "${run_dir}"
+        --n-jobs "${jobs}"
+        --model-preset "${pkpd_fit_model_preset}"
+      )
       if [[ "${overwrite}" == true ]]; then
         fit_args+=(--overwrite)
       fi
