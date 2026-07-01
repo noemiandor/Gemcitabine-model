@@ -1,0 +1,12 @@
+Generating manuscript-style ploidy-enrichment panels with plot_ploidy_enrichment_panels.py
+/Users/4470246/opt/miniconda3/lib/python3.9/site-packages/openpyxl/styles/stylesheet.py:237: UserWarning: Workbook contains no default style, apply openpyxl's default
+  warn("Workbook contains no default style, apply openpyxl's default")
+/Users/4470246/opt/miniconda3/lib/python3.9/site-packages/openpyxl/styles/stylesheet.py:237: UserWarning: Workbook contains no default style, apply openpyxl's default
+  warn("Workbook contains no default style, apply openpyxl's default")
+Generating clustered ploidy-enrichment heatmaps with plot_ploidy_enrichment_clustered_heatmaps.py
+/Users/4470246/opt/miniconda3/lib/python3.9/site-packages/openpyxl/styles/stylesheet.py:237: UserWarning: Workbook contains no default style, apply openpyxl's default
+  warn("Workbook contains no default style, apply openpyxl's default")
+/Users/4470246/opt/miniconda3/lib/python3.9/site-packages/openpyxl/styles/stylesheet.py:237: UserWarning: Workbook contains no default style, apply openpyxl's default
+  warn("Workbook contains no default style, apply openpyxl's default")
+Analysis completed. Outputs written to: /Users/4470246/Repositories/Gemcitabine-model/Results/public_data/gdsc_ploidy_analysis/runs/primary_secondary_candidate_gdsc
+There were 50 or more warnings (use warnings() to see the first 50)

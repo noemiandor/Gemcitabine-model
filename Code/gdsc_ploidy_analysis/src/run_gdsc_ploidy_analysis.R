@@ -432,8 +432,9 @@ if (category_mode == "primary_secondary") {
     primary_secondary_used_table(primary_secondary_rows),
     file.path(tables_dir, "drug_class_primary_secondary_used.tsv")
   )
+  primary_secondary_counts <- primary_secondary_class_counts(primary_secondary_rows)
   write_tsv(
-    primary_secondary_class_counts(primary_secondary_rows),
+    primary_secondary_counts,
     file.path(tables_dir, "drug_class_primary_secondary_counts.tsv")
   )
   coxIn <- make_enrichment_class_table(primary_secondary_rows)
@@ -739,6 +740,17 @@ enrichment_long <- rbind(
   )
 )
 write_tsv(enrichment_long, file.path(tables_dir, sprintf("class_enrichment_%s_%s.tsv", category_suffix, metric)))
+if (category_mode == "primary_secondary" && exists("primary_secondary_counts")) {
+  write_tsv(
+    primary_secondary_review_summary(
+      primary_secondary_counts,
+      enrichment_long,
+      low_ploidy_pvalue_cutoff = low_ploidy_pvalue_cutoff,
+      high_ploidy_pvalue_cutoff = high_ploidy_pvalue_cutoff
+    ),
+    file.path(tables_dir, "drug_class_primary_secondary_review_summary.tsv")
+  )
+}
 
 mode_workbook <- file.path(out_dir, sprintf("drugsVsPloidyCorr_%s_%s.xlsx", category_suffix, metric))
 write.xlsx(t(lowpIsSens), file = mode_workbook, sheetName = "lowpIsSens")

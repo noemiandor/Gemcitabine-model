@@ -1,0 +1,49 @@
+workflow	class	n_drugs	direction	min_enrichment_pvalue
+primary_secondary_19_class	Serine/threonine kinase inhibitors	63	high_ploidy_sensitive	0
+primary_secondary_19_class	Serine/threonine kinase inhibitors	63	low_ploidy_sensitive	0
+primary_secondary_19_class	Epigenetic inhibitors	45	high_ploidy_sensitive	0
+primary_secondary_19_class	Epigenetic inhibitors	45	low_ploidy_sensitive	0.0166666666666667
+primary_secondary_19_class	Other	34	low_ploidy_sensitive	0
+primary_secondary_19_class	Other	34	high_ploidy_sensitive	0.01
+primary_secondary_19_class	Receptor tyrosine kinase inhibitors	25	high_ploidy_sensitive	0
+primary_secondary_19_class	Receptor tyrosine kinase inhibitors	25	low_ploidy_sensitive	0.01
+primary_secondary_19_class	DNA damage repair inhibitors	19	low_ploidy_sensitive	0.0266666666666667
+primary_secondary_19_class	DNA damage repair inhibitors	19	high_ploidy_sensitive	0.00333333333333333
+primary_secondary_19_class	Metabolic/redox agents	14	high_ploidy_sensitive	0
+primary_secondary_19_class	Metabolic/redox agents	14	low_ploidy_sensitive	0.0366666666666667
+primary_secondary_19_class	Proapoptotic agents	14	low_ploidy_sensitive	0.00666666666666667
+primary_secondary_19_class	Proapoptotic agents	14	high_ploidy_sensitive	0.0166666666666667
+primary_secondary_19_class	Non-receptor tyrosine kinase inhibitors	12	low_ploidy_sensitive	0.0133333333333333
+primary_secondary_19_class	Non-receptor tyrosine kinase inhibitors	12	high_ploidy_sensitive	0.04
+primary_secondary_19_class	WNT-pathway modulators	9	high_ploidy_sensitive	0.01
+primary_secondary_19_class	WNT-pathway modulators	9	low_ploidy_sensitive	0
+primary_secondary_19_class	Antimetabolites	8	high_ploidy_sensitive	0.00666666666666667
+primary_secondary_19_class	Antimetabolites	8	low_ploidy_sensitive	0.00666666666666667
+primary_secondary_19_class	Chaperone/protein-homeostasis inhibitors	8	low_ploidy_sensitive	0.00666666666666667
+primary_secondary_19_class	Chaperone/protein-homeostasis inhibitors	8	high_ploidy_sensitive	0
+primary_secondary_19_class	Topoisomerase inhibitors	8	high_ploidy_sensitive	0
+primary_secondary_19_class	Topoisomerase inhibitors	8	low_ploidy_sensitive	0
+primary_secondary_19_class	Alkylating agents	6	high_ploidy_sensitive	0.0566666666666667
+primary_secondary_19_class	Alkylating agents	6	low_ploidy_sensitive	0
+primary_secondary_19_class	Antimitotic agents	6	high_ploidy_sensitive	0
+primary_secondary_19_class	Antimitotic agents	6	low_ploidy_sensitive	0
+primary_secondary_19_class	p53/MDM2 pathway	5	high_ploidy_sensitive	0.133333333333333
+primary_secondary_19_class	p53/MDM2 pathway	5	low_ploidy_sensitive	0.0133333333333333
+primary_secondary_19_class	Hormone therapy	4	high_ploidy_sensitive	0.0266666666666667
+primary_secondary_19_class	Hormone therapy	4	low_ploidy_sensitive	0.02
+primary_secondary_19_class	Tumor antibiotics	3	high_ploidy_sensitive	0.0533333333333333
+primary_secondary_19_class	Tumor antibiotics	3	low_ploidy_sensitive	0
+primary_secondary_19_class	Proteasome inhibitors	2	high_ploidy_sensitive	0.02
+primary_secondary_19_class	Proteasome inhibitors	2	low_ploidy_sensitive	0.00333333333333333
+primary_secondary_19_class	Hedgehog pathway inhibitors	1	low_ploidy_sensitive	0.106666666666667
+primary_secondary_19_class	Hedgehog pathway inhibitors	1	high_ploidy_sensitive	0.03
+curated_10_class	APOPTOSIS	13	NA	NA
+curated_10_class	CELL_CYCLE_MITOSIS	25	NA	NA
+curated_10_class	EPIGENETICS_TRANSCRIPTION	33	NA	NA
+curated_10_class	GENOME_INTEGRITY_DNA_DAMAGE	32	NA	NA
+curated_10_class	HORMONE_RELATED	4	NA	NA
+curated_10_class	METABOLISM	10	NA	NA
+curated_10_class	OTHER_REVIEWED	58	NA	NA
+curated_10_class	P53_PATHWAY	4	NA	NA
+curated_10_class	PROTEIN_DEGRADATION	9	NA	NA
+curated_10_class	SIGNALING	98	NA	NA

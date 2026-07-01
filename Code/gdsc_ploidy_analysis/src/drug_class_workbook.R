@@ -275,3 +275,36 @@ primary_secondary_used_table <- function(class_rows) {
   out <- out[, unique(c("drug", "drug_key", "normalized_drug_key", setdiff(keep, c("drug", "drug_key")))), drop = FALSE]
   out[order(out$normalized_drug_key), , drop = FALSE]
 }
+
+primary_secondary_review_summary <- function(class_counts,
+                                             enrichment_long,
+                                             low_ploidy_pvalue_cutoff = 0.05,
+                                             high_ploidy_pvalue_cutoff = 0.1) {
+  classes <- class_counts$primary_anticancer_class
+  low <- enrichment_long[enrichment_long$direction == "low_ploidy_sensitive", , drop = FALSE]
+  high <- enrichment_long[enrichment_long$direction == "high_ploidy_sensitive", , drop = FALSE]
+  summarize_direction <- function(dt, cutoff, prefix) {
+    rows <- lapply(classes, function(group) {
+      vals <- suppressWarnings(as.numeric(dt$pvalue[dt$group == group]))
+      vals <- vals[is.finite(vals)]
+      data.frame(
+        group = group,
+        selected = sum(vals <= cutoff),
+        min_pvalue = if (length(vals) == 0) NA_real_ else min(vals),
+        stringsAsFactors = FALSE
+      )
+    })
+    out <- do.call(rbind, rows)
+    names(out) <- c("primary_anticancer_class", paste0("n_", prefix, "_selected"), paste0("min_", prefix, "_pvalue"))
+    out
+  }
+  low_summary <- summarize_direction(low, low_ploidy_pvalue_cutoff, "low_ploidy")
+  high_summary <- summarize_direction(high, high_ploidy_pvalue_cutoff, "high_ploidy")
+  out <- merge(class_counts, low_summary, by = "primary_anticancer_class", all.x = TRUE, sort = FALSE)
+  out <- merge(out, high_summary, by = "primary_anticancer_class", all.x = TRUE, sort = FALSE)
+  out$.order <- match(out$primary_anticancer_class, classes)
+  out <- out[order(out$.order), , drop = FALSE]
+  out$.order <- NULL
+  names(out)[names(out) == "count"] <- "n_drugs"
+  out
+}
