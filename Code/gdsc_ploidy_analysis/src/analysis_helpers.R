@@ -1,3 +1,43 @@
+normalize_drug_key <- function(x) {
+  toupper(trimws(as.character(x)))
+}
+
+nonempty <- function(x) {
+  !is.na(x) & nzchar(trimws(as.character(x)))
+}
+
+collapse_unique <- function(x) {
+  x <- trimws(as.character(x))
+  x <- x[!is.na(x) & nzchar(x)]
+  if (length(x) == 0) {
+    return("")
+  }
+  paste(sort(unique(x)), collapse = ";")
+}
+
+file_checksum <- function(path) {
+  if (is.null(path) || is.na(path) || !file.exists(path)) {
+    return(NA_character_)
+  }
+  unname(tools::md5sum(path))
+}
+
+derive_correlation_eligible_drugs <- function(R, gdsc_rows = NULL) {
+  drugs <- sort(unique(unlist(lapply(R, names), use.names = FALSE)))
+  out <- data.frame(
+    drug = drugs,
+    drug_key = normalize_drug_key(drugs),
+    stringsAsFactors = FALSE
+  )
+  if (!is.null(gdsc_rows)) {
+    gdsc_rows$drug_key <- normalize_drug_key(gdsc_rows$DRUG_NAME)
+    out$drug_id_list <- vapply(out$drug_key, function(key) {
+      collapse_unique(gdsc_rows$DRUG_ID[gdsc_rows$drug_key == key])
+    }, character(1))
+  }
+  out[order(out$drug_key), , drop = FALSE]
+}
+
 run_enrichment_or_stop <- function(values,
                                    annotations,
                                    cancer,

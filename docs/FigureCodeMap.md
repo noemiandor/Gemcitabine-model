@@ -23,7 +23,7 @@ The current canonical source-panel assets below are generated from the active `f
 
 | Figure | Manuscript-facing asset(s) | Canonical Results source |
 |---|---|---|
-| Figure 1 | `figures/Figure1/panel_1ABC_gdsc_ploidy_enrichment.png`; `panel_1B_gdsc_low_ploidy_clustered_heatmap.png`; `panel_1C_gdsc_high_ploidy_clustered_heatmap.png` | `Results/public_data/gdsc_ploidy_analysis/runs/20260629T143000_standard_gdsc/` |
+| Figure 1 | `figures/Figure1/panel_1ABC_gdsc_ploidy_enrichment.png`; `panel_1B_gdsc_low_ploidy_clustered_heatmap.png`; `panel_1C_gdsc_high_ploidy_clustered_heatmap.png` | `Results/public_data/gdsc_ploidy_analysis/runs/primary_secondary_candidate_gdsc/` |
 | Figure 2 | `figures/Figure2/panel_2B_ccle_drug_ploidy_correlations_ic50.pdf` | `Results/public_data/ccle_ploidy_analysis/runs/20260629T143000_standard_ccle/` |
 | Figure 3 | `figures/Figure3/panel_3DEF_gemcitabine_normalized_dose_response_fits.png`; `panel_3H_gemcitabine_absolute_auc_vs_ploidy_mean.png` | `Results/in-vitro/drug_response/runs/20260630T_promoted_panels_standard_drug_response/` |
 | Figure 4 | `figures/Figure4/panel_4B_dfdctp_signal_driver_combined_ploidy.png` | `Results/in-vitro/pkpd_live_dead_model/runs/20260630T_promoted_panels_full_refit_pkpd_fit/` |
@@ -42,10 +42,10 @@ Manuscript asset: `figures/Figure1_v3_Overleaf.png` at `GemcitabinePaper.tex:238
 | Panel | Manuscript content | Code/data mapping | Output found | Status |
 |---|---|---|---|---|
 | 1A | GDSC/ploidy workflow schematic | `Code/gdsc_ploidy_analysis/src/plot_ploidy_enrichment_panels.py:104-140` draws the workflow panel. | `Code/gdsc_ploidy_analysis/output/ploidy_enrichment_panels_ABC.png`; `.pdf` also present. | **Mapped** for source panel; exact Overleaf composite missing. |
-| 1B | Low-ploidy-selective drug-class enrichment heatmap | Enrichment workbook is written by `Code/gdsc_ploidy_analysis/src/run_gdsc_ploidy_analysis.R:338-452`; heatmap panel is drawn by `Code/gdsc_ploidy_analysis/src/plot_ploidy_enrichment_panels.py:176-230`. | `Code/gdsc_ploidy_analysis/output/drugsVsPloidyCorr.xlsx`; `Code/gdsc_ploidy_analysis/output/ploidy_enrichment_panels_ABC.png`. | **Mapped** for source panel; exact Overleaf composite missing. |
-| 1C | High-ploidy-selective drug-class enrichment heatmap | Same pipeline as 1B. High-ploidy sheet is written at `Code/gdsc_ploidy_analysis/src/run_gdsc_ploidy_analysis.R:451-452`; panel title and plotting occur at `Code/gdsc_ploidy_analysis/src/plot_ploidy_enrichment_panels.py:202-210`. | Same as 1B. | **Mapped** for source panel; exact Overleaf composite missing. |
+| 1B | Low-ploidy-selective drug-class enrichment heatmap | `Code/gdsc_ploidy_analysis/src/run_gdsc_ploidy_analysis.R` builds the reviewed primary-class `coxIn`, computes class enrichment, and writes the low-ploidy sheet; `Code/gdsc_ploidy_analysis/src/plot_ploidy_enrichment_panels.py` and `plot_ploidy_enrichment_clustered_heatmaps.py` render the panel/clustered heatmaps. | `figures/Figure1/panel_1B_gdsc_low_ploidy_clustered_heatmap.png`; source run `Results/public_data/gdsc_ploidy_analysis/runs/primary_secondary_candidate_gdsc/`. | **Mapped** for source panel; exact Overleaf composite missing. |
+| 1C | High-ploidy-selective drug-class enrichment heatmap | Same primary-secondary workflow as 1B, using the high-ploidy enrichment sheet. | `figures/Figure1/panel_1C_gdsc_high_ploidy_clustered_heatmap.png`; source run `Results/public_data/gdsc_ploidy_analysis/runs/primary_secondary_candidate_gdsc/`. | **Mapped** for source panel; exact Overleaf composite missing. |
 
-Note: the packaged GDSC module writes outputs named around `Z_SCORE` in several tables. The manuscript captions describe Pearson correlations with IC50, so the metric used in the plotted version should be checked before final submission.
+Note: the packaged GDSC module uses `Z_SCORE` as the canonical response metric and reviewed primary anticancer classes from `drug_class_final_used_with_primary_secondary_corrected.xlsx` as the enrichment grouping variable.
 
 ### Figure 2: Convergent Public-Dataset Evidence For Gemcitabine
 

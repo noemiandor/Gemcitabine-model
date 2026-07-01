@@ -32,15 +32,12 @@ base_dir <- module_dir()
 src_dir <- file.path(base_dir, "src")
 source(file.path(src_dir, "dependencies.R"))
 setup_local_lib(base_dir)
-require_packages(c("EnrichIntersect", "xlsx", "plyr", "openxlsx", "data.table"))
+require_packages(c("EnrichIntersect", "openxlsx", "data.table"))
 suppressPackageStartupMessages({
   library(EnrichIntersect)
-  library(xlsx)
-  library(plyr)
 })
-source(file.path(src_dir, "annotations.R"))
-source(file.path(src_dir, "drug_class_workbook.R"))
 source(file.path(src_dir, "analysis_helpers.R"))
+source(file.path(src_dir, "drug_class_workbook.R"))
 
 find_python_for_plotting <- function() {
   python <- Sys.which("python3")
@@ -70,11 +67,11 @@ run_python_plot_script <- function(script, args, description) {
   }
 }
 
-run_enrichment_heatmap_plots <- function(workbook, output_dir, source_dir, category_mode = "curated") {
+run_enrichment_heatmap_plots <- function(workbook, output_dir, source_dir, category_mode = "primary_secondary") {
   if (!file.exists(workbook)) {
     stop("Cannot generate enrichment heatmaps because workbook is missing: ", workbook, call. = FALSE)
   }
-  suffix <- if (identical(category_mode, "curated")) "_curated" else paste0("_", category_mode)
+  suffix <- paste0("_", category_mode)
   run_python_plot_script(
     file.path(source_dir, "plot_ploidy_enrichment_panels.py"),
     c(
@@ -111,50 +108,21 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 gdsc_file <- file.path(raw_data_dir, "GDSC2_fitted_dose_response_24Jul22.txt")
 ploidy_file <- file.path(raw_data_dir, "ploidyAcrossCellLines_V1.txt")
-cmap_file <- file.path(raw_data_dir, "small_molecule_20200407234909.csv")
-custom_file <- file.path(data_dir, "manual", "custom_set_candidate.tsv")
-annotation_file <- normalizePath(
-  arg_value("annotation-file", file.path(data_dir, "derived", "pubchem_drug_annotations.tsv")),
-  mustWork = FALSE
-)
-category_schema_file <- normalizePath(
-  arg_value("category-schema-file", file.path(data_dir, "manual", "drug_class_category_schema.tsv")),
-  mustWork = FALSE
-)
-curated_mapping_file <- normalizePath(
-  arg_value("curated-mapping-file", file.path(data_dir, "manual", "drug_class_final_curated.tsv")),
-  mustWork = FALSE
-)
 drug_class_workbook_file <- normalizePath(
   arg_value("drug-class-workbook", file.path(data_dir, "manual", "drug_class_final_used_with_primary_secondary_corrected.xlsx")),
   mustWork = FALSE
 )
-wrong_assignment_fixture_file <- normalizePath(
-  arg_value("wrong-assignment-fixture", file.path(base_dir, "tests", "fixtures", "wrong_assignment_examples.tsv")),
-  mustWork = FALSE
-)
-category_mode <- arg_value("category-mode", "curated")
-if (!category_mode %in% c("curated", "legacy", "proposal", "primary_secondary")) {
-  stop("--category-mode must be one of 'curated', 'legacy', 'proposal', or 'primary_secondary'.", call. = FALSE)
+category_mode <- arg_value("category-mode", "primary_secondary")
+if (!identical(category_mode, "primary_secondary")) {
+  stop("Only --category-mode=primary_secondary is supported. Deprecated values curated, legacy, and proposal were removed.", call. = FALSE)
 }
 
-required_input_files <- c(gdsc_file, ploidy_file)
-if (category_mode == "primary_secondary") {
-  required_input_files <- c(required_input_files, drug_class_workbook_file)
-} else {
-  required_input_files <- c(required_input_files, cmap_file, custom_file, annotation_file)
-}
-if (category_mode %in% c("curated", "proposal")) {
-  required_input_files <- c(required_input_files, category_schema_file, curated_mapping_file)
-}
+required_input_files <- c(gdsc_file, ploidy_file, drug_class_workbook_file)
 if (!all(file.exists(required_input_files))) {
   stop("Missing required input files: ", paste(required_input_files[!file.exists(required_input_files)], collapse = ", "), call. = FALSE)
 }
-if (category_mode == "curated") {
-  stopifnot(file.exists(category_schema_file), file.exists(curated_mapping_file))
-}
 write_input_manifest(
-  unique(c(required_input_files, if (category_mode != "primary_secondary") wrong_assignment_fixture_file else character())),
+  unique(required_input_files),
   file.path(out_dir, "metadata", "input_manifest.tsv")
 )
 
@@ -172,16 +140,13 @@ canonical_metric <- "Z_SCORE"
 metric <- canonical_metric
 metric_label <- "GDSC Z-score"
 supplemental_metrics <- intersect(c("Z_SCORE", "LN_IC50", "AUC"), colnames(dr))
-canonical_matching_mode <- "legacy_raw_name_matching"
+canonical_matching_mode <- "raw_name_matching"
 supplemental_matching_mode <- "normalized_cell_line_key"
 ploidy_collision_tolerance <- as.numeric(arg_value("ploidy-collision-tolerance", "0.05"))
 correlation_min_n <- as.integer(arg_value("correlation-min-n", "10"))
 analysis_mode <- arg_value("analysis-mode", "dev")
 if (!analysis_mode %in% c("dev", "manuscript")) {
   stop("--analysis-mode must be either 'dev' or 'manuscript'.", call. = FALSE)
-}
-if (analysis_mode == "manuscript" && !category_mode %in% c("curated", "primary_secondary")) {
-  stop("Manuscript analysis requires --category-mode=curated or --category-mode=primary_secondary.", call. = FALSE)
 }
 default_enrichment_permute_n <- 300L
 enrichment_permute_n <- as.integer(arg_value("enrichment-permute-n", as.character(default_enrichment_permute_n)))
@@ -245,10 +210,6 @@ write_run_metadata(
       "spearman_ci_method",
       "analysis_mode",
       "category_mode",
-      "category_schema_file",
-      "category_schema_checksum",
-      "curated_mapping_file",
-      "curated_mapping_checksum",
       "drug_class_workbook_file",
       "drug_class_workbook_md5",
       "drug_class_workbook_sha256",
@@ -274,10 +235,6 @@ write_run_metadata(
       "approximate_fisher_transform_for_estimable_spearman_ci",
       analysis_mode,
       category_mode,
-      category_schema_file,
-      file_checksum(category_schema_file),
-      curated_mapping_file,
-      file_checksum(curated_mapping_file),
       drug_class_workbook_file,
       file_checksum(drug_class_workbook_file),
       if (file.exists(drug_class_workbook_file)) unname(tools::sha256sum(drug_class_workbook_file)) else NA_character_,
@@ -421,194 +378,22 @@ save(R, file = file.path(out_dir, "drugsVsPloidyCorr.RData"))
 correlation_drugs <- derive_correlation_eligible_drugs(R, dr)
 write_tsv(correlation_drugs, file.path(tables_dir, "drug_class_correlation_eligible_drugs.tsv"))
 
-category_schema <- NULL
-group_order <- NULL
-
-if (category_mode == "primary_secondary") {
-  primary_secondary_rows <- read_primary_secondary_drug_classes(drug_class_workbook_file)
-  validation_rows <- validate_primary_secondary_class_coverage(correlation_drugs, primary_secondary_rows)
-  write_tsv(validation_rows, file.path(tables_dir, "drug_class_workbook_validation.tsv"))
-  write_tsv(
-    primary_secondary_used_table(primary_secondary_rows),
-    file.path(tables_dir, "drug_class_primary_secondary_used.tsv")
-  )
-  primary_secondary_counts <- primary_secondary_class_counts(primary_secondary_rows)
-  write_tsv(
-    primary_secondary_counts,
-    file.path(tables_dir, "drug_class_primary_secondary_counts.tsv")
-  )
-  coxIn <- make_enrichment_class_table(primary_secondary_rows)
-  group_order <- attr(primary_secondary_rows, "class_order")
-  category_suffix <- "primary_secondary"
-  category_source_label <- "reviewed_primary_anticancer_class_workbook"
-} else {
-category_schema <- read_category_schema(category_schema_file)
-coxIn_annotations <- load_drug_annotations(correlation_drugs$drug, annotation_file, custom_file)
-annotation_audit <- build_drug_annotation_audit(coxIn_annotations, custom_file)
-write_tsv(annotation_audit, file.path(tables_dir, "drug_annotation_audit.tsv"))
-write_curated_mapping_template(
-  annotation_audit,
-  file.path(tables_dir, "drug_class_final_curated_TEMPLATE.tsv")
-)
-
-curation_tables <- build_drug_class_curation_tables(
-  correlation_drugs,
-  coxIn_annotations,
-  custom_file,
-  dr,
-  wrong_assignment_file = wrong_assignment_fixture_file,
-  schema = category_schema
-)
+primary_secondary_rows <- read_primary_secondary_drug_classes(drug_class_workbook_file)
+validation_rows <- validate_primary_secondary_class_coverage(correlation_drugs, primary_secondary_rows)
+write_tsv(validation_rows, file.path(tables_dir, "drug_class_workbook_validation.tsv"))
 write_tsv(
-  curation_tables$evidence_by_drug_id,
-  file.path(tables_dir, "drug_class_curation_evidence_by_drug_id.tsv")
+  primary_secondary_used_table(primary_secondary_rows),
+  file.path(tables_dir, "drug_class_primary_secondary_used.tsv")
 )
+primary_secondary_counts <- primary_secondary_class_counts(primary_secondary_rows)
 write_tsv(
-  curation_tables$curation_input,
-  file.path(tables_dir, "drug_class_curation_input.tsv")
+  primary_secondary_counts,
+  file.path(tables_dir, "drug_class_primary_secondary_counts.tsv")
 )
-empty_unassigned_failures <- data.frame(
-  drug_key = character(),
-  failure_type = character(),
-  stringsAsFactors = FALSE
-)
-empty_assignment_diff <- data.frame(
-  drug = character(),
-  drug_key = character(),
-  legacy_group_used_for_enrichment = character(),
-  approved_final_category_id = character(),
-  approved_final_display_label = character(),
-  include_in_enrichment = logical(),
-  included_in_enrichment = logical(),
-  exclusion_reason_code = character(),
-  low_count_filter_status = character(),
-  category_changed = logical(),
-  evidence_summary = character(),
-  stringsAsFactors = FALSE
-)
-empty_reviewed_exclusions <- data.frame(
-  drug = character(),
-  drug_key = character(),
-  exclusion_reason_code = character(),
-  exclusion_reason = character(),
-  stringsAsFactors = FALSE
-)
-empty_low_count_actions <- data.frame(
-  category_id = character(),
-  display_label = character(),
-  included_count_before = integer(),
-  min_count_threshold = integer(),
-  min_count_policy = character(),
-  action = character(),
-  affected_drugs = character(),
-  stringsAsFactors = FALSE
-)
-
-if (category_mode == "legacy") {
-  coxIn <- coxIn_annotations
-  coxIn$group <- normalize_legacy_drug_group(coxIn$drugCategory_Pubchem)
-  coxIn <- coxIn[nonempty(coxIn$group), , drop = FALSE]
-  coxIn$drug <- normalize_drug_key(coxIn$drug)
-  coxIn <- coxIn[, c("drug", "group"), drop = FALSE]
-  rownames(coxIn) <- coxIn$drug
-  category_suffix <- "legacy"
-  category_source_label <- "legacy_group_used_for_enrichment"
-  final_used <- data.frame()
-  write_tsv(data.frame(), file.path(tables_dir, "drug_class_final_used.tsv"))
-  write_tsv(empty_unassigned_failures, file.path(tables_dir, "drug_class_unassigned_failures.tsv"))
-  write_tsv(plyr::count(coxIn$group), file.path(tables_dir, "drug_class_category_counts.tsv"))
-  write_tsv(empty_assignment_diff, file.path(tables_dir, "drug_class_assignment_diff.tsv"))
-  write_tsv(empty_reviewed_exclusions, file.path(tables_dir, "drug_class_reviewed_exclusions.tsv"))
-  write_tsv(empty_low_count_actions, file.path(tables_dir, "drug_class_low_count_actions.tsv"))
-} else if (category_mode == "proposal") {
-  proposal_mapping <- curation_tables$curation_input
-  proposal_mapping <- data.frame(
-    drug = proposal_mapping$drug,
-    drug_key = proposal_mapping$drug_key,
-    drug_id_list = proposal_mapping$drug_id_list,
-    approved_final_category_id = proposal_mapping$proposed_final_category_id,
-    approved_final_display_label = category_schema$display_label[match(proposal_mapping$proposed_final_category_id, category_schema$category_id)],
-    include_in_enrichment = TRUE,
-    exclusion_reason_code = "",
-    exclusion_reason = "",
-    rollup_resolution_status = proposal_mapping$rollup_conflict_status,
-    rollup_resolution_reason = proposal_mapping$rollup_resolution_reason,
-    curation_status = "approved",
-    primary_evidence_source = "inferred_proposal",
-    evidence_summary = proposal_mapping$evidence_reason,
-    curator = "inferred_proposal",
-    curation_date = "",
-    curation_notes = "Development-only inferred proposal; not valid for manuscript Figure 1.",
-    stringsAsFactors = FALSE
-  )
-  final_used <- resolve_final_drug_categories(
-    correlation_drugs,
-    coxIn_annotations,
-    proposal_mapping,
-    category_schema,
-    curation_input = curation_tables$curation_input,
-    mode = "proposal",
-    analysis_mode = analysis_mode,
-    metric = metric,
-    schema_file = category_schema_file,
-    curated_mapping_file = NA_character_
-  )
-  low_count_result <- apply_category_low_count_policy(final_used, category_schema)
-  final_used <- low_count_result$final_used
-  write_tsv(final_used, file.path(tables_dir, "drug_class_final_used.tsv"))
-  write_tsv(empty_unassigned_failures, file.path(tables_dir, "drug_class_unassigned_failures.tsv"))
-  write_tsv(build_drug_class_assignment_diff(final_used), file.path(tables_dir, "drug_class_assignment_diff.tsv"))
-  write_tsv(build_drug_class_category_counts(final_used), file.path(tables_dir, "drug_class_category_counts.tsv"))
-  write_tsv(final_used[!final_used$include_in_enrichment, , drop = FALSE], file.path(tables_dir, "drug_class_reviewed_exclusions.tsv"))
-  write_tsv(low_count_result$actions, file.path(tables_dir, "drug_class_low_count_actions.tsv"))
-  coxIn <- final_used[final_used$included_in_enrichment, c("drug_key", "approved_final_display_label", "approved_final_category_id"), drop = FALSE]
-  coxIn <- data.frame(
-    drug = coxIn$drug_key,
-    group = coxIn$approved_final_display_label,
-    category_id = coxIn$approved_final_category_id,
-    stringsAsFactors = FALSE
-  )
-  rownames(coxIn) <- coxIn$drug
-  category_suffix <- "proposal"
-  category_source_label <- "inferred_proposal"
-} else {
-  curated_mapping <- read_curated_drug_mapping(curated_mapping_file, category_schema, mode = "curated")
-  validate_curated_mapping_coverage(
-    correlation_drugs,
-    curated_mapping,
-    failure_file = file.path(tables_dir, "drug_class_unassigned_failures.tsv")
-  )
-  final_used <- resolve_final_drug_categories(
-    correlation_drugs,
-    coxIn_annotations,
-    curated_mapping,
-    category_schema,
-    curation_input = curation_tables$curation_input,
-    mode = "curated",
-    analysis_mode = analysis_mode,
-    metric = metric,
-    schema_file = category_schema_file,
-    curated_mapping_file = curated_mapping_file
-  )
-  low_count_result <- apply_category_low_count_policy(final_used, category_schema)
-  final_used <- low_count_result$final_used
-  write_tsv(final_used, file.path(tables_dir, "drug_class_final_used.tsv"))
-  write_tsv(build_drug_class_assignment_diff(final_used), file.path(tables_dir, "drug_class_assignment_diff.tsv"))
-  write_tsv(build_drug_class_category_counts(final_used), file.path(tables_dir, "drug_class_category_counts.tsv"))
-  write_tsv(final_used[!final_used$include_in_enrichment, , drop = FALSE], file.path(tables_dir, "drug_class_reviewed_exclusions.tsv"))
-  write_tsv(low_count_result$actions, file.path(tables_dir, "drug_class_low_count_actions.tsv"))
-  coxIn <- final_used[final_used$included_in_enrichment, c("drug_key", "approved_final_display_label", "approved_final_category_id"), drop = FALSE]
-  coxIn <- data.frame(
-    drug = coxIn$drug_key,
-    group = coxIn$approved_final_display_label,
-    category_id = coxIn$approved_final_category_id,
-    stringsAsFactors = FALSE
-  )
-  rownames(coxIn) <- coxIn$drug
-  category_suffix <- "curated"
-  category_source_label <- "curated_mapping"
-}
-}
+coxIn <- make_enrichment_class_table(primary_secondary_rows)
+group_order <- attr(primary_secondary_rows, "class_order")
+category_suffix <- "primary_secondary"
+category_source_label <- "reviewed_primary_anticancer_class_workbook"
 
 save(coxIn, file = file.path(out_dir, "coxIn.RData"))
 
@@ -706,12 +491,7 @@ write_tsv(
   file.path(tables_dir, sprintf("class_enrichment_%s_metadata.tsv", category_suffix))
 )
 
-if (category_mode %in% c("curated", "proposal")) {
-  active_category_ids <- unique(unname(category_id_by_drug[rownames(coxIn)]))
-  schema_order <- category_schema[category_schema$category_id %in% active_category_ids, , drop = FALSE]
-  schema_order <- schema_order[order(schema_order$plot_order), , drop = FALSE]
-  groups <- schema_order$display_label
-} else if (category_mode == "primary_secondary" && !is.null(group_order)) {
+if (!is.null(group_order)) {
   groups <- group_order
 } else {
   groups <- sort(unique(coxIn$group))
@@ -753,8 +533,12 @@ if (category_mode == "primary_secondary" && exists("primary_secondary_counts")) 
 }
 
 mode_workbook <- file.path(out_dir, sprintf("drugsVsPloidyCorr_%s_%s.xlsx", category_suffix, metric))
-write.xlsx(t(lowpIsSens), file = mode_workbook, sheetName = "lowpIsSens")
-write.xlsx(t(highpIsSens), file = mode_workbook, sheetName = "highpIsSens", append = TRUE)
+mode_wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(mode_wb, "lowpIsSens")
+openxlsx::writeData(mode_wb, "lowpIsSens", t(lowpIsSens), rowNames = TRUE)
+openxlsx::addWorksheet(mode_wb, "highpIsSens")
+openxlsx::writeData(mode_wb, "highpIsSens", t(highpIsSens), rowNames = TRUE)
+openxlsx::saveWorkbook(mode_wb, mode_workbook, overwrite = TRUE)
 invisible(file.copy(mode_workbook, file.path(out_dir, "drugsVsPloidyCorr.xlsx"), overwrite = TRUE))
 invisible(file.copy(
   mode_workbook,
@@ -768,10 +552,6 @@ write_tsv(
     canonical_workbook = mode_workbook,
     compatibility_workbook = file.path(out_dir, "drugsVsPloidyCorr.xlsx"),
     canonical_workbook_md5 = file_checksum(mode_workbook),
-    schema_file = category_schema_file,
-    schema_md5 = file_checksum(category_schema_file),
-    curated_mapping_file = curated_mapping_file,
-    curated_mapping_md5 = file_checksum(curated_mapping_file),
     drug_class_workbook_file = drug_class_workbook_file,
     drug_class_workbook_md5 = file_checksum(drug_class_workbook_file),
     drug_class_workbook_sha256 = if (file.exists(drug_class_workbook_file)) unname(tools::sha256sum(drug_class_workbook_file)) else NA_character_,

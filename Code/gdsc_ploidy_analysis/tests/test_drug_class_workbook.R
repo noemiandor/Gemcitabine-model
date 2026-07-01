@@ -14,7 +14,6 @@ script_dir <- function() {
 tests_dir <- script_dir()
 base_dir <- normalizePath(file.path(tests_dir, ".."))
 source(file.path(base_dir, "src", "analysis_helpers.R"))
-source(file.path(base_dir, "src", "annotations.R"))
 source(file.path(base_dir, "src", "drug_class_workbook.R"))
 
 expect_error_like <- function(expr, pattern, label) {

@@ -16,11 +16,9 @@ base_dir <- normalizePath(file.path(tests_dir, ".."))
 
 source(file.path(base_dir, "src", "dependencies.R"))
 setup_local_lib(base_dir)
-require_packages(c("EnrichIntersect", "xlsx", "plyr", "openxlsx", "data.table"))
+require_packages(c("EnrichIntersect", "openxlsx", "data.table"))
 
 source(file.path(tests_dir, "test_error_handling.R"))
-source(file.path(tests_dir, "test_annotations.R"))
 source(file.path(tests_dir, "test_drug_class_workbook.R"))
-source(file.path(tests_dir, "test_pubchem_client.R"))
 
 cat("GDSC ploidy smoke tests passed.\n")

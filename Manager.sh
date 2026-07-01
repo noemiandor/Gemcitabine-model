@@ -15,7 +15,6 @@ dry_run=false
 no_update_latest=false
 jobs=1
 
-gdsc_category_mode="primary_secondary"
 gdsc_analysis_mode="manuscript"
 gdsc_enrichment_permute_n="300"
 gdsc_drug_class_workbook="Code/gdsc_ploidy_analysis/data/manual/drug_class_final_used_with_primary_secondary_corrected.xlsx"
@@ -51,7 +50,6 @@ Core options:
   --no-update-latest
 
 Module options:
-  --gdsc-category-mode curated|legacy|proposal|primary_secondary
   --gdsc-analysis-mode dev|manuscript
   --gdsc-enrichment-permute-n N
   --gdsc-drug-class-workbook PATH
@@ -80,7 +78,6 @@ while [[ $# -gt 0 ]]; do
     --dry-run) dry_run=true; shift ;;
     --check-inputs) mode="check-only"; shift ;;
     --no-update-latest) no_update_latest=true; shift ;;
-    --gdsc-category-mode) gdsc_category_mode="$2"; shift 2 ;;
     --gdsc-analysis-mode) gdsc_analysis_mode="$2"; shift 2 ;;
     --gdsc-enrichment-permute-n) gdsc_enrichment_permute_n="$2"; shift 2 ;;
     --gdsc-drug-class-workbook) gdsc_drug_class_workbook="$2"; shift 2 ;;
@@ -187,15 +184,8 @@ input_paths_for_module() {
     gdsc)
       printf "%s\n" \
         Code/gdsc_ploidy_analysis/data/raw/GDSC2_fitted_dose_response_24Jul22.txt \
-        Code/gdsc_ploidy_analysis/data/raw/ploidyAcrossCellLines_V1.txt
-      if [[ "${gdsc_category_mode}" == "primary_secondary" ]]; then
-        printf "%s\n" "${gdsc_drug_class_workbook}"
-      else
-        printf "%s\n" \
-          Code/gdsc_ploidy_analysis/data/raw/small_molecule_20200407234909.csv \
-          Code/gdsc_ploidy_analysis/data/manual/drug_class_final_curated.tsv \
-          Code/gdsc_ploidy_analysis/data/derived/pubchem_drug_annotations.tsv
-      fi
+        Code/gdsc_ploidy_analysis/data/raw/ploidyAcrossCellLines_V1.txt \
+        "${gdsc_drug_class_workbook}"
       ;;
     ccle)
       printf "%s\n" \
@@ -246,7 +236,6 @@ command_for_module() {
     gdsc)
       quote_args Rscript Code/gdsc_ploidy_analysis/run_gdsc_ploidy_analysis.R \
         "--analysis-mode=${gdsc_analysis_mode}" \
-        "--category-mode=${gdsc_category_mode}" \
         "--drug-class-workbook=${gdsc_drug_class_workbook}" \
         "--enrichment-permute-n=${gdsc_enrichment_permute_n}" \
         "--output-dir=${run_dir}"

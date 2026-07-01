@@ -22,7 +22,7 @@ materialize into `figures/`.
 
 | Figure | Panels generated | Content | Source module | Default mode | Optional flags | External/manual caveats |
 | --- | --- | --- | --- | --- | --- | --- |
-| Figure 1 | GDSC enrichment panels and source tables | Low- and high-ploidy drug-class enrichment summaries, including clustered heatmap-style panels where enabled | `Code/gdsc_ploidy_analysis/` | `standard` | `--gdsc-category-mode`, `--gdsc-analysis-mode`, `--gdsc-enrichment-permute-n` | Final panel lettering/composition may remain manuscript-facing assembly under `figures/Figure1/` |
+| Figure 1 | GDSC enrichment panels and source tables | Low- and high-ploidy reviewed primary drug-class enrichment summaries, including clustered heatmap-style panels where enabled | `Code/gdsc_ploidy_analysis/` | `standard` | `--gdsc-analysis-mode`, `--gdsc-enrichment-permute-n`, `--gdsc-drug-class-workbook` | Final panel lettering/composition may remain manuscript-facing assembly under `figures/Figure1/` |
 | Figure 2 | Public-data ploidy support panels | GDSC support outputs and local CCLE ploidy-support output for Fig. 2B when configured | `Code/gdsc_ploidy_analysis/`, `Code/ccle_ploidy_analysis/` | `standard` | `--modules gdsc,ccle`; CCLE metric/source options once finalized | Fig. 2B metric policy must be fixed before freezing; remaining Figure 2 panels may be external/manual |
 | Figure 3 | Fig. 3H drug-response/ploidy panels; Fig. 3I LCI overlays when source analysis is provided | Gemcitabine dose-response fits, AUC/EC50/IC50/ploidy association outputs, and live-cell imaging overlay/time-course panels | `Code/in-vitro/drug_response/`, `Code/lci_overlays/` | `standard` | `--refresh-cloneid-ploidy`, `--lci-analysis-dir`, `--lci-render`, `--lci-panel-only` | LCI rendering requires an external analysis directory; earlier Figure 3 panels remain external/manual unless source code is added |
 | Figure 4 | Fig. 4B PKPD-derived dFdCTP driver component | Baseline-subtracted PK-derived dFdCTP signal driver plots used to support the PKPD model | `Code/in-vitro/pkpd_live_dead_model/` | `saved-fit` or `standard` | `--pkpd-saved-fit`, `--modules pkpd` | Fig. 4C is external/resolved; other Figure 4 panels may remain external/manual |
@@ -95,7 +95,7 @@ Examples:
 ```text
 20260629T143000_full_pkpd_beta_hill_confluence
 20260629T143000_saved_pkpd_alsogoodfit
-20260629T143000_gdsc_curated_zscore
+20260629T143000_gdsc_primary_secondary_zscore
 ```
 
 Run ID rules:
@@ -232,7 +232,7 @@ Results/public_data/gdsc_ploidy_analysis/runs/<run_id>/
 
 Important dependencies:
 
-1. `Code/gdsc_ploidy_analysis/src/run_gdsc_ploidy_analysis.R` reads raw GDSC, ploidy, small-molecule, cached PubChem, curated category, and fixture inputs from `Code/gdsc_ploidy_analysis/data/`.
+1. `Code/gdsc_ploidy_analysis/src/run_gdsc_ploidy_analysis.R` reads raw GDSC, ploidy, and the reviewed primary/secondary drug-class workbook from `Code/gdsc_ploidy_analysis/data/`.
 2. The R pipeline writes enrichment workbooks such as `drugsVsPloidyCorr_<category>_<metric>.xlsx`.
 3. The same R pipeline immediately calls Python plotting scripts:
    - `Code/gdsc_ploidy_analysis/src/plot_ploidy_enrichment_panels.py`
@@ -244,7 +244,7 @@ Implementation implications:
 - During migration, the manager should pass `--output-dir=Results/public_data/gdsc_ploidy_analysis/runs/<run_id>/`. The script's current default can remain `Code/gdsc_ploidy_analysis/output/` until the final compatibility phase.
 - The R-to-Python internal call must pass the same canonical result directory.
 - The compatibility workbook `drugsVsPloidyCorr.xlsx` can remain inside the run directory, but the canonical workbook should be the category/metric-specific filename.
-- The manuscript-oriented manager command should use curated manuscript settings explicitly, including `--analysis-mode=manuscript --category-mode=curated`. Current code uses `Z_SCORE` as the canonical metric; the Figure 1/Figure 2A manuscript wording that refers to IC50 must be reconciled before freezing the manuscript-facing assets.
+- The manuscript-oriented manager command uses `--analysis-mode=manuscript` and the reviewed primary/secondary drug-class workbook. Current code uses `Z_SCORE` as the canonical metric; any Figure 1/Figure 2A manuscript wording that refers to IC50 must be reconciled before freezing the manuscript-facing assets.
 - The manager should copy selected assets into:
   - `figures/Figure1/`
   - `figures/Supplementary/`
@@ -254,7 +254,7 @@ Recommended manager modes:
 
 - `--gdsc-only`: rerun GDSC and regenerate Figure 1/SI source panels.
 - `--skip-gdsc`: use `Results/public_data/gdsc_ploidy_analysis/latest.txt`.
-- `--category-mode curated|legacy|proposal`.
+- `--drug-class-workbook <path>` for the reviewed primary/secondary class workbook.
 - `--analysis-mode dev|manuscript`; manuscript figure regeneration should use `manuscript`.
 - `--gdsc-enrichment-permute-n N`, mapped to the current `--enrichment-permute-n` script option.
 
@@ -289,7 +289,7 @@ Implementation implications:
 - Keep `Code/ccle_ploidy_analysis/data/` for now if those files are static module fixtures. A later cleanup can decide whether they should move to `Data/public_data/ccle_ploidy_analysis/`.
 - During migration, the manager should pass the canonical `--output-dir` explicitly while preserving the current module default until the final compatibility phase.
 - Decide which Figure 2B support mode is intended:
-  - `--metric=Z_SCORE`/legacy support reproduces the current local default.
+  - `Z_SCORE` support reproduces the current local default.
   - `--metric=IC50 --metric-source=grbrowser` is the relevant mode if the manuscript intends true IC50 support.
   - If Figure 2B remains external-only, the local output should be recorded as support/provenance but not copied as a manuscript panel.
 - The manager should copy or reference `ccle_drug_ploidy_correlations_<metric>.pdf` into `figures/Figure2/` if the manuscript continues using the local support plot; otherwise manifest it as local support while marking the panel as external.
@@ -568,7 +568,7 @@ Recommended manager options:
 --verbose
 --no-update-latest
 
---gdsc-category-mode curated|legacy|proposal
+--gdsc-drug-class-workbook <path>
 --gdsc-analysis-mode dev|manuscript
 --gdsc-enrichment-permute-n <N>
 
@@ -608,7 +608,7 @@ Module mode matrix:
 
 | Module | check-only | panels-only | saved-fit | standard | full-refit |
 |---|---|---|---|---|---|
-| GDSC | validate inputs and command | materialize from latest GDSC run | rerun curated manuscript GDSC | rerun curated manuscript GDSC | same as standard |
+| GDSC | validate inputs and command | materialize from latest GDSC run | rerun primary-secondary manuscript GDSC | rerun primary-secondary manuscript GDSC | same as standard |
 | CCLE | validate inputs and command | materialize/support from latest CCLE run | rerun selected CCLE support mode | rerun selected CCLE support mode | same as standard |
 | Figure 3H | validate Gemcitabine table and ploidy table | materialize from latest drug-response run | rerun plotting from existing ploidy table | rerun plotting from existing ploidy table | same as standard unless `--refresh-cloneid-ploidy` is explicitly requested |
 | LCI overlays | validate explicit analysis dir if provided | materialize from latest LCI run | skip unless requested | skip unless `--lci-analysis-dir` is provided | same as standard |
@@ -700,7 +700,7 @@ Update modules so they can write to canonical `Results/.../runs/<run_id>/` direc
 
 Suggested order:
 
-1. GDSC: already accepts `--output-dir`; validate canonical output with explicit `--analysis-mode=manuscript --category-mode=curated`.
+1. GDSC: already accepts `--output-dir`; validate canonical output with explicit `--analysis-mode=manuscript` and the reviewed primary/secondary workbook.
 2. CCLE: already accepts `--output-dir`; decide whether Figure 2B support uses legacy Z-score, GR-browser IC50, or external-only provenance.
 3. PKPD plotter: add separate saved-fit input and output destination, for example `--fit-output <path-or-id>` plus `--output-dir <Results/.../runs/<run_id>>`; preserve current positional folder behavior.
 4. PKPD fitter: keep root-level `joint_fit_summary.tsv` and `optimizer_attempts.tsv` compatibility while allowing explicit `--output-dir` under `Results/`.
@@ -715,7 +715,7 @@ Validation should use a disposable run root and `--no-update-latest` once that f
 ```bash
 Rscript Code/gdsc_ploidy_analysis/run_gdsc_ploidy_analysis.R \
   --analysis-mode=manuscript \
-  --category-mode=curated \
+  --drug-class-workbook=Code/gdsc_ploidy_analysis/data/manual/drug_class_final_used_with_primary_secondary_corrected.xlsx \
   --output-dir=Results/_validation/public_data/gdsc_ploidy_analysis/runs/test_gdsc
 
 Rscript Code/ccle_ploidy_analysis/run_ccle_ploidy_analysis.R \
@@ -836,7 +836,7 @@ Implement aggregate `standard` mode only after module-by-module canonical runs p
 
 Standard mode should:
 
-- Run GDSC with curated manuscript settings.
+- Run GDSC with reviewed primary-secondary manuscript settings.
 - Run the selected CCLE support mode or manifest Figure 2B as external-only.
 - Run Figure 3H plotting from the existing processed ploidy table.
 - Run PKPD saved-summary plotting from an explicit saved fit.
