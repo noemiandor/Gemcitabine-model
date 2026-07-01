@@ -74,30 +74,45 @@ def p_to_neglog10(df, zero_replacement):
     return out
 
 
+PRIMARY_CLASS_LABELS = {
+    "Serine/threonine kinase inhibitors": "Serine/threonine\nkinase inhibitors",
+    "Epigenetic inhibitors": "Epigenetic\ninhibitors",
+    "Other": "Other",
+    "Receptor tyrosine kinase inhibitors": "Receptor tyrosine\nkinase inhibitors",
+    "DNA damage repair inhibitors": "DNA damage\nrepair inhibitors",
+    "Metabolic/redox agents": "Metabolic/redox\nagents",
+    "Proapoptotic agents": "Proapoptotic\nagents",
+    "Non-receptor tyrosine kinase inhibitors": "Non-receptor tyrosine\nkinase inhibitors",
+    "WNT-pathway modulators": "WNT-pathway\nmodulators",
+    "Antimetabolites": "Antimetabolites",
+    "Topoisomerase inhibitors": "Topoisomerase\ninhibitors",
+    "Chaperone/protein-homeostasis inhibitors": "Chaperone/protein-\nhomeostasis inhibitors",
+    "Alkylating agents": "Alkylating\nagents",
+    "Antimitotic agents": "Antimitotic\nagents",
+    "p53/MDM2 pathway": "p53/MDM2\npathway",
+    "Hormone therapy": "Hormone\ntherapy",
+    "Tumor antibiotics": "Tumor\nantibiotics",
+    "Proteasome inhibitors": "Proteasome\ninhibitors",
+    "Hedgehog pathway inhibitors": "Hedgehog pathway\ninhibitors",
+}
+
+
 def pretty_label(x):
-    """Make drug-class labels more readable while preserving common acronyms."""
-    x = str(x).replace(".", " ").replace("_", " ")
-    x = " ".join(x.split())
-    acronyms = {"MEK", "DNA", "RNA", "GDSC"}
-    words = []
-    for w in x.split():
-        if w.upper() in acronyms:
-            words.append(w.upper())
-        elif len(w) <= 3 and w.isupper():
-            words.append(w)
-        else:
-            words.append(w.capitalize())
+    """Make drug-class labels readable without changing biological labels."""
+    label = " ".join(str(x).replace(".", " ").replace("_", " ").split())
+    if label in PRIMARY_CLASS_LABELS:
+        return PRIMARY_CLASS_LABELS[label]
 
-    label = " ".join(words)
-
-    # Manual wrapping for compact heatmap labels.
-    label = label.replace("Tyrosine Kinase Inhibitors", "Tyrosine\nkinase\ninhibitors")
-    label = label.replace("Antineoplastic Agents", "Antineoplastic\nagents")
-    label = label.replace("Immunosuppressive Agents", "Immunosuppressive\nagents")
-    label = label.replace("Epigenetics And Transcription", "Epigenetics &\ntranscription")
-    label = label.replace("Hormones And Antihormones", "Hormones &\nantihormones")
-    label = label.replace("MEK Inhibitors", "MEK\ninhibitors")
-    label = label.replace("Metabolicinhibitor", "Metabolic\ninhibitor")
+    replacements = {
+        "Wnt": "WNT",
+        "Dna": "DNA",
+        "Rna": "RNA",
+        "Gdsc": "GDSC",
+        "P53/mdm2": "p53/MDM2",
+        "Mdm2": "MDM2",
+    }
+    for old, new in replacements.items():
+        label = label.replace(old, new)
     return label
 
 

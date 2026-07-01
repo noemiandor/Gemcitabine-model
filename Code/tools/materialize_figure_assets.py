@@ -13,7 +13,7 @@ from figure_output_contract import FIGURE_MANIFEST_COLUMNS, repo_root_from, writ
 PANEL_SPECS = [
     {
         "module": "gdsc",
-        "source": "ploidy_enrichment_panels_curated_ABC.png",
+        "source": "ploidy_enrichment_panels_primary_secondary_ABC.png",
         "figure": "Figure1",
         "panel": "1A-1C",
         "asset": "panel_1ABC_gdsc_ploidy_enrichment.png",
@@ -21,7 +21,7 @@ PANEL_SPECS = [
     },
     {
         "module": "gdsc",
-        "source": "ploidy_enrichment_clustered_curated_lowpIsSens_clustermap.png",
+        "source": "ploidy_enrichment_clustered_primary_secondary_lowpIsSens_clustermap.png",
         "figure": "Figure1",
         "panel": "1B",
         "asset": "panel_1B_gdsc_low_ploidy_clustered_heatmap.png",
@@ -29,7 +29,7 @@ PANEL_SPECS = [
     },
     {
         "module": "gdsc",
-        "source": "ploidy_enrichment_clustered_curated_highpIsSens_clustermap.png",
+        "source": "ploidy_enrichment_clustered_primary_secondary_highpIsSens_clustermap.png",
         "figure": "Figure1",
         "panel": "1C",
         "asset": "panel_1C_gdsc_high_ploidy_clustered_heatmap.png",

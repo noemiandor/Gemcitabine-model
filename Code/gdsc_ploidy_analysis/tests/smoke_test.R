@@ -20,6 +20,7 @@ require_packages(c("EnrichIntersect", "xlsx", "plyr", "openxlsx", "data.table"))
 
 source(file.path(tests_dir, "test_error_handling.R"))
 source(file.path(tests_dir, "test_annotations.R"))
+source(file.path(tests_dir, "test_drug_class_workbook.R"))
 source(file.path(tests_dir, "test_pubchem_client.R"))
 
 cat("GDSC ploidy smoke tests passed.\n")
