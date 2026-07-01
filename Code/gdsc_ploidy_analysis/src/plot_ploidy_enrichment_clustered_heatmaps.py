@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.patches import Rectangle
 from scipy.cluster.hierarchy import leaves_list, linkage
 from scipy.spatial.distance import pdist
 
@@ -21,6 +22,22 @@ from plot_ploidy_enrichment_panels import (
     pretty_label,
     read_enrichment_workbook,
 )
+
+GROUP_ORDER = [
+    "low_ploidy_biased",
+    "bidirectional_context_dependent",
+    "high_ploidy_biased",
+]
+GROUP_LABELS = {
+    "low_ploidy_biased": "Low-ploidy\nbiased",
+    "bidirectional_context_dependent": "Bidirectional /\ncontext-dependent",
+    "high_ploidy_biased": "High-ploidy\nbiased",
+}
+GROUP_COLORS = {
+    "low_ploidy_biased": "#4E79A7",
+    "bidirectional_context_dependent": "#7F7F7F",
+    "high_ploidy_biased": "#C44E52",
+}
 
 
 def finite_for_clustering(values):
@@ -106,14 +123,137 @@ def directional_column_order(low_scores, high_scores):
     return order, split_index
 
 
-def save_shared_order_heatmap(low, high, low_scores, high_scores, out_prefix):
+def load_category_groups(path):
+    """Read optional pathway category groups used for the shared-order heatmap."""
+    if path is None:
+        return None
+    groups = pd.read_csv(path, sep="\t")
+    label_col = next(
+        (
+            col for col in ("category_label", "gdsc_pathway_supergroup", "gdsc_pathway_name")
+            if col in groups.columns
+        ),
+        None,
+    )
+    if label_col is None or "category_group" not in groups.columns:
+        raise ValueError(
+            "Category group file must contain category_label, gdsc_pathway_supergroup, "
+            "or gdsc_pathway_name plus category_group."
+        )
+    return groups.set_index(label_col)["category_group"].to_dict()
+
+
+def grouped_column_order(low_scores, high_scores, category_groups):
+    """Order drug classes by explicit low/bidirectional/high category groups."""
+    low_values = finite_for_clustering(low_scores)
+    high_values = finite_for_clustering(high_scores)
+    metadata = pd.DataFrame(
+        {
+            "category_group": [category_groups[col] for col in low_scores.columns],
+            "low_signal": np.sum(low_values, axis=0),
+            "high_signal": np.sum(high_values, axis=0),
+        },
+        index=low_scores.columns,
+    )
+    metadata["directional_score"] = metadata["high_signal"] - metadata["low_signal"]
+    metadata["total_signal"] = metadata["high_signal"] + metadata["low_signal"]
+    group_rank = {group: idx for idx, group in enumerate(GROUP_ORDER)}
+    metadata["group_rank"] = metadata["category_group"].map(group_rank)
+    metadata["label"] = metadata.index
+    metadata = metadata.sort_values(
+        ["group_rank", "directional_score", "total_signal", "label"],
+        ascending=[True, True, False, True],
+        kind="mergesort",
+    )
+    order = np.array([low_scores.columns.get_loc(col) for col in metadata.index])
+
+    group_ranges = []
+    start = 0
+    for group in GROUP_ORDER:
+        n_cols = int((metadata["category_group"] == group).sum())
+        if n_cols > 0:
+            group_ranges.append((start, start + n_cols, group))
+            start += n_cols
+    return order, group_ranges
+
+
+def draw_column_group_annotations(ax, group_ranges):
+    """Draw labeled column blocks above a heatmap."""
+    for start, end, group in group_ranges:
+        width = end - start
+        color = GROUP_COLORS.get(group, "#999999")
+        label = GROUP_LABELS.get(group, group.replace("_", " "))
+        ax.add_patch(
+            Rectangle(
+                (start, -0.78),
+                width,
+                0.24,
+                transform=ax.transData,
+                clip_on=False,
+                facecolor=color,
+                edgecolor="none",
+                alpha=0.95,
+            )
+        )
+        ax.text(
+            start + width / 2,
+            -0.88,
+            label,
+            ha="center",
+            va="bottom",
+            fontsize=7.5,
+            fontweight="bold",
+            color=color,
+            transform=ax.transData,
+            clip_on=False,
+        )
+        if start > 0:
+            ax.axvline(start, color="#F2F2F2", linewidth=2.0)
+
+
+def save_shared_order_heatmap(
+    low,
+    high,
+    low_scores,
+    high_scores,
+    out_prefix,
+    category_groups=None,
+    drop_category_groups=None,
+):
     """Save two heatmaps using one shared row order and a low-to-high class order."""
+    low_scores = pd.DataFrame(low_scores, index=low.index, columns=low.columns)
+    high_scores = pd.DataFrame(high_scores, index=high.index, columns=high.columns)
+    drop_category_groups = set(drop_category_groups or [])
+    group_ranges = None
+
+    if category_groups is not None:
+        missing = [col for col in low.columns if col not in category_groups]
+        if missing:
+            raise ValueError(
+                "Category group file is missing heatmap column(s): "
+                + ", ".join(sorted(missing))
+            )
+        keep_columns = [
+            col for col in low.columns
+            if category_groups[col] not in drop_category_groups
+        ]
+        if not keep_columns:
+            raise ValueError("No heatmap columns remain after category-group filtering.")
+        low = low.loc[:, keep_columns]
+        high = high.loc[:, keep_columns]
+        low_scores = low_scores.loc[:, keep_columns]
+        high_scores = high_scores.loc[:, keep_columns]
+
     combined_rows = np.concatenate(
         [finite_for_clustering(low_scores), finite_for_clustering(high_scores)],
         axis=1,
     )
     row_order = clustered_order(combined_rows, axis=0)
-    col_order, split_index = directional_column_order(low_scores, high_scores)
+    if category_groups is None:
+        col_order, split_index = directional_column_order(low_scores, high_scores)
+    else:
+        col_order, group_ranges = grouped_column_order(low_scores, high_scores, category_groups)
+        split_index = None
     vmax = np.nanmax([np.nanmax(low_scores), np.nanmax(high_scores), -np.log10(0.05)])
 
     fig, axes = plt.subplots(
@@ -131,11 +271,7 @@ def save_shared_order_heatmap(low, high, low_scores, high_scores, out_prefix):
 
     heatmap = None
     for ax, scores, pvalues, title in panels:
-        ordered_scores = pd.DataFrame(
-            scores,
-            index=low.index,
-            columns=low.columns,
-        ).iloc[row_order, col_order]
+        ordered_scores = scores.iloc[row_order, col_order]
         heatmap = sns.heatmap(
             ordered_scores,
             ax=ax,
@@ -150,9 +286,11 @@ def save_shared_order_heatmap(low, high, low_scores, high_scores, out_prefix):
         )
         set_seaborn_x_labels(ax, ordered_labels(ordered_scores.columns), fontsize=7)
         add_significance_stars(ax, pvalues, row_order, col_order)
-        if 0 < split_index < len(col_order):
+        if group_ranges is not None:
+            draw_column_group_annotations(ax, group_ranges)
+        elif 0 < split_index < len(col_order):
             ax.axvline(split_index, color="#F2F2F2", linewidth=2.0)
-        ax.set_title(title, fontsize=12, pad=10)
+        ax.set_title(title, fontsize=12, pad=26 if group_ranges is not None else 10)
         ax.set_xlabel("Drug class")
         ax.tick_params(axis="y", labelsize=8)
 
@@ -161,10 +299,10 @@ def save_shared_order_heatmap(low, high, low_scores, high_scores, out_prefix):
     cbar = fig.colorbar(heatmap.collections[0], cax=axes[2])
     cbar.set_label("-log10(enrichment p-value)")
     fig.suptitle(
-        "GDSC ploidy-enrichment heatmaps ordered from low- to high-ploidy class bias",
+        "GDSC ploidy-enrichment heatmaps ordered by collapsed drug-class direction",
         fontsize=14,
     )
-    fig.subplots_adjust(left=0.09, right=0.92, top=0.90, bottom=0.30)
+    fig.subplots_adjust(left=0.09, right=0.92, top=0.86, bottom=0.30)
 
     for suffix in (".png", ".pdf"):
         fig.savefig(f"{out_prefix}_shared_order{suffix}", dpi=300, bbox_inches="tight")
@@ -220,6 +358,17 @@ def main():
         default="ploidy_enrichment_clustered",
         help="Output prefix for clustered heatmap PNG/PDF files",
     )
+    parser.add_argument(
+        "--category-groups",
+        default=None,
+        help="Optional TSV with category_label and category_group columns for grouped combined heatmap.",
+    )
+    parser.add_argument(
+        "--drop-category-group",
+        action="append",
+        default=[],
+        help="Category group to omit from the grouped combined heatmap. May be repeated.",
+    )
     args = parser.parse_args()
 
     xlsx_path = Path(args.xlsx)
@@ -227,12 +376,21 @@ def main():
     out_prefix.parent.mkdir(parents=True, exist_ok=True)
 
     low, high = read_enrichment_workbook(xlsx_path)
+    category_groups = load_category_groups(args.category_groups)
     zero_replacement = infer_zero_replacement(low, high)
     low_scores = p_to_neglog10(low, zero_replacement)
     high_scores = p_to_neglog10(high, zero_replacement)
     vmax = np.nanmax([np.nanmax(low_scores), np.nanmax(high_scores), -np.log10(0.05)])
 
-    save_shared_order_heatmap(low, high, low_scores, high_scores, out_prefix)
+    save_shared_order_heatmap(
+        low,
+        high,
+        low_scores,
+        high_scores,
+        out_prefix,
+        category_groups=category_groups,
+        drop_category_groups=args.drop_category_group,
+    )
     save_clustermap(
         low_scores,
         low,

@@ -1,0 +1,20 @@
+primary_anticancer_class	count	Combine.if.needed	collapsed_class	collapse_rule
+Serine/threonine kinase inhibitors	63		Serine/threonine kinase inhibitors	unchanged primary_anticancer_class
+Epigenetic inhibitors	45		Epigenetic inhibitors	unchanged primary_anticancer_class
+Other	34		Other	unchanged primary_anticancer_class
+Receptor tyrosine kinase inhibitors	25		Receptor tyrosine kinase inhibitors	unchanged primary_anticancer_class
+DNA damage repair inhibitors	19		DNA damage repair inhibitors	unchanged primary_anticancer_class
+Metabolic/redox agents	14		Metabolic/redox agents	unchanged primary_anticancer_class
+Proapoptotic agents	14		Proapoptotic agents	unchanged primary_anticancer_class
+Non-receptor tyrosine kinase inhibitors	12		Non-receptor tyrosine kinase inhibitors	unchanged primary_anticancer_class
+WNT-pathway modulators	9	WNT/HH pathway inhibitors	WNT/HH pathway inhibitors	Drug counts sheet Combine.if.needed
+Antimetabolites	8		Antimetabolites	unchanged primary_anticancer_class
+Chaperone/protein-homeostasis inhibitors	8	Chaperone/protein-homeostasis inhibitors	Chaperone/protein-homeostasis inhibitors	Drug counts sheet Combine.if.needed
+Topoisomerase inhibitors	8	DNA-damaging agents	DNA-damaging agents	Drug counts sheet Combine.if.needed
+Alkylating agents	6	DNA-damaging agents	DNA-damaging agents	Drug counts sheet Combine.if.needed
+Antimitotic agents	6		Antimitotic agents	unchanged primary_anticancer_class
+p53/MDM2 pathway	5		p53/MDM2 pathway	unchanged primary_anticancer_class
+Hormone therapy	4		Hormone therapy	unchanged primary_anticancer_class
+Tumor antibiotics	3		Tumor antibiotics	unchanged primary_anticancer_class
+Proteasome inhibitors	2	Chaperone/protein-homeostasis inhibitors	Chaperone/protein-homeostasis inhibitors	Drug counts sheet Combine.if.needed
+Hedgehog pathway inhibitors	1	WNT/HH pathway inhibitors	WNT/HH pathway inhibitors	Drug counts sheet Combine.if.needed

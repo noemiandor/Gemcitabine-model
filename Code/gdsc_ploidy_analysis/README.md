@@ -16,6 +16,9 @@ The reviewed workbook is the only drug-class assignment source. Its
 `secondary_suggested_class` and other evidence columns are carried only as
 metadata. PubChem caches, generated curation TSVs, legacy class schemas, and
 manual fallback tables are no longer consumed by the main analysis.
+For manuscript-facing Figure 1B-C, the workflow also writes a collapsed
+drug-class view using the `Drug counts` sheet: `Combine.if.needed` is used
+where populated, otherwise the original `primary_anticancer_class` is retained.
 
 ## Outputs
 
@@ -29,6 +32,11 @@ Running the analysis writes a reproducible result directory containing:
 - `ploidy_enrichment_clustered_primary_secondary_highpIsSens_clustermap.png`
   and `.pdf`
 - `ploidy_enrichment_clustered_primary_secondary_shared_order.png` and `.pdf`
+- `drug_count_collapsed/figures/drug_count_collapsed_enrichment_shared_order.png`
+  and `.pdf`, the workbook-defined collapsed drug-class Figure 1B-C source
+  heatmap
+- collapsed drug-class maps, assignments, enrichment tables, and low/high/
+  bidirectional group summaries under `drug_count_collapsed/tables/`
 - `ploidyVsDrugSensitivity.pdf`
 - `metadata/run_config.tsv`
 - `metadata/run_parameters.tsv`
@@ -84,6 +92,8 @@ bash Manager.sh --mode standard --modules gdsc --overwrite
 
 - Drug classes are reviewed anticancer mechanism classes based on the workbook,
   not raw PubChem categories.
+- The collapsed Figure 1B-C heatmap is defined by the `Drug counts` sheet's
+  `Combine.if.needed` column, not by raw GDSC `PATHWAY_NAME`.
 - The workflow fails fast if the workbook has duplicate normalized drug keys,
   missing primary classes, mismatched class counts, or incomplete coverage of
   the correlation-eligible drug universe.

@@ -609,5 +609,30 @@ run_enrichment_heatmap_plots(
   category_mode = category_mode
 )
 
+drug_count_collapsed_script <- file.path(src_dir, "generate_drug_count_collapsed_enrichment.R")
+if (!file.exists(drug_count_collapsed_script)) {
+  stop("Missing Drug-count collapsed enrichment script: ", drug_count_collapsed_script, call. = FALSE)
+}
+message("Generating Drug-count collapsed enrichment heatmaps")
+collapsed_status <- system2(
+  file.path(R.home("bin"), "Rscript"),
+  args = c(
+    normalizePath(drug_count_collapsed_script),
+    paste0("--input-run=", normalizePath(out_dir, mustWork = TRUE)),
+    paste0("--drug-class-workbook=", normalizePath(drug_class_workbook_file, mustWork = TRUE)),
+    paste0("--output-dir=", normalizePath(file.path(out_dir, "drug_count_collapsed"), mustWork = FALSE)),
+    paste0("--metric=", metric),
+    paste0("--permute-n=", enrichment_permute_n),
+    "--significance-cutoff=0.05",
+    "--min-group-contexts=2",
+    "--max-bidirectional-imbalance=2"
+  ),
+  stdout = "",
+  stderr = ""
+)
+if (!identical(collapsed_status, 0L)) {
+  stop("Drug-count collapsed enrichment generation failed with status ", collapsed_status, call. = FALSE)
+}
+
 write_session_metadata(file.path(metadata_dir, "session_info.txt"))
 message("Analysis completed. Outputs written to: ", out_dir)
