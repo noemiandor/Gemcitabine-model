@@ -23,39 +23,39 @@ Pevonedistat	PEVONEDISTAT	Chaperone/protein-homeostasis inhibitors	Chaperone/pro
 VSP34_8731	VSP34_8731	Chaperone/protein-homeostasis inhibitors	Chaperone/protein-homeostasis inhibitors	VPS34/class III PI3K autophagy/protein-homeostasis inhibitor
 Bortezomib	BORTEZOMIB	Proteasome inhibitors	Chaperone/protein-homeostasis inhibitors	Proteasome inhibitor
 MG-132	MG-132	Proteasome inhibitors	Chaperone/protein-homeostasis inhibitors	Proteasome inhibitor
-AZD6738	AZD6738	DNA damage repair inhibitors	DNA damage repair inhibitors	ATR checkpoint/DDR inhibitor
-AZD7762	AZD7762	DNA damage repair inhibitors	DNA damage repair inhibitors	Cell-cycle checkpoint / DDR inhibitor
-CCT007093	CCT007093	DNA damage repair inhibitors	DNA damage repair inhibitors	Granular target/pathway: PPM1D; Cell cycle
-GSK2830371	GSK2830371	DNA damage repair inhibitors	DNA damage repair inhibitors	Other/unclassified mechanism; GDSC target: WIP1; pathway: Other
-GSK2830371A	GSK2830371A	DNA damage repair inhibitors	DNA damage repair inhibitors	Other/unclassified mechanism; GDSC target: PPM1D; pathway: Other
-KU-55933	KU-55933	DNA damage repair inhibitors	DNA damage repair inhibitors	ATM checkpoint/DDR inhibitor
-Mirin	MIRIN	DNA damage repair inhibitors	DNA damage repair inhibitors	Granular target/pathway: MRE11; Genome integrity
-MK-1775	MK-1775	DNA damage repair inhibitors	DNA damage repair inhibitors	Cell-cycle checkpoint / DDR inhibitor
-MK-8776	MK-8776	DNA damage repair inhibitors	DNA damage repair inhibitors	Cell-cycle checkpoint / DDR inhibitor
-Niraparib	NIRAPARIB	DNA damage repair inhibitors	DNA damage repair inhibitors	PARP inhibitor
-NU7441	NU7441	DNA damage repair inhibitors	DNA damage repair inhibitors	DNA-PK inhibitor
-Olaparib	OLAPARIB	DNA damage repair inhibitors	DNA damage repair inhibitors	PARP inhibitor
-Pyridostatin	PYRIDOSTATIN	DNA damage repair inhibitors	DNA damage repair inhibitors	G-quadruplex stabilizer; replication/telomere stress genome-integrity agent
-Rucaparib	RUCAPARIB	DNA damage repair inhibitors	DNA damage repair inhibitors	PARP inhibitor
-Talazoparib	TALAZOPARIB	DNA damage repair inhibitors	DNA damage repair inhibitors	PARP inhibitor
-VE-822	VE-822	DNA damage repair inhibitors	DNA damage repair inhibitors	ATR checkpoint/DDR inhibitor
-VE821	VE821	DNA damage repair inhibitors	DNA damage repair inhibitors	ATR checkpoint/DDR inhibitor
-Veliparib	VELIPARIB	DNA damage repair inhibitors	DNA damage repair inhibitors	PARP inhibitor
-Wee1 Inhibitor	WEE1 INHIBITOR	DNA damage repair inhibitors	DNA damage repair inhibitors	Cell-cycle checkpoint / DDR inhibitor
-Cisplatin	CISPLATIN	Alkylating agents	DNA-damaging agents	Platinum DNA crosslinker
-Cyclophosphamide	CYCLOPHOSPHAMIDE	Alkylating agents	DNA-damaging agents	Nitrogen mustard alkylating agent
-Dacarbazine	DACARBAZINE	Alkylating agents	DNA-damaging agents	Triazene alkylating agent
-Oxaliplatin	OXALIPLATIN	Alkylating agents	DNA-damaging agents	Platinum DNA crosslinker
-PBD-288	PBD-288	Alkylating agents	DNA-damaging agents	Pyrrolobenzodiazepine-like DNA minor-groove/crosslinking cytotoxic; verify compound identity
-Temozolomide	TEMOZOLOMIDE	Alkylating agents	DNA-damaging agents	Triazene/methylating DNA alkylating agent
-Camptothecin	CAMPTOTHECIN	Topoisomerase inhibitors	DNA-damaging agents	Topoisomerase I inhibitor
-Epirubicin	EPIRUBICIN	Topoisomerase inhibitors	DNA-damaging agents	Anthracycline antitumor antibiotic; also TOP2-associated cytotoxic
-Irinotecan	IRINOTECAN	Topoisomerase inhibitors	DNA-damaging agents	Topoisomerase I inhibitor
-LMP744	LMP744	Topoisomerase inhibitors	DNA-damaging agents	Topoisomerase I inhibitor
-Mitoxantrone	MITOXANTRONE	Topoisomerase inhibitors	DNA-damaging agents	TOP2 inhibitor / anthracenedione cytotoxic
-SN-38	SN-38	Topoisomerase inhibitors	DNA-damaging agents	Topoisomerase I inhibitor
-Teniposide	TENIPOSIDE	Topoisomerase inhibitors	DNA-damaging agents	TOP2 inhibitor / podophyllotoxin derivative
-Topotecan	TOPOTECAN	Topoisomerase inhibitors	DNA-damaging agents	Topoisomerase I inhibitor
+Cisplatin	CISPLATIN	Alkylating agents	DNA damage and repair agents	Platinum DNA crosslinker
+Cyclophosphamide	CYCLOPHOSPHAMIDE	Alkylating agents	DNA damage and repair agents	Nitrogen mustard alkylating agent
+Dacarbazine	DACARBAZINE	Alkylating agents	DNA damage and repair agents	Triazene alkylating agent
+Oxaliplatin	OXALIPLATIN	Alkylating agents	DNA damage and repair agents	Platinum DNA crosslinker
+PBD-288	PBD-288	Alkylating agents	DNA damage and repair agents	Pyrrolobenzodiazepine-like DNA minor-groove/crosslinking cytotoxic; verify compound identity
+Temozolomide	TEMOZOLOMIDE	Alkylating agents	DNA damage and repair agents	Triazene/methylating DNA alkylating agent
+AZD6738	AZD6738	DNA damage repair inhibitors	DNA damage and repair agents	ATR checkpoint/DDR inhibitor
+AZD7762	AZD7762	DNA damage repair inhibitors	DNA damage and repair agents	Cell-cycle checkpoint / DDR inhibitor
+CCT007093	CCT007093	DNA damage repair inhibitors	DNA damage and repair agents	Granular target/pathway: PPM1D; Cell cycle
+GSK2830371	GSK2830371	DNA damage repair inhibitors	DNA damage and repair agents	Other/unclassified mechanism; GDSC target: WIP1; pathway: Other
+GSK2830371A	GSK2830371A	DNA damage repair inhibitors	DNA damage and repair agents	Other/unclassified mechanism; GDSC target: PPM1D; pathway: Other
+KU-55933	KU-55933	DNA damage repair inhibitors	DNA damage and repair agents	ATM checkpoint/DDR inhibitor
+Mirin	MIRIN	DNA damage repair inhibitors	DNA damage and repair agents	Granular target/pathway: MRE11; Genome integrity
+MK-1775	MK-1775	DNA damage repair inhibitors	DNA damage and repair agents	Cell-cycle checkpoint / DDR inhibitor
+MK-8776	MK-8776	DNA damage repair inhibitors	DNA damage and repair agents	Cell-cycle checkpoint / DDR inhibitor
+Niraparib	NIRAPARIB	DNA damage repair inhibitors	DNA damage and repair agents	PARP inhibitor
+NU7441	NU7441	DNA damage repair inhibitors	DNA damage and repair agents	DNA-PK inhibitor
+Olaparib	OLAPARIB	DNA damage repair inhibitors	DNA damage and repair agents	PARP inhibitor
+Pyridostatin	PYRIDOSTATIN	DNA damage repair inhibitors	DNA damage and repair agents	G-quadruplex stabilizer; replication/telomere stress genome-integrity agent
+Rucaparib	RUCAPARIB	DNA damage repair inhibitors	DNA damage and repair agents	PARP inhibitor
+Talazoparib	TALAZOPARIB	DNA damage repair inhibitors	DNA damage and repair agents	PARP inhibitor
+VE-822	VE-822	DNA damage repair inhibitors	DNA damage and repair agents	ATR checkpoint/DDR inhibitor
+VE821	VE821	DNA damage repair inhibitors	DNA damage and repair agents	ATR checkpoint/DDR inhibitor
+Veliparib	VELIPARIB	DNA damage repair inhibitors	DNA damage and repair agents	PARP inhibitor
+Wee1 Inhibitor	WEE1 INHIBITOR	DNA damage repair inhibitors	DNA damage and repair agents	Cell-cycle checkpoint / DDR inhibitor
+Camptothecin	CAMPTOTHECIN	Topoisomerase inhibitors	DNA damage and repair agents	Topoisomerase I inhibitor
+Epirubicin	EPIRUBICIN	Topoisomerase inhibitors	DNA damage and repair agents	Anthracycline antitumor antibiotic; also TOP2-associated cytotoxic
+Irinotecan	IRINOTECAN	Topoisomerase inhibitors	DNA damage and repair agents	Topoisomerase I inhibitor
+LMP744	LMP744	Topoisomerase inhibitors	DNA damage and repair agents	Topoisomerase I inhibitor
+Mitoxantrone	MITOXANTRONE	Topoisomerase inhibitors	DNA damage and repair agents	TOP2 inhibitor / anthracenedione cytotoxic
+SN-38	SN-38	Topoisomerase inhibitors	DNA damage and repair agents	Topoisomerase I inhibitor
+Teniposide	TENIPOSIDE	Topoisomerase inhibitors	DNA damage and repair agents	TOP2 inhibitor / podophyllotoxin derivative
+Topotecan	TOPOTECAN	Topoisomerase inhibitors	DNA damage and repair agents	Topoisomerase I inhibitor
 5-azacytidine	5-AZACYTIDINE	Epigenetic inhibitors	Epigenetic inhibitors	DNMT inhibitor / hypomethylating nucleoside analog; also antimetabolite-like
 A-366	A-366	Epigenetic inhibitors	Epigenetic inhibitors	Histone methyltransferase/epigenetic writer inhibitor
 AGK2	AGK2	Epigenetic inhibitors	Epigenetic inhibitors	Chromatin reader/writer/remodeling inhibitor
@@ -105,6 +105,106 @@ Bicalutamide	BICALUTAMIDE	Hormone therapy	Hormone therapy	Androgen receptor anta
 Fulvestrant	FULVESTRANT	Hormone therapy	Hormone therapy	Estrogen receptor degrader / SERD
 GDC0810	GDC0810	Hormone therapy	Hormone therapy	Oral estrogen receptor degrader/modulator; ESR1/ESR2
 Tamoxifen	TAMOXIFEN	Hormone therapy	Hormone therapy	Selective estrogen receptor modulator / SERM
+AZ960	AZ960	Non-receptor tyrosine kinase inhibitors	Kinase inhibitors	JAK2/JAK3 non-receptor tyrosine kinase inhibitor
+Bosutinib	BOSUTINIB	Non-receptor tyrosine kinase inhibitors	Kinase inhibitors	ABL/SRC/TEC-family non-receptor tyrosine kinase inhibitor
+Dasatinib	DASATINIB	Non-receptor tyrosine kinase inhibitors	Kinase inhibitors	ABL/SRC-family inhibitor; also inhibits several RTKs
+Entospletinib	ENTOSPLETINIB	Non-receptor tyrosine kinase inhibitors	Kinase inhibitors	SYK non-receptor tyrosine kinase inhibitor
+GSK2256098C	GSK2256098C	Non-receptor tyrosine kinase inhibitors	Kinase inhibitors	FAK/PTK2 non-receptor tyrosine kinase inhibitor
+GSK2276186C	GSK2276186C	Non-receptor tyrosine kinase inhibitors	Kinase inhibitors	JAK1/JAK2/JAK3 non-receptor tyrosine kinase inhibitor
+Ibrutinib	IBRUTINIB	Non-receptor tyrosine kinase inhibitors	Kinase inhibitors	BTK non-receptor tyrosine kinase inhibitor
+JAK_8517	JAK_8517	Non-receptor tyrosine kinase inhibitors	Kinase inhibitors	JAK1/JAK2 non-receptor tyrosine kinase inhibitor
+JAK1_8709	JAK1_8709	Non-receptor tyrosine kinase inhibitors	Kinase inhibitors	JAK1 non-receptor tyrosine kinase inhibitor
+Nilotinib	NILOTINIB	Non-receptor tyrosine kinase inhibitors	Kinase inhibitors	ABL/BCR-ABL non-receptor tyrosine kinase inhibitor
+PRT062607	PRT062607	Non-receptor tyrosine kinase inhibitors	Kinase inhibitors	SYK non-receptor tyrosine kinase inhibitor
+Ruxolitinib	RUXOLITINIB	Non-receptor tyrosine kinase inhibitors	Kinase inhibitors	JAK1/JAK2 non-receptor tyrosine kinase inhibitor
+Afatinib	AFATINIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
+Axitinib	AXITINIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	VEGFR/PDGFR/KIT receptor tyrosine kinase inhibitor
+AZD1332	AZD1332	Receptor tyrosine kinase inhibitors	Kinase inhibitors	NTRK1/NTRK2/NTRK3 receptor tyrosine kinase inhibitor
+AZD3759	AZD3759	Receptor tyrosine kinase inhibitors	Kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
+AZD4547	AZD4547	Receptor tyrosine kinase inhibitors	Kinase inhibitors	FGFR receptor tyrosine kinase inhibitor
+BMS-536924	BMS-536924	Receptor tyrosine kinase inhibitors	Kinase inhibitors	IGF1R/insulin receptor tyrosine kinase inhibitor
+BMS-754807	BMS-754807	Receptor tyrosine kinase inhibitors	Kinase inhibitors	IGF1R/insulin receptor tyrosine kinase inhibitor
+Cediranib	CEDIRANIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	VEGFR/FLT/KIT/PDGFR receptor tyrosine kinase inhibitor
+Crizotinib	CRIZOTINIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	MET/ALK/ROS1 receptor tyrosine kinase inhibitor
+Erlotinib	ERLOTINIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
+Foretinib	FORETINIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	MET/VEGFR/PDGFR/FGFR/EGFR multi-receptor tyrosine kinase inhibitor
+Gefitinib	GEFITINIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
+GSK1904529A	GSK1904529A	Receptor tyrosine kinase inhibitors	Kinase inhibitors	IGF1R/insulin receptor tyrosine kinase inhibitor
+GW441756	GW441756	Receptor tyrosine kinase inhibitors	Kinase inhibitors	NTRK1 receptor tyrosine kinase inhibitor
+IGF1R_3801	IGF1R_3801	Receptor tyrosine kinase inhibitors	Kinase inhibitors	IGF1R receptor tyrosine kinase inhibitor
+Lapatinib	LAPATINIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
+Lestaurtinib	LESTAURTINIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	Multi-kinase inhibitor: FLT3/NTRK receptor kinases plus JAK2 non-receptor tyrosine kinase
+Linsitinib	LINSITINIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	IGF1R receptor tyrosine kinase inhibitor
+Motesanib	MOTESANIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	VEGFR/RET/KIT/PDGFR receptor tyrosine kinase inhibitor
+NVP-ADW742	NVP-ADW742	Receptor tyrosine kinase inhibitors	Kinase inhibitors	IGF1R receptor tyrosine kinase inhibitor
+Osimertinib	OSIMERTINIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
+PD173074	PD173074	Receptor tyrosine kinase inhibitors	Kinase inhibitors	FGFR receptor tyrosine kinase inhibitor
+Sapitinib	SAPITINIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
+Savolitinib	SAVOLITINIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	MET receptor tyrosine kinase inhibitor
+Sorafenib	SORAFENIB	Receptor tyrosine kinase inhibitors	Kinase inhibitors	Multi-kinase inhibitor: VEGFR/PDGFR/KIT receptor kinases plus RAF Ser/Thr kinases
+Afuresertib	AFURESERTIB	Serine/threonine kinase inhibitors	Kinase inhibitors	AKT1/2/3 Ser/Thr kinase inhibitor
+Alisertib	ALISERTIB	Serine/threonine kinase inhibitors	Kinase inhibitors	Aurora kinase/mitotic kinase inhibitor
+Alpelisib	ALPELISIB	Serine/threonine kinase inhibitors	Kinase inhibitors	PI3K-alpha lipid kinase inhibitor; grouped with PI3K/AKT/mTOR Ser/Thr signaling axis
+AT13148	AT13148	Serine/threonine kinase inhibitors	Kinase inhibitors	AKT/AGC-family Ser/Thr kinase inhibitor
+AZD1208	AZD1208	Serine/threonine kinase inhibitors	Kinase inhibitors	Granular target/pathway: PIM1, PIM2, PIM3; Other, kinases
+AZD2014	AZD2014	Serine/threonine kinase inhibitors	Kinase inhibitors	mTORC1/mTORC2 Ser/Thr kinase inhibitor
+AZD5363	AZD5363	Serine/threonine kinase inhibitors	Kinase inhibitors	AKT inhibitor
+AZD5438	AZD5438	Serine/threonine kinase inhibitors	Kinase inhibitors	CDK/cell-cycle kinase inhibitor
+AZD8055	AZD8055	Serine/threonine kinase inhibitors	Kinase inhibitors	mTORC1/mTORC2 Ser/Thr kinase inhibitor
+BDP-00009066	BDP-00009066	Serine/threonine kinase inhibitors	Kinase inhibitors	Granular target/pathway: MRCKB_HUMAN; Cytoskeleton
+BI-2536	BI-2536	Serine/threonine kinase inhibitors	Kinase inhibitors	PLK/cell-cycle kinase inhibitor
+BMS-345541	BMS-345541	Serine/threonine kinase inhibitors	Kinase inhibitors	Other/unclassified mechanism; GDSC target: IKK-1, IKK-2; pathway: Other
+BX795	BX795	Serine/threonine kinase inhibitors	Kinase inhibitors	TBK1/PDK1/IKK/AURK multi-Ser/Thr kinase inhibitor
+CZC24832	CZC24832	Serine/threonine kinase inhibitors	Kinase inhibitors	PI3K-gamma lipid kinase inhibitor; grouped with PI3K/AKT/mTOR Ser/Thr signaling axis
+Dabrafenib	DABRAFENIB	Serine/threonine kinase inhibitors	Kinase inhibitors	ERK inhibitor
+Dactolisib	DACTOLISIB	Serine/threonine kinase inhibitors	Kinase inhibitors	Dual PI3K/mTOR inhibitor; PI3K lipid kinase plus mTOR Ser/Thr kinase
+Dinaciclib	DINACICLIB	Serine/threonine kinase inhibitors	Kinase inhibitors	CDK/cell-cycle kinase inhibitor
+Doramapimod	DORAMAPIMOD	Serine/threonine kinase inhibitors	Kinase inhibitors	Granular target/pathway: p38, JNK2; JNK and p38 signaling
+ERK_2440	ERK_2440	Serine/threonine kinase inhibitors	Kinase inhibitors	ERK inhibitor
+ERK_6604	ERK_6604	Serine/threonine kinase inhibitors	Kinase inhibitors	ERK inhibitor
+GNE-317	GNE-317	Serine/threonine kinase inhibitors	Kinase inhibitors	PI3K-alpha lipid kinase inhibitor; grouped with PI3K/AKT/mTOR Ser/Thr signaling axis
+GSK2110183B	GSK2110183B	Serine/threonine kinase inhibitors	Kinase inhibitors	AKT1/2/3 Ser/Thr kinase inhibitor
+GSK2578215A	GSK2578215A	Serine/threonine kinase inhibitors	Kinase inhibitors	Granular target/pathway: LRRK2; Other, kinases
+GSK2606414	GSK2606414	Serine/threonine kinase inhibitors	Kinase inhibitors	PERK/EIF2AK3 inhibitor; integrated-stress-response Ser/Thr kinase
+GSK269962A	GSK269962A	Serine/threonine kinase inhibitors	Kinase inhibitors	Granular target/pathway: ROCK1, ROCK2; Cytoskeleton
+GSK3337463A	GSK3337463A	Serine/threonine kinase inhibitors	Kinase inhibitors	Granular target/pathway: NIK; Other, kinases
+GSK626616AC	GSK626616AC	Serine/threonine kinase inhibitors	Kinase inhibitors	Granular target/pathway: DYRK1A; Other, kinases
+Ipatasertib	IPATASERTIB	Serine/threonine kinase inhibitors	Kinase inhibitors	AKT Ser/Thr kinase inhibitor
+IRAK4_4710	IRAK4_4710	Serine/threonine kinase inhibitors	Kinase inhibitors	IRAK4 kinase inhibitor; innate immune Ser/Thr kinase pathway
+JNK Inhibitor VIII	JNK INHIBITOR VIII	Serine/threonine kinase inhibitors	Kinase inhibitors	Granular target/pathway: JNK; JNK and p38 signaling
+KRAS (G12C) Inhibitor-12	KRAS (G12C) INHIBITOR-12	Serine/threonine kinase inhibitors	Kinase inhibitors	ERK inhibitor
+LJI308	LJI308	Serine/threonine kinase inhibitors	Kinase inhibitors	RSK1/2/3 Ser/Thr kinase inhibitor
+MK-2206	MK-2206	Serine/threonine kinase inhibitors	Kinase inhibitors	AKT1/2 Ser/Thr kinase inhibitor
+OSI-027	OSI-027	Serine/threonine kinase inhibitors	Kinase inhibitors	mTORC1/mTORC2 Ser/Thr kinase inhibitor
+PAK_5339	PAK_5339	Serine/threonine kinase inhibitors	Kinase inhibitors	Granular target/pathway: PAK1, PAK2; Cytoskeleton
+Palbociclib	PALBOCICLIB	Serine/threonine kinase inhibitors	Kinase inhibitors	CDK/cell-cycle kinase inhibitor
+PD0325901	PD0325901	Serine/threonine kinase inhibitors	Kinase inhibitors	MEK inhibitor
+PF-4708671	PF-4708671	Serine/threonine kinase inhibitors	Kinase inhibitors	S6K1 Ser/Thr kinase inhibitor
+Pictilisib	PICTILISIB	Serine/threonine kinase inhibitors	Kinase inhibitors	Class I PI3K lipid kinase inhibitor; grouped with PI3K/AKT/mTOR Ser/Thr signaling axis
+PLX-4720	PLX-4720	Serine/threonine kinase inhibitors	Kinase inhibitors	ERK inhibitor
+Rapamycin	RAPAMYCIN	Serine/threonine kinase inhibitors	Kinase inhibitors	mTORC1 pathway inhibitor; mTOR Ser/Thr kinase signaling
+Refametinib	REFAMETINIB	Serine/threonine kinase inhibitors	Kinase inhibitors	MEK1/MEK2 MAP2K inhibitor; MAPK pathway Ser/Thr kinase signaling
+Ribociclib	RIBOCICLIB	Serine/threonine kinase inhibitors	Kinase inhibitors	CDK/cell-cycle kinase inhibitor
+RO-3306	RO-3306	Serine/threonine kinase inhibitors	Kinase inhibitors	CDK/cell-cycle kinase inhibitor
+SB505124	SB505124	Serine/threonine kinase inhibitors	Kinase inhibitors	Granular target/pathway: TGFBR1, ACVR1B, ACVR1C; RTK signaling
+SB590885	SB590885	Serine/threonine kinase inhibitors	Kinase inhibitors	ERK inhibitor
+SCH772984	SCH772984	Serine/threonine kinase inhibitors	Kinase inhibitors	ERK inhibitor
+Selumetinib	SELUMETINIB	Serine/threonine kinase inhibitors	Kinase inhibitors	MEK1/MEK2 MAP2K inhibitor; MAPK pathway Ser/Thr kinase signaling
+SL0101	SL0101	Serine/threonine kinase inhibitors	Kinase inhibitors	Aurora kinase/mitotic kinase inhibitor
+Staurosporine	STAUROSPORINE	Serine/threonine kinase inhibitors	Kinase inhibitors	Broad-spectrum kinase inhibitor; strong PKC/Ser-Thr kinase activity
+Tanespimycin	TANESPIMYCIN	Serine/threonine kinase inhibitors	Kinase inhibitors	HSP90/chaperone inhibitor
+Temsirolimus	TEMSIROLIMUS	Serine/threonine kinase inhibitors	Kinase inhibitors	mTOR pathway inhibitor; mTOR is a Ser/Thr kinase signaling node
+THR-101	THR-101	Serine/threonine kinase inhibitors	Kinase inhibitors	Mutant-RAS/PI3K pathway compound in GDSC; grouped with PI3K/AKT/mTOR Ser/Thr signaling for ontology consistency
+THR-102	THR-102	Serine/threonine kinase inhibitors	Kinase inhibitors	Mutant-RAS/PI3K pathway compound in GDSC; grouped with PI3K/AKT/mTOR Ser/Thr signaling for ontology consistency
+THR-103	THR-103	Serine/threonine kinase inhibitors	Kinase inhibitors	Mutant-RAS/PI3K pathway compound in GDSC; grouped with PI3K/AKT/mTOR Ser/Thr signaling for ontology consistency
+Tozasertib	TOZASERTIB	Serine/threonine kinase inhibitors	Kinase inhibitors	Aurora kinase/mitotic kinase inhibitor
+Trametinib	TRAMETINIB	Serine/threonine kinase inhibitors	Kinase inhibitors	MEK1/MEK2 MAP2K inhibitor; MAPK pathway Ser/Thr kinase signaling
+Ulixertinib	ULIXERTINIB	Serine/threonine kinase inhibitors	Kinase inhibitors	ERK inhibitor
+ULK1_4989	ULK1_4989	Serine/threonine kinase inhibitors	Kinase inhibitors	Granular target/pathway: ULK1; Other, kinases
+Uprosertib	UPROSERTIB	Serine/threonine kinase inhibitors	Kinase inhibitors	AKT1/2/3 Ser/Thr kinase inhibitor
+VX-11e	VX-11E	Serine/threonine kinase inhibitors	Kinase inhibitors	ERK inhibitor
+WZ4003	WZ4003	Serine/threonine kinase inhibitors	Kinase inhibitors	Granular target/pathway: NUAK1, NUAK2; Other, kinases
+ZM447439	ZM447439	Serine/threonine kinase inhibitors	Kinase inhibitors	Aurora kinase/mitotic kinase inhibitor
 AGI-5198	AGI-5198	Metabolic/redox agents	Metabolic/redox agents	Mutant IDH1-R132H metabolic enzyme inhibitor; oncometabolite/2-HG axis; not an RTK
 AGI-6780	AGI-6780	Metabolic/redox agents	Metabolic/redox agents	Mutant IDH2-R140Q metabolic enzyme inhibitor; oncometabolite/2-HG axis; not an RTK
 alpha-lipoic acid	ALPHA-LIPOIC ACID	Metabolic/redox agents	Metabolic/redox agents	Redox-active mitochondrial cofactor/antioxidant; metabolism/redox agent, not anticancer RTK inhibitor
@@ -119,18 +219,6 @@ Picolinici-acid	PICOLINICI-ACID	Metabolic/redox agents	Metabolic/redox agents	Pi
 Piperlongumine	PIPERLONGUMINE	Metabolic/redox agents	Metabolic/redox agents	Reactive oxygen species inducer / electrophilic stress agent
 POMHEX	POMHEX	Metabolic/redox agents	Metabolic/redox agents	Enolase/glycolysis inhibitor prodrug; metabolic vulnerability agent
 Sinularin	SINULARIN	Metabolic/redox agents	Metabolic/redox agents	Natural-product cytotoxic agent reported to induce apoptosis/ROS; mechanism variable
-AZ960	AZ960	Non-receptor tyrosine kinase inhibitors	Non-receptor tyrosine kinase inhibitors	JAK2/JAK3 non-receptor tyrosine kinase inhibitor
-Bosutinib	BOSUTINIB	Non-receptor tyrosine kinase inhibitors	Non-receptor tyrosine kinase inhibitors	ABL/SRC/TEC-family non-receptor tyrosine kinase inhibitor
-Dasatinib	DASATINIB	Non-receptor tyrosine kinase inhibitors	Non-receptor tyrosine kinase inhibitors	ABL/SRC-family inhibitor; also inhibits several RTKs
-Entospletinib	ENTOSPLETINIB	Non-receptor tyrosine kinase inhibitors	Non-receptor tyrosine kinase inhibitors	SYK non-receptor tyrosine kinase inhibitor
-GSK2256098C	GSK2256098C	Non-receptor tyrosine kinase inhibitors	Non-receptor tyrosine kinase inhibitors	FAK/PTK2 non-receptor tyrosine kinase inhibitor
-GSK2276186C	GSK2276186C	Non-receptor tyrosine kinase inhibitors	Non-receptor tyrosine kinase inhibitors	JAK1/JAK2/JAK3 non-receptor tyrosine kinase inhibitor
-Ibrutinib	IBRUTINIB	Non-receptor tyrosine kinase inhibitors	Non-receptor tyrosine kinase inhibitors	BTK non-receptor tyrosine kinase inhibitor
-JAK_8517	JAK_8517	Non-receptor tyrosine kinase inhibitors	Non-receptor tyrosine kinase inhibitors	JAK1/JAK2 non-receptor tyrosine kinase inhibitor
-JAK1_8709	JAK1_8709	Non-receptor tyrosine kinase inhibitors	Non-receptor tyrosine kinase inhibitors	JAK1 non-receptor tyrosine kinase inhibitor
-Nilotinib	NILOTINIB	Non-receptor tyrosine kinase inhibitors	Non-receptor tyrosine kinase inhibitors	ABL/BCR-ABL non-receptor tyrosine kinase inhibitor
-PRT062607	PRT062607	Non-receptor tyrosine kinase inhibitors	Non-receptor tyrosine kinase inhibitors	SYK non-receptor tyrosine kinase inhibitor
-Ruxolitinib	RUXOLITINIB	Non-receptor tyrosine kinase inhibitors	Non-receptor tyrosine kinase inhibitors	JAK1/JAK2 non-receptor tyrosine kinase inhibitor
 123138	123138	Other	Other	Unclassified GDSC screening compound; manual mechanism lookup recommended
 123829	123829	Other	Other	Unclassified GDSC screening compound; manual mechanism lookup recommended
 150412	150412	Other	Other	Unclassified GDSC screening compound; manual mechanism lookup recommended
@@ -184,94 +272,6 @@ TW 37	TW 37	Proapoptotic agents	Proapoptotic agents	BCL2-family apoptosis antago
 UMI-77	UMI-77	Proapoptotic agents	Proapoptotic agents	BCL2-family apoptosis antagonist/BH3 mimetic-like compound
 Venetoclax	VENETOCLAX	Proapoptotic agents	Proapoptotic agents	BCL2-family apoptosis antagonist/BH3 mimetic-like compound
 WEHI-539	WEHI-539	Proapoptotic agents	Proapoptotic agents	BCL2-family apoptosis antagonist/BH3 mimetic-like compound
-Afatinib	AFATINIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
-Axitinib	AXITINIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	VEGFR/PDGFR/KIT receptor tyrosine kinase inhibitor
-AZD1332	AZD1332	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	NTRK1/NTRK2/NTRK3 receptor tyrosine kinase inhibitor
-AZD3759	AZD3759	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
-AZD4547	AZD4547	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	FGFR receptor tyrosine kinase inhibitor
-BMS-536924	BMS-536924	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	IGF1R/insulin receptor tyrosine kinase inhibitor
-BMS-754807	BMS-754807	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	IGF1R/insulin receptor tyrosine kinase inhibitor
-Cediranib	CEDIRANIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	VEGFR/FLT/KIT/PDGFR receptor tyrosine kinase inhibitor
-Crizotinib	CRIZOTINIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	MET/ALK/ROS1 receptor tyrosine kinase inhibitor
-Erlotinib	ERLOTINIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
-Foretinib	FORETINIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	MET/VEGFR/PDGFR/FGFR/EGFR multi-receptor tyrosine kinase inhibitor
-Gefitinib	GEFITINIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
-GSK1904529A	GSK1904529A	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	IGF1R/insulin receptor tyrosine kinase inhibitor
-GW441756	GW441756	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	NTRK1 receptor tyrosine kinase inhibitor
-IGF1R_3801	IGF1R_3801	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	IGF1R receptor tyrosine kinase inhibitor
-Lapatinib	LAPATINIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
-Lestaurtinib	LESTAURTINIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	Multi-kinase inhibitor: FLT3/NTRK receptor kinases plus JAK2 non-receptor tyrosine kinase
-Linsitinib	LINSITINIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	IGF1R receptor tyrosine kinase inhibitor
-Motesanib	MOTESANIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	VEGFR/RET/KIT/PDGFR receptor tyrosine kinase inhibitor
-NVP-ADW742	NVP-ADW742	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	IGF1R receptor tyrosine kinase inhibitor
-Osimertinib	OSIMERTINIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
-PD173074	PD173074	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	FGFR receptor tyrosine kinase inhibitor
-Sapitinib	SAPITINIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	EGFR/ERBB receptor tyrosine kinase inhibitor
-Savolitinib	SAVOLITINIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	MET receptor tyrosine kinase inhibitor
-Sorafenib	SORAFENIB	Receptor tyrosine kinase inhibitors	Receptor tyrosine kinase inhibitors	Multi-kinase inhibitor: VEGFR/PDGFR/KIT receptor kinases plus RAF Ser/Thr kinases
-Afuresertib	AFURESERTIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	AKT1/2/3 Ser/Thr kinase inhibitor
-Alisertib	ALISERTIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Aurora kinase/mitotic kinase inhibitor
-Alpelisib	ALPELISIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	PI3K-alpha lipid kinase inhibitor; grouped with PI3K/AKT/mTOR Ser/Thr signaling axis
-AT13148	AT13148	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	AKT/AGC-family Ser/Thr kinase inhibitor
-AZD1208	AZD1208	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Granular target/pathway: PIM1, PIM2, PIM3; Other, kinases
-AZD2014	AZD2014	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	mTORC1/mTORC2 Ser/Thr kinase inhibitor
-AZD5363	AZD5363	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	AKT inhibitor
-AZD5438	AZD5438	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	CDK/cell-cycle kinase inhibitor
-AZD8055	AZD8055	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	mTORC1/mTORC2 Ser/Thr kinase inhibitor
-BDP-00009066	BDP-00009066	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Granular target/pathway: MRCKB_HUMAN; Cytoskeleton
-BI-2536	BI-2536	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	PLK/cell-cycle kinase inhibitor
-BMS-345541	BMS-345541	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Other/unclassified mechanism; GDSC target: IKK-1, IKK-2; pathway: Other
-BX795	BX795	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	TBK1/PDK1/IKK/AURK multi-Ser/Thr kinase inhibitor
-CZC24832	CZC24832	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	PI3K-gamma lipid kinase inhibitor; grouped with PI3K/AKT/mTOR Ser/Thr signaling axis
-Dabrafenib	DABRAFENIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	ERK inhibitor
-Dactolisib	DACTOLISIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Dual PI3K/mTOR inhibitor; PI3K lipid kinase plus mTOR Ser/Thr kinase
-Dinaciclib	DINACICLIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	CDK/cell-cycle kinase inhibitor
-Doramapimod	DORAMAPIMOD	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Granular target/pathway: p38, JNK2; JNK and p38 signaling
-ERK_2440	ERK_2440	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	ERK inhibitor
-ERK_6604	ERK_6604	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	ERK inhibitor
-GNE-317	GNE-317	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	PI3K-alpha lipid kinase inhibitor; grouped with PI3K/AKT/mTOR Ser/Thr signaling axis
-GSK2110183B	GSK2110183B	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	AKT1/2/3 Ser/Thr kinase inhibitor
-GSK2578215A	GSK2578215A	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Granular target/pathway: LRRK2; Other, kinases
-GSK2606414	GSK2606414	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	PERK/EIF2AK3 inhibitor; integrated-stress-response Ser/Thr kinase
-GSK269962A	GSK269962A	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Granular target/pathway: ROCK1, ROCK2; Cytoskeleton
-GSK3337463A	GSK3337463A	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Granular target/pathway: NIK; Other, kinases
-GSK626616AC	GSK626616AC	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Granular target/pathway: DYRK1A; Other, kinases
-Ipatasertib	IPATASERTIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	AKT Ser/Thr kinase inhibitor
-IRAK4_4710	IRAK4_4710	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	IRAK4 kinase inhibitor; innate immune Ser/Thr kinase pathway
-JNK Inhibitor VIII	JNK INHIBITOR VIII	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Granular target/pathway: JNK; JNK and p38 signaling
-KRAS (G12C) Inhibitor-12	KRAS (G12C) INHIBITOR-12	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	ERK inhibitor
-LJI308	LJI308	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	RSK1/2/3 Ser/Thr kinase inhibitor
-MK-2206	MK-2206	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	AKT1/2 Ser/Thr kinase inhibitor
-OSI-027	OSI-027	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	mTORC1/mTORC2 Ser/Thr kinase inhibitor
-PAK_5339	PAK_5339	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Granular target/pathway: PAK1, PAK2; Cytoskeleton
-Palbociclib	PALBOCICLIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	CDK/cell-cycle kinase inhibitor
-PD0325901	PD0325901	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	MEK inhibitor
-PF-4708671	PF-4708671	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	S6K1 Ser/Thr kinase inhibitor
-Pictilisib	PICTILISIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Class I PI3K lipid kinase inhibitor; grouped with PI3K/AKT/mTOR Ser/Thr signaling axis
-PLX-4720	PLX-4720	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	ERK inhibitor
-Rapamycin	RAPAMYCIN	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	mTORC1 pathway inhibitor; mTOR Ser/Thr kinase signaling
-Refametinib	REFAMETINIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	MEK1/MEK2 MAP2K inhibitor; MAPK pathway Ser/Thr kinase signaling
-Ribociclib	RIBOCICLIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	CDK/cell-cycle kinase inhibitor
-RO-3306	RO-3306	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	CDK/cell-cycle kinase inhibitor
-SB505124	SB505124	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Granular target/pathway: TGFBR1, ACVR1B, ACVR1C; RTK signaling
-SB590885	SB590885	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	ERK inhibitor
-SCH772984	SCH772984	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	ERK inhibitor
-Selumetinib	SELUMETINIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	MEK1/MEK2 MAP2K inhibitor; MAPK pathway Ser/Thr kinase signaling
-SL0101	SL0101	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Aurora kinase/mitotic kinase inhibitor
-Staurosporine	STAUROSPORINE	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Broad-spectrum kinase inhibitor; strong PKC/Ser-Thr kinase activity
-Tanespimycin	TANESPIMYCIN	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	HSP90/chaperone inhibitor
-Temsirolimus	TEMSIROLIMUS	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	mTOR pathway inhibitor; mTOR is a Ser/Thr kinase signaling node
-THR-101	THR-101	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Mutant-RAS/PI3K pathway compound in GDSC; grouped with PI3K/AKT/mTOR Ser/Thr signaling for ontology consistency
-THR-102	THR-102	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Mutant-RAS/PI3K pathway compound in GDSC; grouped with PI3K/AKT/mTOR Ser/Thr signaling for ontology consistency
-THR-103	THR-103	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Mutant-RAS/PI3K pathway compound in GDSC; grouped with PI3K/AKT/mTOR Ser/Thr signaling for ontology consistency
-Tozasertib	TOZASERTIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Aurora kinase/mitotic kinase inhibitor
-Trametinib	TRAMETINIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	MEK1/MEK2 MAP2K inhibitor; MAPK pathway Ser/Thr kinase signaling
-Ulixertinib	ULIXERTINIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	ERK inhibitor
-ULK1_4989	ULK1_4989	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Granular target/pathway: ULK1; Other, kinases
-Uprosertib	UPROSERTIB	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	AKT1/2/3 Ser/Thr kinase inhibitor
-VX-11e	VX-11E	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	ERK inhibitor
-WZ4003	WZ4003	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Granular target/pathway: NUAK1, NUAK2; Other, kinases
-ZM447439	ZM447439	Serine/threonine kinase inhibitors	Serine/threonine kinase inhibitors	Aurora kinase/mitotic kinase inhibitor
 Bleomycin	BLEOMYCIN	Tumor antibiotics	Tumor antibiotics	Antitumor antibiotic that induces DNA strand breaks
 Bleomycin (50 uM)	BLEOMYCIN (50 UM)	Tumor antibiotics	Tumor antibiotics	Antitumor antibiotic that induces DNA strand breaks
 Dactinomycin	DACTINOMYCIN	Tumor antibiotics	Tumor antibiotics	Antitumor antibiotic / transcription inhibitor
