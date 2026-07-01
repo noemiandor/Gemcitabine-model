@@ -45,6 +45,14 @@ def clustered_order(matrix, axis=0, method="ward", metric="euclidean"):
 def display_label(label):
     """Readable drug-class label for compact clustered heatmaps."""
     label = pretty_label(label).replace(" AND ", " & ")
+    compact_labels = {
+        "Serine/threonine\nkinase inhibitors": "Ser/Thr kinase\ninhibitors",
+        "Receptor tyrosine\nkinase inhibitors": "Receptor tyrosine\nkinase inhibitors",
+        "Non-receptor tyrosine\nkinase inhibitors": "Non-receptor\ntyrosine kinase\ninhibitors",
+        "Chaperone/protein-\nhomeostasis inhibitors": "Chaperone/protein\nhomeostasis\ninhibitors",
+    }
+    if label in compact_labels:
+        return compact_labels[label]
     label = label.replace("Epigenetics & Transcription", "Epigenetics &\ntranscription")
     label = label.replace("Hormones & Antihormones", "Hormones &\nantihormones")
     label = label.replace("Tyrosine Kinase Inhibitors", "Tyrosine\nkinase\ninhibitors")
@@ -55,16 +63,16 @@ def ordered_labels(labels):
     return [display_label(label) for label in labels]
 
 
-def set_seaborn_x_labels(ax, labels, fontsize=8):
+def set_seaborn_x_labels(ax, labels, fontsize=7):
     """Place x labels at seaborn heatmap cell centers."""
     ax.set_xticks(np.arange(len(labels)) + 0.5)
     ax.set_xticklabels(labels, fontsize=fontsize)
     for label in ax.get_xticklabels():
-        label.set_rotation(45)
+        label.set_rotation(55)
         label.set_ha("right")
         label.set_va("top")
         label.set_rotation_mode("anchor")
-    ax.tick_params(axis="x", which="major", pad=3)
+    ax.tick_params(axis="x", which="major", pad=2)
 
 
 def add_significance_stars(ax, pvalues, row_order, col_order):
@@ -86,24 +94,32 @@ def add_significance_stars(ax, pvalues, row_order, col_order):
                 )
 
 
+def directional_column_order(low_scores, high_scores):
+    """Order classes from low-ploidy-biased to high-ploidy-biased enrichment."""
+    low_values = finite_for_clustering(low_scores)
+    high_values = finite_for_clustering(high_scores)
+    low_signal = np.sum(low_values, axis=0)
+    high_signal = np.sum(high_values, axis=0)
+    directional_score = high_signal - low_signal
+    order = np.argsort(directional_score, kind="mergesort")
+    split_index = int(np.searchsorted(directional_score[order], 0.0, side="right"))
+    return order, split_index
+
+
 def save_shared_order_heatmap(low, high, low_scores, high_scores, out_prefix):
-    """Save two heatmaps using one shared clustered row and column order."""
+    """Save two heatmaps using one shared row order and a low-to-high class order."""
     combined_rows = np.concatenate(
         [finite_for_clustering(low_scores), finite_for_clustering(high_scores)],
         axis=1,
     )
-    combined_cols = np.concatenate(
-        [finite_for_clustering(low_scores).T, finite_for_clustering(high_scores).T],
-        axis=1,
-    )
     row_order = clustered_order(combined_rows, axis=0)
-    col_order = clustered_order(combined_cols, axis=0)
+    col_order, split_index = directional_column_order(low_scores, high_scores)
     vmax = np.nanmax([np.nanmax(low_scores), np.nanmax(high_scores), -np.log10(0.05)])
 
     fig, axes = plt.subplots(
         1,
         3,
-        figsize=(14, 8),
+        figsize=(16, 8.5),
         gridspec_kw={"width_ratios": [1, 1, 0.04], "wspace": 0.08},
     )
 
@@ -132,8 +148,10 @@ def save_shared_order_heatmap(low, high, low_scores, high_scores, out_prefix):
             xticklabels=False,
             yticklabels=ordered_scores.index,
         )
-        set_seaborn_x_labels(ax, ordered_labels(ordered_scores.columns), fontsize=8)
+        set_seaborn_x_labels(ax, ordered_labels(ordered_scores.columns), fontsize=7)
         add_significance_stars(ax, pvalues, row_order, col_order)
+        if 0 < split_index < len(col_order):
+            ax.axvline(split_index, color="#F2F2F2", linewidth=2.0)
         ax.set_title(title, fontsize=12, pad=10)
         ax.set_xlabel("Drug class")
         ax.tick_params(axis="y", labelsize=8)
@@ -142,8 +160,11 @@ def save_shared_order_heatmap(low, high, low_scores, high_scores, out_prefix):
     axes[1].set_yticklabels([])
     cbar = fig.colorbar(heatmap.collections[0], cax=axes[2])
     cbar.set_label("-log10(enrichment p-value)")
-    fig.suptitle("GDSC ploidy-enrichment heatmaps clustered by shared low/high patterns", fontsize=14)
-    fig.subplots_adjust(left=0.10, right=0.92, top=0.90, bottom=0.20)
+    fig.suptitle(
+        "GDSC ploidy-enrichment heatmaps ordered from low- to high-ploidy class bias",
+        fontsize=14,
+    )
+    fig.subplots_adjust(left=0.09, right=0.92, top=0.90, bottom=0.30)
 
     for suffix in (".png", ".pdf"):
         fig.savefig(f"{out_prefix}_shared_order{suffix}", dpi=300, bbox_inches="tight")
@@ -182,7 +203,7 @@ def save_clustermap(scores, pvalues, title, out_prefix, vmax):
     set_seaborn_x_labels(
         grid.ax_heatmap,
         [score_df.columns[i] for i in col_order],
-        fontsize=8,
+        fontsize=7,
     )
     add_significance_stars(grid.ax_heatmap, pvalues, row_order, col_order)
 
