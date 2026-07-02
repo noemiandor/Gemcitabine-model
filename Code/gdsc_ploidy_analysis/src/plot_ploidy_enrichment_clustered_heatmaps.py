@@ -6,7 +6,18 @@ making clustered versions of the low- and high-ploidy enrichment heatmaps.
 """
 
 import argparse
+import os
+import tempfile
 from pathlib import Path
+
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "gemcitabine_model_mpl"))
+os.environ.setdefault("XDG_CACHE_HOME", os.path.join(tempfile.gettempdir(), "gemcitabine_model_xdg"))
+os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
+os.makedirs(os.path.join(os.environ["XDG_CACHE_HOME"], "fontconfig"), exist_ok=True)
+
+import matplotlib
+
+matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,10 +28,13 @@ from scipy.cluster.hierarchy import leaves_list, linkage
 from scipy.spatial.distance import pdist
 
 from plot_ploidy_enrichment_panels import (
+    HEATMAP_CMAP,
     infer_zero_replacement,
+    ordered_by_low_ploidy_significance,
     p_to_neglog10,
     pretty_label,
     read_enrichment_workbook,
+    star_color_for_value,
 )
 
 GROUP_ORDER = [
@@ -92,20 +106,26 @@ def set_seaborn_x_labels(ax, labels, fontsize=7):
     ax.tick_params(axis="x", which="major", pad=2)
 
 
-def add_significance_stars(ax, pvalues, row_order, col_order):
+def add_significance_stars(ax, pvalues, row_order, col_order, scores=None, vmin=0, vmax=None):
     """Mark cells with nominal enrichment p <= 0.05."""
     ordered = pvalues.iloc[row_order, col_order].to_numpy(dtype=float)
+    ordered_scores = None
+    if scores is not None:
+        ordered_scores = scores.iloc[row_order, col_order].to_numpy(dtype=float)
+    if vmax is None and ordered_scores is not None:
+        vmax = np.nanmax(ordered_scores)
     for row_idx in range(ordered.shape[0]):
         for col_idx in range(ordered.shape[1]):
             pvalue = ordered[row_idx, col_idx]
             if np.isfinite(pvalue) and pvalue <= 0.05:
+                score = ordered_scores[row_idx, col_idx] if ordered_scores is not None else np.nan
                 ax.text(
                     col_idx + 0.5,
                     row_idx + 0.5,
                     "*",
                     ha="center",
                     va="center",
-                    color="white",
+                    color=star_color_for_value(score, vmin, vmax),
                     fontsize=9,
                     fontweight="bold",
                 )
@@ -244,16 +264,10 @@ def save_shared_order_heatmap(
         low_scores = low_scores.loc[:, keep_columns]
         high_scores = high_scores.loc[:, keep_columns]
 
-    combined_rows = np.concatenate(
-        [finite_for_clustering(low_scores), finite_for_clustering(high_scores)],
-        axis=1,
-    )
-    row_order = clustered_order(combined_rows, axis=0)
-    if category_groups is None:
-        col_order, split_index = directional_column_order(low_scores, high_scores)
-    else:
-        col_order, group_ranges = grouped_column_order(low_scores, high_scores, category_groups)
-        split_index = None
+    ordered_low, ordered_high = ordered_by_low_ploidy_significance(low, high)
+    row_order = np.array([low.index.get_loc(label) for label in ordered_low.index])
+    col_order = np.array([low.columns.get_loc(label) for label in ordered_low.columns])
+    split_index = None
     vmax = np.nanmax([np.nanmax(low_scores), np.nanmax(high_scores), -np.log10(0.05)])
 
     fig, axes = plt.subplots(
@@ -263,10 +277,20 @@ def save_shared_order_heatmap(
         gridspec_kw={"width_ratios": [1, 1, 0.04], "wspace": 0.08},
     )
 
-    cmap = sns.color_palette("magma", as_cmap=True)
+    cmap = sns.color_palette(HEATMAP_CMAP, as_cmap=True)
     panels = [
-        (axes[0], low_scores, low, "Low-ploidy-selective enrichment"),
-        (axes[1], high_scores, high, "High-ploidy-selective enrichment"),
+        (
+            axes[0],
+            low_scores,
+            low,
+            "Low-ploidy-selective enrichment\n(ordered by chemotherapy-agent significance)",
+        ),
+        (
+            axes[1],
+            high_scores,
+            high,
+            "High-ploidy-selective enrichment\n(same row and drug-class order)",
+        ),
     ]
 
     heatmap = None
@@ -285,13 +309,11 @@ def save_shared_order_heatmap(
             yticklabels=ordered_scores.index,
         )
         set_seaborn_x_labels(ax, ordered_labels(ordered_scores.columns), fontsize=7)
-        add_significance_stars(ax, pvalues, row_order, col_order)
-        if group_ranges is not None:
-            draw_column_group_annotations(ax, group_ranges)
-        elif 0 < split_index < len(col_order):
+        add_significance_stars(ax, pvalues, row_order, col_order, scores=scores, vmin=0, vmax=vmax)
+        if split_index is not None and 0 < split_index < len(col_order):
             ax.axvline(split_index, color="#F2F2F2", linewidth=2.0)
-        ax.set_title(title, fontsize=12, pad=26 if group_ranges is not None else 10)
-        ax.set_xlabel("Drug class")
+        ax.set_title(title, fontsize=12, pad=10)
+        ax.set_xlabel("Drug category")
         ax.tick_params(axis="y", labelsize=8)
 
     axes[1].set_ylabel("")
@@ -299,7 +321,7 @@ def save_shared_order_heatmap(
     cbar = fig.colorbar(heatmap.collections[0], cax=axes[2])
     cbar.set_label("-log10(enrichment p-value)")
     fig.suptitle(
-        "GDSC ploidy-enrichment heatmaps ordered by collapsed drug-class direction",
+        "GDSC ploidy-enrichment heatmaps ordered by low-ploidy chemotherapy signal",
         fontsize=14,
     )
     fig.subplots_adjust(left=0.09, right=0.92, top=0.86, bottom=0.30)
@@ -318,7 +340,7 @@ def save_clustermap(scores, pvalues, title, out_prefix, vmax):
         score_df,
         method="ward",
         metric="euclidean",
-        cmap="magma",
+        cmap=HEATMAP_CMAP,
         vmin=0,
         vmax=vmax,
         linewidths=0.25,
@@ -343,7 +365,7 @@ def save_clustermap(scores, pvalues, title, out_prefix, vmax):
         [score_df.columns[i] for i in col_order],
         fontsize=7,
     )
-    add_significance_stars(grid.ax_heatmap, pvalues, row_order, col_order)
+    add_significance_stars(grid.ax_heatmap, pvalues, row_order, col_order, scores=score_df, vmin=0, vmax=vmax)
 
     for suffix in (".png", ".pdf"):
         grid.fig.savefig(f"{out_prefix}{suffix}", dpi=300, bbox_inches="tight")
