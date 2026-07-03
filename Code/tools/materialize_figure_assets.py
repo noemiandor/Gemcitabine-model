@@ -29,11 +29,11 @@ PANEL_SPECS = [
     },
     {
         "module": "ccle",
-        "source": "ccle_drug_ploidy_correlations_ic50.pdf",
+        "source": "ccle_drug_ploidy_correlations_z_score.pdf",
         "figure": "Figure2",
         "panel": "2B",
-        "asset": "panel_2B_ccle_drug_ploidy_correlations_ic50.pdf",
-        "caption_role": "Local CCLE IC50 ploidy-support plot",
+        "asset": "panel_2B_ccle_drug_ploidy_correlations_z_score.pdf",
+        "caption_role": "Local CCLE BreastCancerDrugSensitivity Z-score ploidy-support plot",
     },
     {
         "module": "drug_response",
@@ -185,6 +185,13 @@ EXTERNAL_ROWS = [
     {
         "figure": "Figure4",
         "panel": "4C",
+        "source_kind": "external",
+        "caption_role": "dFdU time-course measurements",
+        "not_regenerated_reason": "dFdU measurement/composite panel is external to the current reproducible code workflow.",
+    },
+    {
+        "figure": "Figure4",
+        "panel": "4D",
         "source_kind": "external",
         "caption_role": "Representative imaging panel",
         "not_regenerated_reason": "Representative image selection/composite is external to the current reproducible code workflow.",

@@ -1,0 +1,46 @@
+drug	estimate	p.value	n	pathway_name	display_drug	plot_label	direction
+OSI-027	-0.388878669039637	0.0998619084994314	19	PI3K/MTOR signaling	OSI-027	OSI-027	High ploidy is sensitive
+GNE-317	-0.319444941026402	0.211355046823108	17	PI3K/MTOR signaling	GNE-317	GNE-317	High ploidy is sensitive
+Taselisib	-0.281919510364185	0.24226607741516	19	PI3K/MTOR signaling	Taselisib	Taselisib	High ploidy is sensitive
+Pictilisib	-0.279594491327992	0.232530172327058	20	PI3K/MTOR signaling	Pictilisib	Pictilisib	High ploidy is sensitive
+WIKI4	-0.274007335512392	0.287216961130684	17	WNT signaling	WIKI4	WIKI4	High ploidy is sensitive
+Uprosertib	-0.260034661645039	0.282308562708437	19	PI3K/MTOR signaling	Uprosertib	Uprosertib	High ploidy is sensitive
+AZD8186	-0.242425636123941	0.34850080228284	17	PI3K/MTOR signaling	AZD8186	AZD8186	High ploidy is sensitive
+Afuresertib	-0.241365804057583	0.350677415501532	17	PI3K/MTOR signaling	Afuresertib	Afuresertib	High ploidy is sensitive
+Osimertinib	-0.217169641807867	0.40244021819423	17	EGFR signaling	Osimertinib	Osimertinib	High ploidy is sensitive
+Erlotinib	-0.202248462608024	0.436291137159953	17	EGFR signaling	Erlotinib	Erlotinib	High ploidy is sensitive
+Ribociclib	0.207832073299009	0.423455499797685	17	Cell cycle	Ribociclib	Ribociclib	Low ploidy is sensitive
+NU7441	0.212195169449192	0.397929254484615	18	Genome integrity	NU7441	NU7441	Low ploidy is sensitive
+UMI-77	0.213147213806648	0.411423521598595	17	Apoptosis regulation	UMI-77	UMI-77	Low ploidy is sensitive
+Vorinostat	0.218323802446714	0.355106559490266	20	Chromatin histone acetylation	Vorinostat	Vorinostat	Low ploidy is sensitive
+PD173074	0.225284914571891	0.339584626182925	20	RTK signaling	PD173074	PD173074	Low ploidy is sensitive
+Foretinib	0.22679679122862	0.381373689369237	17	RTK signaling	Foretinib	Foretinib	Low ploidy is sensitive
+Palbociclib	0.22691827425857	0.336001084645172	20	Cell cycle	Palbociclib	Palbociclib	Low ploidy is sensitive
+RO-3306	0.23043471252462	0.357608812388921	18	Cell cycle	RO-3306	RO-3306	Low ploidy is sensitive
+SB216763	0.234543505344965	0.34885887629849	18	WNT signaling	SB216763	SB216763	Low ploidy is sensitive
+Temozolomide	0.243845309756802	0.314400916501928	19	DNA replication	Temozolomide	Temozolomide	Low ploidy is sensitive
+Cediranib	0.251334205597127	0.330510740951581	17	RTK signaling	Cediranib	Cediranib	Low ploidy is sensitive
+ABT737	0.255422499487467	0.322438728051622	17	Apoptosis regulation	ABT737	ABT737	Low ploidy is sensitive
+Tozasertib	0.255546055769355	0.306082299350701	18	Mitosis	Tozasertib	Tozasertib	Low ploidy is sensitive
+VE821	0.26434267861619	0.305231068823065	17	Genome integrity	VE821	VE821	Low ploidy is sensitive
+YK-4-279	0.267908742793375	0.298507781485803	17	Other	YK-4-279	YK-4-279	Low ploidy is sensitive
+Epirubicin	0.28340130856772	0.270338107555845	17	DNA replication	Epirubicin	Epirubicin	Low ploidy is sensitive
+AZD4547	0.290327148089091	0.258293096101717	17	RTK signaling	AZD4547	AZD4547	Low ploidy is sensitive
+MK-1775	0.301124021585311	0.210283073138098	19	Cell cycle	MK-1775	MK-1775	Low ploidy is sensitive
+Fulvestrant	0.305344560009808	0.2036460923944	19	Hormone-related	Fulvestrant	Fulvestrant	Low ploidy is sensitive
+Docetaxel	0.30644696528381	0.188808071478363	20	Mitosis	Docetaxel	Docetaxel	Low ploidy is sensitive
+5-Fluorouracil	0.309051749509344	0.184885025826719	20	Other	5-Fluorouracil	5-Fluorouracil	Low ploidy is sensitive
+MIRA-1	0.313565909721665	0.220351799805305	17	p53 pathway	MIRA-1	MIRA-1	Low ploidy is sensitive
+MK-8776	0.314583057115857	0.218777937088966	17	Cell cycle	MK-8776	MK-8776	Low ploidy is sensitive
+Venetoclax	0.327917580904644	0.170507423954103	19	Apoptosis regulation	Venetoclax	Venetoclax	Low ploidy is sensitive
+Camptothecin	0.344788392280763	0.148278814170245	19	DNA replication	Camptothecin	Camptothecin	Low ploidy is sensitive
+Vinblastine	0.354322281094252	0.162896592487037	17	Mitosis	Vinblastine	Vinblastine	Low ploidy is sensitive
+Paclitaxel	0.357425152470444	0.133005614917864	19	Mitosis	Paclitaxel	Paclitaxel	Low ploidy is sensitive
+Cytarabine	0.370199683117635	0.143556931075387	17	Other	Cytarabine	Cytarabine	Low ploidy is sensitive
+JQ1	0.376529539525733	0.123530951763944	18	Chromatin other	JQ1	JQ1	Low ploidy is sensitive
+Wee1 Inhibitor	0.381251697108058	0.107281872274468	19	Cell cycle	Wee1 Inhibitor	Wee1 I.	Low ploidy is sensitive
+Nutlin-3a (-)	0.387304090685959	0.0915770818976476	20	p53 pathway	Nutlin-3a (-)	Nutlin-3a (-)	Low ploidy is sensitive
+Navitoclax	0.390121163306054	0.0890407149057874	20	Apoptosis regulation	Navitoclax	Navitoclax	Low ploidy is sensitive
+Irinotecan	0.412399669803474	0.0889968919131109	18	DNA replication	Irinotecan	Irinotecan	Low ploidy is sensitive
+Vinorelbine	0.455394530345643	0.0662214068251573	17	Mitosis	Vinorelbine	Vinorelbine	Low ploidy is sensitive
+Gemcitabine	0.4628112903956	0.0460028414721805	19	DNA replication	Gemcitabine	Gemcitabine	Low ploidy is sensitive

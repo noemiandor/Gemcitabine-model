@@ -1,0 +1,13 @@
+parameter	value
+metric	Z_SCORE
+metric_label	BreastCancerDrugSensitivity Z Score
+metric_source	legacy_breast_drug_sensitivity_z_score
+metric_note	Historical CCLE breast drug-sensitivity values from the BreastCancerDrugSensitivity Z Score column.
+response_column	Z Score
+lower_metric_more_sensitive	TRUE
+sensitivity_direction_assumption	Lower BreastCancerDrugSensitivity Z Score values are documented as more sensitive.
+correlation_threshold	0.2
+drug_coverage_threshold_fraction	0.8
+drug_coverage_cutoff	16
+drug_filter	
+module_dir	/Users/4470246/Repositories/Gemcitabine-model/Code/ccle_ploidy_analysis

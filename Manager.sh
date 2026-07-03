@@ -191,7 +191,9 @@ input_paths_for_module() {
       printf "%s\n" \
         Code/ccle_ploidy_analysis/data/raw/Cell_app_export.txt \
         Code/ccle_ploidy_analysis/data/manual/breast_ccle_ploidy.tsv \
-        Code/ccle_ploidy_analysis/data/raw/DrugAliases.txt
+        Code/ccle_ploidy_analysis/data/raw/DrugAliases.txt \
+        Code/ccle_ploidy_analysis/data/derived/ccle_expression_columns.tsv
+      printf "%s\n" Code/ccle_ploidy_analysis/data/raw/breast_cancer_drug_sensitivity/*.tsv
       ;;
     drug_response)
       printf "%s\n" \
@@ -242,8 +244,8 @@ command_for_module() {
       ;;
     ccle)
       quote_args Rscript Code/ccle_ploidy_analysis/run_ccle_ploidy_analysis.R \
-        "--metric=IC50" \
-        "--metric-source=grbrowser" \
+        "--metric=Z_SCORE" \
+        "--metric-source=legacy" \
         "--output-dir=${run_dir}"
       ;;
     drug_response)
