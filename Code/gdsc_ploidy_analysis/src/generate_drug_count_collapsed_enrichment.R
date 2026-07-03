@@ -333,13 +333,11 @@ openxlsx::saveWorkbook(wb, workbook, overwrite = TRUE)
 plot_script <- file.path(src_dir, "plot_ploidy_enrichment_clustered_heatmaps.py")
 plot_prefix <- file.path(figures_dir, "drug_count_collapsed_enrichment")
 cmd <- sprintf(
-  "MPLCONFIGDIR=%s python3 %s %s --out-prefix %s --category-groups %s --drop-category-group %s",
+  "MPLCONFIGDIR=%s python3 %s %s --out-prefix %s",
   shQuote(file.path(tempdir(), "mplconfig_gdsc_collapsed_classes")),
   shQuote(plot_script),
   shQuote(workbook),
-  shQuote(plot_prefix),
-  shQuote(file.path(tables_dir, sprintf("drug_count_collapsed_category_groups_p%g.tsv", significance_cutoff))),
-  shQuote("weak_or_not_recurrent")
+  shQuote(plot_prefix)
 )
 status <- system(cmd)
 if (status != 0) {

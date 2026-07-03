@@ -1,0 +1,20 @@
+primary_anticancer_class	count	low_count_flag	interpretation_note
+Serine/threonine kinase inhibitors	63	FALSE	
+Epigenetic inhibitors	45	FALSE	
+Other	34	FALSE	
+Receptor tyrosine kinase inhibitors	25	FALSE	
+DNA damage repair inhibitors	19	FALSE	
+Metabolic/redox agents	14	FALSE	
+Proapoptotic agents	14	FALSE	
+Non-receptor tyrosine kinase inhibitors	12	FALSE	
+WNT-pathway modulators	9	FALSE	
+Antimetabolites	8	FALSE	
+Chaperone/protein-homeostasis inhibitors	8	FALSE	
+Topoisomerase inhibitors	8	FALSE	
+Alkylating agents	6	FALSE	
+Antimitotic agents	6	FALSE	
+p53/MDM2 pathway	5	TRUE	exploratory_low_count_class
+Hormone therapy	4	TRUE	exploratory_low_count_class
+Tumor antibiotics	3	TRUE	exploratory_low_count_class
+Proteasome inhibitors	2	TRUE	exploratory_low_count_class
+Hedgehog pathway inhibitors	1	TRUE	exploratory_low_count_class
