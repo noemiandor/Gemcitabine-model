@@ -11,11 +11,14 @@ The active workflow uses three local inputs:
 - `data/raw/ploidyAcrossCellLines_V1.txt`
 - `data/manual/drug_class_final_used_with_primary_secondary_corrected.xlsx`
 
-The reviewed workbook is the only drug-class assignment source. Its
+The reviewed workbook is the only drug-class assignment source. The workbook
+was compiled and reviewed from PubChem and DrugBank drug-class/mechanism
+annotations, then frozen as a manual analysis input in this repository. Its
 `primary_anticancer_class` column is the enrichment grouping variable.
 `secondary_suggested_class` and other evidence columns are carried only as
-metadata. PubChem caches, generated curation TSVs, legacy class schemas, and
-manual fallback tables are no longer consumed by the main analysis.
+metadata. The runtime workflow does not query PubChem or DrugBank and no longer
+consumes PubChem caches, generated curation TSVs, legacy class schemas, or
+manual fallback tables.
 For manuscript-facing Figure 1B-C, the workflow also writes a collapsed
 drug-class view using the `Drug counts` sheet: `Combine.if.needed` is used
 where populated, otherwise the original `primary_anticancer_class` is retained.
@@ -90,8 +93,9 @@ bash Manager.sh --mode standard --modules gdsc --overwrite
 
 ## Notes
 
-- Drug classes are reviewed anticancer mechanism classes based on the workbook,
-  not raw PubChem categories.
+- Drug classes are reviewed anticancer mechanism classes based on the
+  PubChem/DrugBank-derived workbook, not raw PubChem or DrugBank category
+  strings.
 - The collapsed Figure 1B-C heatmap is defined by the `Drug counts` sheet's
   `Combine.if.needed` column, not by raw GDSC `PATHWAY_NAME`.
 - The workflow fails fast if the workbook has duplicate normalized drug keys,

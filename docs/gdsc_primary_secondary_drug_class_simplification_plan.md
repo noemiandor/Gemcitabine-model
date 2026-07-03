@@ -14,6 +14,10 @@ The active Figure 1 GDSC workflow now uses this reviewed workbook as its drug-cl
 Code/gdsc_ploidy_analysis/data/manual/drug_class_final_used_with_primary_secondary_corrected.xlsx
 ```
 
+This workbook was compiled and reviewed from PubChem and DrugBank
+drug-class/mechanism annotations; the active workflow treats it as a frozen
+manual input and does not query either database at runtime.
+
 The post-cleanup validation run regenerated the GDSC outputs here:
 
 ```text
