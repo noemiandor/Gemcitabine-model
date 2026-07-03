@@ -188,6 +188,11 @@ plot_correlation_barplot <- function(results,
                                      metric_label,
                                      lower_metric_more_sensitive) {
   dir.create(dirname(plot_file), recursive = TRUE, showWarnings = FALSE)
+  x_axis_label <- if (identical(metric_label, "BreastCancerDrugSensitivity Z Score")) {
+    "Pearson r(ploidy, drug-resistance Z-score)"
+  } else {
+    paste0("Pearson (ploidy, ", metric_label, ")")
+  }
   colors <- if (lower_metric_more_sensitive) {
     c("purple", "orange")[1 + (results$estimate > 0)]
   } else {
@@ -202,7 +207,7 @@ plot_correlation_barplot <- function(results,
     horiz = TRUE,
     names = results$plot_label,
     las = 2,
-    xlab = paste0("Pearson (ploidy, ", metric_label, ")"),
+    xlab = x_axis_label,
     col = colors,
     border = "white",
     cex.names = 0.7,
