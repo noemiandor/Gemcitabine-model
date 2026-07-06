@@ -322,12 +322,50 @@ write_tsv(
   file.path(tables_dir, sprintf("drug_count_collapsed_category_groups_p%g.tsv", significance_cutoff))
 )
 
+cancer_type_count_file <- file.path(input_run, "tables", sprintf("drug_ploidy_correlations_by_cancer_%s.tsv", metric))
+cancer_type_counts <- data.frame(
+  cancer_type = colnames(lowp),
+  n_cell_lines = NA_integer_,
+  count_method = "maximum matched cell lines across retained drug correlations",
+  source_file = cancer_type_count_file,
+  stringsAsFactors = FALSE
+)
+if (file.exists(cancer_type_count_file)) {
+  correlation_counts <- read.delim(cancer_type_count_file, sep = "\t", header = TRUE, check.names = FALSE)
+  if (all(c("cancer_type", "n") %in% colnames(correlation_counts))) {
+    if ("metric" %in% colnames(correlation_counts)) {
+      correlation_counts <- correlation_counts[correlation_counts$metric == metric, , drop = FALSE]
+    }
+    correlation_counts$n <- suppressWarnings(as.numeric(correlation_counts$n))
+    correlation_counts <- correlation_counts[is.finite(correlation_counts$n), , drop = FALSE]
+    if (nrow(correlation_counts) > 0) {
+      max_counts <- aggregate(n ~ cancer_type, correlation_counts, max, na.rm = TRUE)
+      names(max_counts)[names(max_counts) == "n"] <- "n_cell_lines"
+      cancer_type_counts$n_cell_lines <- max_counts$n_cell_lines[
+        match(cancer_type_counts$cancer_type, max_counts$cancer_type)
+      ]
+    }
+  } else {
+    warning("Cancer-type count source is missing cancer_type/n columns: ", cancer_type_count_file, call. = FALSE)
+  }
+} else {
+  warning("Cancer-type count source missing: ", cancer_type_count_file, call. = FALSE)
+}
+write_tsv(
+  cancer_type_counts,
+  file.path(tables_dir, sprintf("drug_count_collapsed_cancer_type_cell_line_counts_%s.tsv", metric))
+)
+
 workbook <- file.path(output_dir, sprintf("drug_count_collapsed_drugsVsPloidyCorr_%s.xlsx", metric))
 wb <- openxlsx::createWorkbook()
 openxlsx::addWorksheet(wb, "lowpIsSens")
 openxlsx::writeData(wb, "lowpIsSens", t(lowp), rowNames = TRUE)
 openxlsx::addWorksheet(wb, "highpIsSens")
 openxlsx::writeData(wb, "highpIsSens", t(highp), rowNames = TRUE)
+openxlsx::addWorksheet(wb, "drugClassCounts")
+openxlsx::writeData(wb, "drugClassCounts", collapsed_counts)
+openxlsx::addWorksheet(wb, "cancerTypeCounts")
+openxlsx::writeData(wb, "cancerTypeCounts", cancer_type_counts)
 openxlsx::saveWorkbook(wb, workbook, overwrite = TRUE)
 
 plot_script <- file.path(src_dir, "plot_ploidy_enrichment_clustered_heatmaps.py")

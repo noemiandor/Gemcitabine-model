@@ -76,6 +76,27 @@ def ordered_labels(labels):
     return [display_label(label) for label in labels]
 
 
+def read_optional_sheet(xlsx_path, sheet_name):
+    """Read an optional workbook sheet, returning None if absent."""
+    try:
+        return pd.read_excel(xlsx_path, sheet_name=sheet_name)
+    except ValueError:
+        return None
+
+
+def ordered_numeric_values(table, key_col, value_col, labels):
+    """Return numeric values from a metadata table in heatmap label order."""
+    if table is None or key_col not in table.columns or value_col not in table.columns:
+        return None
+    keys = table[key_col].astype(str)
+    values = pd.to_numeric(table[value_col], errors="coerce")
+    mapping = dict(zip(keys, values))
+    ordered = np.array([mapping.get(str(label), np.nan) for label in labels], dtype=float)
+    if np.all(~np.isfinite(ordered)):
+        return None
+    return ordered
+
+
 def set_seaborn_x_labels(ax, labels, fontsize=7):
     """Place x labels at seaborn heatmap cell centers."""
     ax.set_xticks(np.arange(len(labels)) + 0.5)
@@ -119,6 +140,8 @@ def save_shared_order_heatmap(
     low_scores,
     high_scores,
     out_prefix,
+    drug_counts=None,
+    cancer_type_counts=None,
 ):
     """Save two heatmaps using one shared row order and a low-to-high class order."""
     low_scores = pd.DataFrame(low_scores, index=low.index, columns=low.columns)
@@ -128,13 +151,88 @@ def save_shared_order_heatmap(
     row_order = np.array([low.index.get_loc(label) for label in ordered_low.index])
     col_order = np.array([low.columns.get_loc(label) for label in ordered_low.columns])
     vmax = np.nanmax([np.nanmax(low_scores), np.nanmax(high_scores), -np.log10(0.05)])
-
-    fig, axes = plt.subplots(
-        1,
-        3,
-        figsize=(16, 8.5),
-        gridspec_kw={"width_ratios": [1, 1, 0.04], "wspace": 0.08},
+    ordered_row_labels = list(ordered_low.index)
+    ordered_col_labels = list(ordered_low.columns)
+    ordered_drug_counts = ordered_numeric_values(
+        drug_counts,
+        key_col="category_label",
+        value_col="n_drugs",
+        labels=ordered_col_labels,
     )
+    ordered_cell_line_counts = ordered_numeric_values(
+        cancer_type_counts,
+        key_col="cancer_type",
+        value_col="n_cell_lines",
+        labels=ordered_row_labels,
+    )
+    show_marginals = ordered_drug_counts is not None and ordered_cell_line_counts is not None
+
+    if show_marginals:
+        fig = plt.figure(figsize=(17.5, 10.0))
+        grid = fig.add_gridspec(
+            2,
+            4,
+            height_ratios=[0.22, 1.0],
+            width_ratios=[0.26, 1.0, 1.0, 0.045],
+            hspace=0.05,
+            wspace=0.08,
+        )
+        top_axes = [fig.add_subplot(grid[0, 1]), fig.add_subplot(grid[0, 2])]
+        cell_count_ax = fig.add_subplot(grid[1, 0])
+        axes = [fig.add_subplot(grid[1, 1]), fig.add_subplot(grid[1, 2]), fig.add_subplot(grid[1, 3])]
+
+        n_cols = len(ordered_col_labels)
+        y_max = max(1.0, np.nanmax(ordered_drug_counts) * 1.12)
+        for idx, ax in enumerate(top_axes):
+            ax.bar(
+                np.arange(n_cols) + 0.5,
+                ordered_drug_counts,
+                width=0.80,
+                color="#4C4C4C",
+                edgecolor="none",
+            )
+            ax.set_xlim(0, n_cols)
+            ax.set_ylim(0, y_max)
+            ax.set_xticks([])
+            ax.tick_params(axis="y", labelsize=7, length=2)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            if idx == 0:
+                ax.set_ylabel("Drugs\nper class", fontsize=8)
+            else:
+                ax.set_yticklabels([])
+                ax.spines["left"].set_visible(False)
+
+        n_rows = len(ordered_row_labels)
+        finite_counts = np.where(np.isfinite(ordered_cell_line_counts), ordered_cell_line_counts, 0)
+        cell_count_ax.barh(
+            np.arange(n_rows) + 0.5,
+            finite_counts,
+            height=0.78,
+            color="#6F6F6F",
+            edgecolor="none",
+        )
+        cell_count_ax.set_ylim(n_rows, 0)
+        cell_count_ax.set_yticks(np.arange(n_rows) + 0.5)
+        cell_count_ax.set_yticklabels(
+            [
+                f"{label} (n={int(count)})" if np.isfinite(count) else f"{label} (n=NA)"
+                for label, count in zip(ordered_row_labels, ordered_cell_line_counts)
+            ],
+            fontsize=8,
+        )
+        cell_count_ax.set_xlabel("Cell lines", fontsize=8)
+        cell_count_ax.tick_params(axis="x", labelsize=7, length=2)
+        cell_count_ax.tick_params(axis="y", length=0, pad=2)
+        cell_count_ax.spines["top"].set_visible(False)
+        cell_count_ax.spines["right"].set_visible(False)
+    else:
+        fig, axes = plt.subplots(
+            1,
+            3,
+            figsize=(16, 8.5),
+            gridspec_kw={"width_ratios": [1, 1, 0.04], "wspace": 0.08},
+        )
 
     cmap = sns.color_palette(HEATMAP_CMAP, as_cmap=True)
     panels = [
@@ -153,7 +251,7 @@ def save_shared_order_heatmap(
     ]
 
     heatmap = None
-    for ax, scores, pvalues, title in panels:
+    for panel_idx, (ax, scores, pvalues, title) in enumerate(panels):
         ordered_scores = scores.iloc[row_order, col_order]
         heatmap = sns.heatmap(
             ordered_scores,
@@ -165,11 +263,14 @@ def save_shared_order_heatmap(
             linewidths=0.25,
             linecolor="#E8E8E8",
             xticklabels=False,
-            yticklabels=ordered_scores.index,
+            yticklabels=False if show_marginals else ordered_scores.index,
         )
         set_seaborn_x_labels(ax, ordered_labels(ordered_scores.columns), fontsize=7)
         add_significance_stars(ax, pvalues, row_order, col_order, scores=scores, vmin=0, vmax=vmax)
-        ax.set_title(title, fontsize=12, pad=10)
+        if show_marginals:
+            top_axes[panel_idx].set_title(title, fontsize=12, pad=8)
+        else:
+            ax.set_title(title, fontsize=12, pad=10)
         ax.set_xlabel("Drug category")
         ax.tick_params(axis="y", labelsize=8)
 
@@ -181,7 +282,10 @@ def save_shared_order_heatmap(
         "GDSC ploidy-enrichment heatmaps ordered by low-ploidy chemotherapy signal",
         fontsize=14,
     )
-    fig.subplots_adjust(left=0.09, right=0.92, top=0.86, bottom=0.30)
+    if show_marginals:
+        fig.subplots_adjust(left=0.14, right=0.93, top=0.90, bottom=0.28)
+    else:
+        fig.subplots_adjust(left=0.09, right=0.92, top=0.86, bottom=0.30)
 
     for suffix in (".png", ".pdf"):
         fig.savefig(f"{out_prefix}_shared_order{suffix}", dpi=300, bbox_inches="tight")
@@ -244,6 +348,8 @@ def main():
     out_prefix.parent.mkdir(parents=True, exist_ok=True)
 
     low, high = read_enrichment_workbook(xlsx_path)
+    drug_counts = read_optional_sheet(xlsx_path, "drugClassCounts")
+    cancer_type_counts = read_optional_sheet(xlsx_path, "cancerTypeCounts")
     zero_replacement = infer_zero_replacement(low, high)
     low_scores = p_to_neglog10(low, zero_replacement)
     high_scores = p_to_neglog10(high, zero_replacement)
@@ -255,6 +361,8 @@ def main():
         low_scores,
         high_scores,
         out_prefix,
+        drug_counts=drug_counts,
+        cancer_type_counts=cancer_type_counts,
     )
     save_clustermap(
         low_scores,

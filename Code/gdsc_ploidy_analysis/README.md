@@ -37,9 +37,12 @@ Running the analysis writes a reproducible result directory containing:
 - `ploidy_enrichment_clustered_primary_secondary_shared_order.png` and `.pdf`
 - `drug_count_collapsed/figures/drug_count_collapsed_enrichment_shared_order.png`
   and `.pdf`, the workbook-defined collapsed drug-class Figure 1B-C source
-  heatmap
+  heatmap with top drug-class count bars and a side cancer-type cell-line count
+  bar
 - collapsed drug-class maps, assignments, enrichment tables, and low/high/
   bidirectional group summaries under `drug_count_collapsed/tables/`
+- `drug_count_collapsed/tables/drug_count_collapsed_cancer_type_cell_line_counts_Z_SCORE.tsv`,
+  the cancer-type cell-line counts shown beside the collapsed heatmap
 - `ploidyVsDrugSensitivity.pdf`
 - `metadata/run_config.tsv`
 - `metadata/run_parameters.tsv`
@@ -98,6 +101,10 @@ bash Manager.sh --mode standard --modules gdsc --overwrite
   strings.
 - The collapsed Figure 1B-C heatmap is defined by the `Drug counts` sheet's
   `Combine.if.needed` column, not by raw GDSC `PATHWAY_NAME`.
+- The top marginal bars in the collapsed Figure 1B-C heatmap show the number
+  of drugs per collapsed class. The side marginal bar and row labels show the
+  maximum number of matched cell lines available for a retained drug
+  correlation in each cancer type.
 - The workflow fails fast if the workbook has duplicate normalized drug keys,
   missing primary classes, mismatched class counts, or incomplete coverage of
   the correlation-eligible drug universe.

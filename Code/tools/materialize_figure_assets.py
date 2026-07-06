@@ -25,7 +25,7 @@ PANEL_SPECS = [
         "figure": "Figure1",
         "panel": "1B-1C",
         "asset": "panel_1BC_gdsc_collapsed_drug_class_enrichment_heatmap.png",
-        "caption_role": "Workbook-collapsed drug-category enrichment heatmap ordered by low-ploidy chemotherapy-agent significance",
+        "caption_role": "Workbook-collapsed drug-category enrichment heatmap with drug-class and cancer-type cell-line count marginals",
     },
     {
         "module": "ccle",
