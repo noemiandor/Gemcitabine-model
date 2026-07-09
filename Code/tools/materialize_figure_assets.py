@@ -164,6 +164,30 @@ PANEL_SPECS = [
         "asset": "panel_SuppFig1B_cohort_joint_fit_4n.png",
         "caption_role": "Supplementary 4N cohort fit source panel",
     },
+    {
+        "module": "drug_response",
+        "source": "figures/gemcitabine_absolute_ec50_vs_ploidy_mean.png",
+        "figure": "Supplementary",
+        "panel": "SuppFig2A",
+        "asset": "panel_SuppFig2A_gemcitabine_absolute_ec50_vs_ploidy_mean.png",
+        "caption_role": "Absolute gemcitabine EC50 versus mean ploidy",
+    },
+    {
+        "module": "drug_response",
+        "source": "figures/gemcitabine_absolute_ic50_vs_ploidy.png",
+        "figure": "Supplementary",
+        "panel": "SuppFig2B",
+        "asset": "panel_SuppFig2B_gemcitabine_absolute_ic50_vs_ploidy.png",
+        "caption_role": "Absolute gemcitabine IC50 versus ploidy",
+    },
+    {
+        "module": "drug_response",
+        "source": "figures/gemcitabine_delta_auc_vs_delta_ploidy.png",
+        "figure": "Supplementary",
+        "panel": "SuppFig2C",
+        "asset": "panel_SuppFig2C_gemcitabine_delta_auc_vs_delta_ploidy.png",
+        "caption_role": "Paired gemcitabine delta AUC versus delta ploidy",
+    },
 ]
 
 EXTERNAL_ROWS = [
