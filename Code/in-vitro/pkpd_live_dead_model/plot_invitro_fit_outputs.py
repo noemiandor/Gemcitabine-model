@@ -30,7 +30,6 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
@@ -163,23 +162,26 @@ def build_comparison_table(best_row: pd.Series, parameters: Iterable[str]) -> pd
 
 
 def plot_fold_change(comparison_df: pd.DataFrame, output_path: Path) -> None:
-    fig, ax = plt.subplots(figsize=(10, 5))
-    x = np.arange(len(comparison_df))
+    fig, ax = plt.subplots(figsize=(6.2, 5.8))
+    y = np.arange(len(comparison_df))
     values = comparison_df["log2_ratio_4N_over_2N"].to_numpy(dtype=float)
     colors = np.where(values >= 0.0, "#4C78A8", "#F58518")
 
-    ax.bar(x, values, color=colors, edgecolor="black", linewidth=0.6)
-    ax.axhline(0.0, color="black", linewidth=1.0)
-    ax.set_xticks(x)
-    ax.set_xticklabels(comparison_df["display_name"], rotation=35, ha="right")
-    ax.set_ylabel("log2(4N / 2N)")
+    ax.barh(y, values, color=colors, edgecolor="black", linewidth=0.6)
+    ax.axvline(0.0, color="black", linewidth=1.0)
+    ax.set_yticks(y)
+    ax.set_yticklabels(comparison_df["display_name"])
+    ax.invert_yaxis()
+    ax.set_xlabel("log2(4N / 2N)")
     ax.set_title("Fitted Parameter Fold-Change: 4N vs 2N")
-    ax.grid(axis="y", linestyle="--", alpha=0.35)
+    ax.grid(axis="x", linestyle="--", alpha=0.35)
+    value_range = max(float(np.nanmax(values) - np.nanmin(values)), 1.0)
+    ax.set_xlim(float(np.nanmin(values)) - 0.22 * value_range, float(np.nanmax(values)) + 0.22 * value_range)
 
     for idx, value in enumerate(values):
-        label_y = value + (0.06 if value >= 0 else -0.06)
-        va = "bottom" if value >= 0 else "top"
-        ax.text(idx, label_y, f"{2 ** value:.2g}x", ha="center", va=va, fontsize=8)
+        label_x = value + (0.06 if value >= 0 else -0.06)
+        ha = "left" if value >= 0 else "right"
+        ax.text(label_x, idx, f"{2 ** value:.2g}x", ha=ha, va="center", fontsize=8)
 
     fig.tight_layout()
     fig.savefig(output_path, dpi=200, bbox_inches="tight")
@@ -673,7 +675,17 @@ def plot_stacked_dfdctp_signal_curves(
                     markeredgecolor="black",
                     markeredgewidth=0.35,
                 )
-        ax.set_title(f"SUM-159 ({ploidy})", fontsize=10)
+        ax.text(
+            1.025,
+            0.5,
+            ploidy,
+            transform=ax.transAxes,
+            rotation=270,
+            va="center",
+            ha="left",
+            fontsize=11,
+            fontweight="bold",
+        )
         ax.set_xscale("log")
         ax.set_xlim(min_positive_time, max_plot_time)
         ax.set_ylim(*y_limits)
@@ -681,9 +693,10 @@ def plot_stacked_dfdctp_signal_curves(
         ax.tick_params(axis="both", labelsize=8)
         ax.legend(loc="upper right", fontsize=6.5, frameon=True)
 
+    fig.suptitle("SUM-159", fontsize=12)
     fig.supylabel("Baseline-subtracted intracellular dFdCTP (uM)", fontsize=10)
     axes[-1, 0].set_xlabel("Time (days, log scale; t=0 defined as zero and omitted)", fontsize=10)
-    fig.tight_layout()
+    fig.tight_layout(rect=(0.0, 0.0, 0.95, 0.96))
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
@@ -773,7 +786,7 @@ def plot_effective_dfdctp_signal_curves(
         and gate_hill > 0
     )
 
-    fig, axes = plt.subplots(1, 2, figsize=(12.0, 4.5), sharex=True, sharey=True)
+    fig, axes = plt.subplots(2, 1, figsize=(6.2, 7.0), sharex=True, sharey=True)
     for ax, ploidy in zip(axes, ("2N", "4N")):
         if ploidy not in available_curves:
             ax.set_axis_off()
@@ -816,60 +829,38 @@ def plot_effective_dfdctp_signal_curves(
         ax.set_title(f"{ploidy} effective signal", fontsize=10)
         ax.grid(True, alpha=0.25)
         ax.tick_params(axis="both", labelsize=9)
-        ax.text(
-            0.03,
-            0.96,
-            f"beta={beta_dose:.3g}\nref={reference_dose * 1000.0:.3g} nM",
-            transform=ax.transAxes,
-            va="top",
-            ha="left",
-            fontsize=8,
-            bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.82, "edgecolor": "0.75"},
+        ax.legend(
+            loc="upper left",
+            fontsize=5.3,
+            title="Dose",
+            title_fontsize=6,
+            ncol=2,
+            frameon=True,
+            borderpad=0.35,
+            handlelength=1.8,
+            columnspacing=0.8,
         )
 
-    axes[0].set_ylabel("Effective dFdCTP signal (uM-equivalent)", fontsize=10)
-    for ax in axes:
-        ax.set_xlabel("Time (days, log scale; t=0 omitted)", fontsize=10)
+    fig.supylabel("Effective dFdCTP signal (uM-equivalent)", fontsize=10)
+    axes[-1].set_xlabel("Time (days, log scale; t=0 omitted)", fontsize=10)
     correction_label = "beta + Hill corrected" if use_hill else "beta corrected"
     fig.suptitle(f"Fitted effective intracellular dFdCTP signal ({correction_label})", fontsize=11)
-    handles, labels = axes[-1].get_legend_handles_labels()
-    if handles:
-        fig.legend(
-            handles,
-            labels,
-            loc="center left",
-            bbox_to_anchor=(1.01, 0.5),
-            fontsize=8,
-            title="Dose",
-            title_fontsize=8,
-        )
     if use_hill:
         fig.text(
             0.5,
-            0.005,
+            0.018,
             f"Shared Hill gate: EC50={gate_ec50 * 1000.0:.3g} nM, h={gate_hill:.3g}",
             ha="center",
             fontsize=8,
         )
-    style_handles = [
-        Line2D([0], [0], color="0.25", linestyle="-", linewidth=1.8, label="PK-calibrated dose"),
-        Line2D([0], [0], color="0.25", linestyle="--", linewidth=1.8, label="Interpolated/scaled dose"),
-    ]
-    fig.legend(
-        handles=style_handles,
-        loc="lower left",
-        bbox_to_anchor=(0.01, 0.005),
-        fontsize=8,
-        frameon=False,
-    )
     fig.text(
         0.5,
-        0.025,
+        0.04,
         "Effective signal is zero at t=0; t=0 is omitted from the log-scale curves.",
         ha="center",
         fontsize=8,
     )
-    fig.tight_layout(rect=(0.0, 0.08, 0.88, 0.95))
+    fig.tight_layout(rect=(0.0, 0.08, 1.0, 0.95))
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
@@ -1115,7 +1106,7 @@ def plot_single_dose_ploidy_comparison(
             }
         )
 
-    fig, axes = plt.subplots(1, 2, figsize=(11.2, 4.4), sharex=True, sharey=True)
+    fig, axes = plt.subplots(2, 1, figsize=(5.8, 7.0), sharex=True, sharey=True)
     for ax, row in zip(axes, plot_rows):
         t_data = row["t"]
         for j in range(row["alive_obs"].shape[1]):
@@ -1125,10 +1116,10 @@ def plot_single_dose_ploidy_comparison(
             ax.scatter(t_data, row["dead_obs"][:, j], color=DEAD_OBS_COLOR, alpha=0.35, s=22)
         ax.plot(t_data, row["dead_sim"], color=DEAD_MODEL_COLOR, linewidth=2.2, linestyle="--", label="Dead Model")
         ax.set_title(f"{row['ploidy']} at {dose_label}", fontsize=12, fontweight="bold")
-        ax.set_xlabel("Time (Days)")
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.grid(True, linestyle="--", alpha=0.6)
-    axes[0].set_ylabel("Cell Count")
+    fig.supylabel("Cell Count")
+    axes[-1].set_xlabel("Time (Days)")
     axes[0].legend(loc="upper left", fontsize=9)
     fig.suptitle(f"{dose_label} live/dead fit comparison: 2N vs 4N", fontsize=14, fontweight="bold")
     fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.93])
