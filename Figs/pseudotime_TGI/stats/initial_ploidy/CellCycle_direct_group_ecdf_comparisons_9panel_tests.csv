@@ -1,0 +1,37 @@
+"panel","test_design","comparison","group_a","group_b","stratified_by_initial_ploidy","n_samples","n_group_a","n_group_b","observed_ecdf_rmse","observed_ecdf_ks","observed_ecdf_mean_abs","p_ecdf_rmse","p_ecdf_ks","p_ecdf_mean_abs","n_permutations","permutation_mode","q_ecdf_rmse_exploratory","q_ecdf_ks_exploratory","q_ecdf_mean_abs_exploratory","version","estimable","annotation"
+"1. 0 vs treated","sample_label_permutation","0_vs_30plus120","0mg/kg","treated",FALSE,16,8,8,0.037800328540575,0.0712209140744628,0.0300236113005118,0.0048,0.0224,0.0067,10000,"monte_carlo_label_permutation",0.0238775510204082,0.0857142857142857,0.0440816326530612,"initial_ploidy",TRUE,"0mg/kg n=8; treated n=8
+RMSE=0.0378, p=0.0048
+KS=0.07122, p=0.0224
+monte_carlo_label_permutation"
+"2. 0 vs treated, initial-ploidy-stratified","treatment_label_permutation_within_initial_ploidy","0_vs_30plus120","0mg/kg","treated",TRUE,16,8,8,0.037800328540575,0.0712209140744628,0.0300236113005118,0.00530612244897959,0.0130612244897959,0.00979591836734694,4900,"exact_label_enumeration",0.0238775510204082,0.0857142857142857,0.0440816326530612,"initial_ploidy",TRUE,"0mg/kg n=8; treated n=8
+RMSE=0.0378, p=0.00531
+KS=0.07122, p=0.0131
+exact_label_enumeration"
+"3. 0 vs 30 mg/kg","sample_label_permutation","0_vs_30","0mg/kg","30mg/kg",FALSE,12,8,4,0.0375618756069773,0.0782318473216765,0.0289620439235884,0.0424242424242424,0.0444444444444444,0.0666666666666667,495,"exact_label_enumeration",0.0954545454545455,0.1,0.12,"initial_ploidy",TRUE,"0mg/kg n=8; 30mg/kg n=4
+RMSE=0.03756, p=0.0424
+KS=0.07823, p=0.0444
+exact_label_enumeration"
+"4. 0 vs 120 mg/kg","sample_label_permutation","0_vs_120","0mg/kg","120mg/kg",FALSE,12,8,4,0.0396177815022109,0.072626089022138,0.0324774328320978,0.0282828282828283,0.0787878787878788,0.0343434343434343,495,"exact_label_enumeration",0.0848484848484849,0.141818181818182,0.103030303030303,"initial_ploidy",TRUE,"0mg/kg n=8; 120mg/kg n=4
+RMSE=0.03962, p=0.0283
+KS=0.07263, p=0.0788
+exact_label_enumeration"
+"5. 30 vs 120 mg/kg","sample_label_permutation","30_vs_120","30mg/kg","120mg/kg",FALSE,8,4,4,0.013141417693567,0.0354648405319967,0.0100259531961663,0.942857142857143,0.885714285714286,0.942857142857143,70,"exact_label_enumeration",0.942857142857143,0.885714285714286,0.942857142857143,"initial_ploidy",TRUE,"30mg/kg n=4; 120mg/kg n=4
+RMSE=0.01314, p=0.943
+KS=0.03546, p=0.886
+exact_label_enumeration"
+"6. Treated: 2N vs 4N","unpaired_sample_initial_ploidy_label_permutation",NA,"2N","4N",FALSE,8,4,4,0.0275906002510206,0.0682246479132996,0.0195559571995425,0.171428571428571,0.142857142857143,0.257142857142857,70,"exact_label_enumeration",0.220408163265306,0.214285714285714,0.330612244897959,"initial_ploidy",TRUE,"2N n=4; 4N n=4
+RMSE=0.02759, p=0.171
+KS=0.06822, p=0.143
+exact_label_enumeration"
+"7. Control: 2N vs 4N","unpaired_sample_initial_ploidy_label_permutation",NA,"2N","4N",FALSE,8,4,4,0.0209223312437145,0.0559296237543682,0.0162348019795249,0.742857142857143,0.6,0.742857142857143,70,"exact_label_enumeration",0.835714285714286,0.675,0.835714285714286,"initial_ploidy",TRUE,"2N n=4; 4N n=4
+RMSE=0.02092, p=0.743
+KS=0.05593, p= 0.6
+exact_label_enumeration"
+"8. 4N: 0 vs treated","sample_treatment_label_permutation_within_initial_ploidy",NA,"0mg/kg","treated",FALSE,8,4,4,0.0327763346239317,0.060625876962554,0.0271711821892576,0.142857142857143,0.4,0.142857142857143,70,"exact_label_enumeration",0.214285714285714,0.514285714285714,0.214285714285714,"initial_ploidy",TRUE,"0mg/kg n=4; treated n=4
+RMSE=0.03278, p=0.143
+KS=0.06063, p= 0.4
+exact_label_enumeration"
+"9. 2N: 0 vs treated","sample_treatment_label_permutation_within_initial_ploidy",NA,"0mg/kg","treated",FALSE,8,4,4,0.0455724109684911,0.0939823058220074,0.0350900777060883,0.0571428571428571,0.0285714285714286,0.0571428571428571,70,"exact_label_enumeration",0.102857142857143,0.0857142857142857,0.12,"initial_ploidy",TRUE,"0mg/kg n=4; treated n=4
+RMSE=0.04557, p=0.0571
+KS=0.09398, p=0.0286
+exact_label_enumeration"

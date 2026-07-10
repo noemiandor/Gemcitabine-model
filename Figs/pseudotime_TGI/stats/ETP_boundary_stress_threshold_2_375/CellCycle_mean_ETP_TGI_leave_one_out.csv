@@ -1,0 +1,9 @@
+"method","predictor","omitted_sample_id","n","pearson_r","pearson_p","spearman_rho","spearman_p","sign_matches_full_pearson","delta_pearson_r_from_full","influential_flag"
+"ETP_boundary_stress_threshold_2_375","sample_mean_endpoint_ploidy","2N-A2-0",7,-0.728799924809213,0.0631653430781061,-0.571428571428571,0.180201988911528,TRUE,-0.286436666046573,TRUE
+"ETP_boundary_stress_threshold_2_375","sample_mean_endpoint_ploidy","2N-A2-L",7,-0.438919069998813,0.324518092909386,-0.285714285714286,0.534509228601041,TRUE,0.00344418876382635,FALSE
+"ETP_boundary_stress_threshold_2_375","sample_mean_endpoint_ploidy","2N-A4-R",7,-0.113574349034146,0.808431326551508,-0.0357142857142857,0.939408205471285,TRUE,0.328788909728493,TRUE
+"ETP_boundary_stress_threshold_2_375","sample_mean_endpoint_ploidy","2N-A4-RL",7,-0.555282865815031,0.195660695975413,-0.321428571428571,0.482072038299678,TRUE,-0.112919607052391,FALSE
+"ETP_boundary_stress_threshold_2_375","sample_mean_endpoint_ploidy","4N-A8-RL",7,-0.462431051071132,0.296125228367,-0.285714285714286,0.534509228601041,TRUE,-0.0200677923084924,FALSE
+"ETP_boundary_stress_threshold_2_375","sample_mean_endpoint_ploidy","4N-A8-RR",7,-0.444580216834153,0.3175785649492,-0.142857142857143,0.759945300218093,TRUE,-0.0022169580715134,FALSE
+"ETP_boundary_stress_threshold_2_375","sample_mean_endpoint_ploidy","A6-4N-O",7,-0.149028189940719,0.749801970971669,0.178571428571429,0.701657942516273,TRUE,0.293335068821921,TRUE
+"ETP_boundary_stress_threshold_2_375","sample_mean_endpoint_ploidy","A6-4N-RR",7,-0.4762205098245,0.280007430333753,-0.214285714285714,0.644511581020721,TRUE,-0.0338572510618606,FALSE

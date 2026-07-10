@@ -1,0 +1,37 @@
+"panel","test_design","comparison","group_a","group_b","stratified_by_end_timepoint_ploidy_group","n_samples","n_group_a","n_group_b","observed_ecdf_rmse","observed_ecdf_ks","observed_ecdf_mean_abs","p_ecdf_rmse","p_ecdf_ks","p_ecdf_mean_abs","n_permutations","permutation_mode","q_ecdf_rmse_exploratory","q_ecdf_ks_exploratory","q_ecdf_mean_abs_exploratory","version","threshold","estimable","annotation"
+"1. 0 vs treated","sample_label_permutation","0_vs_30plus120","0mg/kg","treated",FALSE,16,8,8,0.037800328540575,0.0712209140744628,0.0300236113005118,0.0048,0.0224,0.0067,10000,"monte_carlo_label_permutation",0.026530612244898,0.0952380952380952,0.0357142857142857,"ETP_fixed_threshold_2_25",2.25,TRUE,"0mg/kg n=8; treated n=8
+RMSE=0.0378, p=0.0048
+KS=0.07122, p=0.0224
+monte_carlo_label_permutation"
+"2. 0 vs treated, ETP-stratified","treatment_label_permutation_within_ETP_group","0_vs_30plus120","0mg/kg","treated",TRUE,16,8,8,0.037800328540575,0.0712209140744628,0.0300236113005118,0.00589569160997732,0.0251700680272109,0.00793650793650794,4410,"exact_label_enumeration",0.026530612244898,0.0952380952380952,0.0357142857142857,"ETP_fixed_threshold_2_25",2.25,TRUE,"0mg/kg n=8; treated n=8
+RMSE=0.0378, p=0.0059
+KS=0.07122, p=0.0252
+exact_label_enumeration"
+"3. 0 vs 30 mg/kg","sample_label_permutation","0_vs_30","0mg/kg","30mg/kg",FALSE,12,8,4,0.0375618756069773,0.0782318473216765,0.0289620439235884,0.0424242424242424,0.0444444444444444,0.0666666666666667,495,"exact_label_enumeration",0.0763636363636364,0.1,0.12,"ETP_fixed_threshold_2_25",2.25,TRUE,"0mg/kg n=8; 30mg/kg n=4
+RMSE=0.03756, p=0.0424
+KS=0.07823, p=0.0444
+exact_label_enumeration"
+"4. 0 vs 120 mg/kg","sample_label_permutation","0_vs_120","0mg/kg","120mg/kg",FALSE,12,8,4,0.0396177815022109,0.072626089022138,0.0324774328320978,0.0282828282828283,0.0787878787878788,0.0343434343434343,495,"exact_label_enumeration",0.0636363636363636,0.141818181818182,0.0772727272727273,"ETP_fixed_threshold_2_25",2.25,TRUE,"0mg/kg n=8; 120mg/kg n=4
+RMSE=0.03962, p=0.0283
+KS=0.07263, p=0.0788
+exact_label_enumeration"
+"5. 30 vs 120 mg/kg","sample_label_permutation","30_vs_120","30mg/kg","120mg/kg",FALSE,8,4,4,0.013141417693567,0.0354648405319967,0.0100259531961663,0.942857142857143,0.885714285714286,0.942857142857143,70,"exact_label_enumeration",0.971428571428571,0.996428571428571,0.971428571428571,"ETP_fixed_threshold_2_25",2.25,TRUE,"30mg/kg n=4; 120mg/kg n=4
+RMSE=0.01314, p=0.943
+KS=0.03546, p=0.886
+exact_label_enumeration"
+"6. Treated: ETP-lower vs ETP-higher","unpaired_sample_ETP_label_permutation",NA,"ETP-lower","ETP-higher",FALSE,8,4,4,0.0117403217705477,0.0307630986532721,0.00903715979500971,0.971428571428571,1,0.971428571428571,70,"exact_label_enumeration",0.971428571428571,1,0.971428571428571,"ETP_fixed_threshold_2_25",2.25,TRUE,"ETP-lower n=4; ETP-higher n=4
+RMSE=0.01174, p=0.971
+KS=0.03076, p=   1
+exact_label_enumeration"
+"7. Control: ETP-lower vs ETP-higher","unpaired_sample_ETP_label_permutation",NA,"ETP-lower","ETP-higher",FALSE,8,5,3,0.0186044919969409,0.0659915471995873,0.0128434079747881,0.857142857142857,0.321428571428571,0.946428571428571,56,"exact_label_enumeration",0.971428571428571,0.482142857142857,0.971428571428571,"ETP_fixed_threshold_2_25",2.25,TRUE,"ETP-lower n=5; ETP-higher n=3
+RMSE=0.0186, p=0.857
+KS=0.06599, p=0.321
+exact_label_enumeration"
+"8. ETP-higher: 0 vs treated","sample_treatment_label_permutation_within_ETP_group",NA,"0mg/kg","treated",FALSE,7,3,4,0.0305102886351372,0.0693397582914819,0.0229514817616726,0.4,0.428571428571429,0.571428571428571,35,"exact_label_enumeration",0.6,0.551020408163265,0.857142857142857,"ETP_fixed_threshold_2_25",2.25,TRUE,"0mg/kg n=3; treated n=4
+RMSE=0.03051, p= 0.4
+KS=0.06934, p=0.429
+exact_label_enumeration"
+"9. ETP-lower: 0 vs treated","sample_treatment_label_permutation_within_ETP_group",NA,"0mg/kg","treated",FALSE,9,5,4,0.0465151042518594,0.0816524774211745,0.0378376609303381,0.0158730158730159,0.0317460317460317,0.0238095238095238,126,"exact_label_enumeration",0.0476190476190476,0.0952380952380952,0.0714285714285714,"ETP_fixed_threshold_2_25",2.25,TRUE,"0mg/kg n=5; treated n=4
+RMSE=0.04652, p=0.0159
+KS=0.08165, p=0.0317
+exact_label_enumeration"

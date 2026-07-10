@@ -1,0 +1,5 @@
+"compartment","analysis","method","n","estimate","p_value"
+"CellCycle","residualized_against_dose_and_end_timepoint_ploidy_group","pearson",8,0.898697084065173,0.00240553365064449
+"CellCycle","within_dose_centered","pearson",8,0.82628735680569,0.011456868445736
+"NonCellCycle","residualized_against_dose_and_end_timepoint_ploidy_group","pearson",8,-0.141046679787717,0.739024049272389
+"NonCellCycle","within_dose_centered","pearson",8,0.0231589741138111,0.956592447338097

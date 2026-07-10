@@ -1,0 +1,2 @@
+"full_n","full_pearson_r","full_pearson_perm_p","full_spearman_rho","full_spearman_perm_p","leave_one_out_all_positive","leave_one_out_min_pearson_r","leave_one_out_max_pearson_p","n_influential_flags","bootstrap_pearson_r_ci025","bootstrap_pearson_r_ci975","bootstrap_spearman_rho_ci025","bootstrap_spearman_rho_ci975"
+8,0.799151171117731,0.0270833333333333,0.714285714285714,0.0575892857142857,TRUE,0.730939671540036,0.0620049873769511,0,0.280254478730846,0.993379473900021,-0.0886075949367088,1
