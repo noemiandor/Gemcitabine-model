@@ -58,13 +58,13 @@ compartments <- list(
   CellCycle = list(
     label = "Cell-cycle-associated tumor cells",
     prefix = "CellCycleCells",
-    input = file.path(data_dir, "CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"),
+    input = file.path(data_dir, "CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"),
     output_dir = file.path(output_root, "CellCycle")
   ),
   NonCellCycle = list(
     label = "Non-cell-cycle-associated tumor cells",
     prefix = "NonCellCycleCells",
-    input = file.path(data_dir, "NonCellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"),
+    input = file.path(data_dir, "NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"),
     output_dir = file.path(output_root, "NonCellCycle")
   )
 )

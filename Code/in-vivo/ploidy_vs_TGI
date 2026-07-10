@@ -16,7 +16,7 @@ input_csv <- file.path(
   repo_root,
   "Data",
   "in-vivo",
-  "CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+  "CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
 )
 fig_dir <- file.path(repo_root, "Figs")
 

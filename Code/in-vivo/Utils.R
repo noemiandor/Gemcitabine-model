@@ -84,6 +84,186 @@ getCNVmatrix<-function(path2jointtsvfile, iteration=NA){
 }
 
 
+# =============================================================================
+# Pseudotime/TGI shared utilities
+# =============================================================================
+
+ptgi_parse_cli_args <- function(args) {
+  out <- list()
+  i <- 1L
+  while (i <= length(args)) {
+    token <- args[[i]]
+    if (grepl("^--[^=]+=", token)) {
+      key <- sub("^--([^=]+)=.*$", "\\1", token)
+      out[[key]] <- sub("^--[^=]+=", "", token)
+      i <- i + 1L
+    } else if (grepl("^--", token)) {
+      key <- sub("^--", "", token)
+      if (i < length(args) && !grepl("^--", args[[i + 1L]])) {
+        out[[key]] <- args[[i + 1L]]
+        i <- i + 2L
+      } else {
+        out[[key]] <- "TRUE"
+        i <- i + 1L
+      }
+    } else {
+      i <- i + 1L
+    }
+  }
+  out
+}
+
+ptgi_arg <- function(args, name, default = NULL) {
+  value <- args[[name]]
+  if (!is.null(value) && length(value) == 1L && nzchar(value)) value else default
+}
+
+ptgi_normalize_choice <- function(value) {
+  tolower(gsub("-", "_", trimws(value)))
+}
+
+ptgi_quote_args <- function(args) {
+  vapply(args, shQuote, character(1L), USE.NAMES = FALSE)
+}
+
+ptgi_ensure_dir <- function(path) {
+  if (!dir.exists(path)) dir.create(path, recursive = TRUE, showWarnings = FALSE)
+  invisible(path)
+}
+
+ptgi_write_csv <- function(x, path, na = "NA") {
+  ptgi_ensure_dir(dirname(path))
+  write.csv(x, path, row.names = FALSE, na = na)
+  invisible(path)
+}
+
+ptgi_write_text <- function(lines, path) {
+  ptgi_ensure_dir(dirname(path))
+  writeLines(lines, path)
+  invisible(path)
+}
+
+ptgi_save_plot_pdf_png <- function(plot, output_dir, filename, width = 7, height = 5, dpi = 300) {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("ptgi_save_plot_pdf_png() requires ggplot2", call. = FALSE)
+  }
+  ptgi_ensure_dir(output_dir)
+  suppressMessages(ggplot2::ggsave(
+    file.path(output_dir, paste0(filename, ".png")),
+    plot,
+    width = width,
+    height = height,
+    dpi = dpi
+  ))
+  suppressMessages(ggplot2::ggsave(
+    file.path(output_dir, paste0(filename, ".pdf")),
+    plot,
+    width = width,
+    height = height
+  ))
+  invisible(file.path(output_dir, paste0(filename, ".pdf")))
+}
+
+ptgi_safe_numeric <- function(x) suppressWarnings(as.numeric(x))
+
+ptgi_format_number <- function(x, digits = 3L) {
+  ifelse(is.finite(x), trimws(formatC(x, digits = digits, format = "fg")), "NA")
+}
+
+ptgi_format_p_value <- function(x) {
+  ifelse(
+    is.finite(x),
+    ifelse(x < 0.001, formatC(x, digits = 2, format = "e"), formatC(x, digits = 3, format = "fg")),
+    "NA"
+  )
+}
+
+ptgi_endpoint_tgi_columns <- function(names_vector) {
+  columns <- grep("^TGI_percent_Day_[0-9]+$", names_vector, value = TRUE)
+  days <- ptgi_safe_numeric(sub("^TGI_percent_Day_", "", columns))
+  columns[order(days)]
+}
+
+ptgi_day_columns_by_prefix <- function(names_vector, prefix) {
+  columns <- grep(paste0("^", prefix, "Day_[0-9]+$"), names_vector, value = TRUE)
+  days <- ptgi_safe_numeric(sub(paste0("^", prefix, "Day_"), "", columns))
+  columns[order(days)]
+}
+
+ptgi_safe_cor_test <- function(x, y, method = "pearson") {
+  keep <- is.finite(x) & is.finite(y)
+  x <- x[keep]
+  y <- y[keep]
+  if (length(x) < 3L || length(unique(x)) < 2L || length(unique(y)) < 2L) {
+    return(data.frame(
+      n = length(x), estimate = NA_real_, p_value = NA_real_,
+      stringsAsFactors = FALSE
+    ))
+  }
+  result <- suppressWarnings(stats::cor.test(x, y, method = method, exact = FALSE))
+  data.frame(
+    n = length(x),
+    estimate = unname(result$estimate),
+    p_value = result$p.value,
+    stringsAsFactors = FALSE
+  )
+}
+
+ptgi_safe_wilcox_test <- function(value, group) {
+  keep <- is.finite(value) & !is.na(group)
+  value <- value[keep]
+  group <- as.character(group[keep])
+  if (length(value) < 3L || length(unique(group)) != 2L) {
+    return(data.frame(n = length(value), statistic = NA_real_, p_value = NA_real_))
+  }
+  result <- try(suppressWarnings(stats::wilcox.test(value ~ group, exact = FALSE)), silent = TRUE)
+  if (inherits(result, "try-error")) {
+    return(data.frame(n = length(value), statistic = NA_real_, p_value = NA_real_))
+  }
+  data.frame(
+    n = length(value), statistic = unname(result$statistic), p_value = result$p.value,
+    stringsAsFactors = FALSE
+  )
+}
+
+ptgi_safe_t_test <- function(value, group) {
+  keep <- is.finite(value) & !is.na(group)
+  value <- value[keep]
+  group <- as.character(group[keep])
+  counts <- table(group)
+  if (length(value) < 4L || length(counts) != 2L || any(counts < 2L)) {
+    return(data.frame(n = length(value), statistic = NA_real_, p_value = NA_real_))
+  }
+  result <- try(suppressWarnings(stats::t.test(value ~ group)), silent = TRUE)
+  if (inherits(result, "try-error")) {
+    return(data.frame(n = length(value), statistic = NA_real_, p_value = NA_real_))
+  }
+  data.frame(
+    n = length(value), statistic = unname(result$statistic), p_value = result$p.value,
+    stringsAsFactors = FALSE
+  )
+}
+
+ptgi_safe_paired_test <- function(x, y, method = c("paired_t", "wilcoxon")) {
+  method <- match.arg(method)
+  keep <- is.finite(x) & is.finite(y)
+  x <- x[keep]
+  y <- y[keep]
+  if (length(x) < 3L) {
+    return(data.frame(n = length(x), statistic = NA_real_, p_value = NA_real_))
+  }
+  result <- if (identical(method, "paired_t")) {
+    suppressWarnings(stats::t.test(x, y, paired = TRUE))
+  } else {
+    suppressWarnings(stats::wilcox.test(x, y, paired = TRUE, exact = FALSE))
+  }
+  data.frame(
+    n = length(x), statistic = unname(result$statistic), p_value = result$p.value,
+    stringsAsFactors = FALSE
+  )
+}
+
+
 # DATASETID="Melanoma_GSE174401"
 # DATASETID="HNSC_GSE181919"
 ## Returns Numbat copy number calls in a format that can be used as input to ALFA-K

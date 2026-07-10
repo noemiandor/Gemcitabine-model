@@ -1307,7 +1307,7 @@ fig4_tgi_export_file <- file.path(
 )
 fig4_tgi_legacy_export_file <- file.path(
   non_cell_cycle_results_root,
-  "NonCellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+  "NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
 )
 tgi_process_file <- file.path(non_cell_cycle_results_root, "TGI_calculation_process.md")
 
