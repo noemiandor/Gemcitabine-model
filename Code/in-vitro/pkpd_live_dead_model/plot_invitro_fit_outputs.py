@@ -753,28 +753,8 @@ def plot_effective_dfdctp_signal_curves(
     max_plot_time = max(5.0, max_time)
     t_grid = np.geomspace(min_positive_time, max_plot_time, 400)
 
-    plotted_doses_uM = {
-        float(dose_uM)
-        for _dose_label, dose_uM in get_live_dead_dose_items(fit_config)
-        if float(dose_uM) > 0
-    }
-    plotted_doses_uM.update(
-        float(dose)
-        for curve in available_curves.values()
-        for dose in curve.calibration_doses_uM
-        if float(dose) > 0
-    )
-    dose_items = [
-        (format_nm_dose_label(dose_uM), dose_uM)
-        for dose_uM in sorted(plotted_doses_uM)
-    ]
-    dose_colors = {
-        dose_label: color
-        for (dose_label, _dose_uM), color in zip(
-            dose_items,
-            plt.cm.viridis(np.linspace(0.12, 0.88, len(dose_items))),
-        )
-    }
+    selected_dose_items = [("25 nM", 0.025)]
+    dose_colors = {"25 nM": "#2C7FB8"}
 
     gate_ec50 = row_float(best_row, "dose_gate_ec50_uM", fit_config.fixed_dose_gate_ec50_uM)
     gate_hill = row_float(best_row, "dose_gate_hill", fit_config.fixed_dose_gate_hill)
@@ -786,17 +766,26 @@ def plot_effective_dfdctp_signal_curves(
         and gate_hill > 0
     )
 
-    fig, axes = plt.subplots(2, 1, figsize=(6.2, 7.0), sharex=True, sharey=True)
-    for ax, ploidy in zip(axes, ("2N", "4N")):
+    fig, axes = plt.subplots(
+        2,
+        len(selected_dose_items),
+        figsize=(4.8, 5.9),
+        sharex=True,
+        sharey=True,
+        squeeze=False,
+    )
+    max_signal = 0.0
+    for row_idx, ploidy in enumerate(("2N", "4N")):
         if ploidy not in available_curves:
-            ax.set_axis_off()
+            for ax in axes[row_idx, :]:
+                ax.set_axis_off()
             continue
         curve = available_curves[ploidy]
         params = ploidy_parameter_dict(best_row, ploidy, fit_config)
         beta_dose = float(params.get("beta_dose", fit_config.fixed_beta_dose))
         reference_dose = invitro_fitting.get_dose_scaling_reference_uM(curve)
-        calibrated_doses = np.asarray(curve.calibration_doses_uM, dtype=float)
-        for dose_label, dose_uM in dose_items:
+        for col_idx, (dose_label, dose_uM) in enumerate(selected_dose_items):
+            ax = axes[row_idx, col_idx]
             pk_signal = np.asarray(curve(t_grid, dose_uM), dtype=float)
             effective_signal = np.asarray(
                 [
@@ -813,38 +802,63 @@ def plot_effective_dfdctp_signal_curves(
                 ],
                 dtype=float,
             )
-            is_calibrated_pk_dose = bool(np.any(np.isclose(calibrated_doses, dose_uM, rtol=1e-6, atol=1e-9)))
+            correction_factor = invitro_fitting.apply_effective_dose_correction(
+                signal_uM=1.0,
+                dose_uM=dose_uM,
+                reference_dose_uM=reference_dose,
+                beta_dose=beta_dose,
+                use_hill_dose_gate=use_hill,
+                dose_gate_ec50_uM=gate_ec50 if use_hill else None,
+                dose_gate_hill=gate_hill if use_hill else None,
+            )
+            max_signal = max(
+                max_signal,
+                float(np.nanmax(pk_signal)) if np.size(pk_signal) else 0.0,
+                float(np.nanmax(effective_signal)) if np.size(effective_signal) else 0.0,
+            )
+            ax.plot(
+                t_grid,
+                pk_signal,
+                color="0.35",
+                linestyle="--",
+                linewidth=1.5,
+                alpha=0.85,
+                label="PK-derived dFdCTP",
+            )
+            ax.fill_between(
+                t_grid,
+                pk_signal,
+                effective_signal,
+                color="#31A354",
+                alpha=0.22,
+                label="Correction difference",
+            )
             ax.plot(
                 t_grid,
                 effective_signal,
                 color=dose_colors[dose_label],
-                linestyle="-" if is_calibrated_pk_dose else "--",
-                linewidth=1.8,
+                linestyle="-",
+                linewidth=2.0,
                 alpha=0.95,
-                label=dose_label,
+                label="Corrected effective signal",
             )
+            ax.set_xscale("log")
+            ax.set_xlim(min_positive_time, max_plot_time)
+            ax.set_title(f"{ploidy}, {dose_label} (correction x{correction_factor:.2g})", fontsize=10)
+            ax.grid(True, alpha=0.25)
+            ax.tick_params(axis="both", labelsize=8)
+            if row_idx == 0 and col_idx == 0:
+                ax.legend(loc="upper left", fontsize=7, frameon=True)
 
-        ax.set_xscale("log")
-        ax.set_xlim(min_positive_time, max_plot_time)
-        ax.set_title(f"{ploidy} effective signal", fontsize=10)
-        ax.grid(True, alpha=0.25)
-        ax.tick_params(axis="both", labelsize=9)
-        ax.legend(
-            loc="upper left",
-            fontsize=5.3,
-            title="Dose",
-            title_fontsize=6,
-            ncol=2,
-            frameon=True,
-            borderpad=0.35,
-            handlelength=1.8,
-            columnspacing=0.8,
-        )
-
-    fig.supylabel("Effective dFdCTP signal (uM-equivalent)", fontsize=10)
-    axes[-1].set_xlabel("Time (days, log scale; t=0 omitted)", fontsize=10)
+    fig.supylabel("dFdCTP signal (uM-equivalent)", fontsize=10)
+    if max_signal > 0:
+        for ax in axes.ravel():
+            if ax.has_data():
+                ax.set_ylim(0.0, max_signal * 1.08)
+    for ax in axes[-1, :]:
+        ax.set_xlabel("Time (days, log scale; t=0 omitted)", fontsize=9)
     correction_label = "beta + Hill corrected" if use_hill else "beta corrected"
-    fig.suptitle(f"Fitted effective intracellular dFdCTP signal ({correction_label})", fontsize=11)
+    fig.suptitle(f"Selected-dose effective dFdCTP correction ({correction_label})", fontsize=11)
     if use_hill:
         fig.text(
             0.5,
