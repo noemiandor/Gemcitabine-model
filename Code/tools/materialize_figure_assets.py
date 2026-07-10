@@ -78,11 +78,11 @@ PANEL_SPECS = [
     },
     {
         "module": "pkpd",
-        "source": "dose_50_nm_2n_vs_4n.png",
+        "source": "dose_25_nm_2n_vs_4n.png",
         "figure": "Figure5",
         "panel": "5D",
-        "asset": "panel_5D_dose_50_nm_2n_vs_4n.png",
-        "caption_role": "50 nM live/dead fitted model source panel comparing 2N and 4N",
+        "asset": "panel_5D_dose_25_nm_2n_vs_4n.png",
+        "caption_role": "25 nM live/dead fitted model source panel comparing 2N and 4N",
     },
     {
         "module": "pkpd",
