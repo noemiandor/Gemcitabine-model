@@ -592,6 +592,102 @@ def plot_combined_dfdctp_signal_curves(
     plt.close(fig)
 
 
+def plot_stacked_dfdctp_signal_curves(
+    curves_by_ploidy: Dict[str, invitro_fitting.DfdctpSignalSurface],
+    output_path: Path,
+) -> None:
+    available_curves = {
+        ploidy: curve
+        for ploidy, curve in curves_by_ploidy.items()
+        if len(curve.calibration_profiles_by_dose) > 0
+    }
+    if not available_curves:
+        raise ValueError("No calibrated dFdCTP signal curves are available")
+
+    ploidies = [ploidy for ploidy in ("2N", "4N") if ploidy in available_curves]
+    max_time = max(
+        float(profile.time_days.max())
+        for curve in available_curves.values()
+        for profile in curve.calibration_profiles_by_dose.values()
+        if len(profile.time_days) > 0
+    )
+    positive_times = [
+        float(time_value)
+        for curve in available_curves.values()
+        for profile in curve.calibration_profiles_by_dose.values()
+        for time_value in np.asarray(profile.time_days, dtype=float)
+        if np.isfinite(time_value) and time_value > 0
+    ]
+    min_positive_time = min(positive_times) if positive_times else 1.0 / 24.0
+    max_plot_time = max(5.0, max_time)
+    t_grid = np.geomspace(min_positive_time, max_plot_time, 400)
+    all_doses = sorted(
+        {
+            float(dose)
+            for curve in available_curves.values()
+            for dose in curve.calibration_doses_uM
+        }
+    )
+    dose_colors = {
+        dose: color
+        for dose, color in zip(all_doses, plt.cm.tab10(np.linspace(0.0, 1.0, max(len(all_doses), 1))))
+    }
+    y_limits = invitro_fitting.get_dfdctp_signal_curve_y_limits(available_curves)
+
+    fig, axes = plt.subplots(
+        len(ploidies),
+        1,
+        figsize=(5.2, 4.6),
+        sharex=True,
+        sharey=True,
+        squeeze=False,
+    )
+    for ax, ploidy in zip(axes[:, 0], ploidies):
+        curve = available_curves[ploidy]
+        for dose in curve.calibration_doses_uM:
+            dose = float(dose)
+            profile = curve.calibration_profiles_by_dose[dose]
+            color = dose_colors[dose]
+            dose_label = f"Gemcitabine ({dose * 1000.0:g} nM)" if dose < 1 else f"Gemcitabine ({dose:g} uM)"
+            ax.plot(
+                t_grid,
+                curve(t_grid, dose),
+                color=color,
+                linewidth=1.8,
+                label=dose_label,
+            )
+            measured_mask = np.asarray(profile.time_days, dtype=float) > 0
+            if np.any(measured_mask):
+                yerr = np.asarray(profile.induced_signal_uM_sd_values, dtype=float)
+                yerr = np.where(np.isfinite(yerr), yerr, 0.0)
+                ax.errorbar(
+                    np.asarray(profile.time_days, dtype=float)[measured_mask],
+                    np.asarray(profile.induced_signal_uM_values, dtype=float)[measured_mask],
+                    yerr=yerr[measured_mask],
+                    fmt="o",
+                    markersize=3.8,
+                    capsize=2.0,
+                    elinewidth=0.8,
+                    alpha=0.9,
+                    color=color,
+                    markeredgecolor="black",
+                    markeredgewidth=0.35,
+                )
+        ax.set_title(f"SUM-159 ({ploidy})", fontsize=10)
+        ax.set_xscale("log")
+        ax.set_xlim(min_positive_time, max_plot_time)
+        ax.set_ylim(*y_limits)
+        ax.grid(True, alpha=0.25)
+        ax.tick_params(axis="both", labelsize=8)
+        ax.legend(loc="upper right", fontsize=6.5, frameon=True)
+
+    fig.supylabel("Baseline-subtracted intracellular dFdCTP (uM)", fontsize=10)
+    axes[-1, 0].set_xlabel("Time (days, log scale; t=0 defined as zero and omitted)", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
 def get_live_dead_dose_items(
     fit_config: invitro_fitting.JointFitConfig,
 ) -> list[Tuple[str, float]]:
@@ -1208,6 +1304,7 @@ def main() -> None:
     fold_change_path = output_folder / "ploidy_parameter_log2_fold_change.png"
     paired_path = output_folder / "ploidy_parameter_paired_values.png"
     dfdctp_path = output_folder / "dfdctp_signal_curve_combined_ploidy.png"
+    stacked_dfdctp_path = output_folder / "dfdctp_signal_curve_stacked_2n_4n.png"
     effective_dfdctp_path = output_folder / "effective_dfdctp_signal_curve_combined_ploidy.png"
     dose_response_table_path = output_folder / "dose_response_ploidy_comparison.tsv"
     dose_response_plot_path = output_folder / "dose_response_ploidy_comparison.png"
@@ -1233,6 +1330,7 @@ def main() -> None:
             )
             invitro_fitting.plot_dfdctp_amplitude_scaling(ploidy, curves_by_ploidy[ploidy], output_dir=output_folder)
         plot_combined_dfdctp_signal_curves(curves_by_ploidy, dfdctp_path)
+        plot_stacked_dfdctp_signal_curves(curves_by_ploidy, stacked_dfdctp_path)
         plot_effective_dfdctp_signal_curves(best_row, fit_config, curves_by_ploidy, effective_dfdctp_path)
     dose_response_df = build_dose_response_comparison_table(best_row, fit_config, curves_by_ploidy)
     dose_response_df.to_csv(dose_response_table_path, sep="\t", index=False)
@@ -1259,6 +1357,7 @@ def main() -> None:
         print(f"Wrote {output_folder / 'dfdctp_amplitude_scaling_2n.png'}")
         print(f"Wrote {output_folder / 'dfdctp_amplitude_scaling_4n.png'}")
         print(f"Wrote {dfdctp_path}")
+        print(f"Wrote {stacked_dfdctp_path}")
         print(f"Wrote {effective_dfdctp_path}")
     print(f"Wrote {dose_response_table_path}")
     print(f"Wrote {dose_response_plot_path}")
