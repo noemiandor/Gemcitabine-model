@@ -148,7 +148,7 @@ analysis_mode <- arg_value("analysis-mode", "dev")
 if (!analysis_mode %in% c("dev", "manuscript")) {
   stop("--analysis-mode must be either 'dev' or 'manuscript'.", call. = FALSE)
 }
-default_enrichment_permute_n <- 300L
+default_enrichment_permute_n <- 1000L
 enrichment_permute_n <- as.integer(arg_value("enrichment-permute-n", as.character(default_enrichment_permute_n)))
 low_ploidy_pvalue_cutoff <- as.numeric(arg_value("low-ploidy-pvalue-cutoff", "0.05"))
 high_ploidy_pvalue_cutoff <- as.numeric(arg_value("high-ploidy-pvalue-cutoff", "0.1"))

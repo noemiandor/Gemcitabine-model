@@ -109,9 +109,9 @@ def set_seaborn_x_labels(ax, labels, fontsize=7):
     ax.tick_params(axis="x", which="major", pad=2)
 
 
-def add_significance_stars(ax, pvalues, row_order, col_order, scores=None, vmin=0, vmax=None):
-    """Mark cells with nominal enrichment p <= 0.05."""
-    ordered = pvalues.iloc[row_order, col_order].to_numpy(dtype=float)
+def add_significance_stars(ax, qvalues, row_order, col_order, scores=None, vmin=0, vmax=None):
+    """Mark cells with BH-FDR q <= 0.05."""
+    ordered = qvalues.iloc[row_order, col_order].to_numpy(dtype=float)
     ordered_scores = None
     if scores is not None:
         ordered_scores = scores.iloc[row_order, col_order].to_numpy(dtype=float)
@@ -119,8 +119,8 @@ def add_significance_stars(ax, pvalues, row_order, col_order, scores=None, vmin=
         vmax = np.nanmax(ordered_scores)
     for row_idx in range(ordered.shape[0]):
         for col_idx in range(ordered.shape[1]):
-            pvalue = ordered[row_idx, col_idx]
-            if np.isfinite(pvalue) and pvalue <= 0.05:
+            qvalue = ordered[row_idx, col_idx]
+            if np.isfinite(qvalue) and qvalue <= 0.05:
                 score = ordered_scores[row_idx, col_idx] if ordered_scores is not None else np.nan
                 ax.text(
                     col_idx + 0.5,
@@ -240,7 +240,7 @@ def save_shared_order_heatmap(
             axes[0],
             low_scores,
             low,
-            "Low-ploidy-selective enrichment\n(ordered by chemotherapy-agent significance)",
+            "Low-ploidy-selective enrichment\n(ordered by chemotherapy-agent FDR significance)",
         ),
         (
             axes[1],
@@ -277,9 +277,9 @@ def save_shared_order_heatmap(
     axes[1].set_ylabel("")
     axes[1].set_yticklabels([])
     cbar = fig.colorbar(heatmap.collections[0], cax=axes[2])
-    cbar.set_label("-log10(enrichment p-value)")
+    cbar.set_label("-log10(BH-FDR q-value)")
     fig.suptitle(
-        "GDSC ploidy-enrichment heatmaps ordered by low-ploidy chemotherapy signal",
+        "GDSC ploidy-enrichment heatmaps ordered by low-ploidy chemotherapy FDR signal",
         fontsize=14,
     )
     if show_marginals:
@@ -292,9 +292,9 @@ def save_shared_order_heatmap(
     plt.close(fig)
 
 
-def save_clustermap(scores, pvalues, title, out_prefix, vmax):
+def save_clustermap(scores, qvalues, title, out_prefix, vmax):
     """Save a single clustered heatmap with row and column dendrograms."""
-    score_df = pd.DataFrame(scores, index=pvalues.index, columns=pvalues.columns).fillna(0.0)
+    score_df = pd.DataFrame(scores, index=qvalues.index, columns=qvalues.columns).fillna(0.0)
     score_df.columns = ordered_labels(score_df.columns)
 
     grid = sns.clustermap(
@@ -307,7 +307,7 @@ def save_clustermap(scores, pvalues, title, out_prefix, vmax):
         linewidths=0.25,
         linecolor="#E8E8E8",
         figsize=(10.5, 9.5),
-        cbar_kws={"label": "-log10(enrichment p-value)"},
+        cbar_kws={"label": "-log10(BH-FDR q-value)"},
         dendrogram_ratio=(0.16, 0.14),
         cbar_pos=(0.91, 0.34, 0.022, 0.30),
         xticklabels=False,
@@ -326,7 +326,7 @@ def save_clustermap(scores, pvalues, title, out_prefix, vmax):
         [score_df.columns[i] for i in col_order],
         fontsize=7,
     )
-    add_significance_stars(grid.ax_heatmap, pvalues, row_order, col_order, scores=score_df, vmin=0, vmax=vmax)
+    add_significance_stars(grid.ax_heatmap, qvalues, row_order, col_order, scores=score_df, vmin=0, vmax=vmax)
 
     for suffix in (".png", ".pdf"):
         grid.fig.savefig(f"{out_prefix}{suffix}", dpi=300, bbox_inches="tight")
@@ -367,14 +367,14 @@ def main():
     save_clustermap(
         low_scores,
         low,
-        "Low-ploidy-selective enrichment, clustered rows and columns",
+        "Low-ploidy-selective enrichment by BH FDR, clustered rows and columns",
         f"{out_prefix}_lowpIsSens_clustermap",
         vmax,
     )
     save_clustermap(
         high_scores,
         high,
-        "High-ploidy-selective enrichment, clustered rows and columns",
+        "High-ploidy-selective enrichment by BH FDR, clustered rows and columns",
         f"{out_prefix}_highpIsSens_clustermap",
         vmax,
     )

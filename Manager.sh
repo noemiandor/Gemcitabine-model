@@ -16,7 +16,7 @@ no_update_latest=false
 jobs=1
 
 gdsc_analysis_mode="manuscript"
-gdsc_enrichment_permute_n="300"
+gdsc_enrichment_permute_n="1000"
 gdsc_drug_class_workbook="Code/gdsc_ploidy_analysis/data/manual/drug_class_final_used_with_primary_secondary_corrected.xlsx"
 
 pkpd_saved_fit="Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/alsoGoodFit_20260514T093906"

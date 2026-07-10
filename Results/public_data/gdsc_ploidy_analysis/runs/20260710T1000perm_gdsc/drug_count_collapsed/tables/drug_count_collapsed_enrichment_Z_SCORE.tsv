@@ -1,0 +1,529 @@
+direction	metric	cancer_type	category_label	pvalue	pvalue_for_fdr	qvalue_bh
+low_ploidy_sensitive	Z_SCORE	allcancers	Kinase inhibitors	0.987	0.987	1
+low_ploidy_sensitive	Z_SCORE	allcancers	Epigenetic inhibitors	0.851	0.851	1
+low_ploidy_sensitive	Z_SCORE	allcancers	Other	0.097	0.097	0.522823529411765
+low_ploidy_sensitive	Z_SCORE	allcancers	DNA damage repair inhibitors	0.02	0.02	0.251428571428571
+low_ploidy_sensitive	Z_SCORE	allcancers	Metabolic/redox agents	0.877	0.877	1
+low_ploidy_sensitive	Z_SCORE	allcancers	Proapoptotic agents	0.306	0.306	0.81048
+low_ploidy_sensitive	Z_SCORE	allcancers	WNT/HH pathway inhibitors	0.983	0.983	1
+low_ploidy_sensitive	Z_SCORE	allcancers	Chemotherapy agents	0	0.000999000999000999	0.0310588235294118
+low_ploidy_sensitive	Z_SCORE	allcancers	Chaperone/protein-homeostasis inhibitors	0.719	0.719	1
+low_ploidy_sensitive	Z_SCORE	allcancers	p53/MDM2 pathway	0.299	0.299	0.8096
+low_ploidy_sensitive	Z_SCORE	allcancers	Hormone therapy	0.743	0.743	1
+low_ploidy_sensitive	Z_SCORE	STAD	Kinase inhibitors	0.817	0.817	1
+low_ploidy_sensitive	Z_SCORE	STAD	Epigenetic inhibitors	0.927	0.927	1
+low_ploidy_sensitive	Z_SCORE	STAD	Other	0.291	0.291	0.798839378238342
+low_ploidy_sensitive	Z_SCORE	STAD	DNA damage repair inhibitors	0.172	0.172	0.661859154929577
+low_ploidy_sensitive	Z_SCORE	STAD	Metabolic/redox agents	0.58	0.58	1
+low_ploidy_sensitive	Z_SCORE	STAD	Proapoptotic agents	0.065	0.065	0.445714285714286
+low_ploidy_sensitive	Z_SCORE	STAD	WNT/HH pathway inhibitors	0.536	0.536	0.991833333333333
+low_ploidy_sensitive	Z_SCORE	STAD	Chemotherapy agents	0.012	0.012	0.181028571428571
+low_ploidy_sensitive	Z_SCORE	STAD	Chaperone/protein-homeostasis inhibitors	0.461	0.461	0.943876447876448
+low_ploidy_sensitive	Z_SCORE	STAD	p53/MDM2 pathway	0.49	0.49	0.951176470588235
+low_ploidy_sensitive	Z_SCORE	STAD	Hormone therapy	0.835	0.835	1
+low_ploidy_sensitive	Z_SCORE	GBM	Kinase inhibitors	0.993	0.993	1
+low_ploidy_sensitive	Z_SCORE	GBM	Epigenetic inhibitors	0.723	0.723	1
+low_ploidy_sensitive	Z_SCORE	GBM	Other	0.456	0.456	0.943876447876448
+low_ploidy_sensitive	Z_SCORE	GBM	DNA damage repair inhibitors	0.03	0.03	0.298867924528302
+low_ploidy_sensitive	Z_SCORE	GBM	Metabolic/redox agents	0.886	0.886	1
+low_ploidy_sensitive	Z_SCORE	GBM	Proapoptotic agents	0.087	0.087	0.504791208791209
+low_ploidy_sensitive	Z_SCORE	GBM	WNT/HH pathway inhibitors	0.887	0.887	1
+low_ploidy_sensitive	Z_SCORE	GBM	Chemotherapy agents	0.019	0.019	0.244682926829268
+low_ploidy_sensitive	Z_SCORE	GBM	Chaperone/protein-homeostasis inhibitors	0.162	0.162	0.657969230769231
+low_ploidy_sensitive	Z_SCORE	GBM	p53/MDM2 pathway	0.006	0.006	0.117333333333333
+low_ploidy_sensitive	Z_SCORE	GBM	Hormone therapy	0.898	0.898	1
+low_ploidy_sensitive	Z_SCORE	BLCA	Kinase inhibitors	0.477	0.477	0.951176470588235
+low_ploidy_sensitive	Z_SCORE	BLCA	Epigenetic inhibitors	0.924	0.924	1
+low_ploidy_sensitive	Z_SCORE	BLCA	Other	0.405	0.405	0.914451063829787
+low_ploidy_sensitive	Z_SCORE	BLCA	DNA damage repair inhibitors	0.178	0.178	0.661859154929577
+low_ploidy_sensitive	Z_SCORE	BLCA	Metabolic/redox agents	0.898	0.898	1
+low_ploidy_sensitive	Z_SCORE	BLCA	Proapoptotic agents	0.6	0.6	1
+low_ploidy_sensitive	Z_SCORE	BLCA	WNT/HH pathway inhibitors	0.879	0.879	1
+low_ploidy_sensitive	Z_SCORE	BLCA	Chemotherapy agents	0	0.000999000999000999	0.0310588235294118
+low_ploidy_sensitive	Z_SCORE	BLCA	Chaperone/protein-homeostasis inhibitors	0.012	0.012	0.181028571428571
+low_ploidy_sensitive	Z_SCORE	BLCA	p53/MDM2 pathway	0.257	0.257	0.76664406779661
+low_ploidy_sensitive	Z_SCORE	BLCA	Hormone therapy	0.931	0.931	1
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Kinase inhibitors	0.939	0.939	1
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Epigenetic inhibitors	1	1	1
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Other	0.07	0.07	0.462
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	DNA damage repair inhibitors	0.102	0.102	0.522873786407767
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Metabolic/redox agents	0.113	0.113	0.552444444444445
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Proapoptotic agents	0.936	0.936	1
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	WNT/HH pathway inhibitors	0.303	0.303	0.81048
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Chemotherapy agents	0.001	0.001	0.0310588235294118
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Chaperone/protein-homeostasis inhibitors	0.249	0.249	0.762
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	p53/MDM2 pathway	0.579	0.579	1
+low_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Hormone therapy	0.083	0.083	0.498
+low_ploidy_sensitive	Z_SCORE	KIRC	Kinase inhibitors	0.973	0.973	1
+low_ploidy_sensitive	Z_SCORE	KIRC	Epigenetic inhibitors	0.424	0.424	0.921283950617284
+low_ploidy_sensitive	Z_SCORE	KIRC	Other	0.08	0.08	0.496941176470588
+low_ploidy_sensitive	Z_SCORE	KIRC	DNA damage repair inhibitors	0.041	0.041	0.35475
+low_ploidy_sensitive	Z_SCORE	KIRC	Metabolic/redox agents	0.146	0.146	0.611809523809524
+low_ploidy_sensitive	Z_SCORE	KIRC	Proapoptotic agents	0.512	0.512	0.962049822064057
+low_ploidy_sensitive	Z_SCORE	KIRC	WNT/HH pathway inhibitors	0.418	0.418	0.921283950617284
+low_ploidy_sensitive	Z_SCORE	KIRC	Chemotherapy agents	0.597	0.597	1
+low_ploidy_sensitive	Z_SCORE	KIRC	Chaperone/protein-homeostasis inhibitors	0.704	0.704	1
+low_ploidy_sensitive	Z_SCORE	KIRC	p53/MDM2 pathway	0.54	0.54	0.991833333333333
+low_ploidy_sensitive	Z_SCORE	KIRC	Hormone therapy	0.826	0.826	1
+low_ploidy_sensitive	Z_SCORE	THCA	Kinase inhibitors	0.973	0.973	1
+low_ploidy_sensitive	Z_SCORE	THCA	Epigenetic inhibitors	0.923	0.923	1
+low_ploidy_sensitive	Z_SCORE	THCA	Other	0.411	0.411	0.915645569620253
+low_ploidy_sensitive	Z_SCORE	THCA	DNA damage repair inhibitors	0.06	0.06	0.428108108108108
+low_ploidy_sensitive	Z_SCORE	THCA	Metabolic/redox agents	0.393	0.393	0.914451063829787
+low_ploidy_sensitive	Z_SCORE	THCA	Proapoptotic agents	0.1	0.1	0.522823529411765
+low_ploidy_sensitive	Z_SCORE	THCA	WNT/HH pathway inhibitors	0.362	0.362	0.889004651162791
+low_ploidy_sensitive	Z_SCORE	THCA	Chemotherapy agents	0.016	0.016	0.2112
+low_ploidy_sensitive	Z_SCORE	THCA	Chaperone/protein-homeostasis inhibitors	0.613	0.613	1
+low_ploidy_sensitive	Z_SCORE	THCA	p53/MDM2 pathway	0.422	0.422	0.921283950617284
+low_ploidy_sensitive	Z_SCORE	THCA	Hormone therapy	0.832	0.832	1
+low_ploidy_sensitive	Z_SCORE	SKCM	Kinase inhibitors	0.301	0.301	0.81048
+low_ploidy_sensitive	Z_SCORE	SKCM	Epigenetic inhibitors	0.99	0.99	1
+low_ploidy_sensitive	Z_SCORE	SKCM	Other	0.49	0.49	0.951176470588235
+low_ploidy_sensitive	Z_SCORE	SKCM	DNA damage repair inhibitors	0.101	0.101	0.522823529411765
+low_ploidy_sensitive	Z_SCORE	SKCM	Metabolic/redox agents	0.979	0.979	1
+low_ploidy_sensitive	Z_SCORE	SKCM	Proapoptotic agents	0.846	0.846	1
+low_ploidy_sensitive	Z_SCORE	SKCM	WNT/HH pathway inhibitors	0.745	0.745	1
+low_ploidy_sensitive	Z_SCORE	SKCM	Chemotherapy agents	0.269	0.269	0.767740540540541
+low_ploidy_sensitive	Z_SCORE	SKCM	Chaperone/protein-homeostasis inhibitors	0.033	0.033	0.311142857142857
+low_ploidy_sensitive	Z_SCORE	SKCM	p53/MDM2 pathway	0.733	0.733	1
+low_ploidy_sensitive	Z_SCORE	SKCM	Hormone therapy	0.49	0.49	0.951176470588235
+low_ploidy_sensitive	Z_SCORE	DLBC	Kinase inhibitors	0	0.000999000999000999	0.0310588235294118
+low_ploidy_sensitive	Z_SCORE	DLBC	Epigenetic inhibitors	0.44	0.44	0.935132530120482
+low_ploidy_sensitive	Z_SCORE	DLBC	Other	0.987	0.987	1
+low_ploidy_sensitive	Z_SCORE	DLBC	DNA damage repair inhibitors	0.666	0.666	1
+low_ploidy_sensitive	Z_SCORE	DLBC	Metabolic/redox agents	0.785	0.785	1
+low_ploidy_sensitive	Z_SCORE	DLBC	Proapoptotic agents	0.105	0.105	0.528
+low_ploidy_sensitive	Z_SCORE	DLBC	WNT/HH pathway inhibitors	0.478	0.478	0.951176470588235
+low_ploidy_sensitive	Z_SCORE	DLBC	Chemotherapy agents	0.987	0.987	1
+low_ploidy_sensitive	Z_SCORE	DLBC	Chaperone/protein-homeostasis inhibitors	0.307	0.307	0.81048
+low_ploidy_sensitive	Z_SCORE	DLBC	p53/MDM2 pathway	0.617	0.617	1
+low_ploidy_sensitive	Z_SCORE	DLBC	Hormone therapy	0.357	0.357	0.889004651162791
+low_ploidy_sensitive	Z_SCORE	LUAD	Kinase inhibitors	0.697	0.697	1
+low_ploidy_sensitive	Z_SCORE	LUAD	Epigenetic inhibitors	0.132	0.132	0.5808
+low_ploidy_sensitive	Z_SCORE	LUAD	Other	0.016	0.016	0.2112
+low_ploidy_sensitive	Z_SCORE	LUAD	DNA damage repair inhibitors	0.424	0.424	0.921283950617284
+low_ploidy_sensitive	Z_SCORE	LUAD	Metabolic/redox agents	0.169	0.169	0.661859154929577
+low_ploidy_sensitive	Z_SCORE	LUAD	Proapoptotic agents	0.868	0.868	1
+low_ploidy_sensitive	Z_SCORE	LUAD	WNT/HH pathway inhibitors	0.164	0.164	0.661007633587786
+low_ploidy_sensitive	Z_SCORE	LUAD	Chemotherapy agents	1	1	1
+low_ploidy_sensitive	Z_SCORE	LUAD	Chaperone/protein-homeostasis inhibitors	0.208	0.208	0.704
+low_ploidy_sensitive	Z_SCORE	LUAD	p53/MDM2 pathway	0.504	0.504	0.957237410071942
+low_ploidy_sensitive	Z_SCORE	LUAD	Hormone therapy	0.736	0.736	1
+low_ploidy_sensitive	Z_SCORE	ALL	Kinase inhibitors	1	1	1
+low_ploidy_sensitive	Z_SCORE	ALL	Epigenetic inhibitors	0.982	0.982	1
+low_ploidy_sensitive	Z_SCORE	ALL	Other	0	0.000999000999000999	0.0310588235294118
+low_ploidy_sensitive	Z_SCORE	ALL	DNA damage repair inhibitors	0.384	0.384	0.914451063829787
+low_ploidy_sensitive	Z_SCORE	ALL	Metabolic/redox agents	0.569	0.569	1
+low_ploidy_sensitive	Z_SCORE	ALL	Proapoptotic agents	0.223	0.223	0.7359
+low_ploidy_sensitive	Z_SCORE	ALL	WNT/HH pathway inhibitors	0.326	0.326	0.84792118226601
+low_ploidy_sensitive	Z_SCORE	ALL	Chemotherapy agents	0	0.000999000999000999	0.0310588235294118
+low_ploidy_sensitive	Z_SCORE	ALL	Chaperone/protein-homeostasis inhibitors	0.673	0.673	1
+low_ploidy_sensitive	Z_SCORE	ALL	p53/MDM2 pathway	0.968	0.968	1
+low_ploidy_sensitive	Z_SCORE	ALL	Hormone therapy	0.477	0.477	0.951176470588235
+low_ploidy_sensitive	Z_SCORE	MM	Kinase inhibitors	0.247	0.247	0.762
+low_ploidy_sensitive	Z_SCORE	MM	Epigenetic inhibitors	0.559	0.559	1
+low_ploidy_sensitive	Z_SCORE	MM	Other	0.619	0.619	1
+low_ploidy_sensitive	Z_SCORE	MM	DNA damage repair inhibitors	0.394	0.394	0.914451063829787
+low_ploidy_sensitive	Z_SCORE	MM	Metabolic/redox agents	0.992	0.992	1
+low_ploidy_sensitive	Z_SCORE	MM	Proapoptotic agents	0.078	0.078	0.496192771084337
+low_ploidy_sensitive	Z_SCORE	MM	WNT/HH pathway inhibitors	0.269	0.269	0.767740540540541
+low_ploidy_sensitive	Z_SCORE	MM	Chemotherapy agents	0.172	0.172	0.661859154929577
+low_ploidy_sensitive	Z_SCORE	MM	Chaperone/protein-homeostasis inhibitors	0.094	0.094	0.522823529411765
+low_ploidy_sensitive	Z_SCORE	MM	p53/MDM2 pathway	0.421	0.421	0.921283950617284
+low_ploidy_sensitive	Z_SCORE	MM	Hormone therapy	0.541	0.541	0.991833333333333
+low_ploidy_sensitive	Z_SCORE	PAAD	Kinase inhibitors	0.087	0.087	0.504791208791209
+low_ploidy_sensitive	Z_SCORE	PAAD	Epigenetic inhibitors	0.454	0.454	0.943876447876448
+low_ploidy_sensitive	Z_SCORE	PAAD	Other	0.49	0.49	0.951176470588235
+low_ploidy_sensitive	Z_SCORE	PAAD	DNA damage repair inhibitors	0.902	0.902	1
+low_ploidy_sensitive	Z_SCORE	PAAD	Metabolic/redox agents	0.994	0.994	1
+low_ploidy_sensitive	Z_SCORE	PAAD	Proapoptotic agents	0.825	0.825	1
+low_ploidy_sensitive	Z_SCORE	PAAD	WNT/HH pathway inhibitors	0.292	0.292	0.798839378238342
+low_ploidy_sensitive	Z_SCORE	PAAD	Chemotherapy agents	0.635	0.635	1
+low_ploidy_sensitive	Z_SCORE	PAAD	Chaperone/protein-homeostasis inhibitors	0.522	0.522	0.97390812720848
+low_ploidy_sensitive	Z_SCORE	PAAD	p53/MDM2 pathway	0.557	0.557	1
+low_ploidy_sensitive	Z_SCORE	PAAD	Hormone therapy	0.773	0.773	1
+low_ploidy_sensitive	Z_SCORE	BRCA	Kinase inhibitors	1	1	1
+low_ploidy_sensitive	Z_SCORE	BRCA	Epigenetic inhibitors	0.579	0.579	1
+low_ploidy_sensitive	Z_SCORE	BRCA	Other	0.199	0.199	0.701684210526316
+low_ploidy_sensitive	Z_SCORE	BRCA	DNA damage repair inhibitors	0.029	0.029	0.294461538461538
+low_ploidy_sensitive	Z_SCORE	BRCA	Metabolic/redox agents	0.868	0.868	1
+low_ploidy_sensitive	Z_SCORE	BRCA	Proapoptotic agents	0.244	0.244	0.762
+low_ploidy_sensitive	Z_SCORE	BRCA	WNT/HH pathway inhibitors	0.96	0.96	1
+low_ploidy_sensitive	Z_SCORE	BRCA	Chemotherapy agents	0	0.000999000999000999	0.0310588235294118
+low_ploidy_sensitive	Z_SCORE	BRCA	Chaperone/protein-homeostasis inhibitors	0.932	0.932	1
+low_ploidy_sensitive	Z_SCORE	BRCA	p53/MDM2 pathway	0.276	0.276	0.779294117647059
+low_ploidy_sensitive	Z_SCORE	BRCA	Hormone therapy	0.008	0.008	0.132
+low_ploidy_sensitive	Z_SCORE	HNSC	Kinase inhibitors	1	1	1
+low_ploidy_sensitive	Z_SCORE	HNSC	Epigenetic inhibitors	0.886	0.886	1
+low_ploidy_sensitive	Z_SCORE	HNSC	Other	0.064	0.064	0.445714285714286
+low_ploidy_sensitive	Z_SCORE	HNSC	DNA damage repair inhibitors	0.752	0.752	1
+low_ploidy_sensitive	Z_SCORE	HNSC	Metabolic/redox agents	0.083	0.083	0.498
+low_ploidy_sensitive	Z_SCORE	HNSC	Proapoptotic agents	0.395	0.395	0.914451063829787
+low_ploidy_sensitive	Z_SCORE	HNSC	WNT/HH pathway inhibitors	0.573	0.573	1
+low_ploidy_sensitive	Z_SCORE	HNSC	Chemotherapy agents	0.001	0.001	0.0310588235294118
+low_ploidy_sensitive	Z_SCORE	HNSC	Chaperone/protein-homeostasis inhibitors	0.842	0.842	1
+low_ploidy_sensitive	Z_SCORE	HNSC	p53/MDM2 pathway	0.612	0.612	1
+low_ploidy_sensitive	Z_SCORE	HNSC	Hormone therapy	0.506	0.506	0.957591397849462
+low_ploidy_sensitive	Z_SCORE	NB	Kinase inhibitors	0.359	0.359	0.889004651162791
+low_ploidy_sensitive	Z_SCORE	NB	Epigenetic inhibitors	0.221	0.221	0.7359
+low_ploidy_sensitive	Z_SCORE	NB	Other	0.859	0.859	1
+low_ploidy_sensitive	Z_SCORE	NB	DNA damage repair inhibitors	0.874	0.874	1
+low_ploidy_sensitive	Z_SCORE	NB	Metabolic/redox agents	0.91	0.91	1
+low_ploidy_sensitive	Z_SCORE	NB	Proapoptotic agents	0.046	0.046	0.368
+low_ploidy_sensitive	Z_SCORE	NB	WNT/HH pathway inhibitors	0.266	0.266	0.767740540540541
+low_ploidy_sensitive	Z_SCORE	NB	Chemotherapy agents	0.471	0.471	0.949190839694656
+low_ploidy_sensitive	Z_SCORE	NB	Chaperone/protein-homeostasis inhibitors	0.601	0.601	1
+low_ploidy_sensitive	Z_SCORE	NB	p53/MDM2 pathway	0.627	0.627	1
+low_ploidy_sensitive	Z_SCORE	NB	Hormone therapy	0.848	0.848	1
+low_ploidy_sensitive	Z_SCORE	COREAD	Kinase inhibitors	1	1	1
+low_ploidy_sensitive	Z_SCORE	COREAD	Epigenetic inhibitors	0.228	0.228	0.736
+low_ploidy_sensitive	Z_SCORE	COREAD	Other	0.198	0.198	0.701684210526316
+low_ploidy_sensitive	Z_SCORE	COREAD	DNA damage repair inhibitors	0.106	0.106	0.528
+low_ploidy_sensitive	Z_SCORE	COREAD	Metabolic/redox agents	0.387	0.387	0.914451063829787
+low_ploidy_sensitive	Z_SCORE	COREAD	Proapoptotic agents	0.937	0.937	1
+low_ploidy_sensitive	Z_SCORE	COREAD	WNT/HH pathway inhibitors	0.349	0.349	0.889004651162791
+low_ploidy_sensitive	Z_SCORE	COREAD	Chemotherapy agents	0	0.000999000999000999	0.0310588235294118
+low_ploidy_sensitive	Z_SCORE	COREAD	Chaperone/protein-homeostasis inhibitors	0.254	0.254	0.762
+low_ploidy_sensitive	Z_SCORE	COREAD	p53/MDM2 pathway	0.13	0.13	0.5808
+low_ploidy_sensitive	Z_SCORE	COREAD	Hormone therapy	0.687	0.687	1
+low_ploidy_sensitive	Z_SCORE	LIHC	Kinase inhibitors	0.022	0.022	0.258133333333333
+low_ploidy_sensitive	Z_SCORE	LIHC	Epigenetic inhibitors	0.881	0.881	1
+low_ploidy_sensitive	Z_SCORE	LIHC	Other	0.19	0.19	0.694356164383562
+low_ploidy_sensitive	Z_SCORE	LIHC	DNA damage repair inhibitors	0.564	0.564	1
+low_ploidy_sensitive	Z_SCORE	LIHC	Metabolic/redox agents	0.125	0.125	0.578947368421053
+low_ploidy_sensitive	Z_SCORE	LIHC	Proapoptotic agents	0.81	0.81	1
+low_ploidy_sensitive	Z_SCORE	LIHC	WNT/HH pathway inhibitors	0.29	0.29	0.798839378238342
+low_ploidy_sensitive	Z_SCORE	LIHC	Chemotherapy agents	0.109	0.109	0.537869158878505
+low_ploidy_sensitive	Z_SCORE	LIHC	Chaperone/protein-homeostasis inhibitors	0.31	0.31	0.814328358208955
+low_ploidy_sensitive	Z_SCORE	LIHC	p53/MDM2 pathway	0.893	0.893	1
+low_ploidy_sensitive	Z_SCORE	LIHC	Hormone therapy	0.248	0.248	0.762
+low_ploidy_sensitive	Z_SCORE	LAML	Kinase inhibitors	0.016	0.016	0.2112
+low_ploidy_sensitive	Z_SCORE	LAML	Epigenetic inhibitors	0.013	0.013	0.185513513513514
+low_ploidy_sensitive	Z_SCORE	LAML	Other	0.974	0.974	1
+low_ploidy_sensitive	Z_SCORE	LAML	DNA damage repair inhibitors	0.932	0.932	1
+low_ploidy_sensitive	Z_SCORE	LAML	Metabolic/redox agents	0.306	0.306	0.81048
+low_ploidy_sensitive	Z_SCORE	LAML	Proapoptotic agents	0.035	0.035	0.318620689655172
+low_ploidy_sensitive	Z_SCORE	LAML	WNT/HH pathway inhibitors	0.792	0.792	1
+low_ploidy_sensitive	Z_SCORE	LAML	Chemotherapy agents	0.924	0.924	1
+low_ploidy_sensitive	Z_SCORE	LAML	Chaperone/protein-homeostasis inhibitors	0.841	0.841	1
+low_ploidy_sensitive	Z_SCORE	LAML	p53/MDM2 pathway	0.585	0.585	1
+low_ploidy_sensitive	Z_SCORE	LAML	Hormone therapy	0.072	0.072	0.463609756097561
+low_ploidy_sensitive	Z_SCORE	SCLC	Kinase inhibitors	0	0.000999000999000999	0.0310588235294118
+low_ploidy_sensitive	Z_SCORE	SCLC	Epigenetic inhibitors	0.598	0.598	1
+low_ploidy_sensitive	Z_SCORE	SCLC	Other	0.849	0.849	1
+low_ploidy_sensitive	Z_SCORE	SCLC	DNA damage repair inhibitors	0.979	0.979	1
+low_ploidy_sensitive	Z_SCORE	SCLC	Metabolic/redox agents	0.48	0.48	0.951176470588235
+low_ploidy_sensitive	Z_SCORE	SCLC	Proapoptotic agents	0.13	0.13	0.5808
+low_ploidy_sensitive	Z_SCORE	SCLC	WNT/HH pathway inhibitors	0.401	0.401	0.914451063829787
+low_ploidy_sensitive	Z_SCORE	SCLC	Chemotherapy agents	0.843	0.843	1
+low_ploidy_sensitive	Z_SCORE	SCLC	Chaperone/protein-homeostasis inhibitors	0.121	0.121	0.575567567567568
+low_ploidy_sensitive	Z_SCORE	SCLC	p53/MDM2 pathway	0.266	0.266	0.767740540540541
+low_ploidy_sensitive	Z_SCORE	SCLC	Hormone therapy	0.202	0.202	0.701684210526316
+low_ploidy_sensitive	Z_SCORE	ESCA	Kinase inhibitors	0.378	0.378	0.911342465753425
+low_ploidy_sensitive	Z_SCORE	ESCA	Epigenetic inhibitors	0.439	0.439	0.935132530120482
+low_ploidy_sensitive	Z_SCORE	ESCA	Other	0.809	0.809	1
+low_ploidy_sensitive	Z_SCORE	ESCA	DNA damage repair inhibitors	0.263	0.263	0.767740540540541
+low_ploidy_sensitive	Z_SCORE	ESCA	Metabolic/redox agents	0.053	0.053	0.401577464788732
+low_ploidy_sensitive	Z_SCORE	ESCA	Proapoptotic agents	0.679	0.679	1
+low_ploidy_sensitive	Z_SCORE	ESCA	WNT/HH pathway inhibitors	0.615	0.615	1
+low_ploidy_sensitive	Z_SCORE	ESCA	Chemotherapy agents	0.968	0.968	1
+low_ploidy_sensitive	Z_SCORE	ESCA	Chaperone/protein-homeostasis inhibitors	0.191	0.191	0.694356164383562
+low_ploidy_sensitive	Z_SCORE	ESCA	p53/MDM2 pathway	0.554	0.554	1
+low_ploidy_sensitive	Z_SCORE	ESCA	Hormone therapy	0.645	0.645	1
+low_ploidy_sensitive	Z_SCORE	OV	Kinase inhibitors	0.993	0.993	1
+low_ploidy_sensitive	Z_SCORE	OV	Epigenetic inhibitors	0.046	0.046	0.368
+low_ploidy_sensitive	Z_SCORE	OV	Other	0	0.000999000999000999	0.0310588235294118
+low_ploidy_sensitive	Z_SCORE	OV	DNA damage repair inhibitors	0.962	0.962	1
+low_ploidy_sensitive	Z_SCORE	OV	Metabolic/redox agents	0.04	0.04	0.352
+low_ploidy_sensitive	Z_SCORE	OV	Proapoptotic agents	0.082	0.082	0.498
+low_ploidy_sensitive	Z_SCORE	OV	WNT/HH pathway inhibitors	0.947	0.947	1
+low_ploidy_sensitive	Z_SCORE	OV	Chemotherapy agents	0.192	0.192	0.694356164383562
+low_ploidy_sensitive	Z_SCORE	OV	Chaperone/protein-homeostasis inhibitors	0.457	0.457	0.943876447876448
+low_ploidy_sensitive	Z_SCORE	OV	p53/MDM2 pathway	0.931	0.931	1
+low_ploidy_sensitive	Z_SCORE	OV	Hormone therapy	0.901	0.901	1
+low_ploidy_sensitive	Z_SCORE	LUSC	Kinase inhibitors	0.151	0.151	0.622875
+low_ploidy_sensitive	Z_SCORE	LUSC	Epigenetic inhibitors	0.709	0.709	1
+low_ploidy_sensitive	Z_SCORE	LUSC	Other	0.39	0.39	0.914451063829787
+low_ploidy_sensitive	Z_SCORE	LUSC	DNA damage repair inhibitors	0.985	0.985	1
+low_ploidy_sensitive	Z_SCORE	LUSC	Metabolic/redox agents	0.12	0.12	0.575567567567568
+low_ploidy_sensitive	Z_SCORE	LUSC	Proapoptotic agents	0.005	0.005	0.101538461538462
+low_ploidy_sensitive	Z_SCORE	LUSC	WNT/HH pathway inhibitors	0.028	0.028	0.294461538461538
+low_ploidy_sensitive	Z_SCORE	LUSC	Chemotherapy agents	0.173	0.173	0.661859154929577
+low_ploidy_sensitive	Z_SCORE	LUSC	Chaperone/protein-homeostasis inhibitors	0.273	0.273	0.774967741935484
+low_ploidy_sensitive	Z_SCORE	LUSC	p53/MDM2 pathway	0.711	0.711	1
+low_ploidy_sensitive	Z_SCORE	LUSC	Hormone therapy	0.089	0.089	0.510782608695652
+low_ploidy_sensitive	Z_SCORE	LGG	Kinase inhibitors	0.029	0.029	0.294461538461538
+low_ploidy_sensitive	Z_SCORE	LGG	Epigenetic inhibitors	0.95	0.95	1
+low_ploidy_sensitive	Z_SCORE	LGG	Other	0.939	0.939	1
+low_ploidy_sensitive	Z_SCORE	LGG	DNA damage repair inhibitors	0.852	0.852	1
+low_ploidy_sensitive	Z_SCORE	LGG	Metabolic/redox agents	0.072	0.072	0.463609756097561
+low_ploidy_sensitive	Z_SCORE	LGG	Proapoptotic agents	0.205	0.205	0.702857142857143
+low_ploidy_sensitive	Z_SCORE	LGG	WNT/HH pathway inhibitors	0.353	0.353	0.889004651162791
+low_ploidy_sensitive	Z_SCORE	LGG	Chemotherapy agents	0.72	0.72	1
+low_ploidy_sensitive	Z_SCORE	LGG	Chaperone/protein-homeostasis inhibitors	0.386	0.386	0.914451063829787
+low_ploidy_sensitive	Z_SCORE	LGG	p53/MDM2 pathway	0.571	0.571	1
+low_ploidy_sensitive	Z_SCORE	LGG	Hormone therapy	0.919	0.919	1
+high_ploidy_sensitive	Z_SCORE	allcancers	Kinase inhibitors	0.001	0.001	0.0310588235294118
+high_ploidy_sensitive	Z_SCORE	allcancers	Epigenetic inhibitors	0.278	0.278	0.780765957446809
+high_ploidy_sensitive	Z_SCORE	allcancers	Other	0.808	0.808	1
+high_ploidy_sensitive	Z_SCORE	allcancers	DNA damage repair inhibitors	0.985	0.985	1
+high_ploidy_sensitive	Z_SCORE	allcancers	Metabolic/redox agents	0.207	0.207	0.704
+high_ploidy_sensitive	Z_SCORE	allcancers	Proapoptotic agents	0.618	0.618	1
+high_ploidy_sensitive	Z_SCORE	allcancers	WNT/HH pathway inhibitors	0.106	0.106	0.528
+high_ploidy_sensitive	Z_SCORE	allcancers	Chemotherapy agents	0.996	0.996	1
+high_ploidy_sensitive	Z_SCORE	allcancers	Chaperone/protein-homeostasis inhibitors	0.673	0.673	1
+high_ploidy_sensitive	Z_SCORE	allcancers	p53/MDM2 pathway	0.463	0.463	0.943876447876448
+high_ploidy_sensitive	Z_SCORE	allcancers	Hormone therapy	0.361	0.361	0.889004651162791
+high_ploidy_sensitive	Z_SCORE	STAD	Kinase inhibitors	0.371	0.371	0.902709677419355
+high_ploidy_sensitive	Z_SCORE	STAD	Epigenetic inhibitors	0.003	0.003	0.0754285714285714
+high_ploidy_sensitive	Z_SCORE	STAD	Other	0.665	0.665	1
+high_ploidy_sensitive	Z_SCORE	STAD	DNA damage repair inhibitors	0.835	0.835	1
+high_ploidy_sensitive	Z_SCORE	STAD	Metabolic/redox agents	0.659	0.659	1
+high_ploidy_sensitive	Z_SCORE	STAD	Proapoptotic agents	0.615	0.615	1
+high_ploidy_sensitive	Z_SCORE	STAD	WNT/HH pathway inhibitors	0.724	0.724	1
+high_ploidy_sensitive	Z_SCORE	STAD	Chemotherapy agents	0.73	0.73	1
+high_ploidy_sensitive	Z_SCORE	STAD	Chaperone/protein-homeostasis inhibitors	0.713	0.713	1
+high_ploidy_sensitive	Z_SCORE	STAD	p53/MDM2 pathway	0.597	0.597	1
+high_ploidy_sensitive	Z_SCORE	STAD	Hormone therapy	0.035	0.035	0.318620689655172
+high_ploidy_sensitive	Z_SCORE	GBM	Kinase inhibitors	0.001	0.001	0.0310588235294118
+high_ploidy_sensitive	Z_SCORE	GBM	Epigenetic inhibitors	0.585	0.585	1
+high_ploidy_sensitive	Z_SCORE	GBM	Other	0.697	0.697	1
+high_ploidy_sensitive	Z_SCORE	GBM	DNA damage repair inhibitors	0.496	0.496	0.954608695652174
+high_ploidy_sensitive	Z_SCORE	GBM	Metabolic/redox agents	0.499	0.499	0.954608695652174
+high_ploidy_sensitive	Z_SCORE	GBM	Proapoptotic agents	0.754	0.754	1
+high_ploidy_sensitive	Z_SCORE	GBM	WNT/HH pathway inhibitors	0.095	0.095	0.522823529411765
+high_ploidy_sensitive	Z_SCORE	GBM	Chemotherapy agents	1	1	1
+high_ploidy_sensitive	Z_SCORE	GBM	Chaperone/protein-homeostasis inhibitors	0.667	0.667	1
+high_ploidy_sensitive	Z_SCORE	GBM	p53/MDM2 pathway	0.948	0.948	1
+high_ploidy_sensitive	Z_SCORE	GBM	Hormone therapy	0.201	0.201	0.701684210526316
+high_ploidy_sensitive	Z_SCORE	BLCA	Kinase inhibitors	0.485	0.485	0.951176470588235
+high_ploidy_sensitive	Z_SCORE	BLCA	Epigenetic inhibitors	0.003	0.003	0.0754285714285714
+high_ploidy_sensitive	Z_SCORE	BLCA	Other	0.663	0.663	1
+high_ploidy_sensitive	Z_SCORE	BLCA	DNA damage repair inhibitors	0.776	0.776	1
+high_ploidy_sensitive	Z_SCORE	BLCA	Metabolic/redox agents	0.003	0.003	0.0754285714285714
+high_ploidy_sensitive	Z_SCORE	BLCA	Proapoptotic agents	0.369	0.369	0.902
+high_ploidy_sensitive	Z_SCORE	BLCA	WNT/HH pathway inhibitors	0.054	0.054	0.401577464788732
+high_ploidy_sensitive	Z_SCORE	BLCA	Chemotherapy agents	0.949	0.949	1
+high_ploidy_sensitive	Z_SCORE	BLCA	Chaperone/protein-homeostasis inhibitors	0.955	0.955	1
+high_ploidy_sensitive	Z_SCORE	BLCA	p53/MDM2 pathway	0.587	0.587	1
+high_ploidy_sensitive	Z_SCORE	BLCA	Hormone therapy	0.144	0.144	0.608256
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Kinase inhibitors	0.119	0.119	0.575567567567568
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Epigenetic inhibitors	0.001	0.001	0.0310588235294118
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Other	0.839	0.839	1
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	DNA damage repair inhibitors	0.954	0.954	1
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Metabolic/redox agents	0.355	0.355	0.889004651162791
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Proapoptotic agents	0.047	0.047	0.370388059701493
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	WNT/HH pathway inhibitors	0.395	0.395	0.914451063829787
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Chemotherapy agents	0.921	0.921	1
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Chaperone/protein-homeostasis inhibitors	0.843	0.843	1
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	p53/MDM2 pathway	0.254	0.254	0.762
+high_ploidy_sensitive	Z_SCORE	UNCLASSIFIED	Hormone therapy	0.986	0.986	1
+high_ploidy_sensitive	Z_SCORE	KIRC	Kinase inhibitors	0.252	0.252	0.762
+high_ploidy_sensitive	Z_SCORE	KIRC	Epigenetic inhibitors	0.733	0.733	1
+high_ploidy_sensitive	Z_SCORE	KIRC	Other	1	1	1
+high_ploidy_sensitive	Z_SCORE	KIRC	DNA damage repair inhibitors	0.52	0.52	0.973617021276596
+high_ploidy_sensitive	Z_SCORE	KIRC	Metabolic/redox agents	0.628	0.628	1
+high_ploidy_sensitive	Z_SCORE	KIRC	Proapoptotic agents	0.096	0.096	0.522823529411765
+high_ploidy_sensitive	Z_SCORE	KIRC	WNT/HH pathway inhibitors	0.23	0.23	0.736
+high_ploidy_sensitive	Z_SCORE	KIRC	Chemotherapy agents	0.463	0.463	0.943876447876448
+high_ploidy_sensitive	Z_SCORE	KIRC	Chaperone/protein-homeostasis inhibitors	0.032	0.032	0.311142857142857
+high_ploidy_sensitive	Z_SCORE	KIRC	p53/MDM2 pathway	0.727	0.727	1
+high_ploidy_sensitive	Z_SCORE	KIRC	Hormone therapy	0.244	0.244	0.762
+high_ploidy_sensitive	Z_SCORE	THCA	Kinase inhibitors	0.065	0.065	0.445714285714286
+high_ploidy_sensitive	Z_SCORE	THCA	Epigenetic inhibitors	0.19	0.19	0.694356164383562
+high_ploidy_sensitive	Z_SCORE	THCA	Other	0.696	0.696	1
+high_ploidy_sensitive	Z_SCORE	THCA	DNA damage repair inhibitors	0.983	0.983	1
+high_ploidy_sensitive	Z_SCORE	THCA	Metabolic/redox agents	0.598	0.598	1
+high_ploidy_sensitive	Z_SCORE	THCA	Proapoptotic agents	0.958	0.958	1
+high_ploidy_sensitive	Z_SCORE	THCA	WNT/HH pathway inhibitors	0.29	0.29	0.798839378238342
+high_ploidy_sensitive	Z_SCORE	THCA	Chemotherapy agents	0.993	0.993	1
+high_ploidy_sensitive	Z_SCORE	THCA	Chaperone/protein-homeostasis inhibitors	0.175	0.175	0.661859154929577
+high_ploidy_sensitive	Z_SCORE	THCA	p53/MDM2 pathway	0.801	0.801	1
+high_ploidy_sensitive	Z_SCORE	THCA	Hormone therapy	0.198	0.198	0.701684210526316
+high_ploidy_sensitive	Z_SCORE	SKCM	Kinase inhibitors	0.619	0.619	1
+high_ploidy_sensitive	Z_SCORE	SKCM	Epigenetic inhibitors	0.021	0.021	0.252
+high_ploidy_sensitive	Z_SCORE	SKCM	Other	0.67	0.67	1
+high_ploidy_sensitive	Z_SCORE	SKCM	DNA damage repair inhibitors	0.796	0.796	1
+high_ploidy_sensitive	Z_SCORE	SKCM	Metabolic/redox agents	0.436	0.436	0.935132530120482
+high_ploidy_sensitive	Z_SCORE	SKCM	Proapoptotic agents	0.266	0.266	0.767740540540541
+high_ploidy_sensitive	Z_SCORE	SKCM	WNT/HH pathway inhibitors	0.466	0.466	0.946338461538462
+high_ploidy_sensitive	Z_SCORE	SKCM	Chemotherapy agents	0.99	0.99	1
+high_ploidy_sensitive	Z_SCORE	SKCM	Chaperone/protein-homeostasis inhibitors	0.678	0.678	1
+high_ploidy_sensitive	Z_SCORE	SKCM	p53/MDM2 pathway	0.282	0.282	0.787809523809524
+high_ploidy_sensitive	Z_SCORE	SKCM	Hormone therapy	0.407	0.407	0.914451063829787
+high_ploidy_sensitive	Z_SCORE	DLBC	Kinase inhibitors	0.99	0.99	1
+high_ploidy_sensitive	Z_SCORE	DLBC	Epigenetic inhibitors	0.678	0.678	1
+high_ploidy_sensitive	Z_SCORE	DLBC	Other	0.057	0.057	0.41227397260274
+high_ploidy_sensitive	Z_SCORE	DLBC	DNA damage repair inhibitors	0.438	0.438	0.935132530120482
+high_ploidy_sensitive	Z_SCORE	DLBC	Metabolic/redox agents	0.144	0.144	0.608256
+high_ploidy_sensitive	Z_SCORE	DLBC	Proapoptotic agents	0.776	0.776	1
+high_ploidy_sensitive	Z_SCORE	DLBC	WNT/HH pathway inhibitors	0.683	0.683	1
+high_ploidy_sensitive	Z_SCORE	DLBC	Chemotherapy agents	0.005	0.005	0.101538461538462
+high_ploidy_sensitive	Z_SCORE	DLBC	Chaperone/protein-homeostasis inhibitors	0.829	0.829	1
+high_ploidy_sensitive	Z_SCORE	DLBC	p53/MDM2 pathway	0.499	0.499	0.954608695652174
+high_ploidy_sensitive	Z_SCORE	DLBC	Hormone therapy	0.407	0.407	0.914451063829787
+high_ploidy_sensitive	Z_SCORE	LUAD	Kinase inhibitors	0.043	0.043	0.35475
+high_ploidy_sensitive	Z_SCORE	LUAD	Epigenetic inhibitors	0.554	0.554	1
+high_ploidy_sensitive	Z_SCORE	LUAD	Other	0.992	0.992	1
+high_ploidy_sensitive	Z_SCORE	LUAD	DNA damage repair inhibitors	0.821	0.821	1
+high_ploidy_sensitive	Z_SCORE	LUAD	Metabolic/redox agents	0.608	0.608	1
+high_ploidy_sensitive	Z_SCORE	LUAD	Proapoptotic agents	0.124	0.124	0.578947368421053
+high_ploidy_sensitive	Z_SCORE	LUAD	WNT/HH pathway inhibitors	0.331	0.331	0.856705882352941
+high_ploidy_sensitive	Z_SCORE	LUAD	Chemotherapy agents	0.037	0.037	0.331118644067797
+high_ploidy_sensitive	Z_SCORE	LUAD	Chaperone/protein-homeostasis inhibitors	0.353	0.353	0.889004651162791
+high_ploidy_sensitive	Z_SCORE	LUAD	p53/MDM2 pathway	0.341	0.341	0.878282926829268
+high_ploidy_sensitive	Z_SCORE	LUAD	Hormone therapy	0.664	0.664	1
+high_ploidy_sensitive	Z_SCORE	ALL	Kinase inhibitors	0.007	0.007	0.119225806451613
+high_ploidy_sensitive	Z_SCORE	ALL	Epigenetic inhibitors	0.025	0.025	0.280163265306122
+high_ploidy_sensitive	Z_SCORE	ALL	Other	0.797	0.797	1
+high_ploidy_sensitive	Z_SCORE	ALL	DNA damage repair inhibitors	0.101	0.101	0.522823529411765
+high_ploidy_sensitive	Z_SCORE	ALL	Metabolic/redox agents	0.374	0.374	0.905834862385321
+high_ploidy_sensitive	Z_SCORE	ALL	Proapoptotic agents	0.725	0.725	1
+high_ploidy_sensitive	Z_SCORE	ALL	WNT/HH pathway inhibitors	0.697	0.697	1
+high_ploidy_sensitive	Z_SCORE	ALL	Chemotherapy agents	0.986	0.986	1
+high_ploidy_sensitive	Z_SCORE	ALL	Chaperone/protein-homeostasis inhibitors	0.453	0.453	0.943876447876448
+high_ploidy_sensitive	Z_SCORE	ALL	p53/MDM2 pathway	0.134	0.134	0.584727272727273
+high_ploidy_sensitive	Z_SCORE	ALL	Hormone therapy	0.268	0.268	0.767740540540541
+high_ploidy_sensitive	Z_SCORE	MM	Kinase inhibitors	0.77	0.77	1
+high_ploidy_sensitive	Z_SCORE	MM	Epigenetic inhibitors	0.226	0.226	0.736
+high_ploidy_sensitive	Z_SCORE	MM	Other	0.487	0.487	0.951176470588235
+high_ploidy_sensitive	Z_SCORE	MM	DNA damage repair inhibitors	0.409	0.409	0.915050847457627
+high_ploidy_sensitive	Z_SCORE	MM	Metabolic/redox agents	0.005	0.005	0.101538461538462
+high_ploidy_sensitive	Z_SCORE	MM	Proapoptotic agents	0.713	0.713	1
+high_ploidy_sensitive	Z_SCORE	MM	WNT/HH pathway inhibitors	0.176	0.176	0.661859154929577
+high_ploidy_sensitive	Z_SCORE	MM	Chemotherapy agents	0.544	0.544	0.993882352941177
+high_ploidy_sensitive	Z_SCORE	MM	Chaperone/protein-homeostasis inhibitors	0.699	0.699	1
+high_ploidy_sensitive	Z_SCORE	MM	p53/MDM2 pathway	0.497	0.497	0.954608695652174
+high_ploidy_sensitive	Z_SCORE	MM	Hormone therapy	0.745	0.745	1
+high_ploidy_sensitive	Z_SCORE	PAAD	Kinase inhibitors	0.926	0.926	1
+high_ploidy_sensitive	Z_SCORE	PAAD	Epigenetic inhibitors	0.825	0.825	1
+high_ploidy_sensitive	Z_SCORE	PAAD	Other	0.946	0.946	1
+high_ploidy_sensitive	Z_SCORE	PAAD	DNA damage repair inhibitors	0.222	0.222	0.7359
+high_ploidy_sensitive	Z_SCORE	PAAD	Metabolic/redox agents	0.096	0.096	0.522823529411765
+high_ploidy_sensitive	Z_SCORE	PAAD	Proapoptotic agents	0.539	0.539	0.991833333333333
+high_ploidy_sensitive	Z_SCORE	PAAD	WNT/HH pathway inhibitors	0.131	0.131	0.5808
+high_ploidy_sensitive	Z_SCORE	PAAD	Chemotherapy agents	0.123	0.123	0.578947368421053
+high_ploidy_sensitive	Z_SCORE	PAAD	Chaperone/protein-homeostasis inhibitors	0.299	0.299	0.8096
+high_ploidy_sensitive	Z_SCORE	PAAD	p53/MDM2 pathway	0.623	0.623	1
+high_ploidy_sensitive	Z_SCORE	PAAD	Hormone therapy	0.417	0.417	0.921283950617284
+high_ploidy_sensitive	Z_SCORE	BRCA	Kinase inhibitors	0	0.000999000999000999	0.0310588235294118
+high_ploidy_sensitive	Z_SCORE	BRCA	Epigenetic inhibitors	0.043	0.043	0.35475
+high_ploidy_sensitive	Z_SCORE	BRCA	Other	0.77	0.77	1
+high_ploidy_sensitive	Z_SCORE	BRCA	DNA damage repair inhibitors	0.841	0.841	1
+high_ploidy_sensitive	Z_SCORE	BRCA	Metabolic/redox agents	0.315	0.315	0.823366336633663
+high_ploidy_sensitive	Z_SCORE	BRCA	Proapoptotic agents	1	1	1
+high_ploidy_sensitive	Z_SCORE	BRCA	WNT/HH pathway inhibitors	0.172	0.172	0.661859154929577
+high_ploidy_sensitive	Z_SCORE	BRCA	Chemotherapy agents	0.978	0.978	1
+high_ploidy_sensitive	Z_SCORE	BRCA	Chaperone/protein-homeostasis inhibitors	0.098	0.098	0.522823529411765
+high_ploidy_sensitive	Z_SCORE	BRCA	p53/MDM2 pathway	0.842	0.842	1
+high_ploidy_sensitive	Z_SCORE	BRCA	Hormone therapy	0.857	0.857	1
+high_ploidy_sensitive	Z_SCORE	HNSC	Kinase inhibitors	0.007	0.007	0.119225806451613
+high_ploidy_sensitive	Z_SCORE	HNSC	Epigenetic inhibitors	0.153	0.153	0.626232558139535
+high_ploidy_sensitive	Z_SCORE	HNSC	Other	0.992	0.992	1
+high_ploidy_sensitive	Z_SCORE	HNSC	DNA damage repair inhibitors	0.714	0.714	1
+high_ploidy_sensitive	Z_SCORE	HNSC	Metabolic/redox agents	0.596	0.596	1
+high_ploidy_sensitive	Z_SCORE	HNSC	Proapoptotic agents	0.757	0.757	1
+high_ploidy_sensitive	Z_SCORE	HNSC	WNT/HH pathway inhibitors	0.35	0.35	0.889004651162791
+high_ploidy_sensitive	Z_SCORE	HNSC	Chemotherapy agents	1	1	1
+high_ploidy_sensitive	Z_SCORE	HNSC	Chaperone/protein-homeostasis inhibitors	0.22	0.22	0.7359
+high_ploidy_sensitive	Z_SCORE	HNSC	p53/MDM2 pathway	0.131	0.131	0.5808
+high_ploidy_sensitive	Z_SCORE	HNSC	Hormone therapy	0.229	0.229	0.736
+high_ploidy_sensitive	Z_SCORE	NB	Kinase inhibitors	0.888	0.888	1
+high_ploidy_sensitive	Z_SCORE	NB	Epigenetic inhibitors	0.607	0.607	1
+high_ploidy_sensitive	Z_SCORE	NB	Other	0.263	0.263	0.767740540540541
+high_ploidy_sensitive	Z_SCORE	NB	DNA damage repair inhibitors	0.052	0.052	0.401577464788732
+high_ploidy_sensitive	Z_SCORE	NB	Metabolic/redox agents	0.099	0.099	0.522823529411765
+high_ploidy_sensitive	Z_SCORE	NB	Proapoptotic agents	0.784	0.784	1
+high_ploidy_sensitive	Z_SCORE	NB	WNT/HH pathway inhibitors	0.896	0.896	1
+high_ploidy_sensitive	Z_SCORE	NB	Chemotherapy agents	0.578	0.578	1
+high_ploidy_sensitive	Z_SCORE	NB	Chaperone/protein-homeostasis inhibitors	0.624	0.624	1
+high_ploidy_sensitive	Z_SCORE	NB	p53/MDM2 pathway	0.253	0.253	0.762
+high_ploidy_sensitive	Z_SCORE	NB	Hormone therapy	0.069	0.069	0.461164556962025
+high_ploidy_sensitive	Z_SCORE	COREAD	Kinase inhibitors	0	0.000999000999000999	0.0310588235294118
+high_ploidy_sensitive	Z_SCORE	COREAD	Epigenetic inhibitors	0.863	0.863	1
+high_ploidy_sensitive	Z_SCORE	COREAD	Other	0.837	0.837	1
+high_ploidy_sensitive	Z_SCORE	COREAD	DNA damage repair inhibitors	0.462	0.462	0.943876447876448
+high_ploidy_sensitive	Z_SCORE	COREAD	Metabolic/redox agents	0.812	0.812	1
+high_ploidy_sensitive	Z_SCORE	COREAD	Proapoptotic agents	0.253	0.253	0.762
+high_ploidy_sensitive	Z_SCORE	COREAD	WNT/HH pathway inhibitors	0.176	0.176	0.661859154929577
+high_ploidy_sensitive	Z_SCORE	COREAD	Chemotherapy agents	0.972	0.972	1
+high_ploidy_sensitive	Z_SCORE	COREAD	Chaperone/protein-homeostasis inhibitors	0.781	0.781	1
+high_ploidy_sensitive	Z_SCORE	COREAD	p53/MDM2 pathway	0.956	0.956	1
+high_ploidy_sensitive	Z_SCORE	COREAD	Hormone therapy	0.042	0.042	0.35475
+high_ploidy_sensitive	Z_SCORE	LIHC	Kinase inhibitors	0.955	0.955	1
+high_ploidy_sensitive	Z_SCORE	LIHC	Epigenetic inhibitors	0.01	0.01	0.16
+high_ploidy_sensitive	Z_SCORE	LIHC	Other	0.878	0.878	1
+high_ploidy_sensitive	Z_SCORE	LIHC	DNA damage repair inhibitors	0.569	0.569	1
+high_ploidy_sensitive	Z_SCORE	LIHC	Metabolic/redox agents	0.635	0.635	1
+high_ploidy_sensitive	Z_SCORE	LIHC	Proapoptotic agents	0.013	0.013	0.185513513513514
+high_ploidy_sensitive	Z_SCORE	LIHC	WNT/HH pathway inhibitors	0.793	0.793	1
+high_ploidy_sensitive	Z_SCORE	LIHC	Chemotherapy agents	0.066	0.066	0.446769230769231
+high_ploidy_sensitive	Z_SCORE	LIHC	Chaperone/protein-homeostasis inhibitors	0.912	0.912	1
+high_ploidy_sensitive	Z_SCORE	LIHC	p53/MDM2 pathway	0.127	0.127	0.5808
+high_ploidy_sensitive	Z_SCORE	LIHC	Hormone therapy	0.441	0.441	0.935132530120482
+high_ploidy_sensitive	Z_SCORE	LAML	Kinase inhibitors	0.782	0.782	1
+high_ploidy_sensitive	Z_SCORE	LAML	Epigenetic inhibitors	0.803	0.803	1
+high_ploidy_sensitive	Z_SCORE	LAML	Other	0.033	0.033	0.311142857142857
+high_ploidy_sensitive	Z_SCORE	LAML	DNA damage repair inhibitors	0.004	0.004	0.0918260869565217
+high_ploidy_sensitive	Z_SCORE	LAML	Metabolic/redox agents	0.359	0.359	0.889004651162791
+high_ploidy_sensitive	Z_SCORE	LAML	Proapoptotic agents	0.705	0.705	1
+high_ploidy_sensitive	Z_SCORE	LAML	WNT/HH pathway inhibitors	0.388	0.388	0.914451063829787
+high_ploidy_sensitive	Z_SCORE	LAML	Chemotherapy agents	0.177	0.177	0.661859154929577
+high_ploidy_sensitive	Z_SCORE	LAML	Chaperone/protein-homeostasis inhibitors	0.054	0.054	0.401577464788732
+high_ploidy_sensitive	Z_SCORE	LAML	p53/MDM2 pathway	0.561	0.561	1
+high_ploidy_sensitive	Z_SCORE	LAML	Hormone therapy	0.949	0.949	1
+high_ploidy_sensitive	Z_SCORE	SCLC	Kinase inhibitors	0.88	0.88	1
+high_ploidy_sensitive	Z_SCORE	SCLC	Epigenetic inhibitors	0.732	0.732	1
+high_ploidy_sensitive	Z_SCORE	SCLC	Other	0.007	0.007	0.119225806451613
+high_ploidy_sensitive	Z_SCORE	SCLC	DNA damage repair inhibitors	0.021	0.021	0.252
+high_ploidy_sensitive	Z_SCORE	SCLC	Metabolic/redox agents	0.618	0.618	1
+high_ploidy_sensitive	Z_SCORE	SCLC	Proapoptotic agents	0.447	0.447	0.942406374501992
+high_ploidy_sensitive	Z_SCORE	SCLC	WNT/HH pathway inhibitors	0.504	0.504	0.957237410071942
+high_ploidy_sensitive	Z_SCORE	SCLC	Chemotherapy agents	0	0.000999000999000999	0.0310588235294118
+high_ploidy_sensitive	Z_SCORE	SCLC	Chaperone/protein-homeostasis inhibitors	0.141	0.141	0.605268292682927
+high_ploidy_sensitive	Z_SCORE	SCLC	p53/MDM2 pathway	0.878	0.878	1
+high_ploidy_sensitive	Z_SCORE	SCLC	Hormone therapy	0.935	0.935	1
+high_ploidy_sensitive	Z_SCORE	ESCA	Kinase inhibitors	0.829	0.829	1
+high_ploidy_sensitive	Z_SCORE	ESCA	Epigenetic inhibitors	0.861	0.861	1
+high_ploidy_sensitive	Z_SCORE	ESCA	Other	0.533	0.533	0.990929577464789
+high_ploidy_sensitive	Z_SCORE	ESCA	DNA damage repair inhibitors	0.687	0.687	1
+high_ploidy_sensitive	Z_SCORE	ESCA	Metabolic/redox agents	0.864	0.864	1
+high_ploidy_sensitive	Z_SCORE	ESCA	Proapoptotic agents	0.801	0.801	1
+high_ploidy_sensitive	Z_SCORE	ESCA	WNT/HH pathway inhibitors	0.44	0.44	0.935132530120482
+high_ploidy_sensitive	Z_SCORE	ESCA	Chemotherapy agents	0.002	0.002	0.0586666666666667
+high_ploidy_sensitive	Z_SCORE	ESCA	Chaperone/protein-homeostasis inhibitors	0.902	0.902	1
+high_ploidy_sensitive	Z_SCORE	ESCA	p53/MDM2 pathway	0.684	0.684	1
+high_ploidy_sensitive	Z_SCORE	ESCA	Hormone therapy	0.024	0.024	0.275478260869565
+high_ploidy_sensitive	Z_SCORE	OV	Kinase inhibitors	0.026	0.026	0.280163265306122
+high_ploidy_sensitive	Z_SCORE	OV	Epigenetic inhibitors	0.97	0.97	1
+high_ploidy_sensitive	Z_SCORE	OV	Other	1	1	1
+high_ploidy_sensitive	Z_SCORE	OV	DNA damage repair inhibitors	0.026	0.026	0.280163265306122
+high_ploidy_sensitive	Z_SCORE	OV	Metabolic/redox agents	0.972	0.972	1
+high_ploidy_sensitive	Z_SCORE	OV	Proapoptotic agents	0.778	0.778	1
+high_ploidy_sensitive	Z_SCORE	OV	WNT/HH pathway inhibitors	0.004	0.004	0.0918260869565217
+high_ploidy_sensitive	Z_SCORE	OV	Chemotherapy agents	0.66	0.66	1
+high_ploidy_sensitive	Z_SCORE	OV	Chaperone/protein-homeostasis inhibitors	0.407	0.407	0.914451063829787
+high_ploidy_sensitive	Z_SCORE	OV	p53/MDM2 pathway	0.136	0.136	0.588590163934426
+high_ploidy_sensitive	Z_SCORE	OV	Hormone therapy	0.407	0.407	0.914451063829787
+high_ploidy_sensitive	Z_SCORE	LUSC	Kinase inhibitors	0.007	0.007	0.119225806451613
+high_ploidy_sensitive	Z_SCORE	LUSC	Epigenetic inhibitors	0.204	0.204	0.702857142857143
+high_ploidy_sensitive	Z_SCORE	LUSC	Other	0.169	0.169	0.661859154929577
+high_ploidy_sensitive	Z_SCORE	LUSC	DNA damage repair inhibitors	0.056	0.056	0.410666666666667
+high_ploidy_sensitive	Z_SCORE	LUSC	Metabolic/redox agents	0.707	0.707	1
+high_ploidy_sensitive	Z_SCORE	LUSC	Proapoptotic agents	0.634	0.634	1
+high_ploidy_sensitive	Z_SCORE	LUSC	WNT/HH pathway inhibitors	0.968	0.968	1
+high_ploidy_sensitive	Z_SCORE	LUSC	Chemotherapy agents	0.508	0.508	0.957942857142857
+high_ploidy_sensitive	Z_SCORE	LUSC	Chaperone/protein-homeostasis inhibitors	0.23	0.23	0.736
+high_ploidy_sensitive	Z_SCORE	LUSC	p53/MDM2 pathway	0.401	0.401	0.914451063829787
+high_ploidy_sensitive	Z_SCORE	LUSC	Hormone therapy	0.826	0.826	1
+high_ploidy_sensitive	Z_SCORE	LGG	Kinase inhibitors	0.97	0.97	1
+high_ploidy_sensitive	Z_SCORE	LGG	Epigenetic inhibitors	0.079	0.079	0.496571428571429
+high_ploidy_sensitive	Z_SCORE	LGG	Other	0.149	0.149	0.619464566929134
+high_ploidy_sensitive	Z_SCORE	LGG	DNA damage repair inhibitors	0.2	0.2	0.701684210526316
+high_ploidy_sensitive	Z_SCORE	LGG	Metabolic/redox agents	0.858	0.858	1
+high_ploidy_sensitive	Z_SCORE	LGG	Proapoptotic agents	0.575	0.575	1
+high_ploidy_sensitive	Z_SCORE	LGG	WNT/HH pathway inhibitors	0.448	0.448	0.942406374501992
+high_ploidy_sensitive	Z_SCORE	LGG	Chemotherapy agents	0.241	0.241	0.762
+high_ploidy_sensitive	Z_SCORE	LGG	Chaperone/protein-homeostasis inhibitors	0.672	0.672	1
+high_ploidy_sensitive	Z_SCORE	LGG	p53/MDM2 pathway	0.471	0.471	0.949190839694656
+high_ploidy_sensitive	Z_SCORE	LGG	Hormone therapy	0.084	0.084	0.498337078651685

@@ -43,7 +43,7 @@ if (!grepl("^/", output_dir)) {
 output_dir <- normalizePath(output_dir, mustWork = FALSE)
 
 metric <- arg_value("metric", "Z_SCORE")
-permute_n <- as.integer(arg_value("permute-n", "300"))
+permute_n <- as.integer(arg_value("permute-n", "1000"))
 significance_cutoff <- as.numeric(arg_value("significance-cutoff", "0.05"))
 min_group_contexts <- as.integer(arg_value("min-group-contexts", "2"))
 max_bidirectional_imbalance <- as.integer(arg_value("max-bidirectional-imbalance", "2"))
@@ -53,6 +53,13 @@ tables_dir <- file.path(output_dir, "tables")
 figures_dir <- file.path(output_dir, "figures")
 dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(figures_dir, recursive = TRUE, showWarnings = FALSE)
+unlink(file.path(
+  tables_dir,
+  c(
+    sprintf("drug_count_collapsed_direction_summary_p%g.tsv", significance_cutoff),
+    sprintf("drug_count_collapsed_category_groups_p%g.tsv", significance_cutoff)
+  )
+))
 
 rdata_file <- file.path(input_run, "drugsVsPloidyCorr.RData")
 if (!file.exists(rdata_file)) {
@@ -229,22 +236,45 @@ enrichment_long <- rbind(
     stringsAsFactors = FALSE
   )
 )
+zero_pvalue_floor <- 1 / (permute_n + 1)
+enrichment_long$pvalue_for_fdr <- ifelse(
+  is.finite(enrichment_long$pvalue) & enrichment_long$pvalue <= 0,
+  zero_pvalue_floor,
+  enrichment_long$pvalue
+)
+enrichment_long$qvalue_bh <- p.adjust(enrichment_long$pvalue_for_fdr, method = "BH")
 write_tsv(
   enrichment_long,
   file.path(tables_dir, sprintf("drug_count_collapsed_enrichment_%s.tsv", metric))
 )
 
+fdr_matrix <- function(direction) {
+  subset <- enrichment_long[enrichment_long$direction == direction, , drop = FALSE]
+  out <- matrix(
+    NA_real_,
+    nrow = length(groups),
+    ncol = length(colnames(lowp)),
+    dimnames = list(groups, colnames(lowp))
+  )
+  for (idx in seq_len(nrow(subset))) {
+    out[subset$category_label[[idx]], subset$cancer_type[[idx]]] <- subset$qvalue_bh[[idx]]
+  }
+  out
+}
+lowq <- fdr_matrix("low_ploidy_sensitive")
+highq <- fdr_matrix("high_ploidy_sensitive")
+
 summary_rows <- lapply(groups, function(group) {
   low <- enrichment_long[enrichment_long$direction == "low_ploidy_sensitive" & enrichment_long$category_label == group, ]
   high <- enrichment_long[enrichment_long$direction == "high_ploidy_sensitive" & enrichment_long$category_label == group, ]
   merged <- merge(
-    low[, c("cancer_type", "pvalue")],
-    high[, c("cancer_type", "pvalue")],
+    low[, c("cancer_type", "pvalue", "qvalue_bh")],
+    high[, c("cancer_type", "pvalue", "qvalue_bh")],
     by = "cancer_type",
     suffixes = c("_low", "_high")
   )
-  low_sig <- merged$pvalue_low <= significance_cutoff
-  high_sig <- merged$pvalue_high <= significance_cutoff
+  low_sig <- merged$qvalue_bh_low <= significance_cutoff
+  high_sig <- merged$qvalue_bh_high <= significance_cutoff
   data.frame(
     category_label = group,
     n_drugs = collapsed_counts$n_drugs[match(group, collapsed_counts$category_label)],
@@ -256,6 +286,8 @@ summary_rows <- lapply(groups, function(group) {
     n_both_contexts = sum(low_sig & high_sig, na.rm = TRUE),
     min_low_pvalue = min(low$pvalue, na.rm = TRUE),
     min_high_pvalue = min(high$pvalue, na.rm = TRUE),
+    min_low_qvalue_bh = min(low$qvalue_bh, na.rm = TRUE),
+    min_high_qvalue_bh = min(high$qvalue_bh, na.rm = TRUE),
     stringsAsFactors = FALSE
   )
 })
@@ -283,14 +315,14 @@ direction_summary$category_group <- ifelse(
 )
 direction_summary$category_group_definition <- ifelse(
   direction_summary$category_group == "low_ploidy_biased",
-  sprintf(">= %d total significant contexts and more low- than high-ploidy contexts after the bidirectional rule", min_group_contexts),
+  sprintf(">= %d total BH-FDR significant contexts and more low- than high-ploidy contexts after the bidirectional rule", min_group_contexts),
   ifelse(
     direction_summary$category_group == "high_ploidy_biased",
-    sprintf(">= %d total significant contexts and more high- than low-ploidy contexts after the bidirectional rule", min_group_contexts),
+    sprintf(">= %d total BH-FDR significant contexts and more high- than low-ploidy contexts after the bidirectional rule", min_group_contexts),
     ifelse(
       direction_summary$category_group == "bidirectional_context_dependent",
-      sprintf(">= %d total significant contexts, at least one context in each direction, and absolute high-minus-low context difference <= %d", min_group_contexts, max_bidirectional_imbalance),
-      sprintf("< %d total significant low/high enrichment contexts", min_group_contexts)
+      sprintf(">= %d total BH-FDR significant contexts, at least one context in each direction, and absolute high-minus-low context difference <= %d", min_group_contexts, max_bidirectional_imbalance),
+      sprintf("< %d total BH-FDR significant low/high enrichment contexts", min_group_contexts)
     )
   )
 )
@@ -301,7 +333,7 @@ direction_summary <- direction_summary[order(
 ), , drop = FALSE]
 write_tsv(
   direction_summary,
-  file.path(tables_dir, sprintf("drug_count_collapsed_direction_summary_p%g.tsv", significance_cutoff))
+  file.path(tables_dir, sprintf("drug_count_collapsed_direction_summary_fdr%g.tsv", significance_cutoff))
 )
 write_tsv(
   direction_summary[, c(
@@ -317,9 +349,11 @@ write_tsv(
     "n_high_only_contexts",
     "n_both_contexts",
     "min_low_pvalue",
-    "min_high_pvalue"
+    "min_high_pvalue",
+    "min_low_qvalue_bh",
+    "min_high_qvalue_bh"
   )],
-  file.path(tables_dir, sprintf("drug_count_collapsed_category_groups_p%g.tsv", significance_cutoff))
+  file.path(tables_dir, sprintf("drug_count_collapsed_category_groups_fdr%g.tsv", significance_cutoff))
 )
 
 cancer_type_count_file <- file.path(input_run, "tables", sprintf("drug_ploidy_correlations_by_cancer_%s.tsv", metric))
@@ -358,10 +392,14 @@ write_tsv(
 
 workbook <- file.path(output_dir, sprintf("drug_count_collapsed_drugsVsPloidyCorr_%s.xlsx", metric))
 wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(wb, "rawLowpIsSens")
+openxlsx::writeData(wb, "rawLowpIsSens", t(lowp), rowNames = TRUE)
+openxlsx::addWorksheet(wb, "rawHighpIsSens")
+openxlsx::writeData(wb, "rawHighpIsSens", t(highp), rowNames = TRUE)
 openxlsx::addWorksheet(wb, "lowpIsSens")
-openxlsx::writeData(wb, "lowpIsSens", t(lowp), rowNames = TRUE)
+openxlsx::writeData(wb, "lowpIsSens", t(lowq), rowNames = TRUE)
 openxlsx::addWorksheet(wb, "highpIsSens")
-openxlsx::writeData(wb, "highpIsSens", t(highp), rowNames = TRUE)
+openxlsx::writeData(wb, "highpIsSens", t(highq), rowNames = TRUE)
 openxlsx::addWorksheet(wb, "drugClassCounts")
 openxlsx::writeData(wb, "drugClassCounts", collapsed_counts)
 openxlsx::addWorksheet(wb, "cancerTypeCounts")
@@ -390,6 +428,8 @@ write_tsv(
     metric = metric,
     permute_n = permute_n,
     significance_cutoff = significance_cutoff,
+    significance_measure = "BH FDR q-value; exact zero permutation p-values are floored at 1/(permute_n + 1) before BH correction",
+    zero_pvalue_floor = zero_pvalue_floor,
     min_group_contexts = min_group_contexts,
     max_bidirectional_imbalance = max_bidirectional_imbalance,
     collapse_rule = "Use Drug counts sheet Combine.if.needed where populated; otherwise primary_anticancer_class",

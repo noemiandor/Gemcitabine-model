@@ -22,6 +22,9 @@ manual fallback tables.
 For manuscript-facing Figure 1B-C, the workflow also writes a collapsed
 drug-class view using the `Drug counts` sheet: `Combine.if.needed` is used
 where populated, otherwise the original `primary_anticancer_class` is retained.
+Collapsed heatmap significance calls use BH-FDR `q <= 0.05` across the
+displayed enrichment test family after replacing exact-zero permutation
+p-values with the floor `1 / (permute_n + 1)`.
 
 ## Outputs
 
@@ -39,8 +42,9 @@ Running the analysis writes a reproducible result directory containing:
   and `.pdf`, the workbook-defined collapsed drug-class Figure 1B-C source
   heatmap with top drug-class count bars and a side cancer-type cell-line count
   bar
-- collapsed drug-class maps, assignments, enrichment tables, and low/high/
-  bidirectional group summaries under `drug_count_collapsed/tables/`
+- collapsed drug-class maps, assignments, enrichment tables with raw
+  permutation p-values and BH q-values, and FDR-based low/high/bidirectional
+  group summaries under `drug_count_collapsed/tables/`
 - `drug_count_collapsed/tables/drug_count_collapsed_cancer_type_cell_line_counts_Z_SCORE.tsv`,
   the cancer-type cell-line counts shown beside the collapsed heatmap
 - `ploidyVsDrugSensitivity.pdf`
@@ -81,7 +85,7 @@ The main run accepts:
 
 - `--analysis-mode=dev|manuscript`
 - `--drug-class-workbook=<path>`
-- `--enrichment-permute-n=<n>`, default `300`
+- `--enrichment-permute-n=<n>`, default `1000`
 - `--output-dir=<path>`
 
 `--category-mode=primary_secondary` is accepted for transitional compatibility.
