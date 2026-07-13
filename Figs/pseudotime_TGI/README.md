@@ -17,7 +17,18 @@ The corresponding full result directory is:
 /Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04h_pseudotime_TGI_essential
 ```
 
-The full analysis starts from the two 04h cell-level input CSV files. The NonCellCycle input is used only when deriving sample mean end-timepoint ploidy; all figures and reported associations use CellCycle cells.
+The full analysis can start from explicitly supplied CellCycle and NonCellCycle cell-level CSV files. If either path is omitted, the entrypoint reconstructs the missing table from these repository-local inputs:
+
+```text
+Data/in-vivo/scvelo_cell_metrics.csv
+Data/in-vivo/all_ploidy.tsv
+Data/in-vivo/sample_info.xlsx
+Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx
+```
+
+By default, reconstructed cell-level tables are written under `Data/in-vivo`. A different destination can be selected with `--generated_input_root=<directory>`. The NonCellCycle input is used only when deriving sample mean end-timepoint ploidy; all figures and reported associations use CellCycle cells.
+
+The raw-input paths can be overridden individually with `--scvelo_metrics_input`, `--cell_ploidy_input`, `--sample_info_input`, and `--growth_curve_input`. Supplying both `--cellcycle_input` and `--noncellcycle_input` skips reconstruction and uses those finished tables directly.
 
 ## Methods
 

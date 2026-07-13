@@ -23,12 +23,20 @@ input_root <- normalizePath(
   essential_arg(arguments, "input_root", file.path(repo_root, "Data", "in-vivo")),
   mustWork = FALSE
 )
+cellcycle_input_provided <- !is.null(arguments[["cellcycle_input"]]) &&
+  length(arguments[["cellcycle_input"]]) == 1L && nzchar(arguments[["cellcycle_input"]])
+noncellcycle_input_provided <- !is.null(arguments[["noncellcycle_input"]]) &&
+  length(arguments[["noncellcycle_input"]]) == 1L && nzchar(arguments[["noncellcycle_input"]])
+generated_input_root <- normalizePath(
+  essential_arg(arguments, "generated_input_root", input_root),
+  mustWork = FALSE
+)
 cellcycle_input <- normalizePath(
   essential_arg(
     arguments,
     "cellcycle_input",
     file.path(
-      input_root,
+      generated_input_root,
       "CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
     )
   ),
@@ -39,9 +47,29 @@ noncellcycle_input <- normalizePath(
     arguments,
     "noncellcycle_input",
     file.path(
-      input_root,
+      generated_input_root,
       "NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
     )
+  ),
+  mustWork = FALSE
+)
+scvelo_metrics_input <- normalizePath(
+  essential_arg(arguments, "scvelo_metrics_input", file.path(input_root, "scvelo_cell_metrics.csv")),
+  mustWork = FALSE
+)
+cell_ploidy_input <- normalizePath(
+  essential_arg(arguments, "cell_ploidy_input", file.path(input_root, "all_ploidy.tsv")),
+  mustWork = FALSE
+)
+sample_info_input <- normalizePath(
+  essential_arg(arguments, "sample_info_input", file.path(input_root, "sample_info.xlsx")),
+  mustWork = FALSE
+)
+growth_curve_input <- normalizePath(
+  essential_arg(
+    arguments,
+    "growth_curve_input",
+    file.path(input_root, "dt_Gem_VT_20241223_v4.xlsx")
   ),
   mustWork = FALSE
 )
@@ -79,6 +107,21 @@ if (figures_only) {
   numeric_parameters <- c(seed = seed, n_perm = n_perm, n_boot = n_boot, workers = workers)
   if (anyNA(numeric_parameters) || seed < 0L || n_perm < 1L || n_boot < 1L || workers < 1L) {
     stop("seed, n_perm, n_boot, and workers must be valid positive integers", call. = FALSE)
+  }
+  if (!cellcycle_input_provided || !noncellcycle_input_provided) {
+    generated <- essential_generate_analysis_inputs(
+      scvelo_path = scvelo_metrics_input,
+      cell_ploidy_path = cell_ploidy_input,
+      sample_info_path = sample_info_input,
+      growth_curve_path = growth_curve_input,
+      cellcycle_output = if (!cellcycle_input_provided) cellcycle_input else NULL,
+      noncellcycle_output = if (!noncellcycle_input_provided) noncellcycle_input else NULL
+    )
+    generated_names <- names(generated)
+    message(
+      "Generated missing cell-level analysis input(s) from Data/in-vivo sources: ",
+      paste(generated_names, collapse = ", ")
+    )
   }
   if (!file.exists(cellcycle_input)) stop("Missing CellCycle input: ", cellcycle_input, call. = FALSE)
   if (!file.exists(noncellcycle_input)) stop("Missing NonCellCycle input: ", noncellcycle_input, call. = FALSE)
