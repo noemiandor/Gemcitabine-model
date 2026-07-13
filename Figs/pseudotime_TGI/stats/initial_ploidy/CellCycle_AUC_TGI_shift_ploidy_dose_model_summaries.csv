@@ -1,4 +1,4 @@
 "compartment","analysis","model","n","residual_df","r_squared","adjusted_r_squared","sigma","aic"
 "CellCycle","shift_only","TGI_percent_auc ~ scale(ecdf_rmse)",8,6,0.568201636577874,0.496235242674186,9.22008923168887,61.943715400925
-"CellCycle","shift_ploidy_dose_adjusted","TGI_percent_auc ~ scale(ecdf_rmse) + initial_ploidy + factor(dose_mg)",8,4,0.645517137630004,0.379654990852507,10.2314663356643,64.3653255909772
-"CellCycle","shift_by_ploidy_dose_adjusted","TGI_percent_auc ~ scale(ecdf_rmse) * initial_ploidy + factor(dose_mg)",8,3,0.782051206566371,0.491452815321533,9.263750731365,62.4741267189019
+"CellCycle","shift_ploidy_dose_adjusted","TGI_percent_auc ~ scale(ecdf_rmse) + initial_ploidy + dose_mg_factor",8,4,0.645517137630004,0.379654990852507,10.2314663356643,64.3653255909772
+"CellCycle","shift_by_ploidy_dose_adjusted","TGI_percent_auc ~ scale(ecdf_rmse) * initial_ploidy + dose_mg_factor",8,3,0.782051206566371,0.491452815321533,9.263750731365,62.4741267189019

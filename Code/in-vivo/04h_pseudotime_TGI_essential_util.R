@@ -1229,6 +1229,459 @@ essential_scatter_plot <- function(
     ggplot2::theme(plot.margin = ggplot2::margin(8, 14, 8, 14))
 }
 
+essential_figure_filenames <- function() {
+  c(
+    "CellCycle_direct_group_ecdf_comparisons.pdf",
+    "CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref.pdf",
+    "CellCycle_TGI_AUC_vs_mean_ETP.pdf",
+    "CellCycle_AUC_TGI_vs_ecdf_rmse_by_ploidy_dose.pdf",
+    "CellCycle_TGI_association_within_dose_centered.pdf",
+    "CellCycle_ecdf_rmse_vs_ploidy.pdf"
+  )
+}
+
+essential_read_figure_table <- function(path, required_columns, label) {
+  if (!file.exists(path)) stop("Missing figure-only table: ", path, call. = FALSE)
+  data <- read.csv(path, check.names = FALSE, stringsAsFactors = FALSE)
+  missing <- setdiff(required_columns, names(data))
+  if (length(missing) > 0L) {
+    stop(
+      label, " is missing required columns: ", paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  if (nrow(data) == 0L) stop(label, " contains no rows: ", path, call. = FALSE)
+  data
+}
+
+essential_require_single_row <- function(data, keep, label) {
+  keep[is.na(keep)] <- FALSE
+  selected <- data[keep, , drop = FALSE]
+  if (nrow(selected) != 1L) {
+    stop(label, " must select exactly one statistics row; found ", nrow(selected), call. = FALSE)
+  }
+  selected
+}
+
+essential_prefixed_association <- function(row, prefix) {
+  estimate_column <- if (identical(prefix, "pearson")) "pearson_r" else "spearman_rho"
+  required <- c(
+    "n", estimate_column, paste0(prefix, "_p_asymptotic"),
+    paste0(prefix, "_p_permutation_two_sided"),
+    paste0(prefix, "_p_permutation_positive"),
+    paste0(prefix, "_n_permutations"), paste0(prefix, "_permutation_mode")
+  )
+  missing <- setdiff(required, names(row))
+  if (length(missing) > 0L) {
+    stop("Statistics row is missing required columns: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+  data.frame(
+    n = essential_safe_numeric(row$n[[1L]]),
+    estimate = essential_safe_numeric(row[[estimate_column]][[1L]]),
+    asymptotic_p = essential_safe_numeric(row[[paste0(prefix, "_p_asymptotic")]][[1L]]),
+    permutation_p_two_sided = essential_safe_numeric(
+      row[[paste0(prefix, "_p_permutation_two_sided")]][[1L]]
+    ),
+    permutation_p_positive = essential_safe_numeric(
+      row[[paste0(prefix, "_p_permutation_positive")]][[1L]]
+    ),
+    n_permutations = essential_safe_numeric(row[[paste0(prefix, "_n_permutations")]][[1L]]),
+    permutation_mode = as.character(row[[paste0(prefix, "_permutation_mode")]][[1L]]),
+    stringsAsFactors = FALSE
+  )
+}
+
+essential_generic_association <- function(row) {
+  required <- c(
+    "n", "estimate", "p_value", "p_permutation_two_sided",
+    "n_permutations", "permutation_mode"
+  )
+  missing <- setdiff(required, names(row))
+  if (length(missing) > 0L) {
+    stop("Statistics row is missing required columns: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+  data.frame(
+    n = essential_safe_numeric(row$n[[1L]]),
+    estimate = essential_safe_numeric(row$estimate[[1L]]),
+    asymptotic_p = essential_safe_numeric(row$p_value[[1L]]),
+    permutation_p_two_sided = essential_safe_numeric(row$p_permutation_two_sided[[1L]]),
+    permutation_p_positive = NA_real_,
+    n_permutations = essential_safe_numeric(row$n_permutations[[1L]]),
+    permutation_mode = as.character(row$permutation_mode[[1L]]),
+    stringsAsFactors = FALSE
+  )
+}
+
+essential_plot_data_association <- function(data, prefix) {
+  row <- data[1L, , drop = FALSE]
+  row$n <- nrow(data)
+  essential_prefixed_association(row, prefix)
+}
+
+essential_restore_scatter_factors <- function(data, spec) {
+  required <- c("sample_id", "dose", "dose_mg", "analysis_group")
+  missing <- setdiff(required, names(data))
+  if (length(missing) > 0L) {
+    stop("Scatter plot data are missing required columns: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+  dose_order <- unique(as.character(data$dose[order(essential_safe_numeric(data$dose_mg))]))
+  data$dose <- factor(as.character(data$dose), levels = dose_order)
+  data$analysis_group <- factor(as.character(data$analysis_group), levels = spec$group_levels)
+  data
+}
+
+essential_direct_plot_from_tables <- function(curves, tests, spec) {
+  curve_columns <- c("panel", "pseudotime", "mean_ecdf", "curve_label", "color_group", "line_group")
+  test_columns <- c("panel", "annotation")
+  curve_missing <- setdiff(curve_columns, names(curves))
+  test_missing <- setdiff(test_columns, names(tests))
+  if (length(curve_missing) > 0L) {
+    stop("Direct ECDF plot data are missing columns: ", paste(curve_missing, collapse = ", "), call. = FALSE)
+  }
+  if (length(test_missing) > 0L) {
+    stop("Direct ECDF statistics are missing columns: ", paste(test_missing, collapse = ", "), call. = FALSE)
+  }
+  panel_levels <- unique(as.character(tests$panel))
+  curves$panel <- factor(as.character(curves$panel), levels = panel_levels)
+  curves$color_group <- factor(as.character(curves$color_group), levels = names(essential_dose_colors()))
+  curves$line_group <- factor(as.character(curves$line_group), levels = c("All", spec$group_levels))
+  tests$panel <- factor(as.character(tests$panel), levels = panel_levels)
+  line_values <- c("All" = "solid")
+  line_values[spec$group_levels] <- c("solid", "22")
+  ggplot2::ggplot(
+    curves,
+    ggplot2::aes(
+      x = pseudotime, y = mean_ecdf, color = color_group,
+      linetype = line_group, group = curve_label
+    )
+  ) +
+    ggplot2::geom_line(linewidth = 0.8) +
+    ggplot2::geom_text(
+      data = tests,
+      ggplot2::aes(x = 0.98, y = 0.05, label = annotation),
+      inherit.aes = FALSE,
+      hjust = 1,
+      vjust = 0,
+      size = 2.35,
+      lineheight = 0.92
+    ) +
+    ggplot2::facet_wrap(~panel, ncol = 3L, drop = FALSE) +
+    ggplot2::scale_color_manual(values = essential_dose_colors(), name = "Group") +
+    ggplot2::scale_linetype_manual(values = line_values, name = spec$group_label) +
+    ggplot2::coord_cartesian(xlim = c(0, 1), ylim = c(0, 1.05), clip = "off") +
+    ggplot2::labs(
+      title = paste0("CellCycle: direct group mean ECDF comparisons (", spec$method, ")"),
+      subtitle = "Equal-sample mean ECDFs",
+      x = "Pseudotime",
+      y = "Mean ECDF"
+    ) +
+    essential_plot_theme() +
+    ggplot2::theme(legend.position = "bottom", aspect.ratio = NULL)
+}
+
+essential_regenerate_figures_from_tables <- function(tables_root, output_root, spec) {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) stop("ggplot2 is required", call. = FALSE)
+  if (!requireNamespace("ggrepel", quietly = TRUE)) stop("ggrepel is required", call. = FALSE)
+
+  plot_data_dir <- file.path(tables_root, "plot_data", spec$method)
+  stats_dir <- file.path(tables_root, "stats", spec$method)
+  figures_dir <- essential_ensure_dir(file.path(output_root, "Figures", spec$method))
+  read_plot_data <- function(stem, required) {
+    essential_read_figure_table(
+      file.path(plot_data_dir, paste0(stem, "_plot_data.csv")),
+      required,
+      paste0(stem, " plot data")
+    )
+  }
+  read_stats <- function(filename, required) {
+    essential_read_figure_table(
+      file.path(stats_dir, filename), required, paste0(filename, " statistics")
+    )
+  }
+
+  association_stats <- read_stats(
+    "CellCycle_TGI_associations_ecdf_rmse.csv",
+    c(
+      "reference_type", "shift_metric", "tgi_measure", "n", "pearson_r",
+      "pearson_p_asymptotic", "pearson_p_permutation_two_sided",
+      "pearson_p_permutation_positive", "pearson_n_permutations",
+      "pearson_permutation_mode", "spearman_rho", "spearman_p_asymptotic",
+      "spearman_p_permutation_two_sided", "spearman_p_permutation_positive",
+      "spearman_n_permutations", "spearman_permutation_mode"
+    )
+  )
+  primary_stats <- essential_require_single_row(
+    association_stats,
+    association_stats$reference_type == "primary_equal_sample_reference" &
+      association_stats$shift_metric == "ecdf_rmse" &
+      association_stats$tgi_measure == "TGI_percent_auc",
+    "Primary ECDF-TGI association"
+  )
+  primary_pearson <- essential_prefixed_association(primary_stats, "pearson")
+  primary_spearman <- essential_prefixed_association(primary_stats, "spearman")
+
+  primary_data <- read_plot_data(
+    "CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref",
+    c("sample_id", "ecdf_rmse", "TGI_percent_auc", "dose", "dose_mg", "analysis_group")
+  )
+  primary_data <- essential_restore_scatter_factors(primary_data, spec)
+  primary_data <- essential_attach_association(
+    primary_data,
+    "CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref",
+    primary_pearson,
+    primary_spearman
+  )
+  primary_plot <- essential_scatter_plot(
+    primary_data,
+    "ecdf_rmse",
+    "TGI_percent_auc",
+    "dose",
+    "analysis_group",
+    essential_dose_colors(),
+    "Cell-cycle-associated tumor cells: AUC TGI vs sample-equal ECDF shift",
+    "ECDF RMSE from group-matched equal-sample 0 mg/kg reference",
+    "AUC-based TGI (%)",
+    "Dose",
+    spec$group_label,
+    primary_data$plot_annotation[[1L]]
+  )
+  essential_save_pdf(
+    primary_plot,
+    file.path(figures_dir, "CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref.pdf"),
+    6.8,
+    6.8
+  )
+
+  direct_data <- read_plot_data(
+    "CellCycle_direct_group_ecdf_comparisons",
+    c("panel", "pseudotime", "mean_ecdf", "curve_label", "color_group", "line_group")
+  )
+  direct_stats <- read_stats(
+    "CellCycle_direct_group_ecdf_comparisons_9panel_tests.csv",
+    c("panel", "annotation", "p_ecdf_rmse", "p_ecdf_ks")
+  )
+  direct_plot <- essential_direct_plot_from_tables(direct_data, direct_stats, spec)
+  essential_save_pdf(
+    direct_plot,
+    file.path(figures_dir, "CellCycle_direct_group_ecdf_comparisons.pdf"),
+    15,
+    11.5
+  )
+
+  mean_stats_all <- read_stats(
+    "CellCycle_TGI_associations_mean_ETP.csv",
+    c(
+      "tgi_measure", "n", "pearson_r", "pearson_p_asymptotic",
+      "pearson_p_permutation_two_sided", "pearson_p_permutation_positive",
+      "pearson_n_permutations", "pearson_permutation_mode", "spearman_rho",
+      "spearman_p_asymptotic", "spearman_p_permutation_two_sided",
+      "spearman_p_permutation_positive", "spearman_n_permutations",
+      "spearman_permutation_mode"
+    )
+  )
+  mean_stats <- essential_require_single_row(
+    mean_stats_all,
+    mean_stats_all$tgi_measure == "TGI_percent_auc",
+    "Mean ETP-TGI association"
+  )
+  mean_data <- read_plot_data(
+    "CellCycle_TGI_AUC_vs_mean_ETP",
+    c(
+      "sample_id", "sample_mean_endpoint_ploidy", "TGI_percent_auc",
+      "dose", "dose_mg", "analysis_group"
+    )
+  )
+  mean_data <- essential_restore_scatter_factors(mean_data, spec)
+  mean_data <- essential_attach_association(
+    mean_data,
+    "CellCycle_TGI_AUC_vs_mean_ETP",
+    essential_prefixed_association(mean_stats, "pearson"),
+    essential_prefixed_association(mean_stats, "spearman")
+  )
+  mean_plot <- essential_scatter_plot(
+    mean_data,
+    "sample_mean_endpoint_ploidy",
+    "TGI_percent_auc",
+    "dose",
+    "analysis_group",
+    essential_dose_colors(),
+    "Cell-cycle-associated tumor cells: AUC TGI vs sample mean ETP",
+    "Sample mean ETP",
+    "AUC-based TGI (%)",
+    "Dose",
+    spec$group_label,
+    mean_data$plot_annotation[[1L]]
+  )
+  essential_save_pdf(
+    mean_plot,
+    file.path(figures_dir, "CellCycle_TGI_AUC_vs_mean_ETP.pdf"),
+    6.8,
+    6.8
+  )
+
+  model_data <- read_plot_data(
+    "CellCycle_AUC_TGI_vs_ecdf_rmse_by_ploidy_dose",
+    c("sample_id", "ecdf_rmse", "TGI_percent_auc", "dose", "dose_mg", "analysis_group")
+  )
+  model_data <- essential_restore_scatter_factors(model_data, spec)
+  model_data <- essential_attach_association(
+    model_data,
+    "CellCycle_AUC_TGI_vs_ecdf_rmse_by_ploidy_dose",
+    primary_pearson,
+    primary_spearman
+  )
+  model_plot <- essential_scatter_plot(
+    model_data,
+    "ecdf_rmse",
+    "TGI_percent_auc",
+    "analysis_group",
+    "dose",
+    essential_group_colors(spec),
+    "CellCycle: AUC-TGI association with pseudotime shift and ploidy",
+    "ECDF RMSE from group-matched 0 mg/kg reference",
+    "AUC-based TGI (%)",
+    spec$group_label,
+    "Dose",
+    model_data$plot_annotation[[1L]]
+  )
+  essential_save_pdf(
+    model_plot,
+    file.path(figures_dir, "CellCycle_AUC_TGI_vs_ecdf_rmse_by_ploidy_dose.pdf"),
+    6.8,
+    6.8
+  )
+
+  centered_stats_all <- read_stats(
+    "residualized_TGI_associations.csv",
+    c(
+      "analysis", "method", "n", "estimate", "p_value",
+      "p_permutation_two_sided", "n_permutations", "permutation_mode"
+    )
+  )
+  centered_stats <- essential_require_single_row(
+    centered_stats_all,
+    centered_stats_all$analysis == "within_dose_centered" & centered_stats_all$method == "pearson",
+    "Within-dose-centered TGI association"
+  )
+  centered_data <- read_plot_data(
+    "CellCycle_TGI_association_within_dose_centered",
+    c(
+      "sample_id", "shift_centered", "tgi_centered", "dose", "dose_mg",
+      "analysis_group", "spearman_rho", "spearman_p_asymptotic",
+      "spearman_p_permutation_two_sided", "spearman_p_permutation_positive",
+      "spearman_n_permutations", "spearman_permutation_mode"
+    )
+  )
+  centered_data <- essential_restore_scatter_factors(centered_data, spec)
+  centered_data <- essential_attach_association(
+    centered_data,
+    "CellCycle_TGI_association_within_dose_centered",
+    essential_generic_association(centered_stats),
+    essential_plot_data_association(centered_data, "spearman")
+  )
+  centered_plot <- essential_scatter_plot(
+    centered_data,
+    "shift_centered",
+    "tgi_centered",
+    "dose",
+    "analysis_group",
+    essential_dose_colors(),
+    "CellCycle TGI association after within-dose centering",
+    "Dose-centered ECDF RMSE",
+    "Dose-centered AUC TGI",
+    "Dose",
+    spec$group_label,
+    centered_data$plot_annotation[[1L]],
+    label_nudge_y = 1.0
+  ) +
+    ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.35)
+  essential_save_pdf(
+    centered_plot,
+    file.path(figures_dir, "CellCycle_TGI_association_within_dose_centered.pdf"),
+    6.6,
+    6.6
+  )
+
+  ploidy_stats_all <- read_stats(
+    "ploidy_confounding_tests.csv",
+    c(
+      "sample_set", "shift_metric", "ploidy_measure", "method", "n",
+      "estimate", "p_value", "p_permutation_two_sided", "n_permutations",
+      "permutation_mode"
+    )
+  )
+  ploidy_primary <- ploidy_stats_all[
+    ploidy_stats_all$sample_set == "all" &
+      ploidy_stats_all$shift_metric == "ecdf_rmse" &
+      ploidy_stats_all$ploidy_measure == "mean_cell_ploidy",
+    ,
+    drop = FALSE
+  ]
+  ploidy_pearson <- essential_require_single_row(
+    ploidy_primary, ploidy_primary$method == "pearson", "Ploidy Pearson association"
+  )
+  ploidy_spearman <- essential_require_single_row(
+    ploidy_primary, ploidy_primary$method == "spearman", "Ploidy Spearman association"
+  )
+  ploidy_data <- read_plot_data(
+    "CellCycle_ecdf_rmse_vs_ploidy",
+    c("sample_id", "mean_cell_ploidy", "ecdf_rmse", "dose", "dose_mg", "analysis_group")
+  )
+  ploidy_data <- ploidy_data[
+    is.finite(essential_safe_numeric(ploidy_data$mean_cell_ploidy)) &
+      is.finite(essential_safe_numeric(ploidy_data$ecdf_rmse)),
+    ,
+    drop = FALSE
+  ]
+  ploidy_data <- essential_restore_scatter_factors(ploidy_data, spec)
+  ploidy_data <- essential_attach_association(
+    ploidy_data,
+    "CellCycle_ecdf_rmse_vs_ploidy",
+    essential_generic_association(ploidy_pearson),
+    essential_generic_association(ploidy_spearman)
+  )
+  ploidy_plot <- essential_scatter_plot(
+    ploidy_data,
+    "mean_cell_ploidy",
+    "ecdf_rmse",
+    "dose",
+    "analysis_group",
+    essential_dose_colors(),
+    "CellCycle ECDF RMSE vs mean cell ploidy",
+    "Mean cell ploidy",
+    "ECDF RMSE",
+    "Dose",
+    spec$group_label,
+    ploidy_data$plot_annotation[[1L]],
+    label_nudge_y = 0.004
+  )
+  essential_save_pdf(
+    ploidy_plot,
+    file.path(figures_dir, "CellCycle_ecdf_rmse_vs_ploidy.pdf"),
+    6.4,
+    6.4
+  )
+
+  invisible(list(method = spec$method, figures = length(essential_figure_filenames())))
+}
+
+essential_validate_figures_only_inventory <- function(output_root, methods) {
+  expected <- sort(essential_figure_filenames())
+  for (method in methods) {
+    method_dir <- file.path(output_root, "Figures", method)
+    actual <- sort(list.files(method_dir, pattern = "[.]pdf$", full.names = FALSE))
+    other <- list.files(method_dir, all.files = TRUE, no.. = TRUE, full.names = FALSE)
+    other <- setdiff(other, actual)
+    if (!identical(actual, expected)) {
+      stop("Unexpected figure-only PDF inventory for method: ", method, call. = FALSE)
+    }
+    if (length(other) > 0L) {
+      stop("Unexpected non-PDF figure-only output for method: ", method, call. = FALSE)
+    }
+  }
+  invisible(list(figures = length(expected) * length(methods)))
+}
+
 essential_write_readme <- function(output_root) {
   lines <- c(
     "# Essential pseudotime-TGI analysis",
@@ -1253,6 +1706,8 @@ essential_write_readme <- function(output_root) {
     "## Figure data",
     "",
     "Each plotting-data CSV contains the exact rows used by its PDF. Scatter-plot tables also contain the Pearson and Spearman statistics, permutation P values, permutation mode, and the annotation text printed in the figure.",
+    "",
+    "Figures can be regenerated without the cell-level inputs and without rerunning statistical tests by using `--figures_only=TRUE --tables_root=<existing-output-root>`. In this mode the workflow reads only `plot_data/` and the required files in `stats/`, and writes only `Figures/`.",
     "",
     "The NonCellCycle input is used only when deriving sample mean end-timepoint ploidy. All figures and reported associations use CellCycle cells."
   )

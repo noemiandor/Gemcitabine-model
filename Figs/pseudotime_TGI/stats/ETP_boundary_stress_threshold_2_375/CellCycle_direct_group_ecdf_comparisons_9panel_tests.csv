@@ -1,37 +1,28 @@
-"panel","test_design","comparison","group_a","group_b","stratified_by_end_timepoint_ploidy_group","n_samples","n_group_a","n_group_b","observed_ecdf_rmse","observed_ecdf_ks","observed_ecdf_mean_abs","p_ecdf_rmse","p_ecdf_ks","p_ecdf_mean_abs","n_permutations","permutation_mode","q_ecdf_rmse_exploratory","q_ecdf_ks_exploratory","q_ecdf_mean_abs_exploratory","version","threshold","estimable","annotation"
-"1. 0 vs treated","sample_label_permutation","0_vs_30plus120","0mg/kg","treated",FALSE,16,8,8,0.037800328540575,0.0712209140744628,0.0300236113005118,0.0048,0.0224,0.0067,10000,"monte_carlo_label_permutation",0.0147630147630148,0.0606060606060606,0.0202020202020202,"ETP_boundary_stress_threshold_2_375",2.375,TRUE,"0mg/kg n=8; treated n=8
-RMSE=0.0378, p=0.0048
-KS=0.07122, p=0.0224
-monte_carlo_label_permutation"
-"2. 0 vs treated, ETP-stratified","treatment_label_permutation_within_ETP_group","0_vs_30plus120","0mg/kg","treated",TRUE,16,8,8,0.037800328540575,0.0712209140744628,0.0300236113005118,0.00553613053613054,0.0227272727272727,0.00757575757575758,6864,"exact_label_enumeration",0.0147630147630148,0.0606060606060606,0.0202020202020202,"ETP_boundary_stress_threshold_2_375",2.375,TRUE,"0mg/kg n=8; treated n=8
-RMSE=0.0378, p=0.00554
-KS=0.07122, p=0.0227
-exact_label_enumeration"
-"3. 0 vs 30 mg/kg","sample_label_permutation","0_vs_30","0mg/kg","30mg/kg",FALSE,12,8,4,0.0375618756069773,0.0782318473216765,0.0289620439235884,0.0424242424242424,0.0444444444444444,0.0666666666666667,495,"exact_label_enumeration",0.0678787878787879,0.0888888888888889,0.106666666666667,"ETP_boundary_stress_threshold_2_375",2.375,TRUE,"0mg/kg n=8; 30mg/kg n=4
-RMSE=0.03756, p=0.0424
-KS=0.07823, p=0.0444
-exact_label_enumeration"
-"4. 0 vs 120 mg/kg","sample_label_permutation","0_vs_120","0mg/kg","120mg/kg",FALSE,12,8,4,0.0396177815022109,0.072626089022138,0.0324774328320978,0.0282828282828283,0.0787878787878788,0.0343434343434343,495,"exact_label_enumeration",0.0565656565656566,0.126060606060606,0.0686868686868687,"ETP_boundary_stress_threshold_2_375",2.375,TRUE,"0mg/kg n=8; 120mg/kg n=4
-RMSE=0.03962, p=0.0283
-KS=0.07263, p=0.0788
-exact_label_enumeration"
-"5. 30 vs 120 mg/kg","sample_label_permutation","30_vs_120","30mg/kg","120mg/kg",FALSE,8,4,4,0.013141417693567,0.0354648405319967,0.0100259531961663,0.942857142857143,0.885714285714286,0.942857142857143,70,"exact_label_enumeration",0.942857142857143,0.885714285714286,0.942857142857143,"ETP_boundary_stress_threshold_2_375",2.375,TRUE,"30mg/kg n=4; 120mg/kg n=4
-RMSE=0.01314, p=0.943
-KS=0.03546, p=0.886
-exact_label_enumeration"
-"6. Treated: ETP-lower vs ETP-higher","unpaired_sample_ETP_label_permutation",NA,"ETP-lower","ETP-higher",FALSE,8,7,1,0.0387015438105506,0.103005496906615,0.0274188989815197,0.375,0.25,0.375,8,"exact_label_enumeration",0.428571428571429,0.285714285714286,0.428571428571429,"ETP_boundary_stress_threshold_2_375",2.375,TRUE,"ETP-lower n=7; ETP-higher n=1
-RMSE=0.0387, p=0.375
-KS=0.103, p=0.25
-exact_label_enumeration"
-"7. Control: ETP-lower vs ETP-higher","unpaired_sample_ETP_label_permutation",NA,"ETP-lower","ETP-higher",FALSE,8,7,1,0.0576875769555216,0.123854623096656,0.0502181413113488,0.125,0.125,0.125,8,"exact_label_enumeration",0.166666666666667,0.166666666666667,0.166666666666667,"ETP_boundary_stress_threshold_2_375",2.375,TRUE,"ETP-lower n=7; ETP-higher n=1
-RMSE=0.05769, p=0.125
-KS=0.1239, p=0.125
-exact_label_enumeration"
-"8. ETP-higher: 0 vs treated","sample_treatment_label_permutation_within_ETP_group",NA,"0mg/kg","treated",FALSE,2,1,1,NA,NA,NA,NA,NA,NA,NA,"not_estimable_insufficient_samples",NA,NA,NA,"ETP_boundary_stress_threshold_2_375",2.375,FALSE,"0mg/kg n=1; treated n=1
-RMSE=NA, p=NA
-KS=NA, p=NA
-not estimable"
-"9. ETP-lower: 0 vs treated","sample_treatment_label_permutation_within_ETP_group",NA,"0mg/kg","treated",FALSE,14,7,7,0.0460385892437692,0.0870410299646067,0.035293485219089,0.00174825174825175,0.00524475524475524,0.00233100233100233,3432,"exact_label_enumeration",0.013986013986014,0.041958041958042,0.0186480186480186,"ETP_boundary_stress_threshold_2_375",2.375,TRUE,"0mg/kg n=7; treated n=7
-RMSE=0.04604, p=0.00175
-KS=0.08704, p=0.00524
-exact_label_enumeration"
+"panel","test_design","comparison","group_a","group_b","stratified_by_analysis_group","n_samples","n_group_a","n_group_b","observed_ecdf_rmse","observed_ecdf_ks","observed_ecdf_mean_abs","p_ecdf_rmse","p_ecdf_ks","p_ecdf_mean_abs","n_permutations","permutation_mode","method","q_ecdf_rmse_exploratory","q_ecdf_ks_exploratory","q_ecdf_mean_abs_exploratory","threshold","estimable","annotation"
+"1. 0 vs treated","sample_label_permutation","0_vs_30plus120","0mg/kg","treated",FALSE,16,8,8,0.037800328540575,0.0712209140744628,0.0300236113005118,0.0048,0.0224,0.0067,10000,"monte_carlo_label_permutation","ETP_boundary_stress_threshold_2_375",0.0147630147630148,0.0606060606060606,0.0202020202020202,2.375,TRUE,"0mg/kg n=8; treated n=8
+RMSE=0.0378, P=0.0048
+KS=0.07122, P=0.0224"
+"2. 0 vs treated, ETP-stratified","treatment_label_permutation_within_group","0_vs_30plus120","0mg/kg","treated",TRUE,16,8,8,0.037800328540575,0.0712209140744628,0.0300236113005118,0.00553613053613054,0.0227272727272727,0.00757575757575758,6864,"exact_label_enumeration","ETP_boundary_stress_threshold_2_375",0.0147630147630148,0.0606060606060606,0.0202020202020202,2.375,TRUE,"0mg/kg n=8; treated n=8
+RMSE=0.0378, P=0.00554
+KS=0.07122, P=0.0227"
+"3. 0 vs 30 mg/kg","sample_label_permutation","0_vs_30","0mg/kg","30mg/kg",FALSE,12,8,4,0.0375618756069773,0.0782318473216765,0.0289620439235884,0.0424242424242424,0.0444444444444444,0.0666666666666667,495,"exact_label_enumeration","ETP_boundary_stress_threshold_2_375",0.0678787878787879,0.0888888888888889,0.106666666666667,2.375,TRUE,"0mg/kg n=8; 30mg/kg n=4
+RMSE=0.03756, P=0.0424
+KS=0.07823, P=0.0444"
+"4. 0 vs 120 mg/kg","sample_label_permutation","0_vs_120","0mg/kg","120mg/kg",FALSE,12,8,4,0.0396177815022109,0.072626089022138,0.0324774328320978,0.0282828282828283,0.0787878787878788,0.0343434343434343,495,"exact_label_enumeration","ETP_boundary_stress_threshold_2_375",0.0565656565656566,0.126060606060606,0.0686868686868687,2.375,TRUE,"0mg/kg n=8; 120mg/kg n=4
+RMSE=0.03962, P=0.0283
+KS=0.07263, P=0.0788"
+"5. 30 vs 120 mg/kg","sample_label_permutation","30_vs_120","30mg/kg","120mg/kg",FALSE,8,4,4,0.013141417693567,0.0354648405319967,0.0100259531961663,0.942857142857143,0.885714285714286,0.942857142857143,70,"exact_label_enumeration","ETP_boundary_stress_threshold_2_375",0.942857142857143,0.885714285714286,0.942857142857143,2.375,TRUE,"30mg/kg n=4; 120mg/kg n=4
+RMSE=0.01314, P=0.943
+KS=0.03546, P=0.886"
+"6. Treated: ETP-lower vs ETP-higher","unpaired_group_label_permutation",NA,"ETP-lower","ETP-higher",FALSE,8,7,1,0.0387015438105506,0.103005496906615,0.0274188989815197,0.375,0.25,0.375,8,"exact_label_enumeration","ETP_boundary_stress_threshold_2_375",0.428571428571429,0.285714285714286,0.428571428571429,2.375,TRUE,"ETP-lower n=7; ETP-higher n=1
+RMSE=0.0387, P=0.375
+KS=0.103, P=0.25"
+"7. Control: ETP-lower vs ETP-higher","unpaired_group_label_permutation",NA,"ETP-lower","ETP-higher",FALSE,8,7,1,0.0576875769555216,0.123854623096656,0.0502181413113488,0.125,0.125,0.125,8,"exact_label_enumeration","ETP_boundary_stress_threshold_2_375",0.166666666666667,0.166666666666667,0.166666666666667,2.375,TRUE,"ETP-lower n=7; ETP-higher n=1
+RMSE=0.05769, P=0.125
+KS=0.1239, P=0.125"
+"8. ETP-higher: 0 vs treated","treatment_label_permutation_within_group",NA,"0mg/kg","treated",FALSE,2,1,1,NA,NA,NA,NA,NA,NA,NA,"not_estimable","ETP_boundary_stress_threshold_2_375",NA,NA,NA,2.375,FALSE,"0mg/kg n=1; treated n=1
+RMSE=NA, P=NA
+KS=NA, P=NA"
+"9. ETP-lower: 0 vs treated","treatment_label_permutation_within_group",NA,"0mg/kg","treated",FALSE,14,7,7,0.0460385892437692,0.0870410299646067,0.035293485219089,0.00174825174825175,0.00524475524475524,0.00233100233100233,3432,"exact_label_enumeration","ETP_boundary_stress_threshold_2_375",0.013986013986014,0.041958041958042,0.0186480186480186,2.375,TRUE,"0mg/kg n=7; treated n=7
+RMSE=0.04604, P=0.00175
+KS=0.08704, P=0.00524"

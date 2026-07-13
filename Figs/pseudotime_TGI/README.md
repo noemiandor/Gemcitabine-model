@@ -1,20 +1,27 @@
-# Pseudotime-TGI figure and statistics index
+# Essential pseudotime-TGI figure, data, and statistics index
 
-This directory is a curated snapshot of selected CellCycle pseudotime-TGI results.
+This directory is a tracked snapshot of the essential CellCycle pseudotime-TGI results.
 
 ## Source
 
-All files were copied from:
+The snapshot is generated from the standalone workflow:
 
 ```text
-/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04h_pseudotime_TGI
+Code/in-vivo/04h_pseudotime_TGI_essential.R
+Code/in-vivo/04h_pseudotime_TGI_essential_util.R
 ```
 
-The result directory above remains the source of truth. Files in this directory are organized copies for figure review and downstream use.
+The corresponding full result directory is:
+
+```text
+/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04h_pseudotime_TGI_essential
+```
+
+The full analysis starts from the two 04h cell-level input CSV files. The NonCellCycle input is used only when deriving sample mean end-timepoint ploidy; all figures and reported associations use CellCycle cells.
 
 ## Methods
 
-The same six figures and their associated statistical outputs are provided for four peer-level grouping methods:
+The same six figures, plotting-data tables, and statistical outputs are provided for four peer-level grouping methods:
 
 | Method directory | Grouping definition |
 |---|---|
@@ -28,34 +35,32 @@ The same six figures and their associated statistical outputs are provided for f
 ```text
 pseudotime_TGI/
 ├── Figures/
-│   ├── initial_ploidy/
-│   ├── ETP_fixed_threshold_2_25/
-│   ├── ETP_boundary_stress_threshold_2_375/
-│   └── ETP_reference_balanced_threshold_2_24/
+│   └── <method>/
 ├── stats/
-│   ├── initial_ploidy/
-│   ├── ETP_fixed_threshold_2_25/
-│   ├── ETP_boundary_stress_threshold_2_375/
-│   └── ETP_reference_balanced_threshold_2_24/
+│   └── <method>/
+├── plot_data/
+│   └── <method>/
 └── README.md
 ```
 
-Each method contains six PDF figures and thirteen CSV statistical files.
+Each method contains six PDF figures, thirteen statistical CSV files, and six plotting-data CSV files.
 
-## Figure-to-statistics mapping
+## Figure-to-table mapping
 
-| Figure | Primary statistical file(s) | Supporting statistical file(s) | Interpretation of the matching result |
+| Figure | Plotting-data table | Primary statistical file(s) | Supporting statistical file(s) |
 |---|---|---|---|
-| `CellCycle_direct_group_ecdf_comparisons.pdf` | `CellCycle_direct_group_ecdf_comparisons_9panel_tests.csv` | None | The CSV contains the permutation tests and effect sizes for all nine ECDF comparison panels. |
-| `CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref.pdf` | `CellCycle_TGI_associations_ecdf_rmse.csv` | `CellCycle_primary_TGI_robustness_summary.csv`; `CellCycle_primary_TGI_leave_one_out.csv`; `CellCycle_primary_TGI_bootstrap.csv` | The plotted primary association uses treated CellCycle samples, the equal-sample reference, ECDF RMSE, and AUC-based TGI. The three supporting files report robustness, leave-one-out influence, and bootstrap uncertainty. |
-| `CellCycle_TGI_AUC_vs_mean_ETP.pdf` | `CellCycle_TGI_associations_mean_ETP.csv` | `CellCycle_mean_ETP_TGI_robustness_summary.csv`; `CellCycle_mean_ETP_TGI_leave_one_out.csv`; `CellCycle_mean_ETP_TGI_bootstrap.csv` | The plotted association uses treated CellCycle samples, sample mean ETP as the predictor, and AUC-based TGI as the response. The supporting files report the corresponding robustness analyses. |
-| `CellCycle_AUC_TGI_vs_ecdf_rmse_by_ploidy_dose.pdf` | `CellCycle_AUC_TGI_shift_ploidy_dose_models.csv`; `CellCycle_AUC_TGI_shift_ploidy_dose_model_summaries.csv` | None | These files contain the shift-only model, the ploidy- and dose-adjusted model, and the shift-by-ploidy interaction model shown by the grouped scatter plot context. |
-| `CellCycle_TGI_association_within_dose_centered.pdf` | `residualized_TGI_associations.csv` | None | Use the row with `compartment = CellCycle` and `analysis = within_dose_centered` for the correlation displayed in the figure. |
-| `CellCycle_ecdf_rmse_vs_ploidy.pdf` | `ploidy_confounding_tests.csv` | None | Use rows with `compartment = CellCycle`, `sample_set = all`, `shift_metric = ecdf_rmse`, and `ploidy_measure = mean_cell_ploidy`; Pearson and Spearman results are both reported. |
+| `CellCycle_direct_group_ecdf_comparisons.pdf` | `CellCycle_direct_group_ecdf_comparisons_plot_data.csv` | `CellCycle_direct_group_ecdf_comparisons_9panel_tests.csv` | None |
+| `CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref.pdf` | `CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref_plot_data.csv` | `CellCycle_TGI_associations_ecdf_rmse.csv` | `CellCycle_primary_TGI_robustness_summary.csv`; `CellCycle_primary_TGI_leave_one_out.csv`; `CellCycle_primary_TGI_bootstrap.csv` |
+| `CellCycle_TGI_AUC_vs_mean_ETP.pdf` | `CellCycle_TGI_AUC_vs_mean_ETP_plot_data.csv` | `CellCycle_TGI_associations_mean_ETP.csv` | `CellCycle_mean_ETP_TGI_robustness_summary.csv`; `CellCycle_mean_ETP_TGI_leave_one_out.csv`; `CellCycle_mean_ETP_TGI_bootstrap.csv` |
+| `CellCycle_AUC_TGI_vs_ecdf_rmse_by_ploidy_dose.pdf` | `CellCycle_AUC_TGI_vs_ecdf_rmse_by_ploidy_dose_plot_data.csv` | `CellCycle_AUC_TGI_shift_ploidy_dose_models.csv`; `CellCycle_AUC_TGI_shift_ploidy_dose_model_summaries.csv` | `CellCycle_TGI_associations_ecdf_rmse.csv` supplies the displayed primary correlation and permutation P value. |
+| `CellCycle_TGI_association_within_dose_centered.pdf` | `CellCycle_TGI_association_within_dose_centered_plot_data.csv` | `residualized_TGI_associations.csv` | None |
+| `CellCycle_ecdf_rmse_vs_ploidy.pdf` | `CellCycle_ecdf_rmse_vs_ploidy_plot_data.csv` | `ploidy_confounding_tests.csv` | None |
+
+Each plotting-data CSV contains the exact rows used by its PDF. Scatter-plot tables also retain the Pearson and Spearman statistics, asymptotic and permutation P values, permutation mode, permutation count, sample count, and annotation text printed in the figure.
 
 ## Primary-row filters
 
-For `CellCycle_TGI_associations_ecdf_rmse.csv`, the primary row plotted in `CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref.pdf` is identified by:
+For `CellCycle_TGI_associations_ecdf_rmse.csv`, the primary row displayed in the equal-sample-reference association figures is identified by:
 
 ```text
 compartment = CellCycle
@@ -66,7 +71,7 @@ tgi_measure = TGI_percent_auc
 pre_specified_primary = TRUE
 ```
 
-For `CellCycle_TGI_associations_mean_ETP.csv`, the AUC-based mean-ETP row plotted in `CellCycle_TGI_AUC_vs_mean_ETP.pdf` is identified by:
+For `CellCycle_TGI_associations_mean_ETP.csv`, the AUC-based mean-ETP row is identified by:
 
 ```text
 compartment = CellCycle
@@ -75,22 +80,46 @@ predictor_label = sample_mean_ETP
 tgi_measure = TGI_percent_auc
 ```
 
-## Normalized association filename
+For `residualized_TGI_associations.csv`, the displayed within-dose-centered result is identified by:
 
-The ECDF RMSE association table had a historical engine-specific filename in the source results:
+```text
+compartment = CellCycle
+analysis = within_dose_centered
+method = pearson
+```
 
-| Method | Source filename | Curated filename |
-|---|---|---|
-| `initial_ploidy` | `CellCycle_TGI_associations_v5.csv` | `CellCycle_TGI_associations_ecdf_rmse.csv` |
-| All three ETP methods | `CellCycle_TGI_associations_v4.csv` | `CellCycle_TGI_associations_ecdf_rmse.csv` |
+For `ploidy_confounding_tests.csv`, the displayed all-sample ploidy association is identified by:
 
-Only the copied filename was normalized. The CSV contents and source files were not modified.
+```text
+compartment = CellCycle
+sample_set = all
+shift_metric = ecdf_rmse
+ploidy_measure = mean_cell_ploidy
+```
+
+## Figures-only regeneration
+
+The figures can be regenerated directly from the tracked plotting-data and statistical tables without the cell-level inputs and without rerunning statistical tests:
+
+```bash
+Rscript Code/in-vivo/04h_pseudotime_TGI_essential.R \
+  --figures_only=TRUE \
+  --tables_root='Figs/pseudotime_TGI' \
+  --output_root='Figs/pseudotime_TGI' \
+  --methods=all \
+  --workers=4 \
+  --overwrite=TRUE
+```
+
+In figures-only mode, the workflow reads only `plot_data/` and the required files in `stats/`. It replaces only the selected `Figures/<method>/` directories and does not modify `stats/`, `plot_data/`, or this README.
 
 ## Inventory
 
 - Four method directories
 - Six PDF figures per method
-- Thirteen CSV statistical files per method
+- Thirteen statistical CSV files per method
+- Six plotting-data CSV files per method
 - Twenty-four PDF files in total
-- Fifty-two CSV files in total
+- Fifty-two statistical CSV files in total
+- Twenty-four plotting-data CSV files in total
 - No PNG, PPT, or PPTX files
