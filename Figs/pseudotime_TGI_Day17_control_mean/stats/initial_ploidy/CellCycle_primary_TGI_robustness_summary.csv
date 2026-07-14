@@ -1,0 +1,2 @@
+"tgi_measure","full_n","full_pearson_r","full_pearson_perm_p","full_spearman_rho","full_spearman_perm_p","leave_one_out_all_positive","leave_one_out_min_pearson_r","leave_one_out_max_pearson_p","n_influential_flags","bootstrap_pearson_r_ci025","bootstrap_pearson_r_ci975","bootstrap_spearman_rho_ci025","bootstrap_spearman_rho_ci975"
+"TGI_percent_Day_17",8,0.701645478116547,0.0525049603174603,0.357142857142857,0.389384920634921,TRUE,0.53441721107591,0.216545129924468,0,0.0240419591370303,0.932551344899852,-0.539473684210526,1

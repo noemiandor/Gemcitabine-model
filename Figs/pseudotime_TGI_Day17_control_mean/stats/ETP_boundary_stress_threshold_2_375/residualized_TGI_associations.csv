@@ -1,0 +1,3 @@
+"compartment","analysis","method","n","estimate","tgi_measure","p_value","p_permutation_two_sided","n_permutations","permutation_mode"
+"CellCycle","residualized_against_dose_and_end_timepoint_ploidy_group","pearson",8,0.73629055430278,"TGI_percent_Day_17",0.0372580602557535,0.0378224206349206,40320,"exact_TGI_label_enumeration"
+"CellCycle","within_dose_centered","pearson",8,0.705550545509698,"TGI_percent_Day_17",0.0505579615775774,0.0277777777777778,576,"exact_within_stratum_TGI_label_enumeration"

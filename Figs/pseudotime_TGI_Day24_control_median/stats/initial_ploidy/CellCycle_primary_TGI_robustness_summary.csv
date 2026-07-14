@@ -1,0 +1,2 @@
+"tgi_measure","full_n","full_pearson_r","full_pearson_perm_p","full_spearman_rho","full_spearman_perm_p","leave_one_out_all_positive","leave_one_out_min_pearson_r","leave_one_out_max_pearson_p","n_influential_flags","bootstrap_pearson_r_ci025","bootstrap_pearson_r_ci975","bootstrap_spearman_rho_ci025","bootstrap_spearman_rho_ci975"
+"TGI_percent_Day_24_control_median",8,0.687053837689016,0.0674603174603175,0.428571428571429,0.299206349206349,TRUE,0.586228608122836,0.166578335922772,0,0.122354874302402,0.945082781327403,-0.452054794520548,0.972602739726027

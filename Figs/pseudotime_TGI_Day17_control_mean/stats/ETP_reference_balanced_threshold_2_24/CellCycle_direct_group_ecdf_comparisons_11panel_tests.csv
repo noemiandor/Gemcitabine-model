@@ -1,0 +1,34 @@
+"panel","test_design","comparison","group_a","group_b","stratified_by_analysis_group","n_samples","n_group_a","n_group_b","observed_ecdf_rmse","observed_ecdf_ks","observed_ecdf_mean_abs","p_ecdf_rmse","p_ecdf_ks","p_ecdf_mean_abs","n_permutations","permutation_mode","method","q_ecdf_rmse_exploratory","q_ecdf_ks_exploratory","q_ecdf_mean_abs_exploratory","threshold","estimable","annotation"
+"1. 0 vs treated","sample_label_permutation","0_vs_30plus120","0mg/kg","treated",FALSE,16,8,8,0.037800328540575,0.0712209140744628,0.0300236113005118,0.0048,0.0224,0.0067,10000,"monte_carlo_label_permutation","ETP_reference_balanced_threshold_2_24",0.0359183673469388,0.127959183673469,0.0493877551020408,2.24,TRUE,"0mg/kg n=8; treated n=8
+RMSE=0.0378, P=0.0048
+KS=0.07122, P=0.0224"
+"2. 0 vs treated, ETP-stratified","treatment_label_permutation_within_group","0_vs_30plus120","0mg/kg","treated",TRUE,16,8,8,0.037800328540575,0.0712209140744628,0.0300236113005118,0.00653061224489796,0.023265306122449,0.00897959183673469,4900,"exact_label_enumeration","ETP_reference_balanced_threshold_2_24",0.0359183673469388,0.127959183673469,0.0493877551020408,2.24,TRUE,"0mg/kg n=8; treated n=8
+RMSE=0.0378, P=0.00653
+KS=0.07122, P=0.0233"
+"3. 0 vs 30 mg/kg","sample_label_permutation","0_vs_30","0mg/kg","30mg/kg",FALSE,12,8,4,0.0375618756069773,0.0782318473216765,0.0289620439235884,0.0424242424242424,0.0444444444444444,0.0666666666666667,495,"exact_label_enumeration","ETP_reference_balanced_threshold_2_24",0.116666666666667,0.157142857142857,0.146666666666667,2.24,TRUE,"0mg/kg n=8; 30mg/kg n=4
+RMSE=0.03756, P=0.0424
+KS=0.07823, P=0.0444"
+"4. 0 vs 120 mg/kg","sample_label_permutation","0_vs_120","0mg/kg","120mg/kg",FALSE,12,8,4,0.0396177815022109,0.072626089022138,0.0324774328320978,0.0282828282828283,0.0787878787878788,0.0343434343434343,495,"exact_label_enumeration","ETP_reference_balanced_threshold_2_24",0.103703703703704,0.173333333333333,0.0944444444444444,2.24,TRUE,"0mg/kg n=8; 120mg/kg n=4
+RMSE=0.03962, P=0.0283
+KS=0.07263, P=0.0788"
+"5. 30 vs 120 mg/kg","sample_label_permutation","30_vs_120","30mg/kg","120mg/kg",FALSE,8,4,4,0.013141417693567,0.0354648405319967,0.0100259531961663,0.942857142857143,0.885714285714286,0.942857142857143,70,"exact_label_enumeration","ETP_reference_balanced_threshold_2_24",1,1,1,2.24,TRUE,"30mg/kg n=4; 120mg/kg n=4
+RMSE=0.01314, P=0.943
+KS=0.03546, P=0.886"
+"6. Treated: ETP-lower vs ETP-higher","unpaired_group_label_permutation",NA,"ETP-lower","ETP-higher",FALSE,8,4,4,0.0117403217705477,0.0307630986532721,0.00903715979500971,0.971428571428571,1,0.971428571428571,70,"exact_label_enumeration","ETP_reference_balanced_threshold_2_24",1,1,1,2.24,TRUE,"ETP-lower n=4; ETP-higher n=4
+RMSE=0.01174, P=0.971
+KS=0.03076, P=   1"
+"7. Control: ETP-lower vs ETP-higher","unpaired_group_label_permutation",NA,"ETP-lower","ETP-higher",FALSE,8,4,4,0.0143720426366541,0.0351839497274238,0.0114312424122155,0.942857142857143,0.942857142857143,0.885714285714286,70,"exact_label_enumeration","ETP_reference_balanced_threshold_2_24",1,1,1,2.24,TRUE,"ETP-lower n=4; ETP-higher n=4
+RMSE=0.01437, P=0.943
+KS=0.03518, P=0.943"
+"8. ETP-higher: 0 vs treated","treatment_label_permutation_within_group",NA,"0mg/kg","treated",FALSE,8,4,4,0.0355380018042233,0.073567054182667,0.0273472160838909,0.171428571428571,0.2,0.285714285714286,70,"exact_label_enumeration","ETP_reference_balanced_threshold_2_24",0.314285714285714,0.366666666666667,0.523809523809524,2.24,TRUE,"0mg/kg n=4; treated n=4
+RMSE=0.03554, P=0.171
+KS=0.07357, P= 0.2"
+"9. ETP-lower: 0 vs treated","treatment_label_permutation_within_group",NA,"0mg/kg","treated",FALSE,8,4,4,0.0428791731723767,0.0800317385577162,0.0356852913142678,0.0571428571428571,0.0571428571428571,0.0285714285714286,70,"exact_label_enumeration","ETP_reference_balanced_threshold_2_24",0.125714285714286,0.157142857142857,0.0944444444444444,2.24,TRUE,"0mg/kg n=4; treated n=4
+RMSE=0.04288, P=0.0571
+KS=0.08003, P=0.0571"
+"10. 30 mg/kg: 2N vs 4N","initial_ploidy_label_permutation_within_dose",NA,"2N","4N",FALSE,4,2,2,0.0424757938000861,0.115354485223446,0.0316372329631699,0.333333333333333,0.333333333333333,0.333333333333333,6,"exact_label_enumeration","ETP_reference_balanced_threshold_2_24",0.523809523809524,0.523809523809524,0.523809523809524,2.24,TRUE,"2N n=2; 4N n=2
+RMSE=0.04248, P=0.333
+KS=0.1154, P=0.333"
+"11. 120 mg/kg: 2N vs 4N","initial_ploidy_label_permutation_within_dose",NA,"2N","4N",FALSE,4,2,2,0.0253904248773596,0.0645301854342601,0.0204135579303325,1,1,1,6,"exact_label_enumeration","ETP_reference_balanced_threshold_2_24",1,1,1,2.24,TRUE,"2N n=2; 4N n=2
+RMSE=0.02539, P=   1
+KS=0.06453, P=   1"

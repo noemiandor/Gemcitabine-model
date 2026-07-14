@@ -18,6 +18,18 @@ dir.create(font_cache, recursive = TRUE, showWarnings = FALSE)
 Sys.setenv(XDG_CACHE_HOME = font_cache)
 
 arguments <- essential_parse_args(commandArgs(trailingOnly = TRUE))
+tgi_outcome <- essential_arg(
+  arguments,
+  "tgi-outcome",
+  essential_arg(arguments, "tgi_outcome", "auc")
+)
+control_summary <- essential_arg(
+  arguments,
+  "control-summary",
+  essential_arg(arguments, "control_summary", "mean")
+)
+tgi_day <- essential_arg(arguments, "tgi-day", essential_arg(arguments, "tgi_day", NULL))
+tgi_spec <- essential_tgi_spec(tgi_outcome, control_summary, tgi_day)
 repo_root <- normalizePath(file.path(script_dir, "..", ".."), mustWork = FALSE)
 input_root <- normalizePath(
   essential_arg(arguments, "input_root", file.path(repo_root, "Data", "in-vivo")),
@@ -157,9 +169,10 @@ if (!is.null(internal_method)) {
     spec = method_specs[[internal_method]],
     seed = seed,
     n_perm = n_perm,
-    n_boot = n_boot
+    n_boot = n_boot,
+    tgi_spec = tgi_spec
   )
-  message("Completed essential method: ", internal_method)
+  message("Completed essential method: ", internal_method, " [", tgi_spec$measure, "]")
   quit(save = "no", status = 0L)
 }
 
@@ -266,7 +279,18 @@ essential_ensure_dir(file.path(output_root, "stats"))
 essential_ensure_dir(file.path(output_root, "plot_data"))
 
 rscript <- file.path(R.home("bin"), "Rscript")
-run_child <- function(method, rscript, script_path, cellcycle_input, noncellcycle_input, output_root, seed, n_perm, n_boot) {
+run_child <- function(
+  method,
+  rscript,
+  script_path,
+  cellcycle_input,
+  noncellcycle_input,
+  output_root,
+  seed,
+  n_perm,
+  n_boot,
+  tgi_spec
+) {
   child_arguments <- c(
     shQuote(script_path),
     shQuote(paste0("--internal_method=", method)),
@@ -275,8 +299,13 @@ run_child <- function(method, rscript, script_path, cellcycle_input, noncellcycl
     shQuote(paste0("--output_root=", output_root)),
     paste0("--seed=", seed),
     paste0("--n_perm=", n_perm),
-    paste0("--n_boot=", n_boot)
+    paste0("--n_boot=", n_boot),
+    shQuote(paste0("--tgi-outcome=", tgi_spec$outcome)),
+    shQuote(paste0("--control-summary=", tgi_spec$control_summary))
   )
+  if (identical(tgi_spec$outcome, "day")) {
+    child_arguments <- c(child_arguments, paste0("--tgi-day=", tgi_spec$day))
+  }
   status <- system2(rscript, args = child_arguments)
   as.integer(status)
 }
@@ -299,7 +328,8 @@ if (workers > 1L && length(selected_methods) > 1L) {
     output_root = output_root,
     seed = seed,
     n_perm = n_perm,
-    n_boot = n_boot
+    n_boot = n_boot,
+    tgi_spec = tgi_spec
   ))
   parallel::stopCluster(cluster)
   on.exit(NULL, add = FALSE)
@@ -314,7 +344,8 @@ if (workers > 1L && length(selected_methods) > 1L) {
       output_root,
       seed,
       n_perm,
-      n_boot
+      n_boot,
+      tgi_spec
     )
   }, integer(1L))
 }
@@ -324,9 +355,10 @@ if (any(statuses != 0L)) {
   stop("Essential method worker(s) failed: ", paste(failed, collapse = ", "), call. = FALSE)
 }
 
-essential_write_readme(output_root)
+essential_write_readme(output_root, tgi_spec)
 inventory <- essential_validate_inventory(output_root, selected_methods)
 message("Completed essential pseudotime-TGI analysis")
+message("Selected TGI outcome: ", tgi_spec$measure)
 message("Output root: ", output_root)
 message(
   "Inventory: ", inventory$figures, " PDF; ", inventory$stats,

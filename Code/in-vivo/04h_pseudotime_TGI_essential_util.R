@@ -578,7 +578,187 @@ essential_endpoint_tgi_columns <- function(names_vector) {
 }
 
 essential_endpoint_day <- function(column) {
-  essential_safe_numeric(sub("^TGI_percent_Day_", "", column))
+  essential_safe_numeric(sub("^TGI_percent_Day_([0-9]+).*$", "\\1", column))
+}
+
+essential_tgi_spec <- function(outcome = "auc", control_summary = "mean", tgi_day = NULL) {
+  outcome <- tolower(trimws(as.character(outcome)))
+  control_summary <- tolower(trimws(as.character(control_summary)))
+  if (!outcome %in% c("auc", "day")) {
+    stop("tgi-outcome must be one of: auc, day", call. = FALSE)
+  }
+  if (!control_summary %in% c("mean", "median", "max")) {
+    stop("control-summary must be one of: mean, median, max", call. = FALSE)
+  }
+  day_value <- if (is.null(tgi_day) || !nzchar(as.character(tgi_day))) {
+    NA_real_
+  } else {
+    essential_safe_numeric(tgi_day)
+  }
+  day <- if (
+    is.finite(day_value) && day_value >= 0 && day_value == floor(day_value)
+  ) as.integer(day_value) else NA_integer_
+  if (identical(outcome, "day") && is.na(day)) {
+    stop("A non-negative integer --tgi-day is required when --tgi-outcome=day", call. = FALSE)
+  }
+  if (identical(outcome, "auc")) day <- NA_integer_
+
+  base_measure <- if (identical(outcome, "auc")) {
+    "TGI_percent_auc"
+  } else {
+    paste0("TGI_percent_Day_", day)
+  }
+  measure <- if (identical(control_summary, "mean")) {
+    base_measure
+  } else {
+    paste0(base_measure, "_control_", control_summary)
+  }
+  delta_column <- if (identical(outcome, "auc")) {
+    "tumor_volume_auc_delta"
+  } else {
+    paste0("tumor_volume_delta_Day_", day)
+  }
+  short_label <- if (identical(outcome, "auc")) "AUC TGI" else paste0("Day ", day, " TGI")
+  reference_label <- paste0(
+    control_summary,
+    " of initial-ploidy-matched untreated controls"
+  )
+  axis_label <- if (identical(control_summary, "mean")) {
+    paste0(short_label, " (%)")
+  } else {
+    paste0(short_label, " (%; ", reference_label, ")")
+  }
+  title_label <- if (identical(control_summary, "mean")) {
+    short_label
+  } else {
+    paste0(short_label, " [", reference_label, "]")
+  }
+  list(
+    outcome = outcome,
+    control_summary = control_summary,
+    day = day,
+    base_measure = base_measure,
+    measure = measure,
+    delta_column = delta_column,
+    short_label = short_label,
+    title_label = title_label,
+    axis_label = axis_label,
+    reference_label = reference_label
+  )
+}
+
+essential_tgi_spec_from_measure <- function(measure) {
+  measure <- as.character(measure)[[1L]]
+  auc_match <- regexec("^TGI_percent_auc(?:_control_(mean|median|max))?$", measure, perl = TRUE)
+  auc_parts <- regmatches(measure, auc_match)[[1L]]
+  if (length(auc_parts) > 0L) {
+    summary <- if (length(auc_parts) >= 2L && nzchar(auc_parts[[2L]])) auc_parts[[2L]] else "mean"
+    return(essential_tgi_spec("auc", summary, NULL))
+  }
+  day_match <- regexec(
+    "^TGI_percent_Day_([0-9]+)(?:_control_(mean|median|max))?$",
+    measure,
+    perl = TRUE
+  )
+  day_parts <- regmatches(measure, day_match)[[1L]]
+  if (length(day_parts) > 0L) {
+    summary <- if (length(day_parts) >= 3L && nzchar(day_parts[[3L]])) day_parts[[3L]] else "mean"
+    return(essential_tgi_spec("day", summary, day_parts[[2L]]))
+  }
+  stop("Unsupported TGI measure in saved tables: ", measure, call. = FALSE)
+}
+
+essential_tgi_columns <- function(names_vector) {
+  columns <- grep(
+    "^TGI_percent_(auc(?:_control_(?:mean|median|max))?|Day_[0-9]+(?:_control_(?:mean|median|max))?)$",
+    names_vector,
+    value = TRUE,
+    perl = TRUE
+  )
+  auc <- columns[grepl("^TGI_percent_auc", columns)]
+  endpoint <- columns[grepl("^TGI_percent_Day_", columns)]
+  endpoint_days <- essential_endpoint_day(endpoint)
+  unique(c(sort(auc), endpoint[order(endpoint_days, endpoint)]))
+}
+
+essential_apply_tgi_spec <- function(cellcycle, noncellcycle, tgi_spec) {
+  if (identical(tgi_spec$control_summary, "mean")) {
+    missing <- Filter(
+      function(data) !tgi_spec$measure %in% names(data),
+      list(cellcycle, noncellcycle)
+    )
+    if (length(missing) > 0L) {
+      stop("Input is missing selected TGI column: ", tgi_spec$measure, call. = FALSE)
+    }
+    return(list(cellcycle = cellcycle, noncellcycle = noncellcycle))
+  }
+
+  required <- c(
+    "sample_id", "initial_ploidy", "gemcitabine_dose_mg_per_kg", tgi_spec$delta_column
+  )
+  missing <- setdiff(required, intersect(names(cellcycle), names(noncellcycle)))
+  if (length(missing) > 0L) {
+    stop(
+      "Input is missing columns required for ", tgi_spec$measure, ": ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  union <- rbind(
+    cellcycle[, required, drop = FALSE],
+    noncellcycle[, required, drop = FALSE]
+  )
+  sample_ids <- sort(unique(as.character(union$sample_id)))
+  sample_rows <- lapply(sample_ids, function(sample_id) {
+    data.frame(
+      sample_id = sample_id,
+      initial_ploidy = essential_unique_sample_value(union, "initial_ploidy", sample_id),
+      dose_mg = essential_unique_sample_value(
+        union, "gemcitabine_dose_mg_per_kg", sample_id, numeric = TRUE
+      ),
+      delta = essential_unique_sample_value(union, tgi_spec$delta_column, sample_id, numeric = TRUE),
+      stringsAsFactors = FALSE
+    )
+  })
+  samples <- do.call(rbind, sample_rows)
+  samples$reference_delta <- NA_real_
+  for (ploidy in unique(samples$initial_ploidy)) {
+    control_values <- samples$delta[
+      samples$initial_ploidy == ploidy & samples$dose_mg == 0 & is.finite(samples$delta)
+    ]
+    if (length(control_values) == 0L) {
+      stop("No finite 0 mg/kg AUC/day controls for initial ploidy ", ploidy, call. = FALSE)
+    }
+    reference <- switch(
+      tgi_spec$control_summary,
+      median = stats::median(control_values),
+      max = max(control_values)
+    )
+    samples$reference_delta[samples$initial_ploidy == ploidy] <- reference
+  }
+  samples$selected_tgi <- 100 * (1 - samples$delta / samples$reference_delta)
+  samples$selected_tgi[!is.finite(samples$selected_tgi)] <- NA_real_
+  selected <- setNames(samples$selected_tgi, samples$sample_id)
+  cellcycle[[tgi_spec$measure]] <- unname(selected[as.character(cellcycle$sample_id)])
+  noncellcycle[[tgi_spec$measure]] <- unname(selected[as.character(noncellcycle$sample_id)])
+  list(cellcycle = cellcycle, noncellcycle = noncellcycle)
+}
+
+essential_add_tgi_plot_metadata <- function(data, tgi_spec, value_column = NULL) {
+  if (!is.null(value_column)) {
+    if (!value_column %in% names(data)) stop("Missing TGI plot value column: ", value_column, call. = FALSE)
+    data$tgi_value <- essential_safe_numeric(data[[value_column]])
+  } else if (!"tgi_value" %in% names(data)) {
+    if (!tgi_spec$measure %in% names(data)) stop("Missing selected TGI measure: ", tgi_spec$measure, call. = FALSE)
+    data$tgi_value <- essential_safe_numeric(data[[tgi_spec$measure]])
+  }
+  data$tgi_measure <- tgi_spec$measure
+  data$tgi_outcome <- tgi_spec$outcome
+  data$tgi_control_summary <- tgi_spec$control_summary
+  data$tgi_day <- tgi_spec$day
+  data$tgi_axis_label <- tgi_spec$axis_label
+  data$tgi_title_label <- tgi_spec$title_label
+  data
 }
 
 essential_method_specs <- function() {
@@ -638,6 +818,7 @@ essential_read_input <- function(path, compartment) {
   }
   numeric_columns <- unique(c(
     "gemcitabine_dose_mg_per_kg", "pseudotime", "cell_ploidy", "TGI_percent_auc",
+    grep("^tumor_volume_(auc_delta|delta_Day_[0-9]+)$", names(data), value = TRUE),
     essential_endpoint_tgi_columns(names(data))
   ))
   for (column in intersect(numeric_columns, names(data))) {
@@ -745,9 +926,9 @@ essential_prepare_cellcycle <- function(cellcycle, assignments, spec) {
   data
 }
 
-essential_build_sample_meta <- function(data) {
+essential_build_sample_meta <- function(data, tgi_column = "TGI_percent_auc") {
   sample_ids <- sort(unique(data$sample_id))
-  tgi_columns <- unique(c("TGI_percent_auc", essential_endpoint_tgi_columns(names(data))))
+  tgi_columns <- unique(c(essential_tgi_columns(names(data)), tgi_column))
   rows <- lapply(sample_ids, function(sample_id) {
     local <- data[data$sample_id == sample_id, , drop = FALSE]
     base <- data.frame(
@@ -795,16 +976,27 @@ essential_sample_ecdf_matrix <- function(data, sample_ids, grid) {
   matrix_values
 }
 
-essential_calculate_shift_metrics <- function(data, sample_meta, pooled_reference = FALSE) {
+essential_calculate_shift_metrics <- function(
+  data,
+  sample_meta,
+  pooled_reference = FALSE,
+  control_scope = c("analysis_group", "all_untreated")
+) {
+  control_scope <- match.arg(control_scope)
   grid <- essential_make_grid(data)
   sample_ids <- rownames(sample_meta)
   ecdf_matrix <- essential_sample_ecdf_matrix(data, sample_ids, grid)
   rows <- lapply(sample_ids, function(sample_id) {
     group <- sample_meta[sample_id, "analysis_group"]
     dose_mg <- sample_meta[sample_id, "dose_mg"]
-    controls <- sample_meta$sample_id[
-      sample_meta$analysis_group == group & sample_meta$dose_mg == 0
-    ]
+    controls <- if (identical(control_scope, "all_untreated")) {
+      sample_meta$sample_id[sample_meta$dose_mg == 0]
+    } else {
+      sample_meta$sample_id[
+        sample_meta$analysis_group == group & sample_meta$dose_mg == 0
+      ]
+    }
+    controls <- sort(as.character(controls))
     reference_samples <- if (dose_mg == 0) setdiff(controls, sample_id) else controls
     if (length(reference_samples) == 0L) {
       delta <- rep(NA_real_, length(grid))
@@ -825,14 +1017,20 @@ essential_calculate_shift_metrics <- function(data, sample_meta, pooled_referenc
     finite_delta <- delta[is.finite(delta)]
     row <- data.frame(
       sample_id = sample_id,
-      reference_type = if (pooled_reference) "sensitivity_pooled_cell_reference" else "primary_equal_sample_reference",
+      reference_type = if (pooled_reference) {
+        "sensitivity_pooled_cell_reference"
+      } else if (identical(control_scope, "all_untreated")) {
+        "all_untreated_equal_sample_reference"
+      } else {
+        "primary_equal_sample_reference"
+      },
+      control_scope = control_scope,
       initial_ploidy = sample_meta[sample_id, "initial_ploidy"],
       initial_ploidy_numeric = sample_meta[sample_id, "initial_ploidy_numeric"],
       analysis_group = group,
       analysis_group_numeric = sample_meta[sample_id, "analysis_group_numeric"],
       dose = sample_meta[sample_id, "dose"],
       dose_mg = dose_mg,
-      TGI_percent_auc = sample_meta[sample_id, "TGI_percent_auc"],
       cell_count = sample_meta[sample_id, "n_cells"],
       sample_mean_endpoint_ploidy = sample_meta[sample_id, "sample_mean_endpoint_ploidy"],
       mean_cell_ploidy = sample_meta[sample_id, "mean_cell_ploidy"],
@@ -848,7 +1046,7 @@ essential_calculate_shift_metrics <- function(data, sample_meta, pooled_referenc
       signed_mean_shift = sample_meta[sample_id, "mean_pseudotime"] - reference_mean,
       stringsAsFactors = FALSE
     )
-    for (column in essential_endpoint_tgi_columns(names(sample_meta))) {
+    for (column in essential_tgi_columns(names(sample_meta))) {
       row[[column]] <- sample_meta[sample_id, column]
     }
     row
@@ -1120,19 +1318,25 @@ essential_run_dose_tests <- function(data, n_perm) {
   do.call(rbind, output)
 }
 
-essential_run_tgi_associations <- function(equal_shift, pooled_shift, method, n_perm) {
+essential_run_tgi_associations <- function(
+  equal_shift,
+  pooled_shift,
+  method,
+  n_perm,
+  primary_tgi_column = "TGI_percent_auc"
+) {
   references <- list(
     primary_equal_sample_reference = equal_shift,
     sensitivity_pooled_cell_reference = pooled_shift
   )
   shift_columns <- c("ecdf_rmse", "ecdf_ks", "ecdf_mean_abs", "signed_mean_shift")
-  tgi_columns <- unique(c("TGI_percent_auc", essential_endpoint_tgi_columns(names(equal_shift))))
+  tgi_columns <- essential_tgi_columns(names(equal_shift))
   rows <- list()
   for (reference_name in names(references)) {
     treated <- references[[reference_name]][references[[reference_name]]$dose_mg > 0, , drop = FALSE]
     for (shift_column in shift_columns) {
       for (tgi_column in tgi_columns) {
-        exact <- identical(tgi_column, "TGI_percent_auc")
+        exact <- identical(tgi_column, primary_tgi_column)
         pearson <- essential_permutation_cor(treated[[shift_column]], treated[[tgi_column]], "pearson", n_perm, exact)
         spearman <- essential_permutation_cor(treated[[shift_column]], treated[[tgi_column]], "spearman", n_perm, exact)
         rows[[length(rows) + 1L]] <- data.frame(
@@ -1157,7 +1361,7 @@ essential_run_tgi_associations <- function(equal_shift, pooled_shift, method, n_
           spearman_n_permutations = spearman$n_permutations,
           spearman_permutation_mode = spearman$permutation_mode,
           pre_specified_primary = reference_name == "primary_equal_sample_reference" &&
-            shift_column == "ecdf_rmse" && tgi_column == "TGI_percent_auc",
+            shift_column == "ecdf_rmse" && tgi_column == primary_tgi_column,
           stringsAsFactors = FALSE
         )
       }
@@ -1169,11 +1373,16 @@ essential_run_tgi_associations <- function(equal_shift, pooled_shift, method, n_
   output
 }
 
-essential_run_mean_etp_associations <- function(equal_shift, method, n_perm) {
+essential_run_mean_etp_associations <- function(
+  equal_shift,
+  method,
+  n_perm,
+  primary_tgi_column = "TGI_percent_auc"
+) {
   treated <- equal_shift[equal_shift$dose_mg > 0, , drop = FALSE]
-  tgi_columns <- unique(c("TGI_percent_auc", essential_endpoint_tgi_columns(names(treated))))
+  tgi_columns <- essential_tgi_columns(names(treated))
   rows <- lapply(tgi_columns, function(tgi_column) {
-    exact <- identical(tgi_column, "TGI_percent_auc")
+    exact <- identical(tgi_column, primary_tgi_column)
     pearson <- essential_permutation_cor(
       treated$sample_mean_endpoint_ploidy,
       treated[[tgi_column]],
@@ -1210,8 +1419,8 @@ essential_run_mean_etp_associations <- function(equal_shift, method, n_perm) {
       spearman_n_permutations = spearman$n_permutations,
       spearman_permutation_mode = spearman$permutation_mode,
       multiplicity_family = "CellCycle_mean_ETP_TGI",
-      analysis_role = if (exact) "parallel_mean_ETP_AUC" else "exploratory_mean_ETP",
-      pre_specified_primary = FALSE,
+      analysis_role = if (exact) "selected_TGI_outcome" else "exploratory_mean_ETP",
+      pre_specified_primary = exact,
       stringsAsFactors = FALSE
     )
   })
@@ -1221,13 +1430,14 @@ essential_run_mean_etp_associations <- function(equal_shift, method, n_perm) {
   output
 }
 
-essential_leave_one_out <- function(data, predictor) {
-  full_pearson <- essential_safe_cor(data[[predictor]], data$TGI_percent_auc, "pearson")
+essential_leave_one_out <- function(data, predictor, response = "TGI_percent_auc") {
+  full_pearson <- essential_safe_cor(data[[predictor]], data[[response]], "pearson")
   rows <- lapply(data$sample_id, function(sample_id) {
     local <- data[data$sample_id != sample_id, , drop = FALSE]
-    pearson <- essential_safe_cor(local[[predictor]], local$TGI_percent_auc, "pearson")
-    spearman <- essential_safe_cor(local[[predictor]], local$TGI_percent_auc, "spearman")
+    pearson <- essential_safe_cor(local[[predictor]], local[[response]], "pearson")
+    spearman <- essential_safe_cor(local[[predictor]], local[[response]], "spearman")
     data.frame(
+      tgi_measure = response,
       omitted_sample_id = sample_id,
       n = pearson$n,
       pearson_r = pearson$estimate,
@@ -1244,13 +1454,14 @@ essential_leave_one_out <- function(data, predictor) {
   do.call(rbind, rows)
 }
 
-essential_bootstrap <- function(data, predictor, n_boot) {
+essential_bootstrap <- function(data, predictor, n_boot, response = "TGI_percent_auc") {
   rows <- lapply(seq_len(n_boot), function(iteration) {
     indices <- sample(seq_len(nrow(data)), replace = TRUE)
     local <- data[indices, , drop = FALSE]
-    pearson <- essential_safe_cor(local[[predictor]], local$TGI_percent_auc, "pearson")
-    spearman <- essential_safe_cor(local[[predictor]], local$TGI_percent_auc, "spearman")
+    pearson <- essential_safe_cor(local[[predictor]], local[[response]], "pearson")
+    spearman <- essential_safe_cor(local[[predictor]], local[[response]], "spearman")
     data.frame(
+      tgi_measure = response,
       iteration = iteration,
       n = pearson$n,
       pearson_r = pearson$estimate,
@@ -1272,6 +1483,7 @@ essential_quantile <- function(x, probability) {
 essential_primary_robustness_summary <- function(association, leave_one_out, bootstrap) {
   primary <- association[association$pre_specified_primary, , drop = FALSE]
   data.frame(
+    tgi_measure = primary$tgi_measure[[1L]],
     full_n = primary$n[[1L]],
     full_pearson_r = primary$pearson_r[[1L]],
     full_pearson_perm_p = primary$pearson_p_permutation_two_sided[[1L]],
@@ -1289,11 +1501,19 @@ essential_primary_robustness_summary <- function(association, leave_one_out, boo
   )
 }
 
-essential_mean_etp_robustness_summary <- function(method, association, leave_one_out, bootstrap, n_boot) {
-  primary <- association[association$tgi_measure == "TGI_percent_auc", , drop = FALSE]
+essential_mean_etp_robustness_summary <- function(
+  method,
+  association,
+  leave_one_out,
+  bootstrap,
+  n_boot,
+  primary_tgi_column = "TGI_percent_auc"
+) {
+  primary <- association[association$tgi_measure == primary_tgi_column, , drop = FALSE]
   data.frame(
     method = method,
     predictor = "sample_mean_endpoint_ploidy",
+    tgi_measure = primary_tgi_column,
     full_n = primary$n[[1L]],
     full_pearson_r = primary$pearson_r[[1L]],
     full_pearson_asymptotic_p = primary$pearson_p_asymptotic[[1L]],
@@ -1337,18 +1557,23 @@ essential_lm_terms <- function(fit, analysis, model_label, n) {
   )
 }
 
-essential_fit_shift_models <- function(treated, spec) {
-  local <- treated[is.finite(treated$ecdf_rmse) & is.finite(treated$TGI_percent_auc), , drop = FALSE]
+essential_fit_shift_models <- function(treated, spec, tgi_column = "TGI_percent_auc") {
+  local <- treated[
+    is.finite(treated$ecdf_rmse) & is.finite(essential_safe_numeric(treated[[tgi_column]])),
+    ,
+    drop = FALSE
+  ]
   group_column <- spec$group_column
   local[[group_column]] <- factor(as.character(local$analysis_group), levels = spec$group_levels)
   local$dose_mg_factor <- factor(local$dose_mg, levels = sort(unique(local$dose_mg)))
+  outcome <- paste0("`", tgi_column, "`")
   formulas <- c(
-    shift_only = "TGI_percent_auc ~ scale(ecdf_rmse)",
+    shift_only = paste0(outcome, " ~ scale(ecdf_rmse)"),
     shift_ploidy_dose_adjusted = paste0(
-      "TGI_percent_auc ~ scale(ecdf_rmse) + ", group_column, " + dose_mg_factor"
+      outcome, " ~ scale(ecdf_rmse) + ", group_column, " + dose_mg_factor"
     ),
     shift_by_ploidy_dose_adjusted = paste0(
-      "TGI_percent_auc ~ scale(ecdf_rmse) * ", group_column, " + dose_mg_factor"
+      outcome, " ~ scale(ecdf_rmse) * ", group_column, " + dose_mg_factor"
     )
   )
   models <- list()
@@ -1371,13 +1596,23 @@ essential_fit_shift_models <- function(treated, spec) {
     )
   }
   model_table <- do.call(rbind, models)
+  model_table$tgi_measure <- tgi_column
   model_table$pre_specified_primary <- model_table$analysis == "shift_ploidy_dose_adjusted" &
     model_table$term == "scale(ecdf_rmse)"
-  list(models = model_table, summaries = do.call(rbind, summaries))
+  summary_table <- do.call(rbind, summaries)
+  summary_table$tgi_measure <- tgi_column
+  list(models = model_table, summaries = summary_table)
 }
 
-essential_confounding <- function(equal_shift, spec, n_perm) {
-  data <- equal_shift
+essential_confounding <- function(
+  equal_shift,
+  spec,
+  n_perm,
+  tgi_column = "TGI_percent_auc",
+  ploidy_shift = equal_shift
+) {
+  data <- ploidy_shift
+  data <- data[order(as.character(data$sample_id)), , drop = FALSE]
   data[[spec$group_numeric_column]] <- data$analysis_group_numeric
   ploidy_columns <- c(
     "mean_cell_ploidy", "median_cell_ploidy", "p90_cell_ploidy", spec$group_numeric_column
@@ -1395,6 +1630,8 @@ essential_confounding <- function(equal_shift, spec, n_perm) {
           rows[[length(rows) + 1L]] <- data.frame(
             compartment = "CellCycle",
             sample_set = sample_set,
+            reference_type = as.character(local$reference_type[[1L]]),
+            control_scope = as.character(local$control_scope[[1L]]),
             shift_metric = shift_metric,
             ploidy_measure = ploidy_column,
             method = method,
@@ -1412,10 +1649,10 @@ essential_confounding <- function(equal_shift, spec, n_perm) {
   }
   ploidy_tests <- do.call(rbind, rows)
 
-  treated <- data[data$dose_mg > 0, , drop = FALSE]
+  treated <- equal_shift[equal_shift$dose_mg > 0, , drop = FALSE]
   centered <- treated
   centered$shift_centered <- centered$ecdf_rmse - ave(centered$ecdf_rmse, centered$dose_mg, FUN = mean)
-  centered$tgi_centered <- centered$TGI_percent_auc - ave(centered$TGI_percent_auc, centered$dose_mg, FUN = mean)
+  centered$tgi_centered <- centered[[tgi_column]] - ave(centered[[tgi_column]], centered$dose_mg, FUN = mean)
   centered_cor <- essential_safe_cor(centered$shift_centered, centered$tgi_centered, "pearson")
   centered_perm <- essential_permutation_cor(
     centered$shift_centered,
@@ -1426,13 +1663,17 @@ essential_confounding <- function(equal_shift, spec, n_perm) {
     strata = centered$dose_mg
   )
 
-  adjusted <- treated[is.finite(treated$ecdf_rmse) & is.finite(treated$TGI_percent_auc), , drop = FALSE]
+  adjusted <- treated[
+    is.finite(treated$ecdf_rmse) & is.finite(essential_safe_numeric(treated[[tgi_column]])),
+    ,
+    drop = FALSE
+  ]
   shift_residual <- stats::resid(stats::lm(
     ecdf_rmse ~ factor(dose_mg) + analysis_group_numeric,
     data = adjusted
   ))
   tgi_residual <- stats::resid(stats::lm(
-    TGI_percent_auc ~ factor(dose_mg) + analysis_group_numeric,
+    stats::as.formula(paste0("`", tgi_column, "` ~ factor(dose_mg) + analysis_group_numeric")),
     data = adjusted
   ))
   adjusted_cor <- essential_safe_cor(shift_residual, tgi_residual, "pearson")
@@ -1442,6 +1683,7 @@ essential_confounding <- function(equal_shift, spec, n_perm) {
       compartment = "CellCycle",
       analysis = paste0("residualized_against_dose_and_", spec$group_column),
       method = "pearson", n = adjusted_cor$n, estimate = adjusted_cor$estimate,
+      tgi_measure = tgi_column,
       p_value = adjusted_cor$p_value,
       p_permutation_two_sided = adjusted_perm$permutation_p_two_sided,
       n_permutations = adjusted_perm$n_permutations,
@@ -1450,6 +1692,7 @@ essential_confounding <- function(equal_shift, spec, n_perm) {
     ),
     data.frame(
       compartment = "CellCycle", analysis = "within_dose_centered", method = "pearson",
+      tgi_measure = tgi_column,
       n = centered_cor$n, estimate = centered_cor$estimate, p_value = centered_cor$p_value,
       p_permutation_two_sided = centered_perm$permutation_p_two_sided,
       n_permutations = centered_perm$n_permutations,
@@ -1471,7 +1714,10 @@ essential_plot_theme <- function() {
 }
 
 essential_dose_colors <- function() {
-  c("0mg/kg" = "#666666", "30mg/kg" = "#d95f02", "120mg/kg" = "#1b9e77", "treated" = "#377eb8")
+  c(
+    "0mg/kg" = "#666666", "30mg/kg" = "#d95f02", "120mg/kg" = "#1b9e77",
+    "treated" = "#377eb8", "2N" = "#4C78A8", "4N" = "#E45756"
+  )
 }
 
 essential_group_colors <- function(spec) {
@@ -1549,6 +1795,8 @@ essential_direct_ecdf <- function(data, dose_tests, spec, n_perm) {
   panel_seven <- paste0("7. Control: ", group_low, " vs ", group_high)
   panel_eight <- paste0("8. ", group_high, ": 0 vs treated")
   panel_nine <- paste0("9. ", group_low, ": 0 vs treated")
+  panel_ten <- "10. 30 mg/kg: 2N vs 4N"
+  panel_eleven <- "11. 120 mg/kg: 2N vs 4N"
 
   add_curves(data, "1. 0 vs treated", data$treatment_group, data$treatment_group, "All")
   add_curves(
@@ -1575,6 +1823,19 @@ essential_direct_ecdf <- function(data, dose_tests, spec, n_perm) {
   low <- data[data$analysis_group == group_low, , drop = FALSE]
   add_curves(high, panel_eight, high$treatment_group, high$treatment_group, group_high)
   add_curves(low, panel_nine, low$treatment_group, low$treatment_group, group_low)
+  for (dose_definition in list(
+    list(panel = panel_ten, dose_mg = 30),
+    list(panel = panel_eleven, dose_mg = 120)
+  )) {
+    local <- data[data$dose_mg == dose_definition$dose_mg, , drop = FALSE]
+    add_curves(
+      local,
+      dose_definition$panel,
+      as.character(local$initial_ploidy),
+      as.character(local$initial_ploidy),
+      "All"
+    )
+  }
   curves <- do.call(rbind, curve_rows)
 
   get_test <- function(comparison, stratified) {
@@ -1592,6 +1853,10 @@ essential_direct_ecdf <- function(data, dose_tests, spec, n_perm) {
     local <- data[data$analysis_group == group, , drop = FALSE]
     essential_ecdf_group_test(local, "treatment_group", "0mg/kg", "treated", FALSE, n_perm)
   }
+  initial_ploidy_within_dose <- function(dose_mg) {
+    local <- data[data$dose_mg == dose_mg, , drop = FALSE]
+    essential_ecdf_group_test(local, "initial_ploidy", "2N", "4N", FALSE, n_perm)
+  }
   test_rows <- list(
     cbind(panel = "1. 0 vs treated", test_design = "sample_label_permutation", get_test("0_vs_30plus120", FALSE)),
     cbind(panel = stratified_panel, test_design = "treatment_label_permutation_within_group", get_test("0_vs_30plus120", TRUE)),
@@ -1601,7 +1866,9 @@ essential_direct_ecdf <- function(data, dose_tests, spec, n_perm) {
     cbind(panel = panel_six, test_design = "unpaired_group_label_permutation", between_group(treated)),
     cbind(panel = panel_seven, test_design = "unpaired_group_label_permutation", between_group(control)),
     cbind(panel = panel_eight, test_design = "treatment_label_permutation_within_group", treatment_within_group(group_high)),
-    cbind(panel = panel_nine, test_design = "treatment_label_permutation_within_group", treatment_within_group(group_low))
+    cbind(panel = panel_nine, test_design = "treatment_label_permutation_within_group", treatment_within_group(group_low)),
+    cbind(panel = panel_ten, test_design = "initial_ploidy_label_permutation_within_dose", initial_ploidy_within_dose(30)),
+    cbind(panel = panel_eleven, test_design = "initial_ploidy_label_permutation_within_dose", initial_ploidy_within_dose(120))
   )
   all_columns <- unique(unlist(lapply(test_rows, names), use.names = FALSE))
   test_rows <- lapply(test_rows, function(row) {
@@ -1622,7 +1889,8 @@ essential_direct_ecdf <- function(data, dose_tests, spec, n_perm) {
   )
   panel_levels <- c(
     "1. 0 vs treated", stratified_panel, "3. 0 vs 30 mg/kg", "4. 0 vs 120 mg/kg",
-    "5. 30 vs 120 mg/kg", panel_six, panel_seven, panel_eight, panel_nine
+    "5. 30 vs 120 mg/kg", panel_six, panel_seven, panel_eight, panel_nine,
+    panel_ten, panel_eleven
   )
   curves$panel <- factor(curves$panel, levels = panel_levels)
   curves$color_group <- factor(curves$color_group, levels = names(essential_dose_colors()))
@@ -1734,6 +2002,7 @@ essential_scatter_plot <- function(
 essential_figure_filenames <- function() {
   c(
     "CellCycle_direct_group_ecdf_comparisons.pdf",
+    "CellCycle_direct_group_ecdf_comparisons_selected_3panel.pdf",
     "CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref.pdf",
     "CellCycle_TGI_AUC_vs_mean_ETP.pdf",
     "CellCycle_AUC_TGI_vs_ecdf_rmse_by_ploidy_dose.pdf",
@@ -1832,7 +2101,43 @@ essential_restore_scatter_factors <- function(data, spec) {
   data
 }
 
-essential_direct_plot_from_tables <- function(curves, tests, spec) {
+essential_select_direct_panels <- function(curves, tests) {
+  coordinates <- data.frame(
+    row = c(1L, 3L, 3L),
+    column = c(1L, 2L, 3L)
+  )
+  panel_indices <- (coordinates$row - 1L) * 3L + coordinates$column
+  panel_levels <- unique(as.character(tests$panel))
+  if (length(panel_levels) < max(panel_indices)) {
+    stop(
+      "Direct ECDF tables do not contain the requested panels at positions: ",
+      paste(paste0(coordinates$row, ",", coordinates$column), collapse = "; "),
+      call. = FALSE
+    )
+  }
+  selected_levels <- panel_levels[panel_indices]
+  selected_tests <- tests[match(selected_levels, as.character(tests$panel)), , drop = FALSE]
+  selected_curves <- curves[
+    as.character(curves$panel) %in% selected_levels,
+    ,
+    drop = FALSE
+  ]
+  selected_curves$panel <- factor(as.character(selected_curves$panel), levels = selected_levels)
+  selected_tests$panel <- factor(as.character(selected_tests$panel), levels = selected_levels)
+  list(
+    curves = selected_curves,
+    tests = selected_tests,
+    panel_levels = selected_levels,
+    coordinates = coordinates
+  )
+}
+
+essential_direct_plot_from_tables <- function(
+  curves,
+  tests,
+  spec,
+  title = paste0("CellCycle: direct group mean ECDF comparisons (", spec$method, ")")
+) {
   curve_columns <- c("panel", "pseudotime", "mean_ecdf", "curve_label", "color_group", "line_group")
   test_columns <- c("panel", "annotation")
   curve_missing <- setdiff(curve_columns, names(curves))
@@ -1872,7 +2177,7 @@ essential_direct_plot_from_tables <- function(curves, tests, spec) {
     ggplot2::scale_linetype_manual(values = line_values, name = spec$group_label) +
     ggplot2::coord_cartesian(xlim = c(0, 1), ylim = c(0, 1.05), clip = "off") +
     ggplot2::labs(
-      title = paste0("CellCycle: direct group mean ECDF comparisons (", spec$method, ")"),
+      title = title,
       subtitle = "Equal-sample mean ECDFs",
       x = "Pseudotime",
       y = "Mean ECDF"
@@ -1909,23 +2214,23 @@ essential_regenerate_figures_from_tables <- function(tables_root, output_root, s
       "pearson_p_permutation_positive", "pearson_n_permutations",
       "pearson_permutation_mode", "spearman_rho", "spearman_p_asymptotic",
       "spearman_p_permutation_two_sided", "spearman_p_permutation_positive",
-      "spearman_n_permutations", "spearman_permutation_mode"
+      "spearman_n_permutations", "spearman_permutation_mode", "pre_specified_primary"
     )
   )
   primary_stats <- essential_require_single_row(
     association_stats,
-    association_stats$reference_type == "primary_equal_sample_reference" &
-      association_stats$shift_metric == "ecdf_rmse" &
-      association_stats$tgi_measure == "TGI_percent_auc",
+    as.character(association_stats$pre_specified_primary) %in% c("TRUE", "T", "1"),
     "Primary ECDF-TGI association"
   )
+  tgi_spec <- essential_tgi_spec_from_measure(primary_stats$tgi_measure[[1L]])
   primary_pearson <- essential_prefixed_association(primary_stats, "pearson")
   primary_spearman <- essential_prefixed_association(primary_stats, "spearman")
 
   primary_data <- read_plot_data(
     "CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref",
-    c("sample_id", "ecdf_rmse", "TGI_percent_auc", "dose", "dose_mg", "analysis_group")
+    c("sample_id", "ecdf_rmse", "dose", "dose_mg", "analysis_group")
   )
+  primary_data <- essential_add_tgi_plot_metadata(primary_data, tgi_spec)
   primary_data <- essential_restore_scatter_factors(primary_data, spec)
   primary_data <- essential_attach_association(
     primary_data,
@@ -1936,13 +2241,16 @@ essential_regenerate_figures_from_tables <- function(tables_root, output_root, s
   primary_plot <- essential_scatter_plot(
     primary_data,
     "ecdf_rmse",
-    "TGI_percent_auc",
+    "tgi_value",
     "dose",
     "analysis_group",
     essential_dose_colors(),
-    "Cell-cycle-associated tumor cells: AUC TGI vs sample-equal ECDF shift",
+    paste0(
+      "Cell-cycle-associated tumor cells: ", tgi_spec$title_label,
+      " vs sample-equal ECDF shift"
+    ),
     "ECDF RMSE from group-matched equal-sample 0 mg/kg reference",
-    "AUC-based TGI (%)",
+    tgi_spec$axis_label,
     "Dose",
     spec$group_label,
     primary_data$plot_annotation[[1L]]
@@ -1959,7 +2267,7 @@ essential_regenerate_figures_from_tables <- function(tables_root, output_root, s
     c("panel", "pseudotime", "mean_ecdf", "curve_label", "color_group", "line_group")
   )
   direct_stats <- read_stats(
-    "CellCycle_direct_group_ecdf_comparisons_9panel_tests.csv",
+    "CellCycle_direct_group_ecdf_comparisons_11panel_tests.csv",
     c("panel", "annotation", "p_ecdf_rmse", "p_ecdf_ks")
   )
   direct_plot <- essential_direct_plot_from_tables(direct_data, direct_stats, spec)
@@ -1967,7 +2275,25 @@ essential_regenerate_figures_from_tables <- function(tables_root, output_root, s
     direct_plot,
     file.path(figures_dir, "CellCycle_direct_group_ecdf_comparisons.pdf"),
     15,
-    11.5
+    15
+  )
+  selected_direct <- essential_select_direct_panels(direct_data, direct_stats)
+  selected_direct_plot <- essential_direct_plot_from_tables(
+    selected_direct$curves,
+    selected_direct$tests,
+    spec,
+    title = paste0(
+      "CellCycle: selected direct group mean ECDF comparisons (", spec$method, ")"
+    )
+  )
+  essential_save_pdf(
+    selected_direct_plot,
+    file.path(
+      figures_dir,
+      "CellCycle_direct_group_ecdf_comparisons_selected_3panel.pdf"
+    ),
+    15,
+    5.5
   )
 
   mean_stats_all <- read_stats(
@@ -1983,16 +2309,16 @@ essential_regenerate_figures_from_tables <- function(tables_root, output_root, s
   )
   mean_stats <- essential_require_single_row(
     mean_stats_all,
-    mean_stats_all$tgi_measure == "TGI_percent_auc",
+    mean_stats_all$tgi_measure == tgi_spec$measure,
     "Mean ETP-TGI association"
   )
   mean_data <- read_plot_data(
     "CellCycle_TGI_AUC_vs_mean_ETP",
     c(
-      "sample_id", "sample_mean_endpoint_ploidy", "TGI_percent_auc",
-      "dose", "dose_mg", "analysis_group"
+      "sample_id", "sample_mean_endpoint_ploidy", "dose", "dose_mg", "analysis_group"
     )
   )
+  mean_data <- essential_add_tgi_plot_metadata(mean_data, tgi_spec)
   mean_data <- essential_restore_scatter_factors(mean_data, spec)
   mean_data <- essential_attach_association(
     mean_data,
@@ -2003,13 +2329,16 @@ essential_regenerate_figures_from_tables <- function(tables_root, output_root, s
   mean_plot <- essential_scatter_plot(
     mean_data,
     "sample_mean_endpoint_ploidy",
-    "TGI_percent_auc",
+    "tgi_value",
     "dose",
     "analysis_group",
     essential_dose_colors(),
-    "Cell-cycle-associated tumor cells: AUC TGI vs sample mean ETP",
+    paste0(
+      "Cell-cycle-associated tumor cells: ", tgi_spec$title_label,
+      " vs sample mean ETP"
+    ),
     "Sample mean ETP",
-    "AUC-based TGI (%)",
+    tgi_spec$axis_label,
     "Dose",
     spec$group_label,
     mean_data$plot_annotation[[1L]]
@@ -2023,8 +2352,9 @@ essential_regenerate_figures_from_tables <- function(tables_root, output_root, s
 
   model_data <- read_plot_data(
     "CellCycle_AUC_TGI_vs_ecdf_rmse_by_ploidy_dose",
-    c("sample_id", "ecdf_rmse", "TGI_percent_auc", "dose", "dose_mg", "analysis_group")
+    c("sample_id", "ecdf_rmse", "dose", "dose_mg", "analysis_group")
   )
+  model_data <- essential_add_tgi_plot_metadata(model_data, tgi_spec)
   model_data <- essential_restore_scatter_factors(model_data, spec)
   model_data <- essential_attach_association(
     model_data,
@@ -2035,13 +2365,16 @@ essential_regenerate_figures_from_tables <- function(tables_root, output_root, s
   model_plot <- essential_scatter_plot(
     model_data,
     "ecdf_rmse",
-    "TGI_percent_auc",
+    "tgi_value",
     "analysis_group",
     "dose",
     essential_group_colors(spec),
-    "CellCycle: AUC-TGI association with pseudotime shift and ploidy",
+    paste0(
+      "CellCycle: ", tgi_spec$title_label,
+      " association with pseudotime shift and ploidy"
+    ),
     "ECDF RMSE from group-matched 0 mg/kg reference",
-    "AUC-based TGI (%)",
+    tgi_spec$axis_label,
     spec$group_label,
     "Dose",
     model_data$plot_annotation[[1L]]
@@ -2090,7 +2423,7 @@ essential_regenerate_figures_from_tables <- function(tables_root, output_root, s
     essential_dose_colors(),
     "CellCycle TGI association after within-dose centering",
     "Dose-centered ECDF RMSE",
-    "Dose-centered AUC TGI",
+    paste0("Dose-centered ", tgi_spec$axis_label),
     "Dose",
     spec$group_label,
     centered_data$plot_annotation[[1L]],
@@ -2113,7 +2446,7 @@ essential_regenerate_figures_from_tables <- function(tables_root, output_root, s
     )
   )
   ploidy_primary <- ploidy_stats_all[
-    ploidy_stats_all$sample_set == "all" &
+    ploidy_stats_all$sample_set == "treated" &
       ploidy_stats_all$shift_metric == "ecdf_rmse" &
       ploidy_stats_all$ploidy_measure == "mean_cell_ploidy",
     ,
@@ -2127,15 +2460,32 @@ essential_regenerate_figures_from_tables <- function(tables_root, output_root, s
   )
   ploidy_data <- read_plot_data(
     "CellCycle_ecdf_rmse_vs_ploidy",
-    c("sample_id", "mean_cell_ploidy", "ecdf_rmse", "dose", "dose_mg", "analysis_group")
+    c(
+      "sample_id", "mean_cell_ploidy", "ecdf_rmse", "dose", "dose_mg",
+      "analysis_group", "initial_ploidy"
+    )
   )
   ploidy_data <- ploidy_data[
-    is.finite(essential_safe_numeric(ploidy_data$mean_cell_ploidy)) &
+    essential_safe_numeric(ploidy_data$dose_mg) > 0 &
+      is.finite(essential_safe_numeric(ploidy_data$mean_cell_ploidy)) &
       is.finite(essential_safe_numeric(ploidy_data$ecdf_rmse)),
     ,
     drop = FALSE
   ]
+  ploidy_data <- ploidy_data[
+    order(
+      essential_safe_numeric(ploidy_data$dose_mg),
+      as.character(ploidy_data$initial_ploidy),
+      as.character(ploidy_data$sample_id)
+    ),
+    ,
+    drop = FALSE
+  ]
   ploidy_data <- essential_restore_scatter_factors(ploidy_data, spec)
+  ploidy_data$initial_ploidy <- factor(
+    as.character(ploidy_data$initial_ploidy),
+    levels = c("2N", "4N")
+  )
   ploidy_data <- essential_attach_association(
     ploidy_data,
     "CellCycle_ecdf_rmse_vs_ploidy",
@@ -2147,13 +2497,13 @@ essential_regenerate_figures_from_tables <- function(tables_root, output_root, s
     "mean_cell_ploidy",
     "ecdf_rmse",
     "dose",
-    "analysis_group",
+    "initial_ploidy",
     essential_dose_colors(),
-    "CellCycle ECDF RMSE vs mean cell ploidy",
+    "Treated CellCycle ECDF RMSE vs mean cell ploidy",
     "Mean cell ploidy",
     "ECDF RMSE",
     "Dose",
-    spec$group_label,
+    "Initial ploidy",
     ploidy_data$plot_annotation[[1L]],
     label_nudge_y = 0.004
   )
@@ -2184,7 +2534,7 @@ essential_validate_figures_only_inventory <- function(output_root, methods) {
   invisible(list(figures = length(expected) * length(methods)))
 }
 
-essential_write_readme <- function(output_root) {
+essential_write_readme <- function(output_root, tgi_spec = essential_tgi_spec()) {
   lines <- c(
     "# Essential pseudotime-TGI analysis",
     "",
@@ -2194,11 +2544,24 @@ essential_write_readme <- function(output_root) {
     "",
     "The standalone workflow uses base R plus the `ggplot2`, `ggrepel`, `readr`, and `readxl` packages.",
     "",
+    "## Selected TGI outcome",
+    "",
+    paste0("- Measure: `", tgi_spec$measure, "`."),
+    paste0("- Outcome: `", tgi_spec$outcome, "`."),
+    paste0("- Matched untreated-control summary: `", tgi_spec$control_summary, "`."),
+    if (identical(tgi_spec$outcome, "day")) paste0("- TGI day: `", tgi_spec$day, "`.") else NULL,
+    "",
+    "TGI is calculated as `100 * (1 - mouse tumor-growth delta / matched-control reference delta)`. Controls are matched by initial ploidy. `--control-summary` chooses whether the matched untreated-control deltas are summarized by their mean, median, or maximum; it does not summarize the treated mice.",
+    "",
+    "CLI options: `--tgi-outcome=auc|day`, `--control-summary=mean|median|max`, and (for the day outcome) `--tgi-day=<available day>`.",
+    "",
+    "The established output filenames retain `AUC` where present for backward compatibility. The selected outcome is recorded in the statistical `tgi_measure` fields, in scatter-plot metadata, and in plot titles and axes.",
+    "",
     "## Contents",
     "",
-    "- `Figures/<method>/`: six CellCycle PDF figures per method.",
+    "- `Figures/<method>/`: seven CellCycle PDF figures per method.",
     "- `stats/<method>/`: thirteen statistical CSV files per method.",
-    "- `plot_data/<method>/`: one plotting-data CSV for each figure.",
+    "- `plot_data/<method>/`: seven plotting-data CSV files per method, one for each figure.",
     "",
     "## Methods",
     "",
@@ -2211,6 +2574,10 @@ essential_write_readme <- function(output_root) {
     "",
     "Each plotting-data CSV contains the exact rows used by its PDF. Scatter-plot tables also contain the Pearson and Spearman statistics, permutation P values, permutation mode, and the annotation text printed in the figure.",
     "",
+    "`CellCycle_direct_group_ecdf_comparisons_selected_3panel.pdf` retains original grid positions `(1,1)`, `(3,2)`, and `(3,3)` (panels 1, 8, and 9). Its plotting-data CSV is a subset of the full direct-ECDF plotting table, and both figures reuse `CellCycle_direct_group_ecdf_comparisons_11panel_tests.csv`; no duplicate statistics file is produced.",
+    "",
+    "`CellCycle_ecdf_rmse_vs_ploidy.pdf` uses treated mice only for the correlation and one threshold-independent reference formed by averaging the ECDF of each of the eight 0 mg/kg mice with equal sample weight. Initial ploidy, rather than the threshold-defined ETP group, supplies the point shape.",
+    "",
     "Figures can be regenerated without the cell-level inputs and without rerunning statistical tests by using `--figures_only=TRUE --tables_root=<existing-output-root>`. In this mode the workflow reads only `plot_data/` and the required files in `stats/`, and writes only `Figures/`.",
     "",
     "The NonCellCycle input is used only when deriving sample mean end-timepoint ploidy. All figures and reported associations use CellCycle cells."
@@ -2219,7 +2586,16 @@ essential_write_readme <- function(output_root) {
   invisible(file.path(output_root, "README.md"))
 }
 
-essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root, spec, seed, n_perm, n_boot) {
+essential_run_method <- function(
+  cellcycle_path,
+  noncellcycle_path,
+  output_root,
+  spec,
+  seed,
+  n_perm,
+  n_boot,
+  tgi_spec = essential_tgi_spec()
+) {
   if (!requireNamespace("ggplot2", quietly = TRUE)) stop("ggplot2 is required", call. = FALSE)
   if (!requireNamespace("ggrepel", quietly = TRUE)) stop("ggrepel is required", call. = FALSE)
   set.seed(seed)
@@ -2229,14 +2605,29 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
 
   cellcycle <- essential_read_input(cellcycle_path, "CellCycle")
   noncellcycle <- essential_read_input(noncellcycle_path, "NonCellCycle")
+  selected_tgi <- essential_apply_tgi_spec(cellcycle, noncellcycle, tgi_spec)
+  cellcycle <- selected_tgi$cellcycle
+  noncellcycle <- selected_tgi$noncellcycle
   assignments <- essential_derive_assignments(cellcycle, noncellcycle)
   data <- essential_prepare_cellcycle(cellcycle, assignments, spec)
-  sample_meta <- essential_build_sample_meta(data)
+  sample_meta <- essential_build_sample_meta(data, tgi_spec$measure)
   equal_shift <- essential_calculate_shift_metrics(data, sample_meta, pooled_reference = FALSE)
   pooled_shift <- essential_calculate_shift_metrics(data, sample_meta, pooled_reference = TRUE)
+  ploidy_shift <- essential_calculate_shift_metrics(
+    data,
+    sample_meta,
+    pooled_reference = FALSE,
+    control_scope = "all_untreated"
+  )
   dose_tests <- essential_run_dose_tests(data, n_perm)
 
-  association <- essential_run_tgi_associations(equal_shift, pooled_shift, spec$method, n_perm)
+  association <- essential_run_tgi_associations(
+    equal_shift,
+    pooled_shift,
+    spec$method,
+    n_perm,
+    primary_tgi_column = tgi_spec$measure
+  )
   essential_write_csv(association, file.path(stats_dir, "CellCycle_TGI_associations_ecdf_rmse.csv"))
   primary <- association[association$pre_specified_primary, , drop = FALSE]
   primary_pearson <- data.frame(
@@ -2254,6 +2645,7 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
     permutation_mode = primary$spearman_permutation_mode
   )
   treated <- equal_shift[equal_shift$dose_mg > 0, , drop = FALSE]
+  treated <- essential_add_tgi_plot_metadata(treated, tgi_spec)
   treated$analysis_group <- factor(treated$analysis_group, levels = spec$group_levels)
   treated$dose <- factor(treated$dose, levels = unique(treated$dose[order(treated$dose_mg)]))
   primary_plot_data <- essential_attach_association(
@@ -2269,13 +2661,16 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
   primary_plot <- essential_scatter_plot(
     primary_plot_data,
     "ecdf_rmse",
-    "TGI_percent_auc",
+    "tgi_value",
     "dose",
     "analysis_group",
     essential_dose_colors(),
-    "Cell-cycle-associated tumor cells: AUC TGI vs sample-equal ECDF shift",
+    paste0(
+      "Cell-cycle-associated tumor cells: ", tgi_spec$title_label,
+      " vs sample-equal ECDF shift"
+    ),
     "ECDF RMSE from group-matched equal-sample 0 mg/kg reference",
-    "AUC-based TGI (%)",
+    tgi_spec$axis_label,
     "Dose",
     spec$group_label,
     primary_plot_data$plot_annotation[[1L]]
@@ -2290,7 +2685,7 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
   direct <- essential_direct_ecdf(data, dose_tests, spec, n_perm)
   essential_write_csv(
     direct$tests,
-    file.path(stats_dir, "CellCycle_direct_group_ecdf_comparisons_9panel_tests.csv")
+    file.path(stats_dir, "CellCycle_direct_group_ecdf_comparisons_11panel_tests.csv")
   )
   essential_write_csv(
     direct$plot_data,
@@ -2300,13 +2695,43 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
     direct$plot,
     file.path(figures_dir, "CellCycle_direct_group_ecdf_comparisons.pdf"),
     15,
-    11.5
+    15
+  )
+  selected_direct <- essential_select_direct_panels(direct$plot_data, direct$tests)
+  essential_write_csv(
+    selected_direct$curves,
+    file.path(
+      plot_data_dir,
+      "CellCycle_direct_group_ecdf_comparisons_selected_3panel_plot_data.csv"
+    )
+  )
+  selected_direct_plot <- essential_direct_plot_from_tables(
+    selected_direct$curves,
+    selected_direct$tests,
+    spec,
+    title = paste0(
+      "CellCycle: selected direct group mean ECDF comparisons (", spec$method, ")"
+    )
+  )
+  essential_save_pdf(
+    selected_direct_plot,
+    file.path(
+      figures_dir,
+      "CellCycle_direct_group_ecdf_comparisons_selected_3panel.pdf"
+    ),
+    15,
+    5.5
   )
 
   set.seed(seed + 101L)
-  mean_association <- essential_run_mean_etp_associations(equal_shift, spec$method, n_perm)
+  mean_association <- essential_run_mean_etp_associations(
+    equal_shift,
+    spec$method,
+    n_perm,
+    primary_tgi_column = tgi_spec$measure
+  )
   essential_write_csv(mean_association, file.path(stats_dir, "CellCycle_TGI_associations_mean_ETP.csv"))
-  mean_primary <- mean_association[mean_association$tgi_measure == "TGI_percent_auc", , drop = FALSE]
+  mean_primary <- mean_association[mean_association$tgi_measure == tgi_spec$measure, , drop = FALSE]
   mean_pearson <- data.frame(
     n = mean_primary$n, estimate = mean_primary$pearson_r, asymptotic_p = mean_primary$pearson_p_asymptotic,
     permutation_p_two_sided = mean_primary$pearson_p_permutation_two_sided,
@@ -2334,13 +2759,16 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
   mean_plot <- essential_scatter_plot(
     mean_plot_data,
     "sample_mean_endpoint_ploidy",
-    "TGI_percent_auc",
+    "tgi_value",
     "dose",
     "analysis_group",
     essential_dose_colors(),
-    "Cell-cycle-associated tumor cells: AUC TGI vs sample mean ETP",
+    paste0(
+      "Cell-cycle-associated tumor cells: ", tgi_spec$title_label,
+      " vs sample mean ETP"
+    ),
     "Sample mean ETP",
-    "AUC-based TGI (%)",
+    tgi_spec$axis_label,
     "Dose",
     spec$group_label,
     mean_plot_data$plot_annotation[[1L]]
@@ -2353,24 +2781,33 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
   )
 
   set.seed(seed + 201L)
-  primary_loo <- essential_leave_one_out(treated, "ecdf_rmse")
-  primary_boot <- essential_bootstrap(treated, "ecdf_rmse", n_boot)
+  primary_loo <- essential_leave_one_out(treated, "ecdf_rmse", tgi_spec$measure)
+  primary_boot <- essential_bootstrap(treated, "ecdf_rmse", n_boot, tgi_spec$measure)
   primary_summary <- essential_primary_robustness_summary(association, primary_loo, primary_boot)
   essential_write_csv(primary_loo, file.path(stats_dir, "CellCycle_primary_TGI_leave_one_out.csv"))
   essential_write_csv(primary_boot, file.path(stats_dir, "CellCycle_primary_TGI_bootstrap.csv"))
   essential_write_csv(primary_summary, file.path(stats_dir, "CellCycle_primary_TGI_robustness_summary.csv"))
 
   set.seed(seed + 301L)
-  mean_loo <- essential_leave_one_out(treated, "sample_mean_endpoint_ploidy")
-  mean_boot <- essential_bootstrap(treated, "sample_mean_endpoint_ploidy", n_boot)
+  mean_loo <- essential_leave_one_out(
+    treated, "sample_mean_endpoint_ploidy", tgi_spec$measure
+  )
+  mean_boot <- essential_bootstrap(
+    treated, "sample_mean_endpoint_ploidy", n_boot, tgi_spec$measure
+  )
   mean_summary <- essential_mean_etp_robustness_summary(
-    spec$method, mean_association, mean_loo, mean_boot, n_boot
+    spec$method,
+    mean_association,
+    mean_loo,
+    mean_boot,
+    n_boot,
+    primary_tgi_column = tgi_spec$measure
   )
   essential_write_csv(mean_loo, file.path(stats_dir, "CellCycle_mean_ETP_TGI_leave_one_out.csv"))
   essential_write_csv(mean_boot, file.path(stats_dir, "CellCycle_mean_ETP_TGI_bootstrap.csv"))
   essential_write_csv(mean_summary, file.path(stats_dir, "CellCycle_mean_ETP_TGI_robustness_summary.csv"))
 
-  model_results <- essential_fit_shift_models(treated, spec)
+  model_results <- essential_fit_shift_models(treated, spec, tgi_spec$measure)
   essential_write_csv(
     model_results$models,
     file.path(stats_dir, "CellCycle_AUC_TGI_shift_ploidy_dose_models.csv")
@@ -2388,13 +2825,16 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
   model_plot <- essential_scatter_plot(
     model_plot_data,
     "ecdf_rmse",
-    "TGI_percent_auc",
+    "tgi_value",
     "analysis_group",
     "dose",
     essential_group_colors(spec),
-    "CellCycle: AUC-TGI association with pseudotime shift and ploidy",
+    paste0(
+      "CellCycle: ", tgi_spec$title_label,
+      " association with pseudotime shift and ploidy"
+    ),
     "ECDF RMSE from group-matched 0 mg/kg reference",
-    "AUC-based TGI (%)",
+    tgi_spec$axis_label,
     spec$group_label,
     "Dose",
     model_plot_data$plot_annotation[[1L]]
@@ -2407,7 +2847,13 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
   )
 
   set.seed(seed + 401L)
-  confounding <- essential_confounding(equal_shift, spec, n_perm)
+  confounding <- essential_confounding(
+    equal_shift,
+    spec,
+    n_perm,
+    tgi_spec$measure,
+    ploidy_shift = ploidy_shift
+  )
   essential_write_csv(confounding$ploidy_tests, file.path(stats_dir, "ploidy_confounding_tests.csv"))
   essential_write_csv(confounding$residualized, file.path(stats_dir, "residualized_TGI_associations.csv"))
 
@@ -2435,6 +2881,9 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
     centered_pearson,
     centered_spearman
   )
+  centered_plot_data <- essential_add_tgi_plot_metadata(
+    centered_plot_data, tgi_spec, value_column = "tgi_centered"
+  )
   centered_plot_data$dose <- factor(
     centered_plot_data$dose,
     levels = unique(centered_plot_data$dose[order(centered_plot_data$dose_mg)])
@@ -2456,7 +2905,7 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
     essential_dose_colors(),
     "CellCycle TGI association after within-dose centering",
     "Dose-centered ECDF RMSE",
-    "Dose-centered AUC TGI",
+    paste0("Dose-centered ", tgi_spec$axis_label),
     "Dose",
     spec$group_label,
     centered_plot_data$plot_annotation[[1L]],
@@ -2471,7 +2920,7 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
   )
 
   ploidy_primary <- confounding$ploidy_tests[
-    confounding$ploidy_tests$sample_set == "all" &
+    confounding$ploidy_tests$sample_set == "treated" &
       confounding$ploidy_tests$shift_metric == "ecdf_rmse" &
       confounding$ploidy_tests$ploidy_measure == "mean_cell_ploidy",
     ,
@@ -2497,8 +2946,15 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
     n_permutations = spearman_row$n_permutations,
     permutation_mode = spearman_row$permutation_mode
   )
-  ploidy_source <- equal_shift[
-    is.finite(equal_shift$mean_cell_ploidy) & is.finite(equal_shift$ecdf_rmse),
+  ploidy_source <- ploidy_shift[
+    ploidy_shift$dose_mg > 0 &
+      is.finite(ploidy_shift$mean_cell_ploidy) &
+      is.finite(ploidy_shift$ecdf_rmse),
+    ,
+    drop = FALSE
+  ]
+  ploidy_source <- ploidy_source[
+    order(ploidy_source$dose_mg, ploidy_source$initial_ploidy, ploidy_source$sample_id),
     ,
     drop = FALSE
   ]
@@ -2507,6 +2963,10 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
     levels = unique(ploidy_source$dose[order(ploidy_source$dose_mg)])
   )
   ploidy_source$analysis_group <- factor(ploidy_source$analysis_group, levels = spec$group_levels)
+  ploidy_source$initial_ploidy <- factor(
+    as.character(ploidy_source$initial_ploidy),
+    levels = c("2N", "4N")
+  )
   ploidy_plot_data <- essential_attach_association(
     ploidy_source,
     "CellCycle_ecdf_rmse_vs_ploidy",
@@ -2522,13 +2982,13 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
     "mean_cell_ploidy",
     "ecdf_rmse",
     "dose",
-    "analysis_group",
+    "initial_ploidy",
     essential_dose_colors(),
-    "CellCycle ECDF RMSE vs mean cell ploidy",
+    "Treated CellCycle ECDF RMSE vs mean cell ploidy",
     "Mean cell ploidy",
     "ECDF RMSE",
     "Dose",
-    spec$group_label,
+    "Initial ploidy",
     ploidy_plot_data$plot_annotation[[1L]],
     label_nudge_y = 0.004
   )
@@ -2539,7 +2999,7 @@ essential_run_method <- function(cellcycle_path, noncellcycle_path, output_root,
     6.4
   )
 
-  invisible(list(method = spec$method, figures = 6L, stats = 13L, plot_data = 6L))
+  invisible(list(method = spec$method, figures = 7L, stats = 13L, plot_data = 7L))
 }
 
 essential_validate_inventory <- function(output_root, methods) {
@@ -2551,9 +3011,9 @@ essential_validate_inventory <- function(output_root, methods) {
     all.files = TRUE
   )
   if (length(os_metadata) > 0L) unlink(os_metadata, force = TRUE)
-  expected_figures <- 6L * length(methods)
+  expected_figures <- 7L * length(methods)
   expected_stats <- 13L * length(methods)
-  expected_plot_data <- 6L * length(methods)
+  expected_plot_data <- 7L * length(methods)
   figures <- list.files(file.path(output_root, "Figures"), pattern = "[.]pdf$", recursive = TRUE, full.names = TRUE)
   stats <- list.files(file.path(output_root, "stats"), pattern = "[.]csv$", recursive = TRUE, full.names = TRUE)
   plot_data <- list.files(file.path(output_root, "plot_data"), pattern = "[.]csv$", recursive = TRUE, full.names = TRUE)
