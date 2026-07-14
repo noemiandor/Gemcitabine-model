@@ -2031,3 +2031,609 @@ pst_run_workflow <- function(args, repo_root, script_dir) {
   message("04i workflow complete: ", output_root)
   invisible(output_root)
 }
+
+pst_model_specifications_table <- function(model_specs) {
+  do.call(rbind, lapply(model_specs, function(x) {
+    data.frame(
+      model_id = x$model_id,
+      model_label = x$model_label,
+      covariate_mode = x$covariate_mode,
+      covariate_terms = paste(x$covariate_terms, collapse = ";"),
+      etp_method = x$etp_method %||% NA_character_,
+      etp_threshold = x$etp_threshold %||% NA_real_,
+      is_primary = isTRUE(x$is_primary),
+      stringsAsFactors = FALSE
+    )
+  }))
+}
+
+pst_effective_workers <- function(args, n_tasks, field = "model_workers") {
+  requested <- suppressWarnings(as.integer(args[[field]] %||% 0L))
+  total <- suppressWarnings(as.integer(args$workers %||% 1L))
+  if (!is.finite(total) || total < 1L) total <- 1L
+  if (!is.finite(requested) || requested < 1L) requested <- total
+  max(1L, min(as.integer(n_tasks), requested))
+}
+
+pst_parallel_lapply <- function(x, fun, workers = 1L, task_label = "task") {
+  if (length(x) == 0L) return(list(results = list(), log = data.frame()))
+  workers <- max(1L, min(as.integer(workers), length(x)))
+  task_names <- names(x)
+  if (is.null(task_names)) task_names <- rep("", length(x))
+  runner <- function(i) {
+    item <- x[[i]]
+    started <- Sys.time()
+    name <- task_names[[i]]
+    if (!nzchar(name)) name <- as.character(item$model_id %||% item[[1L]] %||% i)
+    value <- tryCatch(
+      fun(item),
+      error = function(e) structure(list(error = conditionMessage(e)), class = "pst_task_error")
+    )
+    ended <- Sys.time()
+    list(
+      value = value,
+      log = data.frame(
+        task_group = task_label,
+        task_name = name,
+        start_time = format(started, "%Y-%m-%d %H:%M:%S %Z"),
+        end_time = format(ended, "%Y-%m-%d %H:%M:%S %Z"),
+        elapsed_sec = as.numeric(difftime(ended, started, units = "secs")),
+        status = if (inherits(value, "pst_task_error")) "failed" else "success",
+        error_message = if (inherits(value, "pst_task_error")) value$error else "",
+        stringsAsFactors = FALSE
+      )
+    )
+  }
+  idx <- seq_along(x)
+  if (.Platform$OS.type == "unix" && workers > 1L) {
+    rows <- parallel::mclapply(idx, runner, mc.cores = workers)
+  } else {
+    rows <- lapply(idx, runner)
+  }
+  task_log <- do.call(rbind, lapply(rows, `[[`, "log"))
+  values <- lapply(rows, `[[`, "value")
+  names(values) <- task_names
+  failed <- vapply(values, inherits, logical(1L), "pst_task_error")
+  if (any(failed)) {
+    msg <- paste(task_log$task_name[failed], task_log$error_message[failed], sep = ": ", collapse = "; ")
+    stop("Parallel task failure in ", task_label, ": ", msg, call. = FALSE)
+  }
+  list(results = values, log = task_log)
+}
+
+pst_run_model_set <- function(model_specs, workflow_root, pb, counts, coverage, coverage_check, cfg, gene_sets, args, task_label) {
+  model_workers <- if (isTRUE(args$parallel)) pst_effective_workers(args, length(model_specs), "model_workers") else 1L
+  worker_args <- args
+  worker_args$workers <- 1L
+  if (!is.null(worker_args$gsea_workers)) worker_args$gsea_workers <- 1L
+  tasks <- model_specs
+  names(tasks) <- names(model_specs)
+  message("Running ", task_label, " models with workers=", model_workers)
+  out <- pst_parallel_lapply(
+    tasks,
+    function(model_spec) {
+      message("Running ", task_label, " model: ", model_spec$model_id)
+      pst_run_single_model(
+        model_spec,
+        workflow_root,
+        pb,
+        counts,
+        coverage,
+        coverage_check,
+        cfg,
+        gene_sets,
+        worker_args
+      )
+    },
+    workers = model_workers,
+    task_label = paste0(task_label, "_model")
+  )
+  pst_write_csv(out$log, file.path(workflow_root, "00_manifest", "parallel_task_log.csv"))
+  pst_run_model_comparison(out$results, workflow_root)
+  out
+}
+
+pst_focus_interval_ids <- function() {
+  c("left_neighbor", "primary_accumulated_state", "right_neighbor")
+}
+
+pst_construct_interval_pseudobulk <- function(meta, counts, cfg, min_cells) {
+  sample_meta <- pst_sample_metadata(meta)
+  focus_ids <- pst_focus_interval_ids()
+  intervals <- cfg$interval_list[focus_ids]
+  all_sample_intervals <- expand.grid(
+    sample_id = rownames(sample_meta),
+    interval_id = focus_ids,
+    KEEP.OUT.ATTRS = FALSE,
+    stringsAsFactors = FALSE
+  )
+  all_sample_intervals$sample_interval_id <- paste(all_sample_intervals$sample_id, all_sample_intervals$interval_id, sep = "__")
+  all_sample_intervals$interval_start <- vapply(all_sample_intervals$interval_id, function(id) intervals[[id]]$start, numeric(1L))
+  all_sample_intervals$interval_end <- vapply(all_sample_intervals$interval_id, function(id) intervals[[id]]$end, numeric(1L))
+  all_sample_intervals$interval_midpoint <- (all_sample_intervals$interval_start + all_sample_intervals$interval_end) / 2
+  all_sample_intervals$interval_role <- vapply(all_sample_intervals$interval_id, function(id) intervals[[id]]$role %||% id, character(1L))
+
+  assigned <- rep(NA_character_, nrow(meta))
+  for (id in focus_ids) {
+    hit <- pst_interval_hit(meta$pseudotime, intervals[[id]])
+    assigned[hit] <- id
+  }
+  meta_interval <- meta[!is.na(assigned), , drop = FALSE]
+  meta_interval$interval_id <- assigned[!is.na(assigned)]
+  meta_interval$sample_interval_id <- paste(meta_interval$sample_id, meta_interval$interval_id, sep = "__")
+
+  observed <- as.data.frame(table(meta_interval$sample_interval_id), stringsAsFactors = FALSE)
+  names(observed) <- c("sample_interval_id", "cell_count")
+  interval_meta <- merge(all_sample_intervals, observed, by = "sample_interval_id", all.x = TRUE, sort = FALSE)
+  interval_meta$cell_count[is.na(interval_meta$cell_count)] <- 0L
+  interval_meta <- merge(interval_meta, sample_meta, by = "sample_id", all.x = TRUE, sort = FALSE)
+  interval_meta$interval_id <- factor(interval_meta$interval_id, levels = focus_ids)
+  interval_meta <- interval_meta[order(interval_meta$sample_id, interval_meta$interval_id), , drop = FALSE]
+  interval_meta$retained_for_model <- interval_meta$cell_count >= min_cells
+  interval_meta$exclusion_reason <- ifelse(interval_meta$retained_for_model, "", paste0("cell_count<", min_cells))
+
+  if (nrow(meta_interval) > 0L) {
+    group_factor <- factor(meta_interval$sample_interval_id, levels = interval_meta$sample_interval_id)
+    design <- Matrix::sparse.model.matrix(~ 0 + group_factor)
+    colnames(design) <- levels(group_factor)
+    interval_counts <- counts[, meta_interval$cell_id, drop = FALSE] %*% design
+    colnames(interval_counts) <- levels(group_factor)
+    rownames(interval_counts) <- rownames(counts)
+  } else {
+    interval_counts <- counts[, integer(0), drop = FALSE]
+    interval_counts <- interval_counts[, interval_meta$sample_interval_id, drop = FALSE]
+  }
+  missing_cols <- setdiff(interval_meta$sample_interval_id, colnames(interval_counts))
+  if (length(missing_cols) > 0L) {
+    zero <- Matrix::Matrix(0, nrow = nrow(counts), ncol = length(missing_cols), sparse = TRUE)
+    rownames(zero) <- rownames(counts)
+    colnames(zero) <- missing_cols
+    interval_counts <- cbind(interval_counts, zero)
+  }
+  interval_counts <- interval_counts[, interval_meta$sample_interval_id, drop = FALSE]
+  lib_size <- Matrix::colSums(interval_counts)
+  interval_meta$library_size <- as.numeric(lib_size[match(interval_meta$sample_interval_id, names(lib_size))])
+  interval_meta$library_size[is.na(interval_meta$library_size)] <- 0
+  list(counts = interval_counts, metadata = interval_meta, cell_metadata = meta_interval)
+}
+
+pst_interval_region_coverage <- function(interval_meta) {
+  rows <- interval_meta[, c(
+    "sample_id", "interval_id", "interval_role", "interval_start", "interval_end",
+    "dose", "dose_mg", "initial_ploidy", "cell_count", "library_size",
+    "retained_for_model", "exclusion_reason"
+  ), drop = FALSE]
+  names(rows)[names(rows) == "interval_role"] <- "role"
+  names(rows)[names(rows) == "cell_count"] <- "n_cells"
+  names(rows)[names(rows) == "retained_for_model"] <- "contributes"
+  rows$n_bins <- NA_integer_
+  rows$n_retained_bins <- ifelse(rows$contributes, 1L, 0L)
+  rows$exclusion_reason <- ifelse(rows$contributes, "", rows$exclusion_reason)
+  rows[, c(
+    "sample_id", "interval_id", "role", "interval_start", "interval_end",
+    "dose", "dose_mg", "initial_ploidy", "n_cells", "n_bins",
+    "n_retained_bins", "library_size", "contributes", "exclusion_reason"
+  ), drop = FALSE]
+}
+
+pst_prepare_interval_design <- function(meta, model_spec, include_dose = TRUE) {
+  meta <- as.data.frame(meta, stringsAsFactors = FALSE)
+  meta$interval_factor <- factor(meta$interval_id, levels = pst_focus_interval_ids())
+  meta$dose_mg_factor <- factor(meta$dose_mg)
+  meta$initial_ploidy_factor <- factor(meta$initial_ploidy)
+  for (spec in pst_etp_threshold_specs()) {
+    if (spec$group_column %in% names(meta)) {
+      meta[[spec$factor_column]] <- factor(as.character(meta[[spec$group_column]]), levels = spec$group_levels)
+    }
+  }
+  if ("sample_mean_endpoint_ploidy" %in% names(meta)) {
+    meta$sample_mean_endpoint_ploidy_scaled <- as.numeric(scale(meta$sample_mean_endpoint_ploidy))
+  }
+  covariate_terms <- model_spec$covariate_terms %||% character(0L)
+  model_terms <- c("interval_factor", if (isTRUE(include_dose)) "dose_mg_factor", covariate_terms)
+  missing_terms <- setdiff(model_terms, names(meta))
+  if (length(missing_terms) > 0L) {
+    stop("Model ", model_spec$model_id, " missing design terms: ", paste(missing_terms, collapse = ", "), call. = FALSE)
+  }
+  formula_text <- paste("~ 0 +", paste(model_terms, collapse = " + "))
+  design <- stats::model.matrix(stats::as.formula(formula_text), meta)
+  list(
+    design = design,
+    design_data = meta,
+    formula = stats::as.formula(formula_text),
+    model_terms = model_terms,
+    original_design_columns = colnames(design),
+    model_spec = model_spec
+  )
+}
+
+pst_fit_interval_model <- function(interval_counts, interval_meta, min_primary_mice, include_dose = TRUE, model_spec) {
+  keep_obs <- interval_meta$retained_for_model & interval_meta$library_size > 0
+  meta <- interval_meta[keep_obs, , drop = FALSE]
+  counts <- interval_counts[, meta$sample_interval_id, drop = FALSE]
+  y0 <- edgeR::DGEList(counts = counts)
+  cpm0 <- edgeR::cpm(y0)
+  min_obs <- max(2L, min_primary_mice)
+  keep_gene <- rowSums(cpm0 > 1) >= min_obs
+  if (sum(keep_gene) < 10L) stop("Too few genes pass expression filtering.", call. = FALSE)
+  counts <- counts[keep_gene, , drop = FALSE]
+  y <- edgeR::DGEList(counts = counts)
+  y <- edgeR::calcNormFactors(y, method = "TMM")
+  design_bundle <- pst_prepare_interval_design(meta, model_spec = model_spec, include_dose = include_dose)
+  original_design_columns <- colnames(design_bundle$design)
+  qr_rank <- qr(design_bundle$design)$rank
+  dropped_design_columns <- character(0L)
+  if (qr_rank < ncol(design_bundle$design)) {
+    keep_cols <- qr(design_bundle$design)$pivot[seq_len(qr_rank)]
+    retained <- colnames(design_bundle$design)[sort(keep_cols)]
+    dropped_design_columns <- setdiff(colnames(design_bundle$design), retained)
+    design_bundle$design <- design_bundle$design[, retained, drop = FALSE]
+  }
+  v <- limma::voom(y, design_bundle$design, plot = FALSE)
+  block <- meta$sample_id
+  dup <- limma::duplicateCorrelation(v, design_bundle$design, block = block)
+  fit <- limma::lmFit(v, design_bundle$design, block = block, correlation = dup$consensus.correlation)
+  fit <- limma::eBayes(fit, robust = TRUE)
+  design_bundle$design <- design_bundle$design[, colnames(fit$coefficients), drop = FALSE]
+  list(
+    fit = fit,
+    voom = v,
+    dge = y,
+    metadata = meta,
+    design = design_bundle,
+    correlation = dup$consensus.correlation,
+    retained_genes = rownames(counts),
+    include_dose = include_dose,
+    model_spec = model_spec,
+    original_design_columns = original_design_columns,
+    retained_design_columns = colnames(design_bundle$design),
+    dropped_design_columns = dropped_design_columns,
+    design_rank = qr_rank,
+    design_ncol_original = length(original_design_columns),
+    design_n_observations = nrow(design_bundle$design)
+  )
+}
+
+pst_interval_contrast_vector <- function(model_fit) {
+  cols <- colnames(model_fit$fit$coefficients)
+  vec <- rep(0, length(cols))
+  names(vec) <- cols
+  map <- c(
+    interval_factorprimary_accumulated_state = 1,
+    interval_factorleft_neighbor = -0.5,
+    interval_factorright_neighbor = -0.5
+  )
+  common <- intersect(names(map), names(vec))
+  vec[common] <- map[common]
+  vec
+}
+
+pst_run_single_interval_model <- function(model_spec, output_root, interval_pb, coverage, coverage_check, gene_sets, args) {
+  model_root <- pst_ensure_dir(file.path(output_root, model_spec$model_id))
+  dirs <- pst_model_dirs(model_root)
+  pst_write_csv(pst_model_parameters_table(model_spec), file.path(dirs$manifest, "model_parameters.csv"))
+  min_primary_mice <- coverage_check$n_contributing_mice[[1L]]
+
+  model_fit <- pst_fit_interval_model(
+    interval_pb$counts,
+    interval_pb$metadata,
+    min_primary_mice,
+    include_dose = TRUE,
+    model_spec = model_spec
+  )
+  design_audit <- pst_design_audit(model_fit)
+  pst_write_csv(design_audit, file.path(dirs$qc, "model_design_rank_audit.csv"))
+
+  primary_contrast <- pst_interval_contrast_vector(model_fit)
+  primary_genes <- pst_contrast_table(model_fit, primary_contrast, "primary_adjacent_state")
+  primary_genes$model_id <- model_spec$model_id
+  symbol_resolution <- pst_resolve_gene_symbols(primary_genes)
+  symbol_resolution$model_id <- model_spec$model_id
+  pst_write_csv(primary_genes, file.path(dirs$gene_models, "gene_primary_adjacent_state_contrast.csv"))
+  pst_write_csv(symbol_resolution, file.path(dirs$gene_models, "gene_symbol_resolution.csv"))
+
+  primary_stats <- pst_ranked_stats(primary_genes, symbol_resolution)
+  primary_gsea <- pst_run_all_gsea(primary_stats, gene_sets, "primary_adjacent_state", args$gsea_min_size, args$gsea_max_size, args$gsea_nperm_simple, args$seed)
+  primary_gsea$model_id <- model_spec$model_id
+  pst_write_csv(primary_gsea, file.path(dirs$gsea, "all_collections_primary_adjacent_state_gsea.csv"))
+  if (nrow(primary_gsea) > 0L) {
+    for (collection_label in unique(primary_gsea$collection_label)) {
+      local <- primary_gsea[primary_gsea$collection_label == collection_label, , drop = FALSE]
+      pst_write_csv(local, file.path(dirs$gsea, paste0(collection_label, "_primary_adjacent_state_gsea.csv")))
+      pst_write_csv(local, file.path(dirs$figures, paste0("primary_state_", collection_label, "_gsea_plot_data.csv")))
+      pst_plot_gsea_bar(local, file.path(dirs$figures, paste0("primary_state_", collection_label, "_gsea.pdf")), paste0(model_spec$model_id, ": ", collection_label, " GSEA"))
+    }
+  }
+  leading_edge <- pst_leading_edge_table(primary_gsea)
+  if (nrow(leading_edge) > 0L) leading_edge$model_id <- model_spec$model_id
+  pst_write_csv(leading_edge, file.path(dirs$gsea, "all_collections_leading_edge_genes.csv"))
+  if (nrow(leading_edge) > 0L) {
+    for (collection_label in unique(leading_edge$collection_label)) {
+      pst_write_csv(leading_edge[leading_edge$collection_label == collection_label, , drop = FALSE], file.path(dirs$gsea, paste0(collection_label, "_leading_edge_genes.csv")))
+    }
+  }
+  pst_write_csv(coverage, file.path(dirs$figures, "sample_region_coverage_plot_data.csv"))
+  pst_plot_coverage(coverage, file.path(dirs$figures, "sample_region_coverage.pdf"))
+
+  list(
+    model_id = model_spec$model_id,
+    model_spec = model_spec,
+    model_root = model_root,
+    design_audit = design_audit,
+    primary_genes = primary_genes,
+    secondary_genes = data.frame(),
+    primary_gsea = primary_gsea,
+    secondary_gsea = data.frame(),
+    robustness = data.frame(),
+    loo = data.frame(),
+    loo_stability = data.frame()
+  )
+}
+
+pst_run_interval_model_set <- function(model_specs, workflow_root, interval_pb, coverage, coverage_check, gene_sets, args, task_label) {
+  model_workers <- if (isTRUE(args$parallel)) pst_effective_workers(args, length(model_specs), "model_workers") else 1L
+  worker_args <- args
+  worker_args$workers <- 1L
+  if (!is.null(worker_args$gsea_workers)) worker_args$gsea_workers <- 1L
+  tasks <- model_specs
+  names(tasks) <- names(model_specs)
+  message("Running ", task_label, " models with workers=", model_workers)
+  out <- pst_parallel_lapply(
+    tasks,
+    function(model_spec) {
+      message("Running ", task_label, " model: ", model_spec$model_id)
+      pst_run_single_interval_model(
+        model_spec,
+        workflow_root,
+        interval_pb,
+        coverage,
+        coverage_check,
+        gene_sets,
+        worker_args
+      )
+    },
+    workers = model_workers,
+    task_label = paste0(task_label, "_model")
+  )
+  pst_write_csv(out$log, file.path(workflow_root, "00_manifest", "parallel_task_log.csv"))
+  pst_run_model_comparison(out$results, workflow_root)
+  out
+}
+
+pst_cross_workflow_comparison <- function(binning_results, non_binning_results, output_root) {
+  comparison_root <- pst_ensure_dir(file.path(output_root, "cross_workflow_comparison"))
+  figures_dir <- pst_ensure_dir(file.path(comparison_root, "figures"))
+  common_models <- intersect(names(binning_results), names(non_binning_results))
+  gene_rows <- lapply(common_models, function(model_id) {
+    b <- binning_results[[model_id]]$primary_genes[, c("gene", "gene_symbol", "t_statistic"), drop = FALSE]
+    n <- non_binning_results[[model_id]]$primary_genes[, c("gene", "t_statistic"), drop = FALSE]
+    names(b)[names(b) == "t_statistic"] <- "binning_t_statistic"
+    names(n)[names(n) == "t_statistic"] <- "non_binning_t_statistic"
+    merged <- merge(b, n, by = "gene", all = FALSE, sort = FALSE)
+    data.frame(
+      model_id = model_id,
+      n_genes = nrow(merged),
+      pearson_r = pst_safe_cor(merged$binning_t_statistic, merged$non_binning_t_statistic, "pearson"),
+      spearman_rho = pst_safe_cor(merged$binning_t_statistic, merged$non_binning_t_statistic, "spearman"),
+      stringsAsFactors = FALSE
+    )
+  })
+  gene_cor <- do.call(rbind, gene_rows)
+
+  pathway_rows <- lapply(common_models, function(model_id) {
+    b <- binning_results[[model_id]]$primary_gsea
+    n <- non_binning_results[[model_id]]$primary_gsea
+    b$workflow <- "binning"
+    n$workflow <- "non_binning"
+    rbind(b, n)
+  })
+  pathway_long <- do.call(rbind, pathway_rows)
+  pst_write_csv(pathway_long, file.path(comparison_root, "pathway_workflow_comparison_long.csv"))
+
+  nes_rows <- list()
+  overlap_rows <- list()
+  rank_rows <- list()
+  for (model_id in common_models) {
+    b <- binning_results[[model_id]]$primary_gsea
+    n <- non_binning_results[[model_id]]$primary_gsea
+    merged <- merge(
+      b[, c("collection", "collection_label", "pathway", "pathway_label", "NES", "padj"), drop = FALSE],
+      n[, c("collection", "collection_label", "pathway", "NES", "padj"), drop = FALSE],
+      by = c("collection", "collection_label", "pathway"),
+      suffixes = c("_binning", "_non_binning"),
+      all = FALSE,
+      sort = FALSE
+    )
+    for (collection_label in unique(merged$collection_label)) {
+      sub <- merged[merged$collection_label == collection_label, , drop = FALSE]
+      nes_rows[[length(nes_rows) + 1L]] <- data.frame(
+        model_id = model_id,
+        collection_label = collection_label,
+        n_pathways = nrow(sub),
+        pearson_r = pst_safe_cor(sub$NES_binning, sub$NES_non_binning, "pearson"),
+        spearman_rho = pst_safe_cor(sub$NES_binning, sub$NES_non_binning, "spearman"),
+        stringsAsFactors = FALSE
+      )
+      b_set <- sub$pathway[sub$padj_binning < 0.05]
+      n_set <- sub$pathway[sub$padj_non_binning < 0.05]
+      overlap_rows[[length(overlap_rows) + 1L]] <- data.frame(
+        model_id = model_id,
+        collection_label = collection_label,
+        alpha = 0.05,
+        binning_significant_n = length(b_set),
+        non_binning_significant_n = length(n_set),
+        overlap_n = length(intersect(b_set, n_set)),
+        jaccard = if (length(union(b_set, n_set)) == 0L) NA_real_ else length(intersect(b_set, n_set)) / length(union(b_set, n_set)),
+        stringsAsFactors = FALSE
+      )
+      sub$binning_rank <- rank(sub$padj_binning, ties.method = "first", na.last = "keep")
+      sub$non_binning_rank <- rank(sub$padj_non_binning, ties.method = "first", na.last = "keep")
+      sub$rank_shift <- sub$non_binning_rank - sub$binning_rank
+      sub$NES_delta <- sub$NES_non_binning - sub$NES_binning
+      sub$model_id <- model_id
+      rank_rows[[length(rank_rows) + 1L]] <- sub
+    }
+  }
+  nes_cor <- do.call(rbind, nes_rows)
+  sig_overlap <- do.call(rbind, overlap_rows)
+  rank_shift <- do.call(rbind, rank_rows)
+  rank_shift <- rank_shift[order(rank_shift$model_id, rank_shift$collection_label, -abs(rank_shift$rank_shift), rank_shift$pathway), , drop = FALSE]
+  pst_write_csv(gene_cor, file.path(comparison_root, "gene_t_stat_correlations_binning_vs_non_binning.csv"))
+  pst_write_csv(nes_cor, file.path(comparison_root, "gsea_NES_correlations_binning_vs_non_binning.csv"))
+  pst_write_csv(sig_overlap, file.path(comparison_root, "gsea_significant_overlap_binning_vs_non_binning.csv"))
+  pst_write_csv(rank_shift, file.path(comparison_root, "pathway_rank_shift_binning_vs_non_binning.csv"))
+  pst_plot_cross_workflow_nes(rank_shift, file.path(figures_dir, "gsea_NES_correlation_binning_vs_non_binning.pdf"))
+  pst_plot_cross_workflow_rank_shift(rank_shift, file.path(figures_dir, "top_pathway_rank_shift_binning_vs_non_binning.pdf"))
+  invisible(list(gene_cor = gene_cor, nes_cor = nes_cor, sig_overlap = sig_overlap, rank_shift = rank_shift))
+}
+
+pst_plot_cross_workflow_nes <- function(df, path) {
+  if (is.null(df) || nrow(df) == 0L) return(invisible(NULL))
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = NES_binning, y = NES_non_binning)) +
+    ggplot2::geom_hline(yintercept = 0, color = "grey75", linewidth = 0.3) +
+    ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.3) +
+    ggplot2::geom_point(alpha = 0.45, size = 0.9) +
+    ggplot2::facet_grid(model_id ~ collection_label, scales = "free") +
+    ggplot2::labs(title = "Primary-state GSEA NES: binning versus non-binning", x = "Binning NES", y = "Non-binning NES") +
+    ggplot2::theme_bw(base_size = 8)
+  ggplot2::ggsave(path, p, width = 12, height = 9)
+  invisible(p)
+}
+
+pst_plot_cross_workflow_rank_shift <- function(df, path) {
+  if (is.null(df) || nrow(df) == 0L) return(invisible(NULL))
+  top <- head(df[order(-abs(df$rank_shift)), , drop = FALSE], 100L)
+  label_col <- if ("pathway_label" %in% names(top)) "pathway_label" else "pathway_label_binning"
+  top$pathway_label <- factor(top[[label_col]], levels = rev(unique(top[[label_col]])))
+  p <- ggplot2::ggplot(top, ggplot2::aes(x = rank_shift, y = pathway_label, color = collection_label)) +
+    ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.3) +
+    ggplot2::geom_point(size = 1.4) +
+    ggplot2::facet_wrap(~ model_id, scales = "free_y") +
+    ggplot2::labs(title = "Largest pathway rank shifts: binning versus non-binning", x = "Non-binning rank minus binning rank", y = "Pathway", color = "Collection") +
+    ggplot2::theme_bw(base_size = 8)
+  ggplot2::ggsave(path, p, width = 13, height = 10)
+  invisible(p)
+}
+
+pst_write_readme <- function(output_root) {
+  lines <- c(
+    "# 04i Pseudotime State Pathways",
+    "",
+    "This workflow annotates the frozen CellCycle pseudotime state in which gemcitabine-treated tumor cells accumulate.",
+    "",
+    "The output is organized into two complementary workflows:",
+    "",
+    "- `binning`: sample-by-pseudotime-bin pseudobulk with a smooth common pseudotime model.",
+    "- `non_binning`: interval-level pseudobulk that aggregates cells directly within the frozen left, primary, and right intervals.",
+    "- `cross_workflow_comparison`: concordance between the binning and non-binning workflows for matched model specifications.",
+    "",
+    "Both workflows run the same five covariate specifications: primary initial ploidy, continuous mean ETP, and three thresholded ETP group models.",
+    "",
+    "Positive NES pathways characterize the accumulated state relative to adjacent states. They must not be described as directly treatment-upregulated pathways."
+  )
+  pst_write_lines(lines, file.path(output_root, "README.md"))
+}
+
+pst_run_workflow <- function(args, repo_root, script_dir) {
+  pst_check_packages()
+  set.seed(args$seed)
+  output_root <- pst_clean_dir(args$output_root, overwrite = args$overwrite)
+  etp_specs <- pst_resolve_etp_specs(args$etp_threshold)
+  model_specs <- pst_model_specs(args$covariate_mode, etp_specs, include_full_etp_models = args$include_full_etp_models)
+  dirs <- list(
+    manifest = pst_ensure_dir(file.path(output_root, "00_manifest")),
+    shared_qc = pst_ensure_dir(file.path(output_root, "shared_qc")),
+    binning = pst_ensure_dir(file.path(output_root, "binning")),
+    non_binning = pst_ensure_dir(file.path(output_root, "non_binning"))
+  )
+  binning_dirs <- list(
+    manifest = pst_ensure_dir(file.path(dirs$binning, "00_manifest")),
+    qc = pst_ensure_dir(file.path(dirs$binning, "01_qc")),
+    pseudobulk = pst_ensure_dir(file.path(dirs$binning, "02_pseudobulk"))
+  )
+  non_binning_dirs <- list(
+    manifest = pst_ensure_dir(file.path(dirs$non_binning, "00_manifest")),
+    qc = pst_ensure_dir(file.path(dirs$non_binning, "01_qc")),
+    interval_pseudobulk = pst_ensure_dir(file.path(dirs$non_binning, "02_interval_pseudobulk"))
+  )
+
+  cfg <- pst_read_config(args$config)
+  seurat_rds <- pst_resolve_seurat_rds(args$seurat_rds, args$results_root)
+  params <- data.frame(parameter = names(args), value = vapply(args, as.character, character(1L)), stringsAsFactors = FALSE)
+  pst_write_csv(params, file.path(dirs$manifest, "analysis_parameters.csv"))
+  pst_write_csv(pst_intervals_table(cfg), file.path(dirs$manifest, "frozen_interval_definition.csv"))
+  pst_write_csv(pst_package_versions(), file.path(dirs$manifest, "package_versions.csv"))
+  selected_model_table <- pst_model_specifications_table(model_specs)
+  pst_write_csv(selected_model_table, file.path(dirs$manifest, "selected_model_specifications.csv"))
+  pst_write_csv(params, file.path(binning_dirs$manifest, "analysis_parameters.csv"))
+  pst_write_csv(params, file.path(non_binning_dirs$manifest, "analysis_parameters.csv"))
+
+  input_checksums <- data.frame(
+    input = c("cell_metadata", "noncell_metadata", "seurat_rds", "config"),
+    path = c(args$cell_metadata, args$noncell_metadata, seurat_rds, args$config),
+    sha256 = c(
+      pst_file_checksum(args$cell_metadata),
+      pst_file_checksum(args$noncell_metadata),
+      pst_file_checksum(seurat_rds),
+      pst_file_checksum(args$config)
+    ),
+    stringsAsFactors = FALSE
+  )
+  pst_write_csv(input_checksums, file.path(dirs$manifest, "input_checksums.csv"))
+
+  meta <- pst_read_cell_metadata(args$cell_metadata)
+  etp_assignments <- pst_build_etp_assignments(args$cell_metadata, args$noncell_metadata, etp_specs)
+  pst_write_etp_audits(etp_assignments, etp_specs, dirs$shared_qc)
+  meta <- pst_attach_etp_assignments(meta, etp_assignments)
+  metadata_audit <- pst_audit_metadata(meta)
+  pst_write_csv(metadata_audit$duplicate_cells, file.path(dirs$shared_qc, "duplicate_cell_ids.csv"))
+  pst_write_csv(metadata_audit$inconsistent_cells, file.path(dirs$shared_qc, "cell_assignment_consistency_audit.csv"))
+  pst_check_pseudotime(meta)
+
+  counts <- pst_load_counts(seurat_rds, args$assay, args$counts_layer)
+  expression_audit <- pst_audit_counts(counts)
+  expression_audit$seurat_rds <- seurat_rds
+  expression_audit$assay <- args$assay
+  expression_audit$counts_layer <- args$counts_layer
+  pst_write_csv(expression_audit, file.path(dirs$shared_qc, "expression_source_audit.csv"))
+  if (!isTRUE(expression_audit$non_negative) || !isTRUE(expression_audit$integer_like)) {
+    stop("Expression matrix failed raw-count audit. See shared_qc/expression_source_audit.csv.", call. = FALSE)
+  }
+
+  matched <- pst_match_cells(meta, counts, args$min_match_rate, dirs$shared_qc)
+  meta <- matched$meta
+  counts <- matched$counts
+  limited <- pst_limit_for_smoke(meta, counts, args$max_cells, args$max_genes, args$seed)
+  meta <- limited$meta
+  counts <- limited$counts
+
+  pb <- pst_construct_pseudobulk(meta, counts, args$n_pseudotime_bins, args$min_cells_per_sample_bin)
+  pst_write_csv(pb$metadata, file.path(binning_dirs$pseudobulk, "sample_bin_metadata.csv"))
+  coverage <- pst_region_coverage(pb$cell_metadata, pb$metadata, cfg)
+  pst_write_csv(coverage, file.path(binning_dirs$qc, "sample_region_coverage.csv"))
+  coverage_check <- pst_check_primary_coverage(coverage)
+  pst_write_csv(coverage_check, file.path(binning_dirs$qc, "primary_coverage_check.csv"))
+  if (!isTRUE(coverage_check$passes)) {
+    stop("Binning primary interval coverage check failed. See binning/01_qc/primary_coverage_check.csv.", call. = FALSE)
+  }
+
+  interval_pb <- pst_construct_interval_pseudobulk(meta, counts, cfg, args$min_cells_per_sample_region)
+  pst_write_csv(interval_pb$metadata, file.path(non_binning_dirs$interval_pseudobulk, "interval_sample_metadata.csv"))
+  interval_coverage <- pst_interval_region_coverage(interval_pb$metadata)
+  pst_write_csv(interval_coverage, file.path(non_binning_dirs$qc, "interval_region_coverage.csv"))
+  interval_coverage_check <- pst_check_primary_coverage(interval_coverage)
+  pst_write_csv(interval_coverage_check, file.path(non_binning_dirs$qc, "primary_coverage_check.csv"))
+  if (!isTRUE(interval_coverage_check$passes)) {
+    stop("Non-binning primary interval coverage check failed. See non_binning/01_qc/primary_coverage_check.csv.", call. = FALSE)
+  }
+
+  gene_sets <- pst_fetch_gene_sets(args$gene_set_collections)
+  binning_run <- pst_run_model_set(model_specs, dirs$binning, pb, counts, coverage, coverage_check, cfg, gene_sets, args, "binning")
+  non_binning_run <- pst_run_interval_model_set(model_specs, dirs$non_binning, interval_pb, interval_coverage, interval_coverage_check, gene_sets, args, "non_binning")
+  pst_cross_workflow_comparison(binning_run$results, non_binning_run$results, output_root)
+
+  pst_write_readme(output_root)
+  if (isTRUE(args$make_snapshot)) pst_materialize_snapshot(output_root, args$snapshot_root)
+  message("04i workflow complete: ", output_root)
+  invisible(output_root)
+}
