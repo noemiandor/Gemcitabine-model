@@ -13,6 +13,12 @@ if (!file.exists(utility_path)) {
 }
 sys.source(utility_path, envir = .GlobalEnv)
 
+tgi_calculation_utility_path <- file.path(script_dir, "04h_tgi_calculation_plots_util.R")
+if (!file.exists(tgi_calculation_utility_path)) {
+  stop("Missing TGI calculation-plot utility script: ", tgi_calculation_utility_path, call. = FALSE)
+}
+sys.source(tgi_calculation_utility_path, envir = .GlobalEnv)
+
 font_cache <- file.path(tempdir(), "fontconfig-cache")
 dir.create(font_cache, recursive = TRUE, showWarnings = FALSE)
 Sys.setenv(XDG_CACHE_HOME = font_cache)
@@ -21,14 +27,14 @@ arguments <- essential_parse_args(commandArgs(trailingOnly = TRUE))
 tgi_outcome <- essential_arg(
   arguments,
   "tgi-outcome",
-  essential_arg(arguments, "tgi_outcome", "auc")
+  essential_arg(arguments, "tgi_outcome", "day")
 )
 control_summary <- essential_arg(
   arguments,
   "control-summary",
   essential_arg(arguments, "control_summary", "mean")
 )
-tgi_day <- essential_arg(arguments, "tgi-day", essential_arg(arguments, "tgi_day", NULL))
+tgi_day <- essential_arg(arguments, "tgi-day", essential_arg(arguments, "tgi_day", "17"))
 tgi_spec <- essential_tgi_spec(tgi_outcome, control_summary, tgi_day)
 repo_root <- normalizePath(file.path(script_dir, "..", ".."), mustWork = FALSE)
 input_root <- normalizePath(
@@ -190,14 +196,18 @@ selected_methods <- unique(selected_methods)
 workers <- min(workers, length(selected_methods))
 
 if (figures_only) {
-  target_dirs <- file.path(output_root, "Figures", selected_methods)
+  target_labels <- c(selected_methods, "TGI_calculation")
+  target_dirs <- c(
+    file.path(output_root, "Figures", selected_methods),
+    file.path(output_root, "Figures", "TGI_calculation")
+  )
   nonempty_targets <- vapply(target_dirs, function(path) {
     dir.exists(path) && length(list.files(path, all.files = TRUE, no.. = TRUE)) > 0L
   }, logical(1L))
   if (any(nonempty_targets) && !overwrite) {
     stop(
       "Figure output already exists. Use --overwrite=TRUE to replace selected method figures: ",
-      paste(selected_methods[nonempty_targets], collapse = ", "),
+      paste(target_labels[nonempty_targets], collapse = ", "),
       call. = FALSE
     )
   }
@@ -248,6 +258,10 @@ if (figures_only) {
     failed <- names(statuses)[statuses != 0L]
     stop("Figure-only worker(s) failed: ", paste(failed, collapse = ", "), call. = FALSE)
   }
+  essential_regenerate_tgi_calculation_figures(
+    tables_root = tables_root,
+    output_root = output_root
+  )
   inventory <- essential_validate_figures_only_inventory(output_root, selected_methods)
   message("Completed figures-only regeneration from existing tables")
   message("Tables root: ", tables_root)
@@ -354,6 +368,13 @@ if (any(statuses != 0L)) {
   failed <- names(statuses)[statuses != 0L]
   stop("Essential method worker(s) failed: ", paste(failed, collapse = ", "), call. = FALSE)
 }
+
+essential_write_tgi_calculation_outputs(
+  cellcycle_path = cellcycle_input,
+  noncellcycle_path = noncellcycle_input,
+  output_root = output_root,
+  tgi_spec = tgi_spec
+)
 
 essential_write_readme(output_root, tgi_spec)
 inventory <- essential_validate_inventory(output_root, selected_methods)

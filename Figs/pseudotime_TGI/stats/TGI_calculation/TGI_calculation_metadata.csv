@@ -1,0 +1,2 @@
+"tgi_measure","tgi_outcome","tgi_day","highlighted_day","matched_control_summary","matched_control_scope","calculation_targets","formula"
+"TGI_percent_Day_17","day",17,17,"mean","untreated mice matched by initial ploidy","treated mice only","100 * (1 - treated growth delta / matched-control reference growth delta)"

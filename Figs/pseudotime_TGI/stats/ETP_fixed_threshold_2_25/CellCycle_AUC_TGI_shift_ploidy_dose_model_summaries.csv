@@ -1,4 +1,4 @@
-"compartment","analysis","model","n","residual_df","r_squared","adjusted_r_squared","sigma","aic"
-"CellCycle","shift_only","TGI_percent_auc ~ scale(ecdf_rmse)",8,6,0.516598346395551,0.436031404128142,9.75548114849289,62.8468286897103
-"CellCycle","shift_ploidy_dose_adjusted","TGI_percent_auc ~ scale(ecdf_rmse) + end_timepoint_ploidy_group + dose_mg_factor",8,4,0.801280617919503,0.652241081359131,7.66055741189648,59.7351950913078
-"CellCycle","shift_by_ploidy_dose_adjusted","TGI_percent_auc ~ scale(ecdf_rmse) * end_timepoint_ploidy_group + dose_mg_factor",8,3,0.820156714834695,0.580365667947622,8.41505075178659,60.9367322469265
+"compartment","analysis","model","n","residual_df","r_squared","adjusted_r_squared","sigma","aic","tgi_measure"
+"CellCycle","shift_only","`TGI_percent_Day_17` ~ scale(ecdf_rmse)",8,6,0.504391284085514,0.4217898314331,22.9422009684214,76.5292087783519,"TGI_percent_Day_17"
+"CellCycle","shift_ploidy_dose_adjusted","`TGI_percent_Day_17` ~ scale(ecdf_rmse) + end_timepoint_ploidy_group + dose_mg_factor",8,4,0.712721496757865,0.497262619326264,21.3925623425016,76.166532007246,"TGI_percent_Day_17"
+"CellCycle","shift_by_ploidy_dose_adjusted","`TGI_percent_Day_17` ~ scale(ecdf_rmse) * end_timepoint_ploidy_group + dose_mg_factor",8,3,0.759446333480542,0.438708111454598,22.6040677491884,76.7464605709301,"TGI_percent_Day_17"

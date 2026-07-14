@@ -581,7 +581,7 @@ essential_endpoint_day <- function(column) {
   essential_safe_numeric(sub("^TGI_percent_Day_([0-9]+).*$", "\\1", column))
 }
 
-essential_tgi_spec <- function(outcome = "auc", control_summary = "mean", tgi_day = NULL) {
+essential_tgi_spec <- function(outcome = "day", control_summary = "mean", tgi_day = 17L) {
   outcome <- tolower(trimws(as.character(outcome)))
   control_summary <- tolower(trimws(as.character(control_summary)))
   if (!outcome %in% c("auc", "day")) {
@@ -1999,10 +1999,216 @@ essential_scatter_plot <- function(
     ggplot2::theme(plot.margin = ggplot2::margin(8, 14, 8, 14))
 }
 
+essential_dose_adjusted_group_effect <- function(tgi_value, groups, dose_mg, group_high) {
+  keep <- is.finite(tgi_value) & is.finite(dose_mg) & !is.na(groups)
+  tgi_value <- tgi_value[keep]
+  groups <- as.character(groups[keep])
+  dose_mg <- dose_mg[keep]
+  if (length(tgi_value) < 3L || !group_high %in% groups || length(unique(groups)) < 2L) {
+    return(NA_real_)
+  }
+  group_high_indicator <- as.integer(groups == group_high)
+  design <- stats::model.matrix(~factor(dose_mg) + group_high_indicator)
+  fit <- stats::lm.fit(design, tgi_value)
+  coefficient <- unname(fit$coefficients[["group_high_indicator"]])
+  if (length(coefficient) != 1L || !is.finite(coefficient)) NA_real_ else coefficient
+}
+
+essential_tgi_group_comparison <- function(data, spec, tgi_spec, n_perm = 10000L) {
+  required <- c("sample_id", "dose_mg", "analysis_group", "tgi_value")
+  missing <- setdiff(required, names(data))
+  if (length(missing) > 0L) {
+    stop("TGI group comparison is missing columns: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+  local <- data[
+    essential_safe_numeric(data$dose_mg) > 0 &
+      is.finite(essential_safe_numeric(data$tgi_value)) &
+      as.character(data$analysis_group) %in% spec$group_levels,
+    ,
+    drop = FALSE
+  ]
+  local$dose_mg <- essential_safe_numeric(local$dose_mg)
+  local$tgi_value <- essential_safe_numeric(local$tgi_value)
+  local$analysis_group <- factor(as.character(local$analysis_group), levels = spec$group_levels)
+  local <- local[order(local$dose_mg, local$analysis_group, local$sample_id), , drop = FALSE]
+
+  group_low <- spec$group_levels[[1L]]
+  group_high <- spec$group_levels[[2L]]
+  groups <- as.character(local$analysis_group)
+  if (!all(c(group_low, group_high) %in% groups)) {
+    stop(
+      "TGI group comparison requires treated samples in both groups: ",
+      paste(spec$group_levels, collapse = " vs "),
+      call. = FALSE
+    )
+  }
+  low_values <- local$tgi_value[groups == group_low]
+  high_values <- local$tgi_value[groups == group_high]
+  observed <- essential_dose_adjusted_group_effect(
+    local$tgi_value,
+    groups,
+    local$dose_mg,
+    group_high
+  )
+
+  welch_p <- tryCatch(
+    stats::t.test(high_values, low_values, paired = FALSE)$p.value,
+    error = function(e) NA_real_
+  )
+  wilcoxon_p <- tryCatch(
+    suppressWarnings(stats::wilcox.test(high_values, low_values, paired = FALSE, exact = FALSE)$p.value),
+    error = function(e) NA_real_
+  )
+
+  strata <- as.character(local$dose_mg)
+  split_indices <- split(seq_along(groups), strata)
+  exact_count <- prod(vapply(split_indices, function(indices) {
+    choose(length(indices), sum(groups[indices] == group_low))
+  }, numeric(1L)))
+  if (is.finite(exact_count) && exact_count <= 400000) {
+    permuted_groups <- essential_exact_group_vectors(groups, group_low, group_high, strata)
+    permuted_effects <- vapply(permuted_groups, function(permuted_group) {
+      essential_dose_adjusted_group_effect(
+        local$tgi_value,
+        permuted_group,
+        local$dose_mg,
+        group_high
+      )
+    }, numeric(1L))
+    finite_permutations <- is.finite(permuted_effects)
+    permutation_p <- if (is.finite(observed) && any(finite_permutations)) {
+      mean(abs(permuted_effects[finite_permutations]) >= abs(observed) - 1e-15)
+    } else {
+      NA_real_
+    }
+    permutation_mode <- "exact_group_label_enumeration_within_dose"
+    n_permutations <- sum(finite_permutations)
+  } else {
+    permuted_effects <- replicate(n_perm, {
+      permuted_group <- groups
+      for (indices in split_indices) permuted_group[indices] <- sample(groups[indices])
+      essential_dose_adjusted_group_effect(
+        local$tgi_value,
+        permuted_group,
+        local$dose_mg,
+        group_high
+      )
+    })
+    finite_permutations <- is.finite(permuted_effects)
+    exceed <- if (is.finite(observed)) {
+      sum(abs(permuted_effects[finite_permutations]) >= abs(observed) - 1e-15)
+    } else {
+      NA_real_
+    }
+    permutation_p <- if (is.finite(exceed)) {
+      (exceed + 1) / (sum(finite_permutations) + 1)
+    } else {
+      NA_real_
+    }
+    permutation_mode <- "monte_carlo_group_label_permutation_within_dose"
+    n_permutations <- sum(finite_permutations)
+  }
+
+  data.frame(
+    compartment = "CellCycle",
+    sample_set = "treated",
+    comparison = paste0(group_high, "_minus_", group_low),
+    comparison_design = "independent_tumors_with_group_labels_permuted_within_dose",
+    pairing_status = "not_paired_no_one_to_one_mouse_key",
+    group_label = spec$group_label,
+    group_low = group_low,
+    group_high = group_high,
+    tgi_measure = tgi_spec$measure,
+    tgi_outcome = tgi_spec$outcome,
+    tgi_control_summary = tgi_spec$control_summary,
+    tgi_day = tgi_spec$day,
+    n = nrow(local),
+    n_group_low = length(low_values),
+    n_group_high = length(high_values),
+    mean_group_low = mean(low_values),
+    mean_group_high = mean(high_values),
+    mean_difference_high_minus_low = mean(high_values) - mean(low_values),
+    median_group_low = stats::median(low_values),
+    median_group_high = stats::median(high_values),
+    median_difference_high_minus_low = stats::median(high_values) - stats::median(low_values),
+    dose_adjusted_difference_high_minus_low = observed,
+    welch_t_p_unpaired = welch_p,
+    wilcoxon_rank_sum_p_unpaired = wilcoxon_p,
+    permutation_p_two_sided = permutation_p,
+    n_permutations = n_permutations,
+    permutation_mode = permutation_mode,
+    permutation_strata = "dose_mg",
+    stringsAsFactors = FALSE
+  )
+}
+
+essential_tgi_group_boxplot <- function(data, comparison, spec, tgi_spec) {
+  required_data <- c("sample_id", "dose", "dose_mg", "analysis_group", "tgi_value")
+  required_stats <- c(
+    "group_low", "group_high", "n_group_low", "n_group_high",
+    "dose_adjusted_difference_high_minus_low", "permutation_p_two_sided",
+    "permutation_mode", "pairing_status"
+  )
+  missing_data <- setdiff(required_data, names(data))
+  missing_stats <- setdiff(required_stats, names(comparison))
+  if (length(missing_data) > 0L) {
+    stop("TGI group boxplot data are missing: ", paste(missing_data, collapse = ", "), call. = FALSE)
+  }
+  if (length(missing_stats) > 0L) {
+    stop("TGI group boxplot statistics are missing: ", paste(missing_stats, collapse = ", "), call. = FALSE)
+  }
+  data <- essential_restore_scatter_factors(data, spec)
+  effect <- essential_safe_numeric(comparison$dose_adjusted_difference_high_minus_low[[1L]])
+  p_value <- essential_safe_numeric(comparison$permutation_p_two_sided[[1L]])
+  group_low <- as.character(comparison$group_low[[1L]])
+  group_high <- as.character(comparison$group_high[[1L]])
+  test_label <- if (grepl("^exact_", comparison$permutation_mode[[1L]])) {
+    "Exact dose-stratified permutation"
+  } else {
+    "Monte Carlo dose-stratified permutation"
+  }
+  annotation <- paste0(
+    "Independent tumors; no one-to-one mouse pairing\n",
+    test_label, "\n",
+    "Adjusted delta (", group_high, " - ", group_low, ") = ",
+    essential_format_number(effect, 3L), " percentage points; P = ", essential_format_p(p_value), "\n",
+    "n = ", comparison$n_group_low[[1L]], " (", group_low, ") and ",
+    comparison$n_group_high[[1L]], " (", group_high, ")"
+  )
+  ggplot2::ggplot(
+    data,
+    ggplot2::aes(x = analysis_group, y = tgi_value, fill = analysis_group)
+  ) +
+    ggplot2::geom_hline(yintercept = 0, color = "grey75", linewidth = 0.35) +
+    ggplot2::geom_boxplot(width = 0.58, alpha = 0.35, outlier.shape = NA, linewidth = 0.55) +
+    ggplot2::geom_point(
+      ggplot2::aes(color = dose, shape = dose),
+      position = ggplot2::position_jitter(width = 0.075, height = 0, seed = 1),
+      size = 3.1,
+      stroke = 0.7
+    ) +
+    ggplot2::scale_fill_manual(values = essential_group_colors(spec), guide = "none") +
+    ggplot2::scale_color_manual(values = essential_dose_colors(), name = "Dose") +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.08, 0.12))) +
+    ggplot2::labs(
+      title = paste0("Treated CellCycle tumors: ", tgi_spec$title_label, " by ", spec$group_label),
+      subtitle = annotation,
+      x = spec$group_label,
+      y = tgi_spec$axis_label,
+      shape = "Dose"
+    ) +
+    essential_plot_theme() +
+    ggplot2::theme(
+      legend.position = "bottom",
+      plot.subtitle = ggplot2::element_text(size = 9, color = "grey25", lineheight = 1.05)
+    )
+}
+
 essential_figure_filenames <- function() {
   c(
     "CellCycle_direct_group_ecdf_comparisons.pdf",
     "CellCycle_direct_group_ecdf_comparisons_selected_3panel.pdf",
+    "CellCycle_TGI_group_boxplot.pdf",
     "CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref.pdf",
     "CellCycle_TGI_AUC_vs_mean_ETP.pdf",
     "CellCycle_AUC_TGI_vs_ecdf_rmse_by_ploidy_dose.pdf",
@@ -2260,6 +2466,44 @@ essential_regenerate_figures_from_tables <- function(tables_root, output_root, s
     file.path(figures_dir, "CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref.pdf"),
     6.8,
     6.8
+  )
+
+  group_comparison_all <- read_stats(
+    "CellCycle_TGI_group_comparison.csv",
+    c(
+      "sample_set", "tgi_measure", "group_low", "group_high", "n_group_low",
+      "n_group_high", "dose_adjusted_difference_high_minus_low",
+      "permutation_p_two_sided", "permutation_mode", "pairing_status"
+    )
+  )
+  group_comparison <- essential_require_single_row(
+    group_comparison_all,
+    group_comparison_all$sample_set == "treated" &
+      group_comparison_all$tgi_measure == tgi_spec$measure,
+    "Treated TGI group comparison"
+  )
+  group_plot_data <- read_plot_data(
+    "CellCycle_TGI_group_boxplot",
+    c(
+      "sample_id", "dose", "dose_mg", "analysis_group", "tgi_value",
+      "tgi_measure"
+    )
+  )
+  if (length(unique(as.character(group_plot_data$tgi_measure))) != 1L ||
+      !identical(as.character(group_plot_data$tgi_measure[[1L]]), tgi_spec$measure)) {
+    stop("TGI group boxplot data do not match the selected TGI measure", call. = FALSE)
+  }
+  group_plot <- essential_tgi_group_boxplot(
+    group_plot_data,
+    group_comparison,
+    spec,
+    tgi_spec
+  )
+  essential_save_pdf(
+    group_plot,
+    file.path(figures_dir, "CellCycle_TGI_group_boxplot.pdf"),
+    6.8,
+    6.4
   )
 
   direct_data <- read_plot_data(
@@ -2531,7 +2775,29 @@ essential_validate_figures_only_inventory <- function(output_root, methods) {
       stop("Unexpected non-PDF figure-only output for method: ", method, call. = FALSE)
     }
   }
-  invisible(list(figures = length(expected) * length(methods)))
+  calculation_expected <- sort(essential_tgi_calculation_figure_filenames())
+  calculation_dir <- file.path(output_root, "Figures", "TGI_calculation")
+  calculation_actual <- sort(list.files(
+    calculation_dir,
+    pattern = "[.]pdf$",
+    full.names = FALSE
+  ))
+  calculation_other <- list.files(
+    calculation_dir,
+    all.files = TRUE,
+    no.. = TRUE,
+    full.names = FALSE
+  )
+  calculation_other <- setdiff(calculation_other, calculation_actual)
+  if (!identical(calculation_actual, calculation_expected)) {
+    stop("Unexpected figure-only TGI-calculation PDF inventory", call. = FALSE)
+  }
+  if (length(calculation_other) > 0L) {
+    stop("Unexpected non-PDF TGI-calculation figure-only output", call. = FALSE)
+  }
+  invisible(list(
+    figures = length(expected) * length(methods) + length(calculation_expected)
+  ))
 }
 
 essential_write_readme <- function(output_root, tgi_spec = essential_tgi_spec()) {
@@ -2546,6 +2812,8 @@ essential_write_readme <- function(output_root, tgi_spec = essential_tgi_spec())
     "",
     "## Selected TGI outcome",
     "",
+    "The CLI default is Day-17 TGI using the mean of initial-ploidy-matched untreated controls. AUC and the other control summaries remain available through explicit CLI options.",
+    "",
     paste0("- Measure: `", tgi_spec$measure, "`."),
     paste0("- Outcome: `", tgi_spec$outcome, "`."),
     paste0("- Matched untreated-control summary: `", tgi_spec$control_summary, "`."),
@@ -2553,15 +2821,18 @@ essential_write_readme <- function(output_root, tgi_spec = essential_tgi_spec())
     "",
     "TGI is calculated as `100 * (1 - mouse tumor-growth delta / matched-control reference delta)`. Controls are matched by initial ploidy. `--control-summary` chooses whether the matched untreated-control deltas are summarized by their mean, median, or maximum; it does not summarize the treated mice.",
     "",
-    "CLI options: `--tgi-outcome=auc|day`, `--control-summary=mean|median|max`, and (for the day outcome) `--tgi-day=<available day>`.",
+    "CLI options: `--tgi-outcome=auc|day`, `--control-summary=mean|median|max`, and (for the day outcome) `--tgi-day=<available day>`. With no TGI options, these resolve to `--tgi-outcome=day --tgi-day=17 --control-summary=mean`.",
     "",
     "The established output filenames retain `AUC` where present for backward compatibility. The selected outcome is recorded in the statistical `tgi_measure` fields, in scatter-plot metadata, and in plot titles and axes.",
     "",
     "## Contents",
     "",
-    "- `Figures/<method>/`: seven CellCycle PDF figures per method.",
-    "- `stats/<method>/`: thirteen statistical CSV files per method.",
-    "- `plot_data/<method>/`: seven plotting-data CSV files per method, one for each figure.",
+    "- `Figures/<method>/`: eight CellCycle PDF figures per method.",
+    "- `stats/<method>/`: fourteen statistical CSV files per method.",
+    "- `plot_data/<method>/`: eight plotting-data CSV files per method, one for each figure.",
+    "- `Figures/TGI_calculation/`: two shared PDFs explaining the selected TGI calculation.",
+    "- `stats/TGI_calculation/`: the per-mouse calculation components and run metadata.",
+    "- `plot_data/TGI_calculation/`: the exact data behind both shared calculation figures.",
     "",
     "## Methods",
     "",
@@ -2575,6 +2846,10 @@ essential_write_readme <- function(output_root, tgi_spec = essential_tgi_spec())
     "Each plotting-data CSV contains the exact rows used by its PDF. Scatter-plot tables also contain the Pearson and Spearman statistics, permutation P values, permutation mode, and the annotation text printed in the figure.",
     "",
     "`CellCycle_direct_group_ecdf_comparisons_selected_3panel.pdf` retains original grid positions `(1,1)`, `(3,2)`, and `(3,3)` (panels 1, 8, and 9). Its plotting-data CSV is a subset of the full direct-ECDF plotting table, and both figures reuse `CellCycle_direct_group_ecdf_comparisons_11panel_tests.csv`; no duplicate statistics file is produced.",
+    "",
+    "`CellCycle_TGI_group_boxplot.pdf` compares the selected CLI TGI measure between 2N and 4N treated tumors for the initial-ploidy method, or between ETP-lower and ETP-higher treated tumors for an ETP method. The boxes are adjacent independent groups, not one-to-one mouse pairs. The displayed primary P value comes from a group-label permutation stratified by dose, and the reported effect is adjusted for dose.",
+    "",
+    "`TGI_calculation_growth_trajectories.pdf` shows every mouse's baseline-adjusted tumor-growth trajectory, facets mice by initial ploidy, overlays the selected summary of matched untreated controls, and marks Day 17. `TGI_calculation_components_by_treated_mouse.pdf` shows the treated-mouse growth delta and its matched-control reference for every treated mouse, with TGI recalculated from the plotted values.",
     "",
     "`CellCycle_ecdf_rmse_vs_ploidy.pdf` uses treated mice only for the correlation and one threshold-independent reference formed by averaging the ECDF of each of the eight 0 mg/kg mice with equal sample weight. Initial ploidy, rather than the threshold-defined ETP group, supplies the point shape.",
     "",
@@ -2680,6 +2955,35 @@ essential_run_method <- function(
     file.path(figures_dir, "CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref.pdf"),
     6.8,
     6.8
+  )
+
+  set.seed(seed + 51L)
+  group_comparison <- essential_tgi_group_comparison(treated, spec, tgi_spec, n_perm)
+  essential_write_csv(
+    group_comparison,
+    file.path(stats_dir, "CellCycle_TGI_group_comparison.csv")
+  )
+  group_plot_data <- treated[
+    order(treated$dose_mg, treated$analysis_group, treated$sample_id),
+    ,
+    drop = FALSE
+  ]
+  group_plot_data$analysis_id <- "CellCycle_TGI_group_boxplot"
+  essential_write_csv(
+    group_plot_data,
+    file.path(plot_data_dir, "CellCycle_TGI_group_boxplot_plot_data.csv")
+  )
+  group_plot <- essential_tgi_group_boxplot(
+    group_plot_data,
+    group_comparison,
+    spec,
+    tgi_spec
+  )
+  essential_save_pdf(
+    group_plot,
+    file.path(figures_dir, "CellCycle_TGI_group_boxplot.pdf"),
+    6.8,
+    6.4
   )
 
   direct <- essential_direct_ecdf(data, dose_tests, spec, n_perm)
@@ -2999,7 +3303,7 @@ essential_run_method <- function(
     6.4
   )
 
-  invisible(list(method = spec$method, figures = 7L, stats = 13L, plot_data = 7L))
+  invisible(list(method = spec$method, figures = 8L, stats = 14L, plot_data = 8L))
 }
 
 essential_validate_inventory <- function(output_root, methods) {
@@ -3011,9 +3315,9 @@ essential_validate_inventory <- function(output_root, methods) {
     all.files = TRUE
   )
   if (length(os_metadata) > 0L) unlink(os_metadata, force = TRUE)
-  expected_figures <- 7L * length(methods)
-  expected_stats <- 13L * length(methods)
-  expected_plot_data <- 7L * length(methods)
+  expected_figures <- 8L * length(methods) + length(essential_tgi_calculation_figure_filenames())
+  expected_stats <- 14L * length(methods) + length(essential_tgi_calculation_stats_filenames())
+  expected_plot_data <- 8L * length(methods) + length(essential_tgi_calculation_plot_data_filenames())
   figures <- list.files(file.path(output_root, "Figures"), pattern = "[.]pdf$", recursive = TRUE, full.names = TRUE)
   stats <- list.files(file.path(output_root, "stats"), pattern = "[.]csv$", recursive = TRUE, full.names = TRUE)
   plot_data <- list.files(file.path(output_root, "plot_data"), pattern = "[.]csv$", recursive = TRUE, full.names = TRUE)

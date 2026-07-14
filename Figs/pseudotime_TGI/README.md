@@ -1,166 +1,54 @@
-# Essential pseudotime-TGI figure, data, and statistics index
+# Essential pseudotime-TGI analysis
 
-This directory is a tracked snapshot of the essential CellCycle pseudotime-TGI results.
+This directory was generated from the CellCycle and NonCellCycle 04h cell-level input tables.
 
-## Source
+When either cell-level input path is omitted, the standalone entrypoint reconstructs the missing table from `scvelo_cell_metrics.csv`, `all_ploidy.tsv`, `sample_info.xlsx`, and `dt_Gem_VT_20241223_v4.xlsx` under `Data/in-vivo`.
 
-The snapshot is generated from the standalone workflow:
+The standalone workflow uses base R plus the `ggplot2`, `ggrepel`, `readr`, and `readxl` packages.
 
-```text
-Code/in-vivo/04h_pseudotime_TGI_essential.R
-Code/in-vivo/04h_pseudotime_TGI_essential_util.R
-```
+## Selected TGI outcome
 
-The corresponding full result directory is:
+The CLI default is Day-17 TGI using the mean of initial-ploidy-matched untreated controls. AUC and the other control summaries remain available through explicit CLI options.
 
-```text
-/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04h_pseudotime_TGI_essential
-```
+- Measure: `TGI_percent_Day_17`.
+- Outcome: `day`.
+- Matched untreated-control summary: `mean`.
+- TGI day: `17`.
 
-The full analysis can start from explicitly supplied CellCycle and NonCellCycle cell-level CSV files. If either path is omitted, the entrypoint reconstructs the missing table from these repository-local inputs:
+TGI is calculated as `100 * (1 - mouse tumor-growth delta / matched-control reference delta)`. Controls are matched by initial ploidy. `--control-summary` chooses whether the matched untreated-control deltas are summarized by their mean, median, or maximum; it does not summarize the treated mice.
 
-```text
-Data/in-vivo/scvelo_cell_metrics.csv
-Data/in-vivo/all_ploidy.tsv
-Data/in-vivo/sample_info.xlsx
-Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx
-```
+CLI options: `--tgi-outcome=auc|day`, `--control-summary=mean|median|max`, and (for the day outcome) `--tgi-day=<available day>`. With no TGI options, these resolve to `--tgi-outcome=day --tgi-day=17 --control-summary=mean`.
 
-By default, reconstructed cell-level tables are written under `Data/in-vivo`. A different destination can be selected with `--generated_input_root=<directory>`. The NonCellCycle input is used only when deriving sample mean end-timepoint ploidy; all figures and reported associations use CellCycle cells.
+The established output filenames retain `AUC` where present for backward compatibility. The selected outcome is recorded in the statistical `tgi_measure` fields, in scatter-plot metadata, and in plot titles and axes.
 
-The raw-input paths can be overridden individually with `--scvelo_metrics_input`, `--cell_ploidy_input`, `--sample_info_input`, and `--growth_curve_input`. Supplying both `--cellcycle_input` and `--noncellcycle_input` skips reconstruction and uses those finished tables directly.
+## Contents
 
-## TGI outcome options
-
-The default is the existing AUC TGI based on the mean of initial-ploidy-matched untreated-control tumor-growth deltas:
-
-```bash
-Rscript Code/in-vivo/04h_pseudotime_TGI_essential.R \
-  --tgi-outcome=auc \
-  --control-summary=mean
-```
-
-Alternative matched-control summaries are selected with `--control-summary=median` or `--control-summary=max`. These options change how the untreated controls are summarized; they do not take the median or maximum across treated mice. For each mouse, the derived value is:
-
-```text
-TGI (%) = 100 * (1 - mouse tumor-growth delta / matched-control reference delta)
-```
-
-The reference delta is the requested mean, median, or maximum among untreated mice with the same initial ploidy. A day-specific outcome is selected with, for example, `--tgi-outcome=day --tgi-day=24`; it can be combined with any control summary.
-
-The established output filenames retain `AUC` where present for backward compatibility. The actual selected outcome is recorded in `tgi_measure`, in scatter-plot metadata (`tgi_outcome`, `tgi_control_summary`, and `tgi_day`), and in the plot titles and axes.
+- `Figures/<method>/`: eight CellCycle PDF figures per method.
+- `stats/<method>/`: fourteen statistical CSV files per method.
+- `plot_data/<method>/`: eight plotting-data CSV files per method, one for each figure.
+- `Figures/TGI_calculation/`: two shared PDFs explaining the selected TGI calculation.
+- `stats/TGI_calculation/`: the per-mouse calculation components and run metadata.
+- `plot_data/TGI_calculation/`: the exact data behind both shared calculation figures.
 
 ## Methods
 
-The same seven figures, plotting-data tables, and statistical outputs are provided for four peer-level grouping methods:
+- `initial_ploidy`: original 2N/4N sample grouping.
+- `ETP_fixed_threshold_2_25`: sample mean ETP threshold 2.25.
+- `ETP_boundary_stress_threshold_2_375`: sample mean ETP threshold 2.375.
+- `ETP_reference_balanced_threshold_2_24`: sample mean ETP threshold 2.24.
 
-| Method directory | Grouping definition |
-|---|---|
-| `initial_ploidy` | Original sample initial ploidy group (`2N` or `4N`) |
-| `ETP_fixed_threshold_2_25` | End-timepoint mean ploidy threshold of 2.25 |
-| `ETP_boundary_stress_threshold_2_375` | End-timepoint mean ploidy boundary-stress threshold of 2.375 |
-| `ETP_reference_balanced_threshold_2_24` | Untreated-reference-balanced end-timepoint mean ploidy threshold of 2.24 |
+## Figure data
 
-## Directory structure
+Each plotting-data CSV contains the exact rows used by its PDF. Scatter-plot tables also contain the Pearson and Spearman statistics, permutation P values, permutation mode, and the annotation text printed in the figure.
 
-```text
-pseudotime_TGI/
-├── Figures/
-│   └── <method>/
-├── stats/
-│   └── <method>/
-├── plot_data/
-│   └── <method>/
-└── README.md
-```
+`CellCycle_direct_group_ecdf_comparisons_selected_3panel.pdf` retains original grid positions `(1,1)`, `(3,2)`, and `(3,3)` (panels 1, 8, and 9). Its plotting-data CSV is a subset of the full direct-ECDF plotting table, and both figures reuse `CellCycle_direct_group_ecdf_comparisons_11panel_tests.csv`; no duplicate statistics file is produced.
 
-Each method contains seven PDF figures, thirteen statistical CSV files, and seven plotting-data CSV files.
+`CellCycle_TGI_group_boxplot.pdf` compares the selected CLI TGI measure between 2N and 4N treated tumors for the initial-ploidy method, or between ETP-lower and ETP-higher treated tumors for an ETP method. The boxes are adjacent independent groups, not one-to-one mouse pairs. The displayed primary P value comes from a group-label permutation stratified by dose, and the reported effect is adjusted for dose.
 
-## Figure-to-table mapping
+`TGI_calculation_growth_trajectories.pdf` shows every mouse's baseline-adjusted tumor-growth trajectory, facets mice by initial ploidy, overlays the selected summary of matched untreated controls, and marks Day 17. `TGI_calculation_components_by_treated_mouse.pdf` shows the treated-mouse growth delta and its matched-control reference for every treated mouse, with TGI recalculated from the plotted values.
 
-| Figure | Plotting-data table | Primary statistical file(s) | Supporting statistical file(s) |
-|---|---|---|---|
-| `CellCycle_direct_group_ecdf_comparisons.pdf` | `CellCycle_direct_group_ecdf_comparisons_plot_data.csv` | `CellCycle_direct_group_ecdf_comparisons_11panel_tests.csv` | None |
-| `CellCycle_direct_group_ecdf_comparisons_selected_3panel.pdf` | `CellCycle_direct_group_ecdf_comparisons_selected_3panel_plot_data.csv` | `CellCycle_direct_group_ecdf_comparisons_11panel_tests.csv` | Selected original grid positions: `(1,1)`, `(3,2)`, and `(3,3)` (panels 1, 8, and 9). |
-| `CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref.pdf` | `CellCycle_TGI_AUC_vs_ecdf_rmse_equal_sample_ref_plot_data.csv` | `CellCycle_TGI_associations_ecdf_rmse.csv` | `CellCycle_primary_TGI_robustness_summary.csv`; `CellCycle_primary_TGI_leave_one_out.csv`; `CellCycle_primary_TGI_bootstrap.csv` |
-| `CellCycle_TGI_AUC_vs_mean_ETP.pdf` | `CellCycle_TGI_AUC_vs_mean_ETP_plot_data.csv` | `CellCycle_TGI_associations_mean_ETP.csv` | `CellCycle_mean_ETP_TGI_robustness_summary.csv`; `CellCycle_mean_ETP_TGI_leave_one_out.csv`; `CellCycle_mean_ETP_TGI_bootstrap.csv` |
-| `CellCycle_AUC_TGI_vs_ecdf_rmse_by_ploidy_dose.pdf` | `CellCycle_AUC_TGI_vs_ecdf_rmse_by_ploidy_dose_plot_data.csv` | `CellCycle_AUC_TGI_shift_ploidy_dose_models.csv`; `CellCycle_AUC_TGI_shift_ploidy_dose_model_summaries.csv` | `CellCycle_TGI_associations_ecdf_rmse.csv` supplies the displayed primary correlation and permutation P value. |
-| `CellCycle_TGI_association_within_dose_centered.pdf` | `CellCycle_TGI_association_within_dose_centered_plot_data.csv` | `residualized_TGI_associations.csv` | None |
-| `CellCycle_ecdf_rmse_vs_ploidy.pdf` | `CellCycle_ecdf_rmse_vs_ploidy_plot_data.csv` | `ploidy_confounding_tests.csv` | None |
+`CellCycle_ecdf_rmse_vs_ploidy.pdf` uses treated mice only for the correlation and one threshold-independent reference formed by averaging the ECDF of each of the eight 0 mg/kg mice with equal sample weight. Initial ploidy, rather than the threshold-defined ETP group, supplies the point shape.
 
-Each plotting-data CSV contains the exact rows used by its PDF. Scatter-plot tables also retain the Pearson and Spearman statistics, asymptotic and permutation P values, permutation mode, permutation count, sample count, and annotation text printed in the figure.
+Figures can be regenerated without the cell-level inputs and without rerunning statistical tests by using `--figures_only=TRUE --tables_root=<existing-output-root>`. In this mode the workflow reads only `plot_data/` and the required files in `stats/`, and writes only `Figures/`.
 
-The direct group ECDF figure contains eleven panels. In addition to the treatment-, dose-, and grouping-method comparisons, panels 10 and 11 compare initial `2N` versus `4N` samples separately at 30 mg/kg and 120 mg/kg.
-
-The selected three-panel version retains panels 1, 8, and 9 from the original three-column layout: overall `0 vs treated`, higher-ploidy-group `0 vs treated`, and lower-ploidy-group `0 vs treated`.
-
-`CellCycle_ecdf_rmse_vs_ploidy.pdf` uses only treated mice in the displayed correlation. Every treated mouse is compared with the same threshold-independent reference: the equal-sample mean of the eight individual 0 mg/kg mouse ECDFs. Point shapes encode initial ploidy rather than the threshold-defined ETP group, so this analysis is identical across ETP thresholds.
-
-## Primary-row filters
-
-For `CellCycle_TGI_associations_ecdf_rmse.csv`, the primary row displayed in the equal-sample-reference association figures is identified by:
-
-```text
-compartment = CellCycle
-sample_set = treated
-reference_type = primary_equal_sample_reference
-shift_metric = ecdf_rmse
-pre_specified_primary = TRUE
-```
-
-The `tgi_measure` value identifies the selected CLI outcome (for example, `TGI_percent_auc`, `TGI_percent_auc_control_median`, or `TGI_percent_Day_24_control_max`).
-
-For `CellCycle_TGI_associations_mean_ETP.csv`, the selected mean-ETP row is identified by:
-
-```text
-compartment = CellCycle
-sample_set = treated
-predictor_label = sample_mean_ETP
-pre_specified_primary = TRUE
-```
-
-For `residualized_TGI_associations.csv`, the displayed within-dose-centered result is identified by:
-
-```text
-compartment = CellCycle
-analysis = within_dose_centered
-method = pearson
-```
-
-For `ploidy_confounding_tests.csv`, the displayed treated-sample ploidy association is identified by:
-
-```text
-compartment = CellCycle
-sample_set = treated
-reference_type = all_untreated_equal_sample_reference
-control_scope = all_untreated
-shift_metric = ecdf_rmse
-ploidy_measure = mean_cell_ploidy
-```
-
-## Figures-only regeneration
-
-The figures can be regenerated directly from the tracked plotting-data and statistical tables without the cell-level inputs and without rerunning statistical tests:
-
-```bash
-Rscript Code/in-vivo/04h_pseudotime_TGI_essential.R \
-  --figures_only=TRUE \
-  --tables_root='Figs/pseudotime_TGI' \
-  --output_root='Figs/pseudotime_TGI' \
-  --methods=all \
-  --workers=4 \
-  --overwrite=TRUE
-```
-
-In figures-only mode, the workflow reads only `plot_data/` and the required files in `stats/`. It replaces only the selected `Figures/<method>/` directories and does not modify `stats/`, `plot_data/`, or this README.
-
-## Inventory
-
-- Four method directories
-- Seven PDF figures per method
-- Thirteen statistical CSV files per method
-- Seven plotting-data CSV files per method
-- Twenty-eight PDF files in total
-- Fifty-two statistical CSV files in total
-- Twenty-eight plotting-data CSV files in total
-- No PNG, PPT, or PPTX files
+The NonCellCycle input is used only when deriving sample mean end-timepoint ploidy. All figures and reported associations use CellCycle cells.
