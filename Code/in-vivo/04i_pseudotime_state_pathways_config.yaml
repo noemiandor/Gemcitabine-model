@@ -1,0 +1,66 @@
+analysis:
+  name: "04i_pseudotime_state_pathways"
+  frozen_date: "2026-07-14"
+  code_revision_used_to_record_intervals: "9d7e9945"
+  expression_data_inspected_for_interval_selection: false
+  interval_selection_note: "Intervals were copied from the pre-specified Slack implementation plan before expression modeling."
+
+pseudotime:
+  scenario: "CellCycle ROOT_6_END_NULL"
+  scale: "[0, 1]"
+  orientation: "Established upstream CellCycle pseudotime orientation; values must not be renormalized."
+
+density_source:
+  method: "equal-mouse treatment-versus-control density comparison described in pseudotime_accumulation_state_pathway_analysis_plan.md"
+  common_bandwidth: "recorded in upstream plan as required metadata; original density-band script was not present in this checkout when this config was created"
+  input_description: "Data/in-vivo/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+
+intervals:
+  primary_accumulated_state:
+    role: "primary"
+    label: "Primary accumulated state"
+    start: 0.30
+    end: 0.49
+    include_start: true
+    include_end: true
+    source: "rounded from approximately 0.296-0.486 pointwise treated-cell excess"
+  left_neighbor:
+    role: "left_flank"
+    label: "Left neighboring state"
+    start: 0.11
+    end: 0.30
+    include_start: true
+    include_end: false
+    source: "equal-width state immediately before the primary interval"
+  right_neighbor:
+    role: "right_flank"
+    label: "Right neighboring state"
+    start: 0.49
+    end: 0.68
+    include_start: false
+    include_end: true
+    source: "equal-width state immediately after the primary interval"
+  broad_sensitivity:
+    role: "sensitivity"
+    label: "Broad treated-cell excess sensitivity"
+    start: 0.11
+    end: 0.61
+    include_start: true
+    include_end: true
+    source: "broader region of numerical treated-cell excess"
+  strict_support_sensitivity:
+    role: "sensitivity"
+    label: "Strict simultaneous-band support sensitivity"
+    start: 0.414
+    end: 0.426
+    include_start: true
+    include_end: true
+    source: "narrow region supported by the simultaneous density-difference band"
+  depleted_negative_control:
+    role: "negative_control"
+    label: "Depleted-region negative control"
+    start: 0.80
+    end: 0.98
+    include_start: true
+    include_end: true
+    source: "region in which treated cells were depleted rather than enriched"
