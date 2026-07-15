@@ -28,6 +28,7 @@ defaults <- list(
   workers = 4L,
   parallel = TRUE,
   model_workers = 0L,
+  within_model_workers = 1L,
   gsea_workers = 0L,
   overwrite = FALSE,
   min_match_rate = 0.99,

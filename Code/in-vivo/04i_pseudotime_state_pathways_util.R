@@ -911,6 +911,7 @@ pst_run_fgsea_collection <- function(stats, collection_obj, ranking_id, min_size
           minSize = min_size,
           maxSize = max_size,
           nPermSimple = nperm_simple,
+          nproc = 1L,
           eps = 0
         )
       } else {
@@ -919,7 +920,8 @@ pst_run_fgsea_collection <- function(stats, collection_obj, ranking_id, min_size
           stats = stats,
           minSize = min_size,
           maxSize = max_size,
-          nperm = nperm_simple
+          nperm = nperm_simple,
+          nproc = 1L
         )
       }
     },
@@ -1262,7 +1264,12 @@ pst_run_sensitivity <- function(pb_counts, sample_bin_meta, cfg, gene_sets, prim
     spline_df_4 = list(spline_df = 4L),
     spline_df_6 = list(spline_df = 6L)
   )
-  rows <- lapply(names(analyses), function(id) {
+  sensitivity_ids <- names(analyses)
+  sensitivity_workers <- suppressWarnings(as.integer(args$workers %||% 1L))
+  if (!is.finite(sensitivity_workers) || sensitivity_workers < 1L) sensitivity_workers <- 1L
+  sensitivity_workers <- max(1L, min(length(sensitivity_ids), sensitivity_workers))
+  message("Running sensitivity for ", model_spec$model_id %||% "model", " with workers=", sensitivity_workers)
+  worker_fun <- function(id) {
     spec <- analyses[[id]]
     gsea <- tryCatch(
       pst_sensitivity_one(
@@ -1287,7 +1294,12 @@ pst_run_sensitivity <- function(pb_counts, sample_bin_meta, cfg, gene_sets, prim
     if (nrow(gsea) == 0L) return(NULL)
     gsea$analysis_id <- id
     gsea
-  })
+  }
+  if (.Platform$OS.type == "unix" && sensitivity_workers > 1L) {
+    rows <- parallel::mclapply(sensitivity_ids, worker_fun, mc.cores = sensitivity_workers)
+  } else {
+    rows <- lapply(sensitivity_ids, worker_fun)
+  }
   sens <- do.call(rbind, Filter(Negate(is.null), rows))
   if (is.null(sens) || nrow(sens) == 0L) return(data.frame())
   primary <- primary_gsea[, c("collection", "collection_label", "pathway", "pathway_label", "NES", "padj"), drop = FALSE]
@@ -1300,6 +1312,10 @@ pst_run_sensitivity <- function(pb_counts, sample_bin_meta, cfg, gene_sets, prim
 
 pst_run_leave_one_out <- function(pb_counts, sample_bin_meta, cfg, gene_sets, args, model_spec) {
   sample_ids <- sort(unique(sample_bin_meta$sample_id))
+  loo_workers <- suppressWarnings(as.integer(args$workers %||% 1L))
+  if (!is.finite(loo_workers) || loo_workers < 1L) loo_workers <- 1L
+  loo_workers <- max(1L, min(length(sample_ids), loo_workers))
+  message("Running leave-one-out for ", model_spec$model_id %||% "model", " with workers=", loo_workers)
   worker_fun <- function(sample_id) {
     local_meta <- sample_bin_meta[sample_bin_meta$sample_id != sample_id, , drop = FALSE]
     local_counts <- pb_counts[, local_meta$sample_bin_id, drop = FALSE]
@@ -1323,8 +1339,8 @@ pst_run_leave_one_out <- function(pb_counts, sample_bin_meta, cfg, gene_sets, ar
     gsea$left_out_sample_id <- sample_id
     gsea
   }
-  if (.Platform$OS.type == "unix" && args$workers > 1L) {
-    rows <- parallel::mclapply(sample_ids, worker_fun, mc.cores = args$workers)
+  if (.Platform$OS.type == "unix" && loo_workers > 1L) {
+    rows <- parallel::mclapply(sample_ids, worker_fun, mc.cores = loo_workers)
   } else {
     rows <- lapply(sample_ids, worker_fun)
   }
@@ -2055,6 +2071,17 @@ pst_effective_workers <- function(args, n_tasks, field = "model_workers") {
   max(1L, min(as.integer(n_tasks), requested))
 }
 
+pst_effective_within_model_workers <- function(args, model_workers) {
+  requested <- suppressWarnings(as.integer(args$within_model_workers %||% 1L))
+  total <- suppressWarnings(as.integer(args$workers %||% 1L))
+  model_workers <- suppressWarnings(as.integer(model_workers %||% 1L))
+  if (!is.finite(requested) || requested < 1L) requested <- 1L
+  if (!is.finite(total) || total < 1L) total <- requested
+  if (!is.finite(model_workers) || model_workers < 1L) model_workers <- 1L
+  max_by_total <- max(1L, floor(total / model_workers))
+  max(1L, min(requested, max_by_total))
+}
+
 pst_parallel_lapply <- function(x, fun, workers = 1L, task_label = "task") {
   if (length(x) == 0L) return(list(results = list(), log = data.frame()))
   workers <- max(1L, min(as.integer(workers), length(x)))
@@ -2103,12 +2130,13 @@ pst_parallel_lapply <- function(x, fun, workers = 1L, task_label = "task") {
 
 pst_run_model_set <- function(model_specs, workflow_root, pb, counts, coverage, coverage_check, cfg, gene_sets, args, task_label) {
   model_workers <- if (isTRUE(args$parallel)) pst_effective_workers(args, length(model_specs), "model_workers") else 1L
+  within_model_workers <- if (isTRUE(args$parallel)) pst_effective_within_model_workers(args, model_workers) else 1L
   worker_args <- args
-  worker_args$workers <- 1L
+  worker_args$workers <- within_model_workers
   if (!is.null(worker_args$gsea_workers)) worker_args$gsea_workers <- 1L
   tasks <- model_specs
   names(tasks) <- names(model_specs)
-  message("Running ", task_label, " models with workers=", model_workers)
+  message("Running ", task_label, " models with model_workers=", model_workers, ", within_model_workers=", within_model_workers)
   out <- pst_parallel_lapply(
     tasks,
     function(model_spec) {
