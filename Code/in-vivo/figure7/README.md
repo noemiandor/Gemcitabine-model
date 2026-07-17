@@ -36,6 +36,33 @@ bash Manager.sh --mode standard --modules in_vivo_figure7 \
 This mode records a five-panel contract and does not read, validate, render, or
 materialize panel 7F. Each included panel is written in both PDF and PNG format.
 
+To run the standalone Figure 7 workflow directly on the HPC and generate all
+six source panels:
+
+```bash
+module load R/4.4.2-gfbf-2024a
+
+cd /share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures
+
+figure7_output_dir="/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures/Results/in-vivo/figure7/runs/manual_$(date +%Y%m%d_%H%M%S)_figure7"
+
+Rscript Code/in-vivo/figure7/run_figure7.R \
+  --mode=standard \
+  --panel-set=a-f \
+  --config=Code/in-vivo/figure7/figure7_config.yaml \
+  --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
+  --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
+  --saved-state-pathway-dir=Data/in-vivo/figure7/saved_state_pathway/taoli_04i_etp2_24_day17_v1 \
+  --output-dir="${figure7_output_dir}"
+
+echo "Figure 7 results: ${figure7_output_dir}"
+```
+
+Run this command in the HPC shell rather than at an interactive R prompt. The
+timestamp creates a new output directory for every run. The `standard` mode
+recomputes panels 7A-7E and renders panel 7F from the pinned canonical 04i
+tables without refitting the 04i model.
+
 Standalone rendering from an immutable completed run (does not rerun statistics):
 
 ```bash
