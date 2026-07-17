@@ -1,6 +1,8 @@
 # Figure 7 reproducibility module
 
-This module generates exactly the six approved Figure 7 source-panel PDFs. It does not assemble the final A-F manuscript composite, matching the Figure 1-6 workflow.
+This module generates the six approved Figure 7 source panels as matched PDF and
+300-DPI PNG files. It does not assemble the final A-F manuscript composite,
+matching the Figure 1-6 workflow.
 
 ## Frozen routine analysis
 
@@ -27,7 +29,8 @@ bash Manager.sh --mode standard --modules in_vivo_figure7 \
   --figure7-panels-ae-only --run-id <run_id>
 ```
 
-This mode records a five-panel contract and does not read, validate, render, or materialize panel 7F.
+This mode records a five-panel contract and does not read, validate, render, or
+materialize panel 7F. Each included panel is written in both PDF and PNG format.
 
 Standalone rendering from an immutable completed run (does not rerun statistics):
 
@@ -45,16 +48,19 @@ Full panel-F recomputation requires both an explicit Seurat RDS and a pinned loc
 
 ## Output contract
 
-Each successful run has `figures/`, `tables/`, `metadata/`, and `logs/`. The default six-panel contract contains only:
+Each successful run has `figures/`, `tables/`, `metadata/`, and `logs/`. The
+default six-panel contract contains these PDF/PNG pairs:
 
-1. `panel_7A_day17_tgi_calculation.pdf`
-2. `panel_7B_cellcycle_selected_ecdf_comparisons.pdf`
-3. `panel_7C_day17_tgi_by_initial_ploidy.pdf`
-4. `panel_7D_day17_tgi_vs_centered_ecdf_shift.pdf`
-5. `panel_7E_day17_tgi_vs_mean_etp.pdf`
-6. `panel_7F_pseudotime_state_pathway_activity.pdf`
+1. `panel_7A_day17_tgi_calculation.{pdf,png}`
+2. `panel_7B_cellcycle_selected_ecdf_comparisons.{pdf,png}`
+3. `panel_7C_day17_tgi_by_initial_ploidy.{pdf,png}`
+4. `panel_7D_day17_tgi_vs_centered_ecdf_shift.{pdf,png}`
+5. `panel_7E_day17_tgi_vs_mean_etp.{pdf,png}`
+6. `panel_7F_pseudotime_state_pathway_activity.{pdf,png}`
 
-An explicit `--panel-set=a-e`/`--figure7-panels-ae-only` run instead contains exactly the first five PDFs, records `panel_set=a-e`, and excludes all panel-F inputs and outputs.
+An explicit `--panel-set=a-e`/`--figure7-panels-ae-only` run instead contains
+exactly the first five pairs, records `panel_set=a-e`, and excludes all panel-F
+inputs and outputs.
 
 Plotting data, exact-permutation tests, the complete compact state-pathway audit chain, frozen-reference comparison, run settings, panel contract, and session information are retained alongside the PDFs.
 

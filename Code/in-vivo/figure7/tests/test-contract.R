@@ -21,13 +21,13 @@ testthat::test_that("missing F, wrong checksums, and nonempty outputs fail clear
 
 testthat::test_that("entire-run image inventory is exact", {
   config <- figure7_test_inputs()$config; out <- tempfile(); dir.create(file.path(out, "figures"), recursive = TRUE)
-  for (file in figure7_panel_filenames(config)) writeLines("%PDF fixture", file.path(out, "figures", file))
+  for (file in figure7_panel_asset_filenames(config)) writeLines("figure fixture", file.path(out, "figures", file))
   testthat::expect_silent(figure7_validate_figure_inventory(out, config))
-  dir.create(file.path(out, "tables")); file.create(file.path(out, "tables", "unexpected.png"))
-  testthat::expect_error(figure7_validate_figure_inventory(out, config), "Unexpected non-PDF")
+  dir.create(file.path(out, "tables")); file.create(file.path(out, "tables", "unexpected.svg"))
+  testthat::expect_error(figure7_validate_figure_inventory(out, config), "Figure inventory mismatch")
 })
 
-testthat::test_that("A-E plus a validated fixture F satisfy the exact six-panel inventory", {
+testthat::test_that("A-E plus a validated fixture F satisfy six exact PDF/PNG pairs", {
   input <- figure7_test_inputs(); fixture <- figure7_test_state_reference()
   reference <- figure7_validate_state_reference(fixture$path, fixture$config)
   out <- tempfile("figure7_six_"); figure7_prepare_output(out)
@@ -35,7 +35,10 @@ testthat::test_that("A-E plus a validated fixture F satisfy the exact six-panel 
   figure7_build_f(reference, out, fixture$config)
   testthat::expect_silent(figure7_validate_figure_inventory(out, fixture$config))
   pdfs <- list.files(file.path(out, "figures"), pattern = "[.]pdf$", full.names = TRUE)
+  pngs <- list.files(file.path(out, "figures"), pattern = "[.]png$", full.names = TRUE)
   testthat::expect_length(pdfs, 6L)
+  testthat::expect_length(pngs, 6L)
+  testthat::expect_true(all(file.info(pngs)$size > 0))
   if (nzchar(Sys.which("pdfinfo"))) {
     statuses <- vapply(pdfs, function(file) system2("pdfinfo", file, stdout = FALSE, stderr = FALSE), integer(1L))
     testthat::expect_true(all(statuses == 0L))

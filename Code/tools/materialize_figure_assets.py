@@ -190,6 +190,7 @@ PANEL_SPECS = [
         "panel": "7A",
         "asset": "panel_7A_day17_tgi_calculation.pdf",
         "caption_role": "Tumor-growth trajectories explaining the Day-17 TGI calculation",
+        "variant": "pdf",
     },
     {
         "module": "in_vivo_figure7",
@@ -198,6 +199,7 @@ PANEL_SPECS = [
         "panel": "7B",
         "asset": "panel_7B_cellcycle_selected_ecdf_comparisons.pdf",
         "caption_role": "Selected CellCycle mean-ECDF comparisons",
+        "variant": "pdf",
     },
     {
         "module": "in_vivo_figure7",
@@ -206,6 +208,7 @@ PANEL_SPECS = [
         "panel": "7C",
         "asset": "panel_7C_day17_tgi_by_initial_ploidy.pdf",
         "caption_role": "Day-17 TGI in initial 2N versus 4N treated tumors",
+        "variant": "pdf",
     },
     {
         "module": "in_vivo_figure7",
@@ -214,6 +217,7 @@ PANEL_SPECS = [
         "panel": "7D",
         "asset": "panel_7D_day17_tgi_vs_centered_ecdf_shift.pdf",
         "caption_role": "Within-dose-centered TGI and CellCycle ECDF-shift association",
+        "variant": "pdf",
     },
     {
         "module": "in_vivo_figure7",
@@ -222,6 +226,7 @@ PANEL_SPECS = [
         "panel": "7E",
         "asset": "panel_7E_day17_tgi_vs_mean_etp.pdf",
         "caption_role": "Day-17 TGI versus sample mean endpoint ploidy",
+        "variant": "pdf",
     },
     {
         "module": "in_vivo_figure7",
@@ -230,6 +235,62 @@ PANEL_SPECS = [
         "panel": "7F",
         "asset": "panel_7F_pseudotime_state_pathway_activity.pdf",
         "caption_role": "Pathway activity across the accumulated CellCycle pseudotime state",
+        "variant": "pdf",
+        "optional": True,
+    },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/panel_7A_day17_tgi_calculation.png",
+        "figure": "Figure7",
+        "panel": "7A_png",
+        "asset": "panel_7A_day17_tgi_calculation.png",
+        "caption_role": "PNG derivative of the Day-17 TGI calculation panel",
+        "variant": "png",
+    },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/panel_7B_cellcycle_selected_ecdf_comparisons.png",
+        "figure": "Figure7",
+        "panel": "7B_png",
+        "asset": "panel_7B_cellcycle_selected_ecdf_comparisons.png",
+        "caption_role": "PNG derivative of the selected CellCycle mean-ECDF panel",
+        "variant": "png",
+    },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/panel_7C_day17_tgi_by_initial_ploidy.png",
+        "figure": "Figure7",
+        "panel": "7C_png",
+        "asset": "panel_7C_day17_tgi_by_initial_ploidy.png",
+        "caption_role": "PNG derivative of the initial-ploidy Day-17 TGI panel",
+        "variant": "png",
+    },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/panel_7D_day17_tgi_vs_centered_ecdf_shift.png",
+        "figure": "Figure7",
+        "panel": "7D_png",
+        "asset": "panel_7D_day17_tgi_vs_centered_ecdf_shift.png",
+        "caption_role": "PNG derivative of the centered ECDF-shift association panel",
+        "variant": "png",
+    },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/panel_7E_day17_tgi_vs_mean_etp.png",
+        "figure": "Figure7",
+        "panel": "7E_png",
+        "asset": "panel_7E_day17_tgi_vs_mean_etp.png",
+        "caption_role": "PNG derivative of the endpoint-ploidy association panel",
+        "variant": "png",
+    },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/panel_7F_pseudotime_state_pathway_activity.png",
+        "figure": "Figure7",
+        "panel": "7F_png",
+        "asset": "panel_7F_pseudotime_state_pathway_activity.png",
+        "caption_role": "PNG derivative of the pseudotime state-pathway activity panel",
+        "variant": "png",
         "optional": True,
     },
 ]
@@ -386,7 +447,15 @@ def validate_strict_source_run(
         if str(spec["module"]) == module
         and (not spec.get("optional") or (run_root / str(spec["source"])).is_file())
     }
-    has_panel_f = any(path.name == "panel_7F_pseudotime_state_pathway_activity.pdf" for path in expected_sources)
+    panel_f_paths = {
+        (run_root / str(spec["source"])).resolve()
+        for spec in selected_specs
+        if str(spec["module"]) == module and str(spec["panel"]).startswith("7F")
+    }
+    present_panel_f_paths = {path for path in panel_f_paths if path.is_file()}
+    if present_panel_f_paths and present_panel_f_paths != panel_f_paths:
+        raise ValueError("Source Figure 7 run must contain both PDF and PNG panel-F assets or neither")
+    has_panel_f = present_panel_f_paths == panel_f_paths
     expected_panel_set = "a-f" if has_panel_f else "a-e"
     run_config = run_root / "metadata" / "run_config.tsv"
     if not run_config.is_file():
@@ -406,6 +475,7 @@ def validate_strict_source_run(
         (str(spec["panel"]), Path(str(spec["source"])).name)
         for spec in selected_specs
         if str(spec["module"]) == module
+        and spec.get("variant", "pdf") == "pdf"
         and (not spec.get("optional") or (run_root / str(spec["source"])).is_file())
     ]
     observed_contract = [(row.get("panel_id", ""), row.get("filename", "")) for row in contract_rows]

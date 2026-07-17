@@ -102,10 +102,18 @@ figure7_write_tsv <- function(data, path) {
   invisible(path)
 }
 
-figure7_save_pdf <- function(plot, path, width, height) {
-  ggplot2::ggsave(path, plot, device = grDevices::cairo_pdf, width = width, height = height, units = "in")
-  if (!file.exists(path) || file.info(path)$size <= 0) figure7_stop("Failed to write PDF: ", path)
-  invisible(path)
+figure7_save_panel <- function(plot, pdf_path, width, height, png_dpi = 300) {
+  png_path <- sub("[.]pdf$", ".png", pdf_path, ignore.case = TRUE)
+  if (identical(png_path, pdf_path)) figure7_stop("Figure 7 panel path must end in .pdf: ", pdf_path)
+  ggplot2::ggsave(pdf_path, plot, device = grDevices::cairo_pdf,
+                  width = width, height = height, units = "in")
+  ggplot2::ggsave(png_path, plot, device = "png", dpi = png_dpi,
+                  width = width, height = height, units = "in", bg = "white")
+  paths <- c(pdf_path, png_path)
+  if (any(!file.exists(paths)) || any(file.info(paths)$size <= 0)) {
+    figure7_stop("Failed to write PDF/PNG panel pair: ", pdf_path)
+  }
+  invisible(paths)
 }
 
 figure7_panel_ids <- function(include_panel_f = TRUE) {
@@ -116,19 +124,25 @@ figure7_panel_filenames <- function(config, panel_ids = figure7_panel_ids(TRUE))
   unname(unlist(config$panels$filenames[panel_ids], use.names = FALSE))
 }
 
+figure7_panel_asset_filenames <- function(config, panel_ids = figure7_panel_ids(TRUE)) {
+  pdfs <- figure7_panel_filenames(config, panel_ids)
+  c(pdfs, sub("[.]pdf$", ".png", pdfs, ignore.case = TRUE))
+}
+
 figure7_validate_figure_inventory <- function(output_dir, config, panel_ids = figure7_panel_ids(TRUE)) {
   figures_dir <- file.path(output_dir, "figures")
-  all_pdf <- list.files(output_dir, pattern = "[.]pdf$", recursive = TRUE, full.names = TRUE, ignore.case = TRUE)
-  observed <- sort(basename(all_pdf))
-  expected <- sort(figure7_panel_filenames(config, panel_ids))
-  if (!identical(observed, expected) || any(dirname(normalizePath(all_pdf)) != normalizePath(figures_dir))) {
+  all_figures <- list.files(
+    output_dir, pattern = "[.](pdf|png|svg|tiff?|jpg|jpeg)$",
+    recursive = TRUE, full.names = TRUE, ignore.case = TRUE
+  )
+  observed <- sort(basename(all_figures))
+  expected <- sort(figure7_panel_asset_filenames(config, panel_ids))
+  if (!identical(observed, expected) ||
+      any(dirname(normalizePath(all_figures)) != normalizePath(figures_dir))) {
     figure7_stop("Figure inventory mismatch. Expected: ", paste(expected, collapse = ", "),
                  "; observed: ", paste(observed, collapse = ", "))
   }
-  if (any(file.info(all_pdf)$size <= 0)) figure7_stop("Every Figure 7 PDF must be nonempty")
-  unexpected <- list.files(output_dir, pattern = "[.](png|svg|tiff?|jpg|jpeg)$", recursive = TRUE,
-                           ignore.case = TRUE, full.names = TRUE)
-  if (length(unexpected)) figure7_stop("Unexpected non-PDF figure(s): ", paste(unexpected, collapse = ", "))
+  if (any(file.info(all_figures)$size <= 0)) figure7_stop("Every Figure 7 asset must be nonempty")
   invisible(TRUE)
 }
 

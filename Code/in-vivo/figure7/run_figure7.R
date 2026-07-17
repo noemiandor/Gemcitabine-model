@@ -126,18 +126,18 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
   }
   if (include_panel_f) figure7_copy_file(provenance, file.path(output_dir, "metadata", basename(provenance)))
   filenames <- config$panels$filenames
-  figure7_save_pdf(figure7_panel_a_plot(a), file.path(output_dir, "figures", filenames[["7A"]]), 10, 6.5)
-  figure7_save_pdf(figure7_panel_b_plot(b, bt), file.path(output_dir, "figures", filenames[["7B"]]), 15, 5.5)
-  figure7_save_pdf(figure7_panel_c_plot(cdata, ct), file.path(output_dir, "figures", filenames[["7C"]]), 6.8, 6.4)
-  figure7_save_pdf(figure7_scatter_plot(d, "shift_centered", "tgi_centered", dt,
+  figure7_save_panel(figure7_panel_a_plot(a), file.path(output_dir, "figures", filenames[["7A"]]), 10, 6.5)
+  figure7_save_panel(figure7_panel_b_plot(b, bt), file.path(output_dir, "figures", filenames[["7B"]]), 15, 5.5)
+  figure7_save_panel(figure7_panel_c_plot(cdata, ct), file.path(output_dir, "figures", filenames[["7C"]]), 6.8, 6.4)
+  figure7_save_panel(figure7_scatter_plot(d, "shift_centered", "tgi_centered", dt,
     "CellCycle TGI association after within-dose centering", "Dose-centered ECDF RMSE", "Dose-centered Day 17 TGI (%)") +
       ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.35),
     file.path(output_dir, "figures", filenames[["7D"]]), 6.6, 6.6)
-  figure7_save_pdf(figure7_scatter_plot(e, "sample_mean_endpoint_ploidy", "TGI_percent_Day_17", et,
+  figure7_save_panel(figure7_scatter_plot(e, "sample_mean_endpoint_ploidy", "TGI_percent_Day_17", et,
     "Cell-cycle-associated tumor cells: Day 17 TGI vs sample mean ETP", "Sample mean ETP", "Day 17 TGI (%)"),
     file.path(output_dir, "figures", filenames[["7E"]]), 6.8, 6.8)
   if (include_panel_f) {
-    figure7_save_pdf(figure7_panel_f_plot(f, config), file.path(output_dir, "figures", filenames[["7F"]]), 9, 8)
+    figure7_save_panel(figure7_panel_f_plot(f, config), file.path(output_dir, "figures", filenames[["7F"]]), 9, 8)
   }
   write_metadata(output_dir, mode, config, config_path, panel_ids)
   figure7_validate_figure_inventory(output_dir, config, panel_ids)

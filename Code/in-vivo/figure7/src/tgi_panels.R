@@ -162,14 +162,14 @@ figure7_build_ae <- function(cellcycle, data, samples, output_dir, config) {
   figure7_write_tsv(panel_e$test, file.path(tables, "panel_7E_test.tsv"))
 
   filenames <- config$panels$filenames
-  figure7_save_pdf(figure7_panel_a_plot(trajectory), file.path(figures, filenames[["7A"]]), 10, 6.5)
-  figure7_save_pdf(figure7_panel_b_plot(panel_b$data, panel_b$tests), file.path(figures, filenames[["7B"]]), 15, 5.5)
-  figure7_save_pdf(figure7_panel_c_plot(treated, test_c), file.path(figures, filenames[["7C"]]), 6.8, 6.4)
-  figure7_save_pdf(figure7_scatter_plot(panel_d$data, "shift_centered", "tgi_centered", panel_d$test,
+  figure7_save_panel(figure7_panel_a_plot(trajectory), file.path(figures, filenames[["7A"]]), 10, 6.5)
+  figure7_save_panel(figure7_panel_b_plot(panel_b$data, panel_b$tests), file.path(figures, filenames[["7B"]]), 15, 5.5)
+  figure7_save_panel(figure7_panel_c_plot(treated, test_c), file.path(figures, filenames[["7C"]]), 6.8, 6.4)
+  figure7_save_panel(figure7_scatter_plot(panel_d$data, "shift_centered", "tgi_centered", panel_d$test,
     "CellCycle TGI association after within-dose centering", "Dose-centered ECDF RMSE", "Dose-centered Day 17 TGI (%)") +
     ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.35),
     file.path(figures, filenames[["7D"]]), 6.6, 6.6)
-  figure7_save_pdf(figure7_scatter_plot(panel_e$data, "sample_mean_endpoint_ploidy", "TGI_percent_Day_17", panel_e$test,
+  figure7_save_panel(figure7_scatter_plot(panel_e$data, "sample_mean_endpoint_ploidy", "TGI_percent_Day_17", panel_e$test,
     "Cell-cycle-associated tumor cells: Day 17 TGI vs sample mean ETP", "Sample mean ETP", "Day 17 TGI (%)"),
     file.path(figures, filenames[["7E"]]), 6.8, 6.8)
   invisible(list(panel_b = panel_b, panel_c = test_c, panel_d = panel_d, panel_e = panel_e))

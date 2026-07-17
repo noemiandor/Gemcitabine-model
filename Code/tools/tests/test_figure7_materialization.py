@@ -55,7 +55,11 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def _write_run_metadata(self, include_f: bool) -> None:
-        selected = [spec for spec in self.figure7_specs if include_f or spec["panel"] != "7F"]
+        selected = [
+            spec for spec in self.figure7_specs
+            if spec.get("variant", "pdf") == "pdf"
+            and (include_f or not str(spec["panel"]).startswith("7F"))
+        ]
         write_tsv(
             self.run_root / "metadata/run_config.tsv",
             [{"key": "panel_set", "value": "a-f" if include_f else "a-e"}],
@@ -153,7 +157,8 @@ class Figure7MaterializationTest(unittest.TestCase):
         manifest = self.repo / "figures/Figure7/manifest.tsv"
         with manifest.open(newline="") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
-        self.assertEqual([row["panel"] for row in rows], [f"7{x}" for x in "ABCDEF"])
+        expected_panels = [value for letter in "ABCDEF" for value in (f"7{letter}", f"7{letter}_png")]
+        self.assertEqual([row["panel"] for row in rows], expected_panels)
         self.assertEqual({row["run_id"] for row in rows}, {self.source_id})
         self.assertEqual(
             {row["result_run_dir"] for row in rows},
@@ -164,11 +169,15 @@ class Figure7MaterializationTest(unittest.TestCase):
         )
 
     def test_materializes_explicit_ae_run_without_optional_panel_f(self) -> None:
-        panel_f = next(spec for spec in self.figure7_specs if spec["panel"] == "7F")
-        (self.run_root / str(panel_f["source"])).unlink()
+        panel_f = [spec for spec in self.figure7_specs if str(spec["panel"]).startswith("7F")]
+        for spec in panel_f:
+            (self.run_root / str(spec["source"])).unlink()
         manifest = self.run_root / "metadata/output_manifest.tsv"
         with manifest.open(newline="") as handle:
-            rows = [row for row in csv.DictReader(handle, delimiter="\t") if row["panel"] != "7F"]
+            rows = [
+                row for row in csv.DictReader(handle, delimiter="\t")
+                if not row["panel"].startswith("7F")
+            ]
         write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
         self._write_run_metadata(include_f=False)
 
@@ -176,15 +185,20 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         with (self.repo / "figures/Figure7/manifest.tsv").open(newline="") as handle:
             materialized = list(csv.DictReader(handle, delimiter="\t"))
-        self.assertEqual([row["panel"] for row in materialized], [f"7{x}" for x in "ABCDE"])
+        expected_panels = [value for letter in "ABCDE" for value in (f"7{letter}", f"7{letter}_png")]
+        self.assertEqual([row["panel"] for row in materialized], expected_panels)
         self.assertFalse((self.repo / "figures/Figure7/panel_7F_pseudotime_state_pathway_activity.pdf").exists())
 
     def test_rejects_unrecorded_ae_omission(self) -> None:
-        panel_f = next(spec for spec in self.figure7_specs if spec["panel"] == "7F")
-        (self.run_root / str(panel_f["source"])).unlink()
+        panel_f = [spec for spec in self.figure7_specs if str(spec["panel"]).startswith("7F")]
+        for spec in panel_f:
+            (self.run_root / str(spec["source"])).unlink()
         manifest = self.run_root / "metadata/output_manifest.tsv"
         with manifest.open(newline="") as handle:
-            rows = [row for row in csv.DictReader(handle, delimiter="\t") if row["panel"] != "7F"]
+            rows = [
+                row for row in csv.DictReader(handle, delimiter="\t")
+                if not row["panel"].startswith("7F")
+            ]
         write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
         result = self._run_materializer()
         self.assertNotEqual(result.returncode, 0)

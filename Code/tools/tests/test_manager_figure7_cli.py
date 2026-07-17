@@ -117,7 +117,9 @@ class ManagerFigure7CliTest(unittest.TestCase):
                 run_root / "metadata/panel_contract.tsv",
                 [
                     {"panel_id": spec["panel"], "filename": Path(str(spec["source"])).name}
-                    for spec in PANEL_SPECS if spec["module"] == "in_vivo_figure7"
+                    for spec in PANEL_SPECS
+                    if spec["module"] == "in_vivo_figure7"
+                    and spec.get("variant", "pdf") == "pdf"
                 ],
                 ["panel_id", "filename"],
             )

@@ -25,7 +25,7 @@ testthat::test_that("selected ECDF panel IDs and linetypes are frozen", {
   testthat::expect_identical(unique(panel$data$line_group[panel$data$comparison_id == 9L]), "2N")
 })
 
-testthat::test_that("all module R files parse and A-E builders emit only five PDFs", {
+testthat::test_that("all module R files parse and A-E builders emit five PDF/PNG pairs", {
   for (file in c("run_figure7.R", list.files(file.path(module_dir, "src"), pattern = "[.]R$", full.names = FALSE))) {
     path <- if (file == "run_figure7.R") file.path(module_dir, file) else file.path(module_dir, "src", file)
     testthat::expect_silent(parse(file = path))
@@ -33,6 +33,7 @@ testthat::test_that("all module R files parse and A-E builders emit only five PD
   input <- figure7_test_inputs(); out <- tempfile("figure7_ae_"); figure7_prepare_output(out)
   result <- figure7_build_ae(input$cellcycle, input$data, input$samples, out, input$config)
   testthat::expect_length(list.files(file.path(out, "figures"), pattern = "[.]pdf$"), 5L)
+  testthat::expect_length(list.files(file.path(out, "figures"), pattern = "[.]png$"), 5L)
   testthat::expect_silent(figure7_validate_figure_inventory(out, input$config, figure7_panel_ids(FALSE)))
   testthat::expect_identical(unique(result$panel_b$tests$comparison_id), c(1L, 8L, 9L))
 })
