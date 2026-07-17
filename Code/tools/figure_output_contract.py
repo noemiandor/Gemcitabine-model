@@ -126,11 +126,49 @@ def ensure_columns(headers: Sequence[str], required: Sequence[str], manifest_pat
 
 
 def first_local_path(row: Mapping[str, str], repo_root: Path, keys: Iterable[str]) -> Path | None:
+    first_resolved: Path | None = None
     for key in keys:
         path = resolve_repo_path(row.get(key, ""), repo_root)
-        if path is not None:
+        if path is None:
+            continue
+        if first_resolved is None:
+            first_resolved = path
+        if path.exists():
             return path
-    return None
+    return first_resolved
+
+
+def validate_expected_panel_set(
+    rows: Sequence[Mapping[str, str]],
+    expected_generated_panels: Iterable[str] | None,
+    manifest_path: Path,
+) -> list[str]:
+    """Validate unique panel IDs and an optional generated-panel allow-list."""
+    errors: list[str] = []
+    counts: dict[str, int] = {}
+    for row in rows:
+        panel = row.get("panel", "").strip()
+        if panel:
+            counts[panel] = counts.get(panel, 0) + 1
+    for panel, count in sorted(counts.items()):
+        if count > 1:
+            errors.append(f"{manifest_path}: duplicate panel ID {panel!r} appears {count} times")
+    if expected_generated_panels is None:
+        return errors
+    expected = set(expected_generated_panels)
+    observed = {
+        row.get("panel", "").strip()
+        for row in rows
+        if row.get("source_kind", "").strip() in GENERATED_SOURCE_KINDS
+        and row.get("panel", "").strip()
+    }
+    missing = sorted(expected - observed)
+    unexpected = sorted(observed - expected)
+    if missing:
+        errors.append(f"{manifest_path}: missing expected generated panel(s): {', '.join(missing)}")
+    if unexpected:
+        errors.append(f"{manifest_path}: unexpected generated panel(s): {', '.join(unexpected)}")
+    return errors
 
 
 def validate_module_manifest(path: Path, repo_root: Path, output_root: Path | None = None) -> list[str]:
@@ -148,7 +186,9 @@ def validate_module_manifest(path: Path, repo_root: Path, output_root: Path | No
             if not row.get(required, "").strip():
                 errors.append(f"{path}:{idx}: {required} is required")
 
-        local_path = first_local_path(row, repo_root, ("absolute_path", "repo_relative_path", "path"))
+        # Prefer the portable checkout-relative location. The recorded absolute
+        # path is only a fallback for genuinely external inputs.
+        local_path = first_local_path(row, repo_root, ("repo_relative_path", "absolute_path", "path"))
         source_kind = row.get("source_kind", "").strip()
         if local_path is not None and source_kind not in NONLOCAL_SOURCE_KINDS:
             if not local_path.exists():
@@ -186,6 +226,8 @@ def validate_figure_manifest(path: Path, repo_root: Path) -> list[str]:
         return errors
     if not rows:
         return [f"{path}: manifest has no data rows"]
+
+    errors.extend(validate_expected_panel_set(rows, None, path))
 
     for idx, row in enumerate(rows, start=2):
         source_kind = row.get("source_kind", "").strip()

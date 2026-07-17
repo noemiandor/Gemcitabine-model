@@ -5,9 +5,20 @@ from __future__ import annotations
 
 import argparse
 import shutil
+from collections import Counter
 from pathlib import Path
 
-from figure_output_contract import FIGURE_MANIFEST_COLUMNS, repo_root_from, write_tsv
+from figure_output_contract import (
+    FIGURE_MANIFEST_COLUMNS,
+    first_local_path,
+    read_tsv,
+    repo_root_from,
+    sha256_file,
+    validate_expected_panel_set,
+    validate_module_manifest,
+    validate_run_id,
+    write_tsv,
+)
 
 
 PANEL_SPECS = [
@@ -172,7 +183,58 @@ PANEL_SPECS = [
         "asset": "panel_SuppFig2C_gemcitabine_delta_auc_vs_delta_ploidy.png",
         "caption_role": "Paired gemcitabine delta AUC versus delta ploidy",
     },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/panel_7A_day17_tgi_calculation.pdf",
+        "figure": "Figure7",
+        "panel": "7A",
+        "asset": "panel_7A_day17_tgi_calculation.pdf",
+        "caption_role": "Tumor-growth trajectories explaining the Day-17 TGI calculation",
+    },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/panel_7B_cellcycle_selected_ecdf_comparisons.pdf",
+        "figure": "Figure7",
+        "panel": "7B",
+        "asset": "panel_7B_cellcycle_selected_ecdf_comparisons.pdf",
+        "caption_role": "Selected CellCycle mean-ECDF comparisons",
+    },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/panel_7C_day17_tgi_by_initial_ploidy.pdf",
+        "figure": "Figure7",
+        "panel": "7C",
+        "asset": "panel_7C_day17_tgi_by_initial_ploidy.pdf",
+        "caption_role": "Day-17 TGI in initial 2N versus 4N treated tumors",
+    },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/panel_7D_day17_tgi_vs_centered_ecdf_shift.pdf",
+        "figure": "Figure7",
+        "panel": "7D",
+        "asset": "panel_7D_day17_tgi_vs_centered_ecdf_shift.pdf",
+        "caption_role": "Within-dose-centered TGI and CellCycle ECDF-shift association",
+    },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/panel_7E_day17_tgi_vs_mean_etp.pdf",
+        "figure": "Figure7",
+        "panel": "7E",
+        "asset": "panel_7E_day17_tgi_vs_mean_etp.pdf",
+        "caption_role": "Day-17 TGI versus sample mean endpoint ploidy",
+    },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/panel_7F_pseudotime_state_pathway_activity.pdf",
+        "figure": "Figure7",
+        "panel": "7F",
+        "asset": "panel_7F_pseudotime_state_pathway_activity.pdf",
+        "caption_role": "Pathway activity across the accumulated CellCycle pseudotime state",
+    },
 ]
+
+STRICT_FIGURE_MODULES = {"in_vivo_figure7"}
+FIGURE_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".svg", ".tif", ".tiff"}
 
 EXTERNAL_ROWS = [
     {
@@ -227,6 +289,10 @@ def parse_module_run(values: list[str], repo_root: Path) -> dict[str, Path]:
         if "=" not in value:
             raise ValueError(f"--module-run must be NAME=PATH, got: {value}")
         name, raw_path = value.split("=", 1)
+        if not name or not raw_path:
+            raise ValueError(f"--module-run must be NAME=PATH, got: {value}")
+        if name in out:
+            raise ValueError(f"Duplicate --module-run for module: {name}")
         path = Path(raw_path)
         if not path.is_absolute():
             path = repo_root / path
@@ -241,7 +307,15 @@ def rel(path: Path, repo_root: Path) -> str:
         return str(path.resolve())
 
 
-def generated_row(spec: dict[str, object], source: Path, asset: Path, repo_root: Path, run_id: str) -> dict[str, str]:
+def generated_row(
+    spec: dict[str, object],
+    source: Path,
+    asset: Path,
+    result_run_root: Path,
+    repo_root: Path,
+    source_run_id: str,
+    operation_id: str,
+) -> dict[str, str]:
     return {
         "figure": str(spec["figure"]),
         "panel": str(spec["panel"]),
@@ -251,14 +325,14 @@ def generated_row(spec: dict[str, object], source: Path, asset: Path, repo_root:
         "generated_by": "Manager.sh",
         "command": "materialize_figure_assets.py",
         "input_data": rel(source, repo_root),
-        "result_run_dir": rel(source.parent if source.parent.name != "figures" else source.parent.parent, repo_root),
-        "run_id": run_id,
+        "result_run_dir": rel(result_run_root, repo_root),
+        "run_id": source_run_id,
         "caption_role": str(spec["caption_role"]),
         "asset_status": "generated",
         "not_regenerated_reason": "",
         "local_provenance_path": "",
         "citation_or_uri": "",
-        "notes": "",
+        "notes": f"materialization_operation_id={operation_id}",
     }
 
 
@@ -269,14 +343,96 @@ def external_row(row: dict[str, str]) -> dict[str, str]:
     return out
 
 
+def validate_strict_source_run(
+    module: str,
+    run_root: Path,
+    selected_specs: list[dict[str, object]],
+    repo_root: Path,
+    source_run_id: str,
+) -> None:
+    if module not in STRICT_FIGURE_MODULES:
+        return
+    expected_name = f"{source_run_id}_figure7"
+    if run_root.name != expected_name:
+        raise ValueError(f"{module} source run must be named {expected_name}, got {run_root.name}")
+
+    input_manifest = run_root / "metadata" / "input_manifest.tsv"
+    if not input_manifest.is_file():
+        raise FileNotFoundError(f"Missing source input manifest: {input_manifest}")
+    input_errors = validate_module_manifest(input_manifest, repo_root=repo_root)
+    if input_errors:
+        raise ValueError("Invalid source input manifest:\n" + "\n".join(input_errors))
+    _, input_rows = read_tsv(input_manifest)
+    if any(
+        row.get("module") != module or row.get("command_id") != source_run_id
+        for row in input_rows
+    ):
+        raise ValueError(
+            f"Source input-manifest provenance must use module={module} "
+            f"and command_id={source_run_id}"
+        )
+
+    output_manifest = run_root / "metadata" / "output_manifest.tsv"
+    if not output_manifest.is_file():
+        raise FileNotFoundError(f"Missing source output manifest: {output_manifest}")
+    errors = validate_module_manifest(output_manifest, repo_root=repo_root, output_root=run_root)
+    if errors:
+        raise ValueError("Invalid source output manifest:\n" + "\n".join(errors))
+
+    expected_sources = {
+        (run_root / str(spec["source"])).resolve()
+        for spec in selected_specs
+        if str(spec["module"]) == module
+    }
+    observed_figures = {
+        path.resolve()
+        for path in run_root.rglob("*")
+        if path.is_file() and path.suffix.lower() in FIGURE_SUFFIXES
+    }
+    if observed_figures != expected_sources:
+        missing = sorted(str(path) for path in expected_sources - observed_figures)
+        unexpected = sorted(str(path) for path in observed_figures - expected_sources)
+        raise ValueError(
+            f"{module} violates the exact six-panel inventory: missing={missing}; unexpected={unexpected}"
+        )
+
+    _, rows = read_tsv(output_manifest)
+    rows_by_path: dict[Path, list[dict[str, str]]] = {}
+    for row in rows:
+        path = first_local_path(row, repo_root, ("repo_relative_path", "absolute_path", "path"))
+        if path is not None:
+            rows_by_path.setdefault(path.resolve(), []).append(row)
+    for source in sorted(expected_sources):
+        matches = rows_by_path.get(source, [])
+        if len(matches) != 1:
+            raise ValueError(f"Expected one output-manifest row for {source}; found {len(matches)}")
+        row = matches[0]
+        if row.get("role") != "output_figure" or row.get("source_kind") != "generated_panel":
+            raise ValueError(f"Output-manifest row is not a generated figure: {source}")
+        if row.get("module") != module or row.get("command_id") != source_run_id:
+            raise ValueError(f"Output-manifest provenance mismatch for {source}")
+        if row.get("sha256", "").strip() != sha256_file(source):
+            raise ValueError(f"Output-manifest checksum mismatch for {source}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--figure-root", type=Path, default=Path("figures"))
-    parser.add_argument("--run-id", required=True)
+    run_id_group = parser.add_mutually_exclusive_group()
+    run_id_group.add_argument("--source-run-id")
+    run_id_group.add_argument(
+        "--run-id",
+        dest="legacy_run_id",
+        help="Backward-compatible alias for --source-run-id.",
+    )
+    parser.add_argument("--operation-id", default="")
     parser.add_argument("--module-run", action="append", default=[], help="Module run path as NAME=PATH. May be repeated.")
     parser.add_argument("--repo-root", type=Path)
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
+    source_run_id = args.source_run_id or args.legacy_run_id
+    if not source_run_id:
+        parser.error("one of --source-run-id or --run-id is required")
 
     repo_root = args.repo_root.resolve() if args.repo_root else repo_root_from(Path.cwd())
     figure_root = args.figure_root
@@ -284,27 +440,54 @@ def main() -> int:
         figure_root = repo_root / figure_root
     figure_root = figure_root.resolve()
     module_runs = parse_module_run(args.module_run, repo_root=repo_root)
+    operation_id = args.operation_id or source_run_id
+    validate_run_id(source_run_id)
+    validate_run_id(operation_id)
+    selected_specs = [spec for spec in PANEL_SPECS if str(spec["module"]) in module_runs]
+    duplicate_specs = [
+        key
+        for key, count in Counter(
+            (str(spec["figure"]), str(spec["panel"])) for spec in selected_specs
+        ).items()
+        if count > 1
+    ]
+    if duplicate_specs:
+        raise ValueError(f"Duplicate selected panel contract(s): {duplicate_specs}")
+    for module, run_root in module_runs.items():
+        if not run_root.is_dir():
+            raise FileNotFoundError(f"Missing module run directory for {module}: {run_root}")
+        validate_strict_source_run(
+            module, run_root, selected_specs, repo_root, source_run_id
+        )
 
     rows_by_figure: dict[str, list[dict[str, str]]] = {}
-    for spec in PANEL_SPECS:
+    expected_by_figure: dict[str, set[str]] = {}
+    for spec in selected_specs:
         module = str(spec["module"])
-        if module not in module_runs:
-            if spec.get("optional"):
-                continue
-            continue
         source = module_runs[module] / str(spec["source"])
         if not source.exists():
             if spec.get("optional"):
                 continue
             raise FileNotFoundError(f"Missing source for {spec['figure']} {spec['panel']}: {source}")
+        expected_by_figure.setdefault(str(spec["figure"]), set()).add(str(spec["panel"]))
         out_dir = figure_root / str(spec["figure"])
         out_dir.mkdir(parents=True, exist_ok=True)
         asset = out_dir / str(spec["asset"])
         if asset.exists() and not args.overwrite:
             raise FileExistsError(f"Asset exists; use --overwrite to replace: {asset}")
         shutil.copy2(source, asset)
+        if sha256_file(asset) != sha256_file(source):
+            raise OSError(f"Copied asset checksum does not match source: {asset}")
         rows_by_figure.setdefault(str(spec["figure"]), []).append(
-            generated_row(spec, source=source, asset=asset, repo_root=repo_root, run_id=args.run_id)
+            generated_row(
+                spec,
+                source=source,
+                asset=asset,
+                result_run_root=module_runs[module],
+                repo_root=repo_root,
+                source_run_id=source_run_id,
+                operation_id=operation_id,
+            )
         )
 
     touched_figures = set(rows_by_figure)
@@ -315,6 +498,11 @@ def main() -> int:
     for figure, rows in sorted(rows_by_figure.items()):
         rows = sorted(rows, key=lambda row: row.get("panel", ""))
         manifest_path = figure_root / figure / "manifest.tsv"
+        panel_errors = validate_expected_panel_set(
+            rows, expected_by_figure.get(figure, set()), manifest_path
+        )
+        if panel_errors:
+            raise ValueError("Invalid materialized panel set:\n" + "\n".join(panel_errors))
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
         write_tsv(manifest_path, rows, FIGURE_MANIFEST_COLUMNS)
         print(f"Wrote {manifest_path}")

@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
 run_id="$(date +"%Y%m%dT%H%M%S_manuscript")"
+source_run_id=""
 mode="standard"
 modules="gdsc,ccle,drug_response,pkpd,metabolomics"
 output_root="Results"
@@ -31,6 +32,10 @@ lci_render=false
 lci_panel_only=false
 include_in_vivo=false
 metabolomics_input="Code/Gemcitabine_Metabolomics_Heatmap/Metabolomics_2N_4N_Full.xlsm"
+figure7_full_analysis=false
+figure7_seurat_rds=""
+figure7_gene_set_artifact=""
+figure7_reference_id="taoli_04i_etp2_24_day17_v1"
 skip_analysis_loop=false
 
 usage() {
@@ -39,6 +44,7 @@ Usage: bash Manager.sh [options]
 
 Core options:
   --run-id ID
+  --source-run-id ID              Required only for panels-only; immutable source manager run
   --mode check-only|saved-fit|standard|full-refit|panels-only
   --modules comma,separated,names
   --output-root DIR
@@ -63,12 +69,16 @@ Module options:
   --lci-panel-only
   --include-in-vivo
   --metabolomics-input PATH
+  --figure7-full-analysis          Opt-in full pathway recomputation; requires both paths below
+  --figure7-seurat-rds ABSOLUTE_PATH
+  --figure7-gene-set-artifact PATH  Pinned, versioned local gene-set artifact
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --run-id) run_id="$2"; shift 2 ;;
+    --source-run-id) source_run_id="$2"; shift 2 ;;
     --mode) mode="$2"; shift 2 ;;
     --modules) modules="$2"; shift 2 ;;
     --output-root) output_root="$2"; shift 2 ;;
@@ -91,6 +101,9 @@ while [[ $# -gt 0 ]]; do
     --lci-panel-only) lci_panel_only=true; shift ;;
     --include-in-vivo) include_in_vivo=true; shift ;;
     --metabolomics-input) metabolomics_input="$2"; shift 2 ;;
+    --figure7-full-analysis) figure7_full_analysis=true; shift ;;
+    --figure7-seurat-rds) figure7_seurat_rds="$2"; shift 2 ;;
+    --figure7-gene-set-artifact) figure7_gene_set_artifact="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -100,6 +113,34 @@ case "${mode}" in
   check-only|saved-fit|standard|full-refit|panels-only) ;;
   *) echo "Invalid --mode: ${mode}" >&2; exit 2 ;;
 esac
+
+if [[ ! "${run_id}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "Invalid --run-id; use only letters, numbers, dots, underscores, and hyphens" >&2
+  exit 2
+fi
+if [[ -n "${source_run_id}" && ! "${source_run_id}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "Invalid --source-run-id; use only letters, numbers, dots, underscores, and hyphens" >&2
+  exit 2
+fi
+
+if [[ "${mode}" == "panels-only" && -z "${source_run_id}" ]]; then
+  echo "--source-run-id is required with --mode panels-only" >&2
+  exit 2
+fi
+if [[ "${mode}" != "panels-only" && -n "${source_run_id}" ]]; then
+  echo "--source-run-id is valid only with --mode panels-only" >&2
+  exit 2
+fi
+if [[ "${figure7_full_analysis}" == true || -n "${figure7_seurat_rds}" || -n "${figure7_gene_set_artifact}" ]]; then
+  if [[ ( "${mode}" != "full-refit" && "${mode}" != "check-only" ) || "${figure7_full_analysis}" != true || -z "${figure7_seurat_rds}" || -z "${figure7_gene_set_artifact}" ]]; then
+    echo "--figure7-full-analysis, --figure7-seurat-rds, and --figure7-gene-set-artifact must be supplied together with --mode full-refit or check-only" >&2
+    exit 2
+  fi
+  if [[ "${figure7_seurat_rds}" != /* ]]; then
+    echo "--figure7-seurat-rds must be an absolute path" >&2
+    exit 2
+  fi
+fi
 
 if [[ "${pkpd_refit}" == true && "${mode}" != "full-refit" && "${modules}" != "pkpd" ]]; then
   echo "--pkpd-refit is valid only with --mode full-refit or --modules pkpd" >&2
@@ -163,17 +204,19 @@ validate_module_registry() {
 
 module_run_dir() {
   local module="$1"
+  local selected_run_id="${2:-${run_id}}"
   case "${module}" in
-    gdsc) printf "%s/public_data/gdsc_ploidy_analysis/runs/%s_gdsc" "${output_root}" "${run_id}" ;;
-    ccle) printf "%s/public_data/ccle_ploidy_analysis/runs/%s_ccle" "${output_root}" "${run_id}" ;;
-    drug_response) printf "%s/in-vitro/drug_response/runs/%s_drug_response" "${output_root}" "${run_id}" ;;
-    lci_overlays) printf "%s/in-vitro/lci_overlays/runs/%s_lci_overlays" "${output_root}" "${run_id}" ;;
-    pkpd) printf "%s/in-vitro/pkpd_live_dead_model/runs/%s_pkpd_saved_fit" "${output_root}" "${run_id}" ;;
-    pkpd_fit) printf "%s/in-vitro/pkpd_live_dead_model/runs/%s_pkpd_fit" "${output_root}" "${run_id}" ;;
-    metabolomics) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics" "${output_root}" "${run_id}" ;;
-    metabolomics_pathway) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics_pathway" "${output_root}" "${run_id}" ;;
-    metabolomics_zscore) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics_zscore" "${output_root}" "${run_id}" ;;
-    in_vivo) printf "%s/in-vivo/pseudotime_associations/runs/%s_in_vivo" "${output_root}" "${run_id}" ;;
+    gdsc) printf "%s/public_data/gdsc_ploidy_analysis/runs/%s_gdsc" "${output_root}" "${selected_run_id}" ;;
+    ccle) printf "%s/public_data/ccle_ploidy_analysis/runs/%s_ccle" "${output_root}" "${selected_run_id}" ;;
+    drug_response) printf "%s/in-vitro/drug_response/runs/%s_drug_response" "${output_root}" "${selected_run_id}" ;;
+    lci_overlays) printf "%s/in-vitro/lci_overlays/runs/%s_lci_overlays" "${output_root}" "${selected_run_id}" ;;
+    pkpd) printf "%s/in-vitro/pkpd_live_dead_model/runs/%s_pkpd_saved_fit" "${output_root}" "${selected_run_id}" ;;
+    pkpd_fit) printf "%s/in-vitro/pkpd_live_dead_model/runs/%s_pkpd_fit" "${output_root}" "${selected_run_id}" ;;
+    metabolomics) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics" "${output_root}" "${selected_run_id}" ;;
+    metabolomics_pathway) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics_pathway" "${output_root}" "${selected_run_id}" ;;
+    metabolomics_zscore) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics_zscore" "${output_root}" "${selected_run_id}" ;;
+    in_vivo) printf "%s/in-vivo/pseudotime_associations/runs/%s_in_vivo" "${output_root}" "${selected_run_id}" ;;
+    in_vivo_figure7) printf "%s/in-vivo/figure7/runs/%s_figure7" "${output_root}" "${selected_run_id}" ;;
     *) echo "Unknown module: ${module}" >&2; return 1 ;;
   esac
 }
@@ -215,6 +258,24 @@ input_paths_for_module() {
       printf "%s\n" "${lci_analysis_dir}" ;;
     in_vivo)
       printf "%s\n" Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv ;;
+    in_vivo_figure7)
+      local reference_root="Data/in-vivo/figure7/saved_state_pathway/${figure7_reference_id}"
+      printf "%s\n" \
+        Code/in-vivo/figure7/figure7_config.yaml \
+        Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
+        Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
+        "${reference_root}/panel_7F_pathway_activity_plot_data.tsv" \
+        "${reference_root}/panel_7F_selected_pathway_gsea.tsv" \
+        "${reference_root}/panel_7F_leading_edge_genes.tsv" \
+        "${reference_root}/state_pathway_gene_ranking_complete.tsv" \
+        "${reference_root}/state_pathway_gsea_complete.tsv" \
+        "${reference_root}/state_pathway_sample_bin_coverage.tsv" \
+        "${reference_root}/state_pathway_design_qc.tsv" \
+        "${reference_root}/state_pathway_provenance.tsv"
+      if [[ "${figure7_full_analysis}" == true ]]; then
+        printf "%s\n" "${figure7_seurat_rds}" "${figure7_gene_set_artifact}"
+      fi
+      ;;
   esac
 }
 
@@ -303,6 +364,27 @@ command_for_module() {
       quote_args Rscript Code/in-vivo/pseudotimeAssociations.R \
         --input Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
         --output-dir "${run_dir}"
+      ;;
+    in_vivo_figure7)
+      local figure7_mode="standard"
+      local reference_root="Data/in-vivo/figure7/saved_state_pathway/${figure7_reference_id}"
+      local figure7_args=(
+        Rscript Code/in-vivo/figure7/run_figure7.R
+        "--mode=${figure7_mode}"
+        --config=Code/in-vivo/figure7/figure7_config.yaml
+        --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
+        --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
+        "--saved-state-pathway-dir=${reference_root}"
+        "--output-dir=${run_dir}"
+      )
+      if [[ "${figure7_full_analysis}" == true ]]; then
+        figure7_args[2]="--mode=full-analysis"
+        figure7_args+=(
+          "--seurat-rds=${figure7_seurat_rds}"
+          "--gene-set-artifact=${figure7_gene_set_artifact}"
+        )
+      fi
+      quote_args "${figure7_args[@]}"
       ;;
   esac
 }
@@ -437,25 +519,20 @@ add_completed_run() {
 if [[ "${mode}" == "panels-only" ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
-      gdsc|ccle|drug_response|pkpd)
-        run_dir="$(module_run_dir "${module}")"
+      gdsc|ccle|drug_response|pkpd|in_vivo|in_vivo_figure7)
+        run_dir="$(module_run_dir "${module}" "${source_run_id}")"
         [[ -d "${run_dir}" ]] || { echo "Missing panels-only source run: ${run_dir}" >&2; exit 1; }
         add_completed_run "${module}" "${run_dir}"
         ;;
       metabolomics)
         for submodule in metabolomics metabolomics_pathway metabolomics_zscore; do
-          run_dir="$(module_run_dir "${submodule}")"
+          run_dir="$(module_run_dir "${submodule}" "${source_run_id}")"
           [[ -d "${run_dir}" ]] || { echo "Missing panels-only source run: ${run_dir}" >&2; exit 1; }
           add_completed_run "${submodule}" "${run_dir}"
         done
         ;;
       lci_overlays)
-        run_dir="$(module_run_dir "${module}")"
-        [[ -d "${run_dir}" ]] || { echo "Missing panels-only source run: ${run_dir}" >&2; exit 1; }
-        add_completed_run "${module}" "${run_dir}"
-        ;;
-      in_vivo)
-        run_dir="$(module_run_dir "${module}")"
+        run_dir="$(module_run_dir "${module}" "${source_run_id}")"
         [[ -d "${run_dir}" ]] || { echo "Missing panels-only source run: ${run_dir}" >&2; exit 1; }
         add_completed_run "${module}" "${run_dir}"
         ;;
@@ -465,12 +542,18 @@ if [[ "${mode}" == "panels-only" ]]; then
   dry_run=false
   no_update_latest=true
   skip_analysis_loop=true
+  for i in "${!completed_modules[@]}"; do
+    now="$(date -Iseconds)"
+    record_module_run \
+      "${completed_modules[$i]}" "source_selected" "" "${completed_run_dirs[$i]}" "" "" \
+      "source_run_id=${source_run_id};materialization_operation_id=${run_id}" "${now}" "${now}"
+  done
 fi
 
 if [[ "${skip_analysis_loop}" != true ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
-      gdsc|ccle|drug_response|pkpd|metabolomics|lci_overlays|in_vivo) ;;
+      gdsc|ccle|drug_response|pkpd|metabolomics|lci_overlays|in_vivo|in_vivo_figure7) ;;
       *) echo "Unknown module in --modules: ${module}" >&2; exit 2 ;;
     esac
     if [[ "${module}" == "lci_overlays" && -z "${lci_analysis_dir}" ]]; then
@@ -524,14 +607,24 @@ if [[ "${skip_analysis_loop}" != true ]]; then
 fi
 
 if [[ "${mode}" != "check-only" && "${dry_run}" != true ]]; then
-  materialize_args=(python3 Code/tools/materialize_figure_assets.py --figure-root "${figure_root}" --run-id "${run_id}" --overwrite)
+  materialize_source_run_id="${run_id}"
+  if [[ "${mode}" == "panels-only" ]]; then
+    materialize_source_run_id="${source_run_id}"
+  fi
+  materialize_args=(
+    python3 Code/tools/materialize_figure_assets.py
+    --figure-root "${figure_root}"
+    --source-run-id "${materialize_source_run_id}"
+    --operation-id "${run_id}"
+    --overwrite
+  )
   for i in "${!completed_modules[@]}"; do
     materialize_args+=(--module-run "${completed_modules[$i]}=${completed_run_dirs[$i]}")
   done
   "${materialize_args[@]}"
   for manifest in "${figure_root}"/Figure*/manifest.tsv "${figure_root}"/Supplementary/manifest.tsv; do
     [[ -f "${manifest}" ]] || continue
-    python3 Code/tools/validate_figure_manifest.py "${manifest}"
+    python3 Code/tools/validate_figure_manifest.py "${manifest}" --repo-root "${repo_root}"
   done
 fi
 

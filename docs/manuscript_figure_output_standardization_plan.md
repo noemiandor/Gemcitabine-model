@@ -28,6 +28,7 @@ materialize into `figures/`.
 | Figure 4 | Fig. 4B PKPD-derived dFdCTP driver component | Baseline-subtracted PK-derived dFdCTP signal driver plots used to support the PKPD model | `Code/in-vitro/pkpd_live_dead_model/` | `saved-fit` or `standard` | `--pkpd-saved-fit`, `--modules pkpd` | Fig. 4C is external/resolved; other Figure 4 panels may remain external/manual |
 | Figure 5 | Fig. 5B-D model panels and optional Fig. 5F metabolomics support | Cohort live/dead fits, dFdCTP signal curves, effective beta/Hill-corrected signal plot, ploidy parameter fold change, dose-response comparison, and dCMP/metabolomics support where available | `Code/in-vitro/pkpd_live_dead_model/`, `Code/Gemcitabine_Metabolomics_Heatmap/` | `saved-fit` for model plots; `standard` for metabolomics | `--pkpd-refit`, `--pkpd-smoke-fit`, `--pkpd-fit-output`, `--metabolomics-input` | Full model refitting is optional and expensive; immunoblot/schematic panels remain external/manual |
 | Figure 6 | Metabolomics panels | PCA, response/category summaries, pathway enrichment heatmaps, ordered metabolite heatmaps, and volcano-style outputs | `Code/Gemcitabine_Metabolomics_Heatmap/` | `standard` | `--metabolomics-input`, `--modules metabolomics` | The manager should materialize source panels, while final composite assembly may remain manual |
+| Figure 7 | Six in-vivo TGI, CellCycle pseudotime, and state-pathway source panels | Day-17 TGI calculation and associations, selected ECDF comparisons, and pathway activity across pseudotime 0.30-0.49 | `Code/in-vivo/figure7/` | Opt-in `standard` | `--modules in_vivo_figure7`; explicit full-analysis RDS/gene-set flags | Routine inputs and orchestration are implemented, but default inclusion remains blocked until the canonical saved-state tables and pinned gene-set artifact are exported. Final A-F composition remains manual. |
 | Supplementary | GDSC and PKPD supplementary panels | Supplementary enrichment summaries and cohort model-fit/source plots such as Supp. Fig. 1 | GDSC and PKPD modules | `standard` or `saved-fit` | Same module-specific flags as above | Only locally reproducible supplementary panels are in scope |
 | In vivo pending | Optional pseudotime/TGI panels | Pseudotime-shift, TGI, and ploidy association plots/tables | `Code/in-vivo/` | Not run by default | `--include-in-vivo` | Results are pending; manuscript use should remain gated by explicit opt-in |
 
@@ -589,7 +590,7 @@ Recommended manager options:
 Recommended mode semantics:
 
 - `check-only`: validate required inputs and print planned commands. No generated outputs except optional temporary logs.
-- `panels-only`: copy/link selected outputs from `Results/.../latest.txt` into `figures/` and write figure manifests. No analysis rerun.
+- `panels-only`: copy selected outputs from the concrete immutable run named by `--source-run-id` into `figures/` and write figure manifests. `--run-id` identifies the separate materialization operation. No analysis or rendering rerun.
 - `saved-fit`: rerun deterministic/local analyses and regenerate PKPD panels from an existing saved fit summary. No full PKPD optimization.
 - `standard`: rerun local deterministic analyses, reuse external/cache-dependent inputs, and skip long full refits unless explicitly requested.
 - `full-refit`: include long-running PKPD full fitting and feed the new `joint_fit_summary.tsv` back into the plotter.
@@ -600,7 +601,7 @@ Mode precedence and constraints:
 - `--pkpd-refit` is valid only in `full-refit` or an explicit PKPD-only validation mode. It should be rejected in `saved-fit` and `panels-only`.
 - `--pkpd-saved-fit` is required for saved-fit PKPD regeneration unless a concrete validated run is resolved from `latest.txt`.
 - `--lci-render` and `--lci-panel-only` are mutually exclusive.
-- `panels-only` must fail if the required latest/approved result pointer is missing or if the pointed run lacks an output manifest.
+- `panels-only` must fail if `--source-run-id` is missing or the concrete source run/panel contract is unavailable. It must never infer a source through `latest.txt`.
 - `check-only` and `dry-run` must not update `latest.txt`.
 - Missing optional infrastructure, such as CLONEID DB access or an LCI analysis directory, must be reported as skipped or blocked, not silently treated as success.
 

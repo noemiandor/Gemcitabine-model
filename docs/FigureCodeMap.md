@@ -29,6 +29,7 @@ The current canonical source-panel assets below are generated from the active `f
 | Figure 4 | `figures/Figure4/panel_4B_dfdctp_signal_driver_combined_ploidy.png` | `Results/in-vitro/pkpd_live_dead_model/runs/20260630T_promoted_panels_full_refit_pkpd_fit/` |
 | Figure 5 | `figures/Figure5/panel_5B_dfdctp_signal_curve_stacked_2n_4n.png`; `panel_5D_ploidy_parameter_log2_fold_change.png`; `panel_5E_dose_25_nm_2n_vs_4n.png`; `panel_5F_effective_dfdctp_signal_combined_ploidy.png` | `Results/in-vitro/pkpd_live_dead_model/runs/20260630T_promoted_panels_full_refit_pkpd_fit/` |
 | Figure 6 | `figures/Figure6/panel_6A_metabolomics_pca_unlabeled.png`; `panel_6C_corrected_curated_pathway_enrichment_heatmap_2fold.png`; `panel_6D_ordered_response_heatmap_reproduced.png`; `panel_6E_volcano_black_red_unlabeled.png` | `Results/in-vitro/metabolomics/runs/20260629T143000_standard_metabolomics*` |
+| Figure 7 (planned; not yet materialized) | `figures/Figure7/panel_7A_day17_tgi_calculation.pdf` through `panel_7F_pseudotime_state_pathway_activity.pdf` | `Results/in-vivo/figure7/runs/<source_run_id>_figure7/`; pending canonical saved-state export and first validated run |
 | Supplementary | `figures/Supplementary/panel_SuppFig1A_cohort_joint_fit_2n.png`; `panel_SuppFig1B_cohort_joint_fit_4n.png` | `Results/in-vitro/pkpd_live_dead_model/runs/20260630T_promoted_panels_full_refit_pkpd_fit/` |
 
 Each `figures/Figure*/manifest.tsv` records the source file, generating command, input data, run ID, caption role, and manual/external caveats. The historical mappings below remain useful for provenance and unresolved/manual panels, but manuscript-facing generated assets should now be resolved through these manifests first.
@@ -101,6 +102,19 @@ Manuscript asset: `figures/Figure6_v5_Overleaf.png` at `GemcitabinePaper.tex:397
 | 6C | Curated pathway-class enrichment heatmap | `Code/Gemcitabine_Metabolomics_Heatmap/Pathway_enrichment_heatmap_Gemcitabine_2fold_corrected.py:466-585` computes response sets and hypergeometric enrichment; `Code/Gemcitabine_Metabolomics_Heatmap/Pathway_enrichment_heatmap_Gemcitabine_2fold_corrected.py:588-646` draws the heatmap; `Code/Gemcitabine_Metabolomics_Heatmap/Pathway_enrichment_heatmap_Gemcitabine_2fold_corrected.py:689-693` writes outputs. | Expected outputs: `corrected_curated_pathway_enrichment_heatmap_2fold.png`; `.pdf`; matrix CSV. | **Mapped** for source panel; final composite missing. |
 | 6D | Metabolite heatmap ordered by response class | `Code/Gemcitabine_Metabolomics_Heatmap/Metabolomics_Heatmap_Gemcitabine_zscore.py:204-255` draws row-scaled z-score heatmap; `Code/Gemcitabine_Metabolomics_Heatmap/Metabolomics_Heatmap_Gemcitabine_zscore.py:258-285` writes PNG/PDF/matrices. | Expected outputs: `ordered_response_heatmap_reproduced.png`; `.pdf`; z-score matrix CSV. | **Mapped** for source panel; final composite missing. |
 | 6E | Volcano plots for 2N, 4N, and differential response | `Code/Gemcitabine_Metabolomics_Heatmap/run_full_2fold_metabolomics_analysis.py:301-341` generates the three-panel volcano outputs. | Expected outputs: `03_volcano_black_red_unlabeled.png`; `04_volcano_black_red_labeled_top_hits.png`. | **Mapped** for source panel; final composite missing. |
+
+### Figure 7: In-vivo TGI, CellCycle Pseudotime, And State Pathways
+
+The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one immutable run under `Results/in-vivo/figure7/runs/<run_id>_figure7/`. Routine mode recomputes panels 7A-7E from the tracked CellCycle and NonCellCycle cell-level tables and renders 7F from the immutable `taoli_04i_etp2_24_day17_v1` saved pathway analysis. Registration remains opt-in, and check-only/standard fail clearly until that canonical saved analysis is exported. Optional full analysis additionally requires an explicit external Seurat RDS and pinned gene-set artifact. The manager materializes the six source PDFs below but, consistently with Figures 1-6, does not assemble the final A-F composite.
+
+| Panel | Manuscript content | Canonical source output |
+|---|---|---|
+| 7A | Growth trajectories explaining matched-control mean Day-17 TGI | `figures/panel_7A_day17_tgi_calculation.pdf` |
+| 7B | Selected CellCycle ECDF comparisons (original comparisons 1, 8, and 9) | `figures/panel_7B_cellcycle_selected_ecdf_comparisons.pdf` |
+| 7C | Day-17 TGI in treated initial-2N versus initial-4N tumors | `figures/panel_7C_day17_tgi_by_initial_ploidy.pdf` |
+| 7D | Within-dose-centered Day-17 TGI versus centered ECDF shift | `figures/panel_7D_day17_tgi_vs_centered_ecdf_shift.pdf` |
+| 7E | Day-17 TGI versus sample mean endpoint ploidy | `figures/panel_7E_day17_tgi_vs_mean_etp.pdf` |
+| 7F | Pathway activity across the accumulated pseudotime interval 0.30-0.49 | `figures/panel_7F_pseudotime_state_pathway_activity.pdf` |
 
 ## Supplementary Figures
 
