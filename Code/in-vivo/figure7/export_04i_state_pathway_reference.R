@@ -26,8 +26,7 @@ allowed_args <- c("results_root", "report_html", "output_dir")
 unknown_args <- setdiff(names(cli), allowed_args)
 if (length(unknown_args)) figure7_stop("Unknown argument(s): ", paste(unknown_args, collapse = ", "))
 
-default_results_root <- "/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways"
-results_root <- normalizePath(figure7_arg(cli, "results-root", default_results_root), mustWork = TRUE)
+results_root <- normalizePath(figure7_arg(cli, "results-root", required = TRUE), mustWork = TRUE)
 report_html <- normalizePath(
   figure7_arg(cli, "report-html", file.path(results_root, "report", "04i_pseudotime_state_pathways_report.html")),
   mustWork = TRUE

@@ -71,6 +71,122 @@ class ManagerFigure7CliTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("mutually exclusive", result.stderr)
 
+    def test_state_pathway_export_rejects_ae_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._run(
+                "--mode", "check-only", "--modules", "in_vivo_figure7",
+                "--run-id", "bad_export_combo", "--figure7-panels-ae-only",
+                "--figure7-state-pathway-results-root", tmp,
+            )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("cannot be used with --figure7-panels-ae-only", result.stderr)
+
+    def test_state_pathway_results_root_runs_exporter_and_is_recorded(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            output_root = tmp_path / "Results"
+            figure_root = tmp_path / "figures"
+            source_results_root = tmp_path / "04i results"
+            source_results_root.mkdir()
+            run_id = "integrated_state_export"
+
+            fake_bin = tmp_path / "bin"
+            fake_bin.mkdir()
+            fake_rscript = fake_bin / "Rscript"
+            fake_rscript.write_text(
+                """#!/usr/bin/env bash
+set -euo pipefail
+entrypoint="$1"
+shift
+output_dir=""
+saved_state_dir=""
+source_results_root=""
+for arg in "$@"; do
+  case "$arg" in
+    --output-dir=*) output_dir="${arg#*=}" ;;
+    --saved-state-pathway-dir=*) saved_state_dir="${arg#*=}" ;;
+    --results-root=*|--state-pathway-results-root=*) source_results_root="${arg#*=}" ;;
+  esac
+done
+if [[ "$entrypoint" == *export_04i_state_pathway_reference.R ]]; then
+  mkdir -p "$output_dir"
+  for name in \
+    panel_7F_pathway_activity_plot_data.tsv \
+    panel_7F_selected_pathway_gsea.tsv \
+    panel_7F_leading_edge_genes.tsv \
+    state_pathway_gene_ranking_complete.tsv \
+    state_pathway_gsea_complete.tsv \
+    state_pathway_sample_bin_coverage.tsv \
+    state_pathway_design_qc.tsv; do
+    printf 'value\\nfixture\\n' > "$output_dir/$name"
+  done
+  printf 'key\\tvalue\\nexport_source_results_root\\t%s\\n' "$source_results_root" \
+    > "$output_dir/state_pathway_provenance.tsv"
+  exit 0
+fi
+if [[ "$entrypoint" == *run_figure7.R ]]; then
+  mkdir -p "$output_dir/figures" "$output_dir/metadata" "$output_dir/tables"
+  for name in \
+    panel_7A_day17_tgi_calculation \
+    panel_7B_cellcycle_selected_ecdf_comparisons \
+    panel_7C_day17_tgi_by_initial_ploidy \
+    panel_7D_day17_tgi_vs_centered_ecdf_shift \
+    panel_7E_day17_tgi_vs_mean_etp \
+    panel_7F_pseudotime_state_pathway_activity; do
+    printf 'fake pdf\\n' > "$output_dir/figures/$name.pdf"
+    printf 'fake png\\n' > "$output_dir/figures/$name.png"
+  done
+  printf 'key\\tvalue\\npanel_set\\ta-f\\nstate_pathway_source_results_root\\t%s\\n' \
+    "$source_results_root" > "$output_dir/metadata/run_config.tsv"
+  printf 'panel_id\\tfilename\\n' > "$output_dir/metadata/panel_contract.tsv"
+  printf '7A\\tpanel_7A_day17_tgi_calculation.pdf\\n' >> "$output_dir/metadata/panel_contract.tsv"
+  printf '7B\\tpanel_7B_cellcycle_selected_ecdf_comparisons.pdf\\n' >> "$output_dir/metadata/panel_contract.tsv"
+  printf '7C\\tpanel_7C_day17_tgi_by_initial_ploidy.pdf\\n' >> "$output_dir/metadata/panel_contract.tsv"
+  printf '7D\\tpanel_7D_day17_tgi_vs_centered_ecdf_shift.pdf\\n' >> "$output_dir/metadata/panel_contract.tsv"
+  printf '7E\\tpanel_7E_day17_tgi_vs_mean_etp.pdf\\n' >> "$output_dir/metadata/panel_contract.tsv"
+  printf '7F\\tpanel_7F_pseudotime_state_pathway_activity.pdf\\n' >> "$output_dir/metadata/panel_contract.tsv"
+  cp "$saved_state_dir/state_pathway_provenance.tsv" "$output_dir/metadata/state_pathway_provenance.tsv"
+  exit 0
+fi
+exit 99
+"""
+            )
+            fake_rscript.chmod(0o755)
+            env = os.environ.copy()
+            env["PATH"] = f"{fake_bin}:{env['PATH']}"
+
+            result = self._run(
+                "--mode", "standard", "--modules", "in_vivo_figure7",
+                "--run-id", run_id,
+                "--output-root", str(output_root),
+                "--figure-root", str(figure_root),
+                "--figure7-state-pathway-results-root", str(source_results_root),
+                env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            manager_root = output_root / "manager/runs" / run_id
+            export_metadata_path = manager_root / "metadata/figure7_state_pathway_export.tsv"
+            with export_metadata_path.open(newline="") as handle:
+                export_metadata = {
+                    row["key"]: row["value"] for row in csv.DictReader(handle, delimiter="\t")
+                }
+            self.assertEqual(export_metadata["status"], "ok")
+            self.assertEqual(export_metadata["source_results_root"], str(source_results_root.resolve()))
+            reference_root = Path(export_metadata["exported_reference_dir"])
+            self.assertEqual(reference_root.name, "taoli_04i_etp2_24_day17_v1")
+            self.assertEqual(len(list(reference_root.glob("*.tsv"))), 8)
+
+            run_root = output_root / "in-vivo/figure7/runs" / f"{run_id}_figure7"
+            with (run_root / "metadata/run_config.tsv").open(newline="") as handle:
+                run_config = {row["key"]: row["value"] for row in csv.DictReader(handle, delimiter="\t")}
+            self.assertEqual(
+                run_config["state_pathway_source_results_root"], str(source_results_root.resolve())
+            )
+            module_runs = (manager_root / "metadata/module_runs.tsv").read_text()
+            self.assertIn(f"state_pathway_source_results_root={source_results_root.resolve()}", module_runs)
+            self.assertTrue((figure_root / "Figure7/manifest.tsv").is_file())
+
     def test_panels_only_uses_source_run_without_invoking_r(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

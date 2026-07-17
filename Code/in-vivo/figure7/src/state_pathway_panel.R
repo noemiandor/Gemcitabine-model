@@ -11,7 +11,12 @@ figure7_state_required_files <- function() c(
   "state_pathway_provenance.tsv"
 )
 
-figure7_validate_state_reference <- function(path, config, verify_checksums = TRUE) {
+figure7_validate_state_reference <- function(
+  path,
+  config,
+  verify_checksums = TRUE,
+  verify_provenance_checksum = TRUE
+) {
   expected_id <- as.character(config$state_pathways$reference_id)
   if (!dir.exists(path)) {
     figure7_stop("Missing canonical panel-7F saved-state directory: ", path,
@@ -25,7 +30,11 @@ figure7_validate_state_reference <- function(path, config, verify_checksums = TR
   if (length(missing)) figure7_stop("Panel-7F saved state is incomplete; missing: ", paste(missing, collapse = ", "))
   expected_hashes <- config$state_pathways$expected_files
   if (isTRUE(verify_checksums)) {
-    for (file in files) figure7_verify_checksum(file.path(path, file), expected_hashes[[file]], file)
+    checksum_files <- files
+    if (!isTRUE(verify_provenance_checksum)) {
+      checksum_files <- setdiff(checksum_files, "state_pathway_provenance.tsv")
+    }
+    for (file in checksum_files) figure7_verify_checksum(file.path(path, file), expected_hashes[[file]], file)
   }
   activity <- figure7_read_tsv(file.path(path, files[[1L]]), c(
     "collection_id", "collection_label", "collection_display_order",

@@ -35,6 +35,28 @@ testthat::test_that("tracked canonical 04i reference validates exact report line
   )
 })
 
+testthat::test_that("runtime export may vary only in location-bearing provenance", {
+  fixture <- figure7_test_state_reference()
+  provenance_path <- file.path(fixture$path, "state_pathway_provenance.tsv")
+  provenance <- figure7_read_tsv(provenance_path, c("key", "value"))
+  provenance <- rbind(
+    provenance,
+    data.frame(key = "export_source_results_root", value = "/runtime/04i/results", stringsAsFactors = FALSE)
+  )
+  figure7_write_tsv(provenance, provenance_path)
+
+  testthat::expect_error(
+    figure7_validate_state_reference(fixture$path, fixture$config),
+    "SHA-256 mismatch"
+  )
+  testthat::expect_silent(figure7_validate_state_reference(
+    fixture$path,
+    fixture$config,
+    verify_checksums = TRUE,
+    verify_provenance_checksum = FALSE
+  ))
+})
+
 testthat::test_that("missing F, wrong checksums, and nonempty outputs fail clearly", {
   input <- figure7_test_inputs()
   missing <- file.path(tempdir(), input$config$state_pathways$reference_id)

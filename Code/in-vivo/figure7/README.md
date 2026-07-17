@@ -26,6 +26,23 @@ Routine manager execution:
 bash Manager.sh --mode standard --modules in_vivo_figure7 --run-id <run_id>
 ```
 
+To export the canonical panel-7F reference from a completed 04i result tree and
+then generate and publish Figure 7 in one Manager run:
+
+```bash
+bash Manager.sh \
+  --mode standard \
+  --modules in_vivo_figure7 \
+  --run-id <run_id> \
+  --figure7-state-pathway-results-root /path/to/04i_pseudotime_state_pathways
+```
+
+The supplied results root is normalized and recorded in the Manager export
+metadata, module-run notes, Figure 7 `run_config.tsv`, and copied panel-7F
+provenance. The eight exported TSVs are retained under that Manager run's
+`artifacts/figure7_state_pathway_reference/` directory; the tracked frozen
+reference is not overwritten.
+
 To explicitly generate and materialize only 7A-7E:
 
 ```bash
@@ -53,6 +70,7 @@ Rscript Code/in-vivo/figure7/run_figure7.R \
   --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
   --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
   --saved-state-pathway-dir=Data/in-vivo/figure7/saved_state_pathway/taoli_04i_etp2_24_day17_v1 \
+  --state-pathway-results-root=/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways \
   --output-dir="${figure7_output_dir}"
 
 echo "Figure 7 results: ${figure7_output_dir}"
@@ -79,7 +97,8 @@ The frozen reference can be regenerated from the unchanged completed 04i result
 tree with:
 
 ```bash
-Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R
+Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R \
+  --results-root=/path/to/04i_pseudotime_state_pathways
 ```
 
 On the HPC, run the exporter from the repository root with explicit source and

@@ -27,16 +27,25 @@ panel_ids <- figure7_panel_ids(include_panel_f)
 config_path <- normalizePath(figure7_arg(args, "config", file.path(script_dir, "figure7_config.yaml")), mustWork = FALSE)
 config <- figure7_read_config(config_path)
 output_dir <- normalizePath(figure7_arg(args, "output-dir", required = TRUE), mustWork = FALSE)
+state_pathway_results_root_arg <- figure7_arg(args, "state-pathway-results-root", "")
+state_pathway_results_root <- if (nzchar(state_pathway_results_root_arg)) {
+  normalizePath(state_pathway_results_root_arg, mustWork = TRUE)
+} else {
+  ""
+}
 
-write_metadata <- function(output_dir, mode, config, config_path, panel_ids) {
+write_metadata <- function(output_dir, mode, config, config_path, panel_ids, state_pathway_results_root = "") {
   run_config <- data.frame(
     key = c("module", "mode", "panel_set", "tgi_outcome", "tgi_day", "tgi_measure",
             "matched_control_summary", "matched_control_group", "etp_method", "etp_threshold",
-            "state_pathway_reference_id", "state_interval_start", "state_interval_end", "config_sha256"),
+            "state_pathway_reference_id", "state_interval_start", "state_interval_end",
+            "state_pathway_source_results_root", "config_sha256"),
     value = c("in_vivo_figure7", mode, panel_set, "day", "17", "TGI_percent_Day_17", "mean", "initial_ploidy",
               config$etp$method, as.character(config$etp$threshold), config$state_pathways$reference_id,
               as.character(config$state_pathways$accumulated_interval$start),
-              as.character(config$state_pathways$accumulated_interval$end), figure7_sha256(config_path)),
+              as.character(config$state_pathways$accumulated_interval$end),
+              if (nzchar(state_pathway_results_root)) state_pathway_results_root else "not_recorded",
+              figure7_sha256(config_path)),
     stringsAsFactors = FALSE
   )
   contract <- data.frame(
@@ -139,7 +148,11 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
   if (include_panel_f) {
     figure7_save_panel(figure7_panel_f_plot(f, config), file.path(output_dir, "figures", filenames[["7F"]]), 9, 8)
   }
-  write_metadata(output_dir, mode, config, config_path, panel_ids)
+  source_results_root <- source_run_config$value[match("state_pathway_source_results_root", source_run_config$key)]
+  if (length(source_results_root) != 1L || is.na(source_results_root) || identical(source_results_root, "not_recorded")) {
+    source_results_root <- ""
+  }
+  write_metadata(output_dir, mode, config, config_path, panel_ids, source_results_root)
   figure7_validate_figure_inventory(output_dir, config, panel_ids)
 }
 
@@ -158,7 +171,27 @@ figure7_verify_checksum(noncellcycle_path, config$inputs$noncellcycle_sha256, "N
 reference <- NULL
 if (include_panel_f) {
   saved_dir <- normalizePath(figure7_arg(args, "saved-state-pathway-dir", required = TRUE), mustWork = FALSE)
-  reference <- figure7_validate_state_reference(saved_dir, config, verify_checksums = TRUE)
+  reference <- figure7_validate_state_reference(
+    saved_dir,
+    config,
+    verify_checksums = TRUE,
+    verify_provenance_checksum = !nzchar(state_pathway_results_root)
+  )
+  provenance_root_index <- match("export_source_results_root", reference$provenance$key)
+  provenance_root <- if (is.na(provenance_root_index)) "" else as.character(reference$provenance$value[[provenance_root_index]])
+  if (nzchar(state_pathway_results_root)) {
+    if (!nzchar(provenance_root)) {
+      figure7_stop("Panel-7F provenance does not record export_source_results_root")
+    }
+    if (!identical(normalizePath(provenance_root, mustWork = FALSE), state_pathway_results_root)) {
+      figure7_stop(
+        "Panel-7F provenance results root does not match --state-pathway-results-root: ",
+        provenance_root, " != ", state_pathway_results_root
+      )
+    }
+  } else if (nzchar(provenance_root)) {
+    state_pathway_results_root <- provenance_root
+  }
 }
 
 if (identical(mode, "full-analysis")) {
@@ -176,6 +209,6 @@ data <- figure7_prepare_cellcycle(cellcycle, samples)
 figure7_prepare_output(output_dir)
 figure7_build_ae(cellcycle, data, samples, output_dir, config)
 if (include_panel_f) figure7_build_f(reference, output_dir, config)
-write_metadata(output_dir, mode, config, config_path, panel_ids)
+write_metadata(output_dir, mode, config, config_path, panel_ids, state_pathway_results_root)
 figure7_validate_figure_inventory(output_dir, config, panel_ids)
 message("Generated exactly ", length(panel_ids), " Figure 7 source panels: ", output_dir)
