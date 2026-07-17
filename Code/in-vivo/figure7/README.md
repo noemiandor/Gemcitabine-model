@@ -61,6 +61,7 @@ To run the standalone Figure 7 workflow directly on the HPC and generate all
 six source panels:
 
 ```bash
+module load Python/3.12.3-GCCcore-13.3.0
 module load R/4.4.2-gfbf-2024a
 
 cd /share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures
