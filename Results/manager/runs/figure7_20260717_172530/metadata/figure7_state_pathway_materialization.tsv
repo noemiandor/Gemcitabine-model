@@ -1,0 +1,8 @@
+key	value
+status	ok
+canonical_reference_id	taoli_04i_etp2_24_day17_v1
+source_reference_dir	Results/manager/runs/figure7_20260717_172530/artifacts/figure7_state_pathway_reference/taoli_04i_etp2_24_day17_v1
+target_data_reference_dir	Data/in-vivo/figure7/saved_state_pathway/taoli_04i_etp2_24_day17_v1
+materialized_file_count	8
+started_at	2026-07-17T17:43:05-04:00
+finished_at	2026-07-17T17:43:05-04:00
