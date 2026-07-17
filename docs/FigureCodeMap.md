@@ -105,7 +105,7 @@ Manuscript asset: `figures/Figure6_v5_Overleaf.png` at `GemcitabinePaper.tex:397
 
 ### Figure 7: In-vivo TGI, CellCycle Pseudotime, And State Pathways
 
-The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one immutable run under `Results/in-vivo/figure7/runs/<run_id>_figure7/`. Routine mode recomputes panels 7A-7E from the tracked CellCycle and NonCellCycle cell-level tables and renders 7F from the immutable `taoli_04i_etp2_24_day17_v1` saved pathway analysis. Registration remains opt-in, and check-only/standard fail clearly until that canonical saved analysis is exported. Optional full analysis additionally requires an explicit external Seurat RDS and pinned gene-set artifact. The manager materializes the six source PDFs below but, consistently with Figures 1-6, does not assemble the final A-F composite.
+The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one immutable run under `Results/in-vivo/figure7/runs/<run_id>_figure7/`. Routine mode recomputes panels 7A-7E from the tracked CellCycle and NonCellCycle cell-level tables and renders 7F from the immutable `taoli_04i_etp2_24_day17_v1` saved pathway analysis. Until that canonical saved analysis is exported, `--figure7-panels-ae-only` records and materializes an explicit five-panel A-E contract without reading or representing panel F. Optional full analysis additionally requires an explicit external Seurat RDS and pinned gene-set artifact. The manager materializes source PDFs but, consistently with Figures 1-6, does not assemble the final A-F composite.
 
 | Panel | Manuscript content | Canonical source output |
 |---|---|---|

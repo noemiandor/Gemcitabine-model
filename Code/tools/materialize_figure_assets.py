@@ -230,6 +230,7 @@ PANEL_SPECS = [
         "panel": "7F",
         "asset": "panel_7F_pseudotime_state_pathway_activity.pdf",
         "caption_role": "Pathway activity across the accumulated CellCycle pseudotime state",
+        "optional": True,
     },
 ]
 
@@ -383,7 +384,36 @@ def validate_strict_source_run(
         (run_root / str(spec["source"])).resolve()
         for spec in selected_specs
         if str(spec["module"]) == module
+        and (not spec.get("optional") or (run_root / str(spec["source"])).is_file())
     }
+    has_panel_f = any(path.name == "panel_7F_pseudotime_state_pathway_activity.pdf" for path in expected_sources)
+    expected_panel_set = "a-f" if has_panel_f else "a-e"
+    run_config = run_root / "metadata" / "run_config.tsv"
+    if not run_config.is_file():
+        raise FileNotFoundError(f"Missing source Figure 7 run config: {run_config}")
+    _, config_rows = read_tsv(run_config)
+    panel_set_rows = [row for row in config_rows if row.get("key") == "panel_set"]
+    if len(panel_set_rows) != 1 or panel_set_rows[0].get("value") != expected_panel_set:
+        raise ValueError(
+            f"Source Figure 7 run must explicitly record panel_set={expected_panel_set}"
+        )
+
+    panel_contract = run_root / "metadata" / "panel_contract.tsv"
+    if not panel_contract.is_file():
+        raise FileNotFoundError(f"Missing source Figure 7 panel contract: {panel_contract}")
+    _, contract_rows = read_tsv(panel_contract)
+    expected_contract = [
+        (str(spec["panel"]), Path(str(spec["source"])).name)
+        for spec in selected_specs
+        if str(spec["module"]) == module
+        and (not spec.get("optional") or (run_root / str(spec["source"])).is_file())
+    ]
+    observed_contract = [(row.get("panel_id", ""), row.get("filename", "")) for row in contract_rows]
+    if observed_contract != expected_contract:
+        raise ValueError(
+            f"Source Figure 7 panel contract mismatch: expected={expected_contract}; "
+            f"observed={observed_contract}"
+        )
     observed_figures = {
         path.resolve()
         for path in run_root.rglob("*")
@@ -393,7 +423,7 @@ def validate_strict_source_run(
         missing = sorted(str(path) for path in expected_sources - observed_figures)
         unexpected = sorted(str(path) for path in observed_figures - expected_sources)
         raise ValueError(
-            f"{module} violates the exact six-panel inventory: missing={missing}; unexpected={unexpected}"
+            f"{module} violates its exact panel inventory: missing={missing}; unexpected={unexpected}"
         )
 
     _, rows = read_tsv(output_manifest)

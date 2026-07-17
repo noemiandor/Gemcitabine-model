@@ -108,13 +108,19 @@ figure7_save_pdf <- function(plot, path, width, height) {
   invisible(path)
 }
 
-figure7_panel_filenames <- function(config) unname(unlist(config$panels$filenames, use.names = FALSE))
+figure7_panel_ids <- function(include_panel_f = TRUE) {
+  if (isTRUE(include_panel_f)) c("7A", "7B", "7C", "7D", "7E", "7F") else c("7A", "7B", "7C", "7D", "7E")
+}
 
-figure7_validate_figure_inventory <- function(output_dir, config) {
+figure7_panel_filenames <- function(config, panel_ids = figure7_panel_ids(TRUE)) {
+  unname(unlist(config$panels$filenames[panel_ids], use.names = FALSE))
+}
+
+figure7_validate_figure_inventory <- function(output_dir, config, panel_ids = figure7_panel_ids(TRUE)) {
   figures_dir <- file.path(output_dir, "figures")
   all_pdf <- list.files(output_dir, pattern = "[.]pdf$", recursive = TRUE, full.names = TRUE, ignore.case = TRUE)
   observed <- sort(basename(all_pdf))
-  expected <- sort(figure7_panel_filenames(config))
+  expected <- sort(figure7_panel_filenames(config, panel_ids))
   if (!identical(observed, expected) || any(dirname(normalizePath(all_pdf)) != normalizePath(figures_dir))) {
     figure7_stop("Figure inventory mismatch. Expected: ", paste(expected, collapse = ", "),
                  "; observed: ", paste(observed, collapse = ", "))

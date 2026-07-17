@@ -47,11 +47,28 @@ class Figure7MaterializationTest(unittest.TestCase):
         for spec in self.figure7_specs:
             source = self.run_root / str(spec["source"])
             source.write_bytes(f"fake PDF for {spec['panel']}\n".encode())
+        self._write_run_metadata(include_f=True)
         self._write_input_manifest()
         self._write_output_manifest()
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
+
+    def _write_run_metadata(self, include_f: bool) -> None:
+        selected = [spec for spec in self.figure7_specs if include_f or spec["panel"] != "7F"]
+        write_tsv(
+            self.run_root / "metadata/run_config.tsv",
+            [{"key": "panel_set", "value": "a-f" if include_f else "a-e"}],
+            ["key", "value"],
+        )
+        write_tsv(
+            self.run_root / "metadata/panel_contract.tsv",
+            [
+                {"panel_id": spec["panel"], "filename": Path(str(spec["source"])).name}
+                for spec in selected
+            ],
+            ["panel_id", "filename"],
+        )
 
     def _write_input_manifest(self) -> None:
         relative = str(self.input_path.relative_to(self.repo))
@@ -146,6 +163,33 @@ class Figure7MaterializationTest(unittest.TestCase):
             all(f"materialization_operation_id={self.operation_id}" in row["notes"] for row in rows)
         )
 
+    def test_materializes_explicit_ae_run_without_optional_panel_f(self) -> None:
+        panel_f = next(spec for spec in self.figure7_specs if spec["panel"] == "7F")
+        (self.run_root / str(panel_f["source"])).unlink()
+        manifest = self.run_root / "metadata/output_manifest.tsv"
+        with manifest.open(newline="") as handle:
+            rows = [row for row in csv.DictReader(handle, delimiter="\t") if row["panel"] != "7F"]
+        write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
+        self._write_run_metadata(include_f=False)
+
+        result = self._run_materializer()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with (self.repo / "figures/Figure7/manifest.tsv").open(newline="") as handle:
+            materialized = list(csv.DictReader(handle, delimiter="\t"))
+        self.assertEqual([row["panel"] for row in materialized], [f"7{x}" for x in "ABCDE"])
+        self.assertFalse((self.repo / "figures/Figure7/panel_7F_pseudotime_state_pathway_activity.pdf").exists())
+
+    def test_rejects_unrecorded_ae_omission(self) -> None:
+        panel_f = next(spec for spec in self.figure7_specs if spec["panel"] == "7F")
+        (self.run_root / str(panel_f["source"])).unlink()
+        manifest = self.run_root / "metadata/output_manifest.tsv"
+        with manifest.open(newline="") as handle:
+            rows = [row for row in csv.DictReader(handle, delimiter="\t") if row["panel"] != "7F"]
+        write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("explicitly record panel_set=a-e", result.stderr)
+
     def test_rejects_missing_or_unexpected_figure(self) -> None:
         (self.run_root / str(self.figure7_specs[0]["source"])).unlink()
         missing = self._run_materializer()
@@ -157,7 +201,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         (self.run_root / "tables/unexpected.png").write_bytes(b"unexpected")
         unexpected = self._run_materializer()
         self.assertNotEqual(unexpected.returncode, 0)
-        self.assertIn("exact six-panel inventory", unexpected.stderr)
+        self.assertIn("exact panel inventory", unexpected.stderr)
 
     def test_rejects_checksum_mismatch(self) -> None:
         source = self.run_root / str(self.figure7_specs[0]["source"])

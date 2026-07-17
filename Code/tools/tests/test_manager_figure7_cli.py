@@ -52,6 +52,25 @@ class ManagerFigure7CliTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("--figure7-gene-set-artifact", result.stderr)
 
+    def test_ae_only_check_omits_panel_f_inputs_and_sets_panel_contract(self) -> None:
+        result = self._run(
+            "--mode", "check-only", "--modules", "in_vivo_figure7",
+            "--run-id", "check_ae", "--figure7-panels-ae-only",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--panel-set=a-e", result.stdout)
+        self.assertNotIn("--saved-state-pathway-dir", result.stdout)
+
+    def test_ae_only_rejects_full_panel_f_analysis(self) -> None:
+        result = self._run(
+            "--mode", "full-refit", "--modules", "in_vivo_figure7",
+            "--run-id", "bad_combo", "--figure7-panels-ae-only",
+            "--figure7-full-analysis", "--figure7-seurat-rds", "/tmp/object.rds",
+            "--figure7-gene-set-artifact", "/tmp/gene_sets.rds",
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("mutually exclusive", result.stderr)
+
     def test_panels_only_uses_source_run_without_invoking_r(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -89,6 +108,19 @@ class ManagerFigure7CliTest(unittest.TestCase):
                     }
                 )
             write_tsv(run_root / "metadata/output_manifest.tsv", rows, MODULE_MANIFEST_COLUMNS)
+            write_tsv(
+                run_root / "metadata/run_config.tsv",
+                [{"key": "panel_set", "value": "a-f"}],
+                ["key", "value"],
+            )
+            write_tsv(
+                run_root / "metadata/panel_contract.tsv",
+                [
+                    {"panel_id": spec["panel"], "filename": Path(str(spec["source"])).name}
+                    for spec in PANEL_SPECS if spec["module"] == "in_vivo_figure7"
+                ],
+                ["panel_id", "filename"],
+            )
             input_path = tmp_path / "figure7_input.tsv"
             input_path.write_text("value\n1\n")
             write_tsv(

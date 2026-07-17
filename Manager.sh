@@ -33,6 +33,7 @@ lci_panel_only=false
 include_in_vivo=false
 metabolomics_input="Code/Gemcitabine_Metabolomics_Heatmap/Metabolomics_2N_4N_Full.xlsm"
 figure7_full_analysis=false
+figure7_panels_ae_only=false
 figure7_seurat_rds=""
 figure7_gene_set_artifact=""
 figure7_reference_id="taoli_04i_etp2_24_day17_v1"
@@ -70,6 +71,7 @@ Module options:
   --include-in-vivo
   --metabolomics-input PATH
   --figure7-full-analysis          Opt-in full pathway recomputation; requires both paths below
+  --figure7-panels-ae-only         Generate/materialize 7A-7E while canonical panel 7F is unavailable
   --figure7-seurat-rds ABSOLUTE_PATH
   --figure7-gene-set-artifact PATH  Pinned, versioned local gene-set artifact
 EOF
@@ -102,6 +104,7 @@ while [[ $# -gt 0 ]]; do
     --include-in-vivo) include_in_vivo=true; shift ;;
     --metabolomics-input) metabolomics_input="$2"; shift 2 ;;
     --figure7-full-analysis) figure7_full_analysis=true; shift ;;
+    --figure7-panels-ae-only) figure7_panels_ae_only=true; shift ;;
     --figure7-seurat-rds) figure7_seurat_rds="$2"; shift 2 ;;
     --figure7-gene-set-artifact) figure7_gene_set_artifact="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -140,6 +143,10 @@ if [[ "${figure7_full_analysis}" == true || -n "${figure7_seurat_rds}" || -n "${
     echo "--figure7-seurat-rds must be an absolute path" >&2
     exit 2
   fi
+fi
+if [[ "${figure7_panels_ae_only}" == true && "${figure7_full_analysis}" == true ]]; then
+  echo "--figure7-panels-ae-only and --figure7-full-analysis are mutually exclusive" >&2
+  exit 2
 fi
 
 if [[ "${pkpd_refit}" == true && "${mode}" != "full-refit" && "${modules}" != "pkpd" ]]; then
@@ -263,15 +270,18 @@ input_paths_for_module() {
       printf "%s\n" \
         Code/in-vivo/figure7/figure7_config.yaml \
         Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
-        Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
-        "${reference_root}/panel_7F_pathway_activity_plot_data.tsv" \
-        "${reference_root}/panel_7F_selected_pathway_gsea.tsv" \
-        "${reference_root}/panel_7F_leading_edge_genes.tsv" \
-        "${reference_root}/state_pathway_gene_ranking_complete.tsv" \
-        "${reference_root}/state_pathway_gsea_complete.tsv" \
-        "${reference_root}/state_pathway_sample_bin_coverage.tsv" \
-        "${reference_root}/state_pathway_design_qc.tsv" \
-        "${reference_root}/state_pathway_provenance.tsv"
+        Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
+      if [[ "${figure7_panels_ae_only}" != true ]]; then
+        printf "%s\n" \
+          "${reference_root}/panel_7F_pathway_activity_plot_data.tsv" \
+          "${reference_root}/panel_7F_selected_pathway_gsea.tsv" \
+          "${reference_root}/panel_7F_leading_edge_genes.tsv" \
+          "${reference_root}/state_pathway_gene_ranking_complete.tsv" \
+          "${reference_root}/state_pathway_gsea_complete.tsv" \
+          "${reference_root}/state_pathway_sample_bin_coverage.tsv" \
+          "${reference_root}/state_pathway_design_qc.tsv" \
+          "${reference_root}/state_pathway_provenance.tsv"
+      fi
       if [[ "${figure7_full_analysis}" == true ]]; then
         printf "%s\n" "${figure7_seurat_rds}" "${figure7_gene_set_artifact}"
       fi
@@ -374,9 +384,13 @@ command_for_module() {
         --config=Code/in-vivo/figure7/figure7_config.yaml
         --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
         --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
-        "--saved-state-pathway-dir=${reference_root}"
         "--output-dir=${run_dir}"
       )
+      if [[ "${figure7_panels_ae_only}" == true ]]; then
+        figure7_args+=(--panel-set=a-e)
+      else
+        figure7_args+=("--saved-state-pathway-dir=${reference_root}")
+      fi
       if [[ "${figure7_full_analysis}" == true ]]; then
         figure7_args[2]="--mode=full-analysis"
         figure7_args+=(
@@ -471,7 +485,7 @@ run_module() {
       --generated-by Manager.sh \
       --command-id "${run_id}" \
       "${input_args[@]}"
-    python3 Code/tools/validate_manifest.py "${run_dir}/metadata/input_manifest.tsv"
+    python3 Code/tools/validate_manifest.py "${run_dir}/metadata/input_manifest.tsv" --repo-root "${repo_root}"
   fi
   python3 Code/tools/write_file_manifest.py \
     --manifest-type output \
@@ -480,7 +494,8 @@ run_module() {
     --generated-by Manager.sh \
     --command-id "${run_id}" \
     --scan-dir "${run_dir}"
-  python3 Code/tools/validate_manifest.py "${run_dir}/metadata/output_manifest.tsv" --output-root "${run_dir}"
+  python3 Code/tools/validate_manifest.py "${run_dir}/metadata/output_manifest.tsv" \
+    --output-root "${run_dir}" --repo-root "${repo_root}"
 
   if [[ "${no_update_latest}" != true ]]; then
     write_latest "${module}" "${run_dir}" "${command_string}"
@@ -582,7 +597,8 @@ if [[ "${skip_analysis_loop}" != true ]]; then
           --generated-by Manager.sh \
           --command-id "${run_id}" \
           --scan-dir "${fit_run_dir}"
-        python3 Code/tools/validate_manifest.py "${fit_run_dir}/metadata/output_manifest.tsv" --output-root "${fit_run_dir}"
+        python3 Code/tools/validate_manifest.py "${fit_run_dir}/metadata/output_manifest.tsv" \
+          --output-root "${fit_run_dir}" --repo-root "${repo_root}"
       fi
       continue
     fi

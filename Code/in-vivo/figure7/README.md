@@ -20,6 +20,15 @@ Routine manager execution:
 bash Manager.sh --mode standard --modules in_vivo_figure7 --run-id <run_id>
 ```
 
+Until the canonical panel-7F tables are available, explicitly generate and materialize only 7A-7E:
+
+```bash
+bash Manager.sh --mode standard --modules in_vivo_figure7 \
+  --figure7-panels-ae-only --run-id <run_id>
+```
+
+This mode records a five-panel contract and does not read, validate, render, or materialize panel 7F.
+
 Standalone rendering from an immutable completed run (does not rerun statistics):
 
 ```bash
@@ -36,7 +45,7 @@ Full panel-F recomputation requires both an explicit Seurat RDS and a pinned loc
 
 ## Output contract
 
-Each successful run has `figures/`, `tables/`, `metadata/`, and `logs/`. `figures/` contains only:
+Each successful run has `figures/`, `tables/`, `metadata/`, and `logs/`. The default six-panel contract contains only:
 
 1. `panel_7A_day17_tgi_calculation.pdf`
 2. `panel_7B_cellcycle_selected_ecdf_comparisons.pdf`
@@ -44,6 +53,8 @@ Each successful run has `figures/`, `tables/`, `metadata/`, and `logs/`. `figure
 4. `panel_7D_day17_tgi_vs_centered_ecdf_shift.pdf`
 5. `panel_7E_day17_tgi_vs_mean_etp.pdf`
 6. `panel_7F_pseudotime_state_pathway_activity.pdf`
+
+An explicit `--panel-set=a-e`/`--figure7-panels-ae-only` run instead contains exactly the first five PDFs, records `panel_set=a-e`, and excludes all panel-F inputs and outputs.
 
 Plotting data, exact-permutation tests, the complete compact state-pathway audit chain, frozen-reference comparison, run settings, panel contract, and session information are retained alongside the PDFs.
 

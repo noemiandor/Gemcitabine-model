@@ -33,5 +33,6 @@ testthat::test_that("all module R files parse and A-E builders emit only five PD
   input <- figure7_test_inputs(); out <- tempfile("figure7_ae_"); figure7_prepare_output(out)
   result <- figure7_build_ae(input$cellcycle, input$data, input$samples, out, input$config)
   testthat::expect_length(list.files(file.path(out, "figures"), pattern = "[.]pdf$"), 5L)
+  testthat::expect_silent(figure7_validate_figure_inventory(out, input$config, figure7_panel_ids(FALSE)))
   testthat::expect_identical(unique(result$panel_b$tests$comparison_id), c(1L, 8L, 9L))
 })
