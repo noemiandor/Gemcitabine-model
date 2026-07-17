@@ -12,4 +12,5 @@ etp_threshold	2.24
 state_pathway_reference_id	taoli_04i_etp2_24_day17_v1
 state_interval_start	0.3
 state_interval_end	0.49
+state_pathway_source_results_root	/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways
 config_sha256	627c76e3b2f9dca95cda0dd352d3119bb5c1c6646866f250a6ee6264857489b8
