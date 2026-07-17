@@ -9,6 +9,32 @@ testthat::test_that("panel-F compact reference contract validates and selector i
                          "metadata/order|top-four")
 })
 
+testthat::test_that("tracked canonical 04i reference validates exact report lineage", {
+  input <- figure7_test_inputs()
+  reference_path <- file.path(
+    repo_root,
+    input$config$state_pathways$reference_root,
+    input$config$state_pathways$reference_id
+  )
+  reference <- figure7_validate_state_reference(reference_path, input$config)
+  provenance <- stats::setNames(as.character(reference$provenance$value), reference$provenance$key)
+
+  testthat::expect_equal(nrow(reference$activity), 24L * 501L)
+  testthat::expect_equal(nrow(reference$selected), 24L)
+  testthat::expect_identical(provenance[["canonical_reference_id"]], "taoli_04i_etp2_24_day17_v1")
+  testthat::expect_identical(provenance[["workflow_id"]], "binning")
+  testthat::expect_identical(provenance[["model_id"]], "ETP_reference_balanced_threshold_2_24")
+  testthat::expect_identical(provenance[["accumulated_interval"]], "[0.30,0.49]")
+  testthat::expect_identical(
+    provenance[["report_html_sha256"]],
+    "b9644b1da0399043a6aba28178a2b61375b661780c4fb08a148c7724da00bfa1"
+  )
+  testthat::expect_identical(
+    provenance[["code_revision_04i"]],
+    "dc751eab928bc40f3edb063baec447fe32a69d73"
+  )
+})
+
 testthat::test_that("missing F, wrong checksums, and nonempty outputs fail clearly", {
   input <- figure7_test_inputs()
   missing <- file.path(tempdir(), input$config$state_pathways$reference_id)

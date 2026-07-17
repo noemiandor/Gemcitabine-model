@@ -12,7 +12,11 @@ matching the Figure 1-6 workflow.
 - Panel 7D uses the reference-balanced ETP threshold 2.24 and equal-mouse untreated ECDF references.
 - Panel 7F is rendered from immutable compact 04i tables in `Data/in-vivo/figure7/saved_state_pathway/taoli_04i_etp2_24_day17_v1/`.
 
-The canonical panel-7F tables were not available when this implementation was written. Standard mode therefore fails before creating analysis output until all eight files and their reviewed SHA-256 values replace the `REQUIRED_CANONICAL_SHA256` markers in `figure7_config.yaml`. An embedded report raster is not accepted as plotting data.
+The eight canonical panel-7F tables are a read-only export from the exact
+`ETP_reference_balanced_threshold_2_24` analysis used by
+`04i_pseudotime_state_pathways_report.html`, with accumulated pseudotime interval
+0.30-0.49. Their reviewed SHA-256 values are pinned in `figure7_config.yaml`;
+an embedded report raster is not accepted as plotting data.
 
 ## Commands
 
@@ -22,7 +26,7 @@ Routine manager execution:
 bash Manager.sh --mode standard --modules in_vivo_figure7 --run-id <run_id>
 ```
 
-Until the canonical panel-7F tables are available, explicitly generate and materialize only 7A-7E:
+To explicitly generate and materialize only 7A-7E:
 
 ```bash
 bash Manager.sh --mode standard --modules in_vivo_figure7 \
@@ -44,7 +48,23 @@ Rscript Code/in-vivo/figure7/run_figure7.R \
 
 The manager's `panels-only` mode does not invoke this R script; it materializes six existing PDFs from an explicit `--source-run-id`.
 
-Full panel-F recomputation requires both an explicit Seurat RDS and a pinned local gene-set artifact. It never queries live `msigdbr`. The path is currently guarded because the canonical compact reference and the mixed human/mouse feature policy have not been approved; it fails rather than silently changing panel 7F.
+The frozen reference can be regenerated from the unchanged completed 04i result
+tree with:
+
+```bash
+Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R
+```
+
+The exporter verifies the report, source-input, interval-config, and source-table
+SHA-256 values before reading results, then writes the eight TSVs atomically. It
+does not refit the model or query gene sets. The source analysis did not record a
+separate MSigDB release identifier, so provenance retains
+`gene_set_release=not_recorded_in_04i_manifest` and the recorded `msigdbr`
+package version instead.
+
+Full panel-F recomputation remains a separate guarded path: it requires both an
+explicit Seurat RDS and a pinned local gene-set artifact, and it never queries
+live `msigdbr`. This prevents a recomputation from silently changing panel 7F.
 
 ## Output contract
 
@@ -70,4 +90,7 @@ Plotting data, exact-permutation tests, the complete compact state-pathway audit
 Rscript Code/in-vivo/figure7/tests/testthat.R
 ```
 
-The tests parse all module files, reproduce the frozen A-E numerical results, enforce treated-only outcomes and selected ECDF IDs 1/8/9, exercise the strict panel-F contract with generated non-scientific fixtures, and verify fail-fast output behavior.
+The tests parse all module files, reproduce the frozen A-E numerical results,
+enforce treated-only outcomes and selected ECDF IDs 1/8/9, validate the tracked
+canonical 04i reference and its lineage, exercise the strict panel-F contract
+with generated non-scientific fixtures, and verify fail-fast output behavior.

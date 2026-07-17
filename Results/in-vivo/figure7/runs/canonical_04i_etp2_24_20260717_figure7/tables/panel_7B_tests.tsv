@@ -1,0 +1,10 @@
+comparison_id	panel	group_a	group_b	n_group_a	n_group_b	observed_ecdf_rmse	observed_ecdf_ks	p_ecdf_rmse	n_permutations	permutation_mode	annotation	tgi_outcome	tgi_day	tgi_measure	matched_control_summary	matched_control_group
+1	1. 0 vs treated	0mg/kg	treated	8	8	0.037800328540575	0.0712209140744627	0.00512820512820513	12870	exact_label_enumeration	0mg/kg n=8; treated n=8
+RMSE=0.0378, P=0.00513
+KS=0.0712	day	17	TGI_percent_Day_17	mean	initial_ploidy
+8	8. 4N: 0 vs treated	0mg/kg	treated	4	4	0.0316910072809657	0.0604940873508597	0.142857142857143	70	exact_label_enumeration	0mg/kg n=4; treated n=4
+RMSE=0.0317, P=0.143
+KS=0.0605	day	17	TGI_percent_Day_17	mean	initial_ploidy
+9	9. 2N: 0 vs treated	0mg/kg	treated	4	4	0.0455724109684911	0.0939823058220074	0.0571428571428571	70	exact_label_enumeration	0mg/kg n=4; treated n=4
+RMSE=0.0456, P=0.0571
+KS=0.0940	day	17	TGI_percent_Day_17	mean	initial_ploidy
