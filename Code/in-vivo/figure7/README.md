@@ -55,6 +55,23 @@ tree with:
 Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R
 ```
 
+On the HPC, run the exporter from the repository root with explicit source and
+output paths:
+
+```bash
+cd /share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures
+
+Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R \
+  --results-root=/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways \
+  --report-html=/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways/report/04i_pseudotime_state_pathways_report.html \
+  --output-dir=/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures/Results/in-vivo/figure7/hpc_export_recheck_20260717/taoli_04i_etp2_24_day17_v1
+```
+
+Run this command in the HPC shell rather than from an interactive R prompt. The
+final output-directory basename must remain `taoli_04i_etp2_24_day17_v1`, and
+the parent directory must be new because the exporter refuses to overwrite an
+existing canonical export.
+
 The exporter verifies the report, source-input, interval-config, and source-table
 SHA-256 values before reading results, then writes the eight TSVs atomically. It
 does not refit the model or query gene sets. The source analysis did not record a
