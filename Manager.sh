@@ -38,7 +38,8 @@ figure7_seurat_rds=""
 figure7_gene_set_artifact=""
 figure7_reference_id="taoli_04i_etp2_24_day17_v1"
 figure7_state_pathway_results_root=""
-figure7_reference_root="Data/in-vivo/figure7/saved_state_pathway/${figure7_reference_id}"
+figure7_canonical_reference_root="${FIGURE7_CANONICAL_REFERENCE_ROOT:-Data/in-vivo/figure7/saved_state_pathway/${figure7_reference_id}}"
+figure7_reference_root="${figure7_canonical_reference_root}"
 skip_analysis_loop=false
 
 usage() {
@@ -490,6 +491,8 @@ record_figure7_reference_export() {
     printf "source_report_html\t%s\n" "${figure7_state_pathway_results_root}/report/04i_pseudotime_state_pathways_report.html"
     printf "canonical_reference_id\t%s\n" "${figure7_reference_id}"
     printf "exported_reference_dir\t%s\n" "${figure7_reference_root}"
+    printf "canonical_data_reference_dir\t%s\n" "${figure7_canonical_reference_root}"
+    printf "canonical_data_materialization_metadata\t%s\n" "${manager_run_dir}/metadata/figure7_state_pathway_materialization.tsv"
     printf "exporter_script\t%s\n" "Code/in-vivo/figure7/export_04i_state_pathway_reference.R"
     printf "command\t%s\n" "${command_string}"
     printf "stdout_log\t%s\n" "${stdout_log}"
@@ -515,6 +518,63 @@ prepare_figure7_reference() {
     record_figure7_reference_export "failed" "${command_string}" "${stdout_log}" "${stderr_log}" "${started_at}" "${finished_at}"
   fi
   return "${status}"
+}
+
+figure7_reference_filenames() {
+  printf "%s\n" \
+    panel_7F_pathway_activity_plot_data.tsv \
+    panel_7F_selected_pathway_gsea.tsv \
+    panel_7F_leading_edge_genes.tsv \
+    state_pathway_gene_ranking_complete.tsv \
+    state_pathway_gsea_complete.tsv \
+    state_pathway_sample_bin_coverage.tsv \
+    state_pathway_design_qc.tsv \
+    state_pathway_provenance.tsv
+}
+
+record_figure7_reference_materialization() {
+  local status="$1" started_at="$2" finished_at="$3"
+  local metadata_path="${manager_run_dir}/metadata/figure7_state_pathway_materialization.tsv"
+  {
+    printf "key\tvalue\n"
+    printf "status\t%s\n" "${status}"
+    printf "canonical_reference_id\t%s\n" "${figure7_reference_id}"
+    printf "source_reference_dir\t%s\n" "${figure7_reference_root}"
+    printf "target_data_reference_dir\t%s\n" "${figure7_canonical_reference_root}"
+    printf "materialized_file_count\t8\n"
+    printf "started_at\t%s\n" "${started_at}"
+    printf "finished_at\t%s\n" "${finished_at}"
+  } > "${metadata_path}"
+}
+
+materialize_figure7_reference_to_data() {
+  local filename source_path target_path temporary_path
+  local materialized_count=0
+
+  while IFS= read -r filename; do
+    [[ -z "${filename}" ]] && continue
+    require_file "${figure7_reference_root}/${filename}"
+  done < <(figure7_reference_filenames)
+
+  mkdir -p "${figure7_canonical_reference_root}"
+  while IFS= read -r filename; do
+    [[ -z "${filename}" ]] && continue
+    source_path="${figure7_reference_root}/${filename}"
+    target_path="${figure7_canonical_reference_root}/${filename}"
+    temporary_path="${figure7_canonical_reference_root}/.${filename}.tmp.${run_id}"
+    cp "${source_path}" "${temporary_path}"
+    mv "${temporary_path}" "${target_path}"
+    if ! cmp -s "${source_path}" "${target_path}"; then
+      echo "Materialized Figure 7 reference does not match exported artifact: ${target_path}" >&2
+      return 1
+    fi
+    materialized_count=$((materialized_count + 1))
+  done < <(figure7_reference_filenames)
+
+  if [[ "${materialized_count}" -ne 8 ]]; then
+    echo "Expected to materialize 8 Figure 7 reference files; found ${materialized_count}" >&2
+    return 1
+  fi
 }
 
 run_module() {
@@ -603,6 +663,26 @@ run_module() {
     --scan-dir "${run_dir}"
   python3 Code/tools/validate_manifest.py "${run_dir}/metadata/output_manifest.tsv" \
     --output-root "${run_dir}" --repo-root "${repo_root}"
+
+  if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
+    local materialization_started_at materialization_finished_at
+    materialization_started_at="$(date -Iseconds)"
+    if ! materialize_figure7_reference_to_data; then
+      materialization_finished_at="$(date -Iseconds)"
+      record_figure7_reference_materialization "failed" "${materialization_started_at}" "${materialization_finished_at}"
+      finished_at="${materialization_finished_at}"
+      record_module_run \
+        "${module}" "failed" "${command_string}" "${run_dir}" "${stdout_log}" "${stderr_log}" \
+        "state_pathway_materialization_failed;${module_notes};state_pathway_canonical_data_dir=${figure7_canonical_reference_root}" \
+        "${started_at}" "${finished_at}"
+      echo "Figure 7 canonical Data reference materialization failed: ${figure7_canonical_reference_root}" >&2
+      return 1
+    fi
+    materialization_finished_at="$(date -Iseconds)"
+    record_figure7_reference_materialization "ok" "${materialization_started_at}" "${materialization_finished_at}"
+    module_notes="${module_notes};state_pathway_canonical_data_dir=${figure7_canonical_reference_root}"
+    finished_at="${materialization_finished_at}"
+  fi
 
   if [[ "${no_update_latest}" != true ]]; then
     write_latest "${module}" "${run_dir}" "${command_string}"

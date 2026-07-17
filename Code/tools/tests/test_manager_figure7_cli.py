@@ -88,6 +88,7 @@ class ManagerFigure7CliTest(unittest.TestCase):
             figure_root = tmp_path / "figures"
             source_results_root = tmp_path / "04i results"
             source_results_root.mkdir()
+            canonical_reference_root = tmp_path / "canonical Data" / "taoli_04i_etp2_24_day17_v1"
             run_id = "integrated_state_export"
 
             fake_bin = tmp_path / "bin"
@@ -154,6 +155,7 @@ exit 99
             fake_rscript.chmod(0o755)
             env = os.environ.copy()
             env["PATH"] = f"{fake_bin}:{env['PATH']}"
+            env["FIGURE7_CANONICAL_REFERENCE_ROOT"] = str(canonical_reference_root)
 
             result = self._run(
                 "--mode", "standard", "--modules", "in_vivo_figure7",
@@ -176,6 +178,28 @@ exit 99
             reference_root = Path(export_metadata["exported_reference_dir"])
             self.assertEqual(reference_root.name, "taoli_04i_etp2_24_day17_v1")
             self.assertEqual(len(list(reference_root.glob("*.tsv"))), 8)
+            self.assertEqual(
+                export_metadata["canonical_data_reference_dir"], str(canonical_reference_root)
+            )
+            self.assertEqual(len(list(canonical_reference_root.glob("*.tsv"))), 8)
+            for exported_path in reference_root.glob("*.tsv"):
+                self.assertEqual(
+                    exported_path.read_bytes(),
+                    (canonical_reference_root / exported_path.name).read_bytes(),
+                )
+
+            with (manager_root / "metadata/figure7_state_pathway_materialization.tsv").open(
+                newline=""
+            ) as handle:
+                materialization_metadata = {
+                    row["key"]: row["value"] for row in csv.DictReader(handle, delimiter="\t")
+                }
+            self.assertEqual(materialization_metadata["status"], "ok")
+            self.assertEqual(
+                materialization_metadata["target_data_reference_dir"],
+                str(canonical_reference_root),
+            )
+            self.assertEqual(materialization_metadata["materialized_file_count"], "8")
 
             run_root = output_root / "in-vivo/figure7/runs" / f"{run_id}_figure7"
             with (run_root / "metadata/run_config.tsv").open(newline="") as handle:
@@ -185,7 +209,73 @@ exit 99
             )
             module_runs = (manager_root / "metadata/module_runs.tsv").read_text()
             self.assertIn(f"state_pathway_source_results_root={source_results_root.resolve()}", module_runs)
+            self.assertIn(f"state_pathway_canonical_data_dir={canonical_reference_root}", module_runs)
             self.assertTrue((figure_root / "Figure7/manifest.tsv").is_file())
+
+    def test_failed_figure7_run_does_not_materialize_canonical_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            output_root = tmp_path / "Results"
+            figure_root = tmp_path / "figures"
+            source_results_root = tmp_path / "04i_results"
+            canonical_reference_root = tmp_path / "canonical" / "taoli_04i_etp2_24_day17_v1"
+            source_results_root.mkdir()
+
+            fake_bin = tmp_path / "bin"
+            fake_bin.mkdir()
+            fake_rscript = fake_bin / "Rscript"
+            fake_rscript.write_text(
+                """#!/usr/bin/env bash
+set -euo pipefail
+entrypoint="$1"
+shift
+output_dir=""
+for arg in "$@"; do
+  case "$arg" in
+    --output-dir=*) output_dir="${arg#*=}" ;;
+  esac
+done
+if [[ "$entrypoint" == *export_04i_state_pathway_reference.R ]]; then
+  mkdir -p "$output_dir"
+  for name in \
+    panel_7F_pathway_activity_plot_data.tsv \
+    panel_7F_selected_pathway_gsea.tsv \
+    panel_7F_leading_edge_genes.tsv \
+    state_pathway_gene_ranking_complete.tsv \
+    state_pathway_gsea_complete.tsv \
+    state_pathway_sample_bin_coverage.tsv \
+    state_pathway_design_qc.tsv \
+    state_pathway_provenance.tsv; do
+    printf 'value\\nfixture\\n' > "$output_dir/$name"
+  done
+  exit 0
+fi
+exit 7
+"""
+            )
+            fake_rscript.chmod(0o755)
+            env = os.environ.copy()
+            env["PATH"] = f"{fake_bin}:{env['PATH']}"
+            env["FIGURE7_CANONICAL_REFERENCE_ROOT"] = str(canonical_reference_root)
+
+            result = self._run(
+                "--mode", "standard", "--modules", "in_vivo_figure7",
+                "--run-id", "failed_before_materialization",
+                "--output-root", str(output_root),
+                "--figure-root", str(figure_root),
+                "--figure7-state-pathway-results-root", str(source_results_root),
+                env=env,
+            )
+
+            self.assertEqual(result.returncode, 7)
+            self.assertFalse(canonical_reference_root.exists())
+            self.assertFalse(
+                (
+                    output_root
+                    / "manager/runs/failed_before_materialization/metadata"
+                    / "figure7_state_pathway_materialization.tsv"
+                ).exists()
+            )
 
     def test_panels_only_uses_source_run_without_invoking_r(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

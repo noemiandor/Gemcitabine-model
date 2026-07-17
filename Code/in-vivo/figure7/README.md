@@ -40,8 +40,12 @@ bash Manager.sh \
 The supplied results root is normalized and recorded in the Manager export
 metadata, module-run notes, Figure 7 `run_config.tsv`, and copied panel-7F
 provenance. The eight exported TSVs are retained under that Manager run's
-`artifacts/figure7_state_pathway_reference/` directory; the tracked frozen
-reference is not overwritten.
+`artifacts/figure7_state_pathway_reference/` directory. After Figure 7 and its
+manifests complete successfully, Manager refreshes the same eight TSVs using
+atomic per-file replacement under
+`Data/in-vivo/figure7/saved_state_pathway/taoli_04i_etp2_24_day17_v1/` and
+records that publication in `metadata/figure7_state_pathway_materialization.tsv`.
+Failed Figure 7 runs do not refresh the tracked canonical Data reference.
 
 To explicitly generate and materialize only 7A-7E:
 
