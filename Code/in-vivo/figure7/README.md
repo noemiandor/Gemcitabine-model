@@ -29,6 +29,35 @@ bash Manager.sh --mode standard --run-id <run_id>
 Figure 7 is part of the default manuscript module set. To run only Figure 7,
 add `--modules in_vivo_figure7`.
 
+The canonical manuscript run remains Day-17 TGI materialized to
+`figures/Figure7/`. To generate a Day-24 supplementary variant without
+overwriting the canonical assets:
+
+```bash
+bash Manager.sh \
+  --mode standard \
+  --modules in_vivo_figure7 \
+  --run-id <run_id> \
+  --figure7-tgi-day 24 \
+  --figure7-figure-name Figure7_Supplement
+```
+
+Likewise, a Day-31 variant can be kept separately:
+
+```bash
+bash Manager.sh \
+  --mode standard \
+  --modules in_vivo_figure7 \
+  --run-id <run_id> \
+  --figure7-tgi-day 31 \
+  --figure7-figure-name Figure7_Supplement2
+```
+
+The selected endpoint day is used consistently for the matched-control TGI
+calculation, plot labels, statistical tables, run metadata, panel contract, and
+day-bearing filenames. Panel 7B and panel 7F are scientifically independent of
+the TGI endpoint and are regenerated unchanged into the selected destination.
+
 To export the canonical panel-7F reference from a completed 04i result tree and
 then generate and publish Figure 7 in one Manager run:
 

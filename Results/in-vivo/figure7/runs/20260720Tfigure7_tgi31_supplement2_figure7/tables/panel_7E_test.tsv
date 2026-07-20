@@ -1,0 +1,2 @@
+n	estimate	asymptotic_p	permutation_p_two_sided	n_permutations	permutation_mode	tgi_outcome	tgi_day	tgi_measure	matched_control_summary	matched_control_group
+8	-0.296948455789289	0.475086351653847	0.485714285714286	40320	exact_TGI_label_enumeration	day	31	TGI_percent_Day_31	mean	initial_ploidy

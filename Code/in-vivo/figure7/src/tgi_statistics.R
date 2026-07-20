@@ -16,7 +16,8 @@ figure7_sample_ecdfs <- function(data, sample_ids, grid) {
   values
 }
 
-figure7_shift_metrics <- function(data, samples, group_column = "etp_group") {
+figure7_shift_metrics <- function(data, samples, config, group_column = "etp_group") {
+  tgi_measure <- figure7_tgi_measure(config)
   grid <- figure7_grid(data)
   ids <- samples$sample_id
   matrix <- figure7_sample_ecdfs(data, ids, grid)
@@ -27,19 +28,18 @@ figure7_shift_metrics <- function(data, samples, group_column = "etp_group") {
     if (!length(controls)) figure7_stop("No untreated ECDF reference for group ", group)
     reference <- colMeans(matrix[controls, , drop = FALSE])
     delta <- matrix[id, ] - reference
-    data.frame(
+    row <- data.frame(
       sample_id = id, initial_ploidy = meta$initial_ploidy, dose = meta$dose,
       dose_mg = meta$dose_mg, etp_group = meta$etp_group,
       sample_mean_endpoint_ploidy = meta$sample_mean_endpoint_ploidy,
-      TGI_percent_Day_17 = meta$TGI_percent_Day_17,
       ecdf_rmse = sqrt(mean(delta^2)), ecdf_ks = max(abs(delta)),
       reference_n_samples = length(controls),
       reference_sample_ids = paste(sort(controls), collapse = ";"),
       reference_type = "primary_equal_sample_reference",
-      tgi_outcome = "day", tgi_day = 17L, tgi_measure = "TGI_percent_Day_17",
-      matched_control_summary = "mean", matched_control_group = "initial_ploidy",
       stringsAsFactors = FALSE
     )
+    row[[tgi_measure]] <- meta[[tgi_measure]]
+    figure7_add_tgi_metadata(row, config)
   })
   do.call(rbind, rows)
 }
@@ -119,37 +119,41 @@ figure7_dose_adjusted_effect <- function(y, groups, dose, high) {
   unname(stats::lm.fit(design, y)$coefficients[["I(groups == high)TRUE"]])
 }
 
-figure7_panel_c_test <- function(samples) {
+figure7_panel_c_test <- function(samples, config) {
+  tgi_measure <- figure7_tgi_measure(config)
   x <- samples[samples$dose_mg > 0, , drop = FALSE]
   x <- x[order(x$dose_mg, x$initial_ploidy, x$sample_id), , drop = FALSE]
-  groups <- x$initial_ploidy; observed <- figure7_dose_adjusted_effect(x$TGI_percent_Day_17, groups, x$dose_mg, "4N")
+  outcome <- x[[tgi_measure]]
+  groups <- x$initial_ploidy; observed <- figure7_dose_adjusted_effect(outcome, groups, x$dose_mg, "4N")
   assignments <- figure7_group_assignments(groups, "2N", "4N", x$dose_mg)
-  effects <- vapply(assignments, function(g) figure7_dose_adjusted_effect(x$TGI_percent_Day_17, g, x$dose_mg, "4N"), numeric(1L))
-  data.frame(
+  effects <- vapply(assignments, function(g) figure7_dose_adjusted_effect(outcome, g, x$dose_mg, "4N"), numeric(1L))
+  result <- data.frame(
     sample_set = "treated", group_low = "2N", group_high = "4N",
     n = nrow(x), n_group_low = sum(groups == "2N"), n_group_high = sum(groups == "4N"),
-    mean_group_low = mean(x$TGI_percent_Day_17[groups == "2N"]),
-    mean_group_high = mean(x$TGI_percent_Day_17[groups == "4N"]),
+    mean_group_low = mean(outcome[groups == "2N"]),
+    mean_group_high = mean(outcome[groups == "4N"]),
     dose_adjusted_difference_high_minus_low = observed,
     permutation_p_two_sided = mean(abs(effects) >= abs(observed) - 1e-15),
     n_permutations = length(effects), permutation_mode = "exact_group_label_enumeration_within_dose",
     comparison_design = "independent_tumors_with_group_labels_permuted_within_dose",
     pairing_status = "not_paired_no_one_to_one_mouse_key",
-    tgi_outcome = "day", tgi_day = 17L, tgi_measure = "TGI_percent_Day_17",
-    matched_control_summary = "mean", stringsAsFactors = FALSE
+    stringsAsFactors = FALSE
   )
+  figure7_add_tgi_metadata(result, config)
 }
 
-figure7_panel_d <- function(shifts) {
+figure7_panel_d <- function(shifts, config) {
+  tgi_measure <- figure7_tgi_measure(config)
   x <- shifts[shifts$dose_mg > 0, , drop = FALSE]
   x$shift_centered <- x$ecdf_rmse - ave(x$ecdf_rmse, x$dose_mg, FUN = mean)
-  x$tgi_centered <- x$TGI_percent_Day_17 - ave(x$TGI_percent_Day_17, x$dose_mg, FUN = mean)
+  x$tgi_centered <- x[[tgi_measure]] - ave(x[[tgi_measure]], x$dose_mg, FUN = mean)
   list(data = x, test = figure7_exact_cor(x$shift_centered, x$tgi_centered, x$dose_mg))
 }
 
-figure7_panel_e <- function(samples) {
+figure7_panel_e <- function(samples, config) {
+  tgi_measure <- figure7_tgi_measure(config)
   x <- samples[samples$dose_mg > 0, , drop = FALSE]
-  list(data = x, test = figure7_exact_cor(x$sample_mean_endpoint_ploidy, x$TGI_percent_Day_17))
+  list(data = x, test = figure7_exact_cor(x$sample_mean_endpoint_ploidy, x[[tgi_measure]]))
 }
 
 figure7_mean_ecdf <- function(data, ids, grid) {

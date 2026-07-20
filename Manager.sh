@@ -34,6 +34,8 @@ include_in_vivo=false
 metabolomics_input="Code/Gemcitabine_Metabolomics_Heatmap/Metabolomics_2N_4N_Full.xlsm"
 figure7_full_analysis=false
 figure7_panels_ae_only=false
+figure7_tgi_day="17"
+figure7_figure_name="Figure7"
 figure7_seurat_rds=""
 figure7_gene_set_artifact=""
 figure7_reference_id="taoli_04i_etp2_24_day17_v1"
@@ -75,6 +77,8 @@ Module options:
   --metabolomics-input PATH
   --figure7-full-analysis          Opt-in full pathway recomputation; requires both paths below
   --figure7-panels-ae-only         Generate/materialize 7A-7E while canonical panel 7F is unavailable
+  --figure7-tgi-day DAY            TGI endpoint day (default: 17)
+  --figure7-figure-name NAME       Materialization folder under --figure-root (default: Figure7)
   --figure7-seurat-rds ABSOLUTE_PATH
   --figure7-gene-set-artifact PATH  Pinned, versioned local gene-set artifact
   --figure7-state-pathway-results-root PATH
@@ -110,6 +114,8 @@ while [[ $# -gt 0 ]]; do
     --metabolomics-input) metabolomics_input="$2"; shift 2 ;;
     --figure7-full-analysis) figure7_full_analysis=true; shift ;;
     --figure7-panels-ae-only) figure7_panels_ae_only=true; shift ;;
+    --figure7-tgi-day) figure7_tgi_day="$2"; shift 2 ;;
+    --figure7-figure-name) figure7_figure_name="$2"; shift 2 ;;
     --figure7-seurat-rds) figure7_seurat_rds="$2"; shift 2 ;;
     --figure7-gene-set-artifact) figure7_gene_set_artifact="$2"; shift 2 ;;
     --figure7-state-pathway-results-root) figure7_state_pathway_results_root="$2"; shift 2 ;;
@@ -152,6 +158,14 @@ if [[ "${figure7_full_analysis}" == true || -n "${figure7_seurat_rds}" || -n "${
 fi
 if [[ "${figure7_panels_ae_only}" == true && "${figure7_full_analysis}" == true ]]; then
   echo "--figure7-panels-ae-only and --figure7-full-analysis are mutually exclusive" >&2
+  exit 2
+fi
+if [[ ! "${figure7_tgi_day}" =~ ^[0-9]+$ ]]; then
+  echo "--figure7-tgi-day must be a non-negative integer" >&2
+  exit 2
+fi
+if [[ ! "${figure7_figure_name}" =~ ^Figure7([._-][A-Za-z0-9._-]+)?$ ]]; then
+  echo "--figure7-figure-name must be Figure7 or a Figure7-prefixed folder name" >&2
   exit 2
 fi
 
@@ -420,6 +434,7 @@ command_for_module() {
         --config=Code/in-vivo/figure7/figure7_config.yaml
         --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
         --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
+        "--tgi-day=${figure7_tgi_day}"
         "--output-dir=${run_dir}"
       )
       if [[ "${figure7_panels_ae_only}" == true ]]; then
@@ -582,6 +597,9 @@ run_module() {
   local run_dir="$2"
   local command_string="$3"
   local module_notes=""
+  if [[ "${module}" == "in_vivo_figure7" ]]; then
+    module_notes="tgi_day=${figure7_tgi_day};figure_name=${figure7_figure_name}"
+  fi
 
   check_module_inputs "${module}"
 
@@ -616,7 +634,7 @@ run_module() {
       return 1
     fi
     check_module_inputs "${module}"
-    module_notes="state_pathway_source_results_root=${figure7_state_pathway_results_root};state_pathway_reference_dir=${figure7_reference_root}"
+    module_notes="${module_notes};state_pathway_source_results_root=${figure7_state_pathway_results_root};state_pathway_reference_dir=${figure7_reference_root}"
   fi
 
   local stdout_log="${run_dir}/logs/stdout.log"
@@ -820,6 +838,8 @@ if [[ "${mode}" != "check-only" && "${dry_run}" != true ]]; then
   materialize_args=(
     python3 Code/tools/materialize_figure_assets.py
     --figure-root "${figure_root}"
+    --figure7-tgi-day "${figure7_tgi_day}"
+    --figure7-figure-name "${figure7_figure_name}"
     --source-run-id "${materialize_source_run_id}"
     --operation-id "${run_id}"
     --overwrite

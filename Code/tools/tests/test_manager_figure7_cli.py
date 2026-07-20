@@ -15,7 +15,10 @@ import sys
 
 sys.path.insert(0, str(TOOLS_DIR))
 from figure_output_contract import MODULE_MANIFEST_COLUMNS, sha256_file, write_tsv  # noqa: E402
-from materialize_figure_assets import PANEL_SPECS  # noqa: E402
+from materialize_figure_assets import (  # noqa: E402
+    PANEL_SPECS,
+    panel_specs_for_figure7_variant,
+)
 
 
 class ManagerFigure7CliTest(unittest.TestCase):
@@ -67,6 +70,35 @@ class ManagerFigure7CliTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--panel-set=a-e", result.stdout)
         self.assertNotIn("--saved-state-pathway-dir", result.stdout)
+
+    def test_tgi24_and_supplement_destination_are_forwarded(self) -> None:
+        result = self._run(
+            "--mode", "check-only", "--modules", "in_vivo_figure7",
+            "--run-id", "check_tgi24",
+            "--figure7-tgi-day", "24",
+            "--figure7-figure-name", "Figure7_Supplement",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--tgi-day=24", result.stdout)
+
+        specs = [
+            spec
+            for spec in panel_specs_for_figure7_variant(24, "Figure7_Supplement")
+            if spec["module"] == "in_vivo_figure7"
+        ]
+        self.assertTrue(all(spec["figure"] == "Figure7_Supplement" for spec in specs))
+        self.assertTrue(
+            any(spec["asset"] == "panel_7A_day24_tgi_calculation.pdf" for spec in specs)
+        )
+        self.assertFalse(any("day17" in str(spec["asset"]) for spec in specs))
+
+    def test_invalid_figure7_tgi_day_is_rejected(self) -> None:
+        result = self._run(
+            "--mode", "check-only", "--modules", "in_vivo_figure7",
+            "--run-id", "bad_tgi_day", "--figure7-tgi-day", "TGI_24",
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("non-negative integer", result.stderr)
 
     def test_ae_only_rejects_full_panel_f_analysis(self) -> None:
         result = self._run(
@@ -144,7 +176,7 @@ if [[ "$entrypoint" == *run_figure7.R ]]; then
     printf 'fake pdf\\n' > "$output_dir/figures/$name.pdf"
     printf 'fake png\\n' > "$output_dir/figures/$name.png"
   done
-  printf 'key\\tvalue\\npanel_set\\ta-f\\nstate_pathway_source_results_root\\t%s\\n' \
+  printf 'key\\tvalue\\npanel_set\\ta-f\\ntgi_day\\t17\\nstate_pathway_source_results_root\\t%s\\n' \
     "$source_results_root" > "$output_dir/metadata/run_config.tsv"
   printf 'panel_id\\tfilename\\n' > "$output_dir/metadata/panel_contract.tsv"
   printf '7A\\tpanel_7A_day17_tgi_calculation.pdf\\n' >> "$output_dir/metadata/panel_contract.tsv"
@@ -327,7 +359,10 @@ exit 7
             write_tsv(run_root / "metadata/output_manifest.tsv", rows, MODULE_MANIFEST_COLUMNS)
             write_tsv(
                 run_root / "metadata/run_config.tsv",
-                [{"key": "panel_set", "value": "a-f"}],
+                [
+                    {"key": "panel_set", "value": "a-f"},
+                    {"key": "tgi_day", "value": "17"},
+                ],
                 ["key", "value"],
             )
             write_tsv(

@@ -345,6 +345,35 @@ EXTERNAL_ROWS = [
 ]
 
 
+def panel_specs_for_figure7_variant(
+    tgi_day: int,
+    figure_name: str,
+) -> list[dict[str, object]]:
+    if tgi_day < 0:
+        raise ValueError("--figure7-tgi-day must be a non-negative integer")
+    if not (
+        figure_name == "Figure7"
+        or (
+            figure_name.startswith(("Figure7_", "Figure7-", "Figure7."))
+            and all(char.isalnum() or char in "._-" for char in figure_name)
+        )
+    ):
+        raise ValueError(
+            "--figure7-figure-name must be Figure7 or a Figure7-prefixed folder name"
+        )
+    specs: list[dict[str, object]] = []
+    for original in PANEL_SPECS:
+        spec = dict(original)
+        if str(spec["module"]) == "in_vivo_figure7":
+            spec["figure"] = figure_name
+            for key in ("source", "asset", "caption_role"):
+                spec[key] = str(spec[key]).replace("day17", f"day{tgi_day}").replace(
+                    "Day-17", f"Day-{tgi_day}"
+                )
+        specs.append(spec)
+    return specs
+
+
 def parse_module_run(values: list[str], repo_root: Path) -> dict[str, Path]:
     out: dict[str, Path] = {}
     for value in values:
@@ -411,6 +440,7 @@ def validate_strict_source_run(
     selected_specs: list[dict[str, object]],
     repo_root: Path,
     source_run_id: str,
+    figure7_tgi_day: int,
 ) -> None:
     if module not in STRICT_FIGURE_MODULES:
         return
@@ -465,6 +495,11 @@ def validate_strict_source_run(
     if len(panel_set_rows) != 1 or panel_set_rows[0].get("value") != expected_panel_set:
         raise ValueError(
             f"Source Figure 7 run must explicitly record panel_set={expected_panel_set}"
+        )
+    tgi_day_rows = [row for row in config_rows if row.get("key") == "tgi_day"]
+    if len(tgi_day_rows) != 1 or tgi_day_rows[0].get("value") != str(figure7_tgi_day):
+        raise ValueError(
+            f"Source Figure 7 run must explicitly record tgi_day={figure7_tgi_day}"
         )
 
     panel_contract = run_root / "metadata" / "panel_contract.tsv"
@@ -527,6 +562,8 @@ def main() -> int:
     )
     parser.add_argument("--operation-id", default="")
     parser.add_argument("--module-run", action="append", default=[], help="Module run path as NAME=PATH. May be repeated.")
+    parser.add_argument("--figure7-tgi-day", type=int, default=17)
+    parser.add_argument("--figure7-figure-name", default="Figure7")
     parser.add_argument("--repo-root", type=Path)
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
@@ -543,7 +580,10 @@ def main() -> int:
     operation_id = args.operation_id or source_run_id
     validate_run_id(source_run_id)
     validate_run_id(operation_id)
-    selected_specs = [spec for spec in PANEL_SPECS if str(spec["module"]) in module_runs]
+    panel_specs = panel_specs_for_figure7_variant(
+        args.figure7_tgi_day, args.figure7_figure_name
+    )
+    selected_specs = [spec for spec in panel_specs if str(spec["module"]) in module_runs]
     duplicate_specs = [
         key
         for key, count in Counter(
@@ -557,7 +597,12 @@ def main() -> int:
         if not run_root.is_dir():
             raise FileNotFoundError(f"Missing module run directory for {module}: {run_root}")
         validate_strict_source_run(
-            module, run_root, selected_specs, repo_root, source_run_id
+            module,
+            run_root,
+            selected_specs,
+            repo_root,
+            source_run_id,
+            args.figure7_tgi_day,
         )
 
     rows_by_figure: dict[str, list[dict[str, str]]] = {}

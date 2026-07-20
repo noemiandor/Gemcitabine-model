@@ -62,7 +62,10 @@ class Figure7MaterializationTest(unittest.TestCase):
         ]
         write_tsv(
             self.run_root / "metadata/run_config.tsv",
-            [{"key": "panel_set", "value": "a-f" if include_f else "a-e"}],
+            [
+                {"key": "panel_set", "value": "a-f" if include_f else "a-e"},
+                {"key": "tgi_day", "value": "17"},
+            ],
             ["key", "value"],
         )
         write_tsv(

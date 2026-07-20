@@ -30,7 +30,7 @@ figure7_sha256 <- function(path) {
   unname(digest::digest(path, algo = "sha256", file = TRUE, serialize = FALSE))
 }
 
-figure7_read_config <- function(path) {
+figure7_read_config <- function(path, tgi_day = NULL) {
   if (!file.exists(path)) figure7_stop("Missing Figure 7 config: ", path)
   if (!requireNamespace("yaml", quietly = TRUE)) figure7_stop("R package 'yaml' is required")
   config <- yaml::read_yaml(path)
@@ -38,11 +38,19 @@ figure7_read_config <- function(path) {
   missing <- setdiff(required, names(config))
   if (length(missing)) figure7_stop("Config is missing section(s): ", paste(missing, collapse = ", "))
   if (!identical(as.character(config$module), "in_vivo_figure7")) figure7_stop("Unexpected config module")
-  if (!identical(as.integer(config$tgi$day), 17L) ||
+  configured_day <- suppressWarnings(as.integer(config$tgi$day))
+  if (length(configured_day) != 1L || !is.finite(configured_day) || configured_day < 0L ||
       !identical(as.character(config$tgi$outcome), "day") ||
       !identical(as.character(config$tgi$matched_control_summary), "mean") ||
       !identical(as.character(config$tgi$matched_control_group), "initial_ploidy")) {
-    figure7_stop("Figure 7 requires Day-17 TGI and the mean initial-ploidy-matched control reference")
+    figure7_stop("Figure 7 requires endpoint-day TGI and the mean initial-ploidy-matched control reference")
+  }
+  if (!is.null(tgi_day)) {
+    selected_day <- suppressWarnings(as.integer(tgi_day))
+    if (length(selected_day) != 1L || !is.finite(selected_day) || selected_day < 0L) {
+      figure7_stop("--tgi-day must be one non-negative integer")
+    }
+    config$tgi$day <- selected_day
   }
   if (!isTRUE(all.equal(as.numeric(config$etp$threshold), 2.24, tolerance = 0))) {
     figure7_stop("Figure 7 requires the reference-balanced ETP threshold 2.24")
@@ -51,6 +59,29 @@ figure7_read_config <- function(path) {
     figure7_stop("Figure 7 panel 7B requires comparison IDs 1, 8, and 9")
   }
   config
+}
+
+figure7_tgi_day <- function(config) as.integer(config$tgi$day)
+
+figure7_tgi_measure <- function(config) {
+  paste0("TGI_percent_Day_", figure7_tgi_day(config))
+}
+
+figure7_tgi_delta_measure <- function(config) {
+  paste0("tumor_volume_delta_Day_", figure7_tgi_day(config))
+}
+
+figure7_tgi_label <- function(config) {
+  paste("Day", figure7_tgi_day(config))
+}
+
+figure7_add_tgi_metadata <- function(data, config) {
+  data$tgi_outcome <- "day"
+  data$tgi_day <- figure7_tgi_day(config)
+  data$tgi_measure <- figure7_tgi_measure(config)
+  data$matched_control_summary <- "mean"
+  data$matched_control_group <- "initial_ploidy"
+  data
 }
 
 figure7_verify_checksum <- function(path, expected, label = basename(path)) {
@@ -145,7 +176,8 @@ figure7_panel_ids <- function(include_panel_f = TRUE) {
 }
 
 figure7_panel_filenames <- function(config, panel_ids = figure7_panel_ids(TRUE)) {
-  unname(unlist(config$panels$filenames[panel_ids], use.names = FALSE))
+  filenames <- unname(unlist(config$panels$filenames[panel_ids], use.names = FALSE))
+  sub("day17", paste0("day", figure7_tgi_day(config)), filenames, ignore.case = TRUE)
 }
 
 figure7_panel_asset_filenames <- function(config, panel_ids = figure7_panel_ids(TRUE)) {

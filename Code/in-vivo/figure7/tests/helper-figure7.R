@@ -11,12 +11,12 @@ figure7_test_inputs <- local({
     if (!is.null(cache)) return(cache)
     config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
     cellcycle <- figure7_read_cell_table(file.path(repo_root, "Data/in-vivo/figure7/processed",
-      "CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"), "CellCycle")
+      "CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"), "CellCycle", config)
     noncellcycle <- figure7_read_cell_table(file.path(repo_root, "Data/in-vivo/figure7/processed",
-      "NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"), "NonCellCycle")
+      "NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"), "NonCellCycle", config)
     samples <- figure7_sample_table(cellcycle, noncellcycle, config)
     cache <<- list(config = config, cellcycle = cellcycle, noncellcycle = noncellcycle,
-                   samples = samples, data = figure7_prepare_cellcycle(cellcycle, samples))
+                   samples = samples, data = figure7_prepare_cellcycle(cellcycle, samples, config))
     cache
   }
 })

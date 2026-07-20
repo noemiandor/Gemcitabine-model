@@ -25,7 +25,8 @@ if (identical(mode, "full-analysis") && !include_panel_f) {
 }
 panel_ids <- figure7_panel_ids(include_panel_f)
 config_path <- normalizePath(figure7_arg(args, "config", file.path(script_dir, "figure7_config.yaml")), mustWork = FALSE)
-config <- figure7_read_config(config_path)
+tgi_day_arg <- figure7_arg(args, "tgi-day", "")
+config <- figure7_read_config(config_path, if (nzchar(tgi_day_arg)) tgi_day_arg else NULL)
 output_dir <- normalizePath(figure7_arg(args, "output-dir", required = TRUE), mustWork = FALSE)
 state_pathway_results_root_arg <- figure7_arg(args, "state-pathway-results-root", "")
 state_pathway_results_root <- if (nzchar(state_pathway_results_root_arg)) {
@@ -35,12 +36,14 @@ state_pathway_results_root <- if (nzchar(state_pathway_results_root_arg)) {
 }
 
 write_metadata <- function(output_dir, mode, config, config_path, panel_ids, state_pathway_results_root = "") {
+  tgi_day <- figure7_tgi_day(config)
+  tgi_measure <- figure7_tgi_measure(config)
   run_config <- data.frame(
     key = c("module", "mode", "panel_set", "tgi_outcome", "tgi_day", "tgi_measure",
             "matched_control_summary", "matched_control_group", "etp_method", "etp_threshold",
             "state_pathway_reference_id", "state_interval_start", "state_interval_end",
             "state_pathway_source_results_root", "config_sha256"),
-    value = c("in_vivo_figure7", mode, panel_set, "day", "17", "TGI_percent_Day_17", "mean", "initial_ploidy",
+    value = c("in_vivo_figure7", mode, panel_set, "day", as.character(tgi_day), tgi_measure, "mean", "initial_ploidy",
               config$etp$method, as.character(config$etp$threshold), config$state_pathways$reference_id,
               as.character(config$state_pathways$accumulated_interval$start),
               as.character(config$state_pathways$accumulated_interval$end),
@@ -51,7 +54,7 @@ write_metadata <- function(output_dir, mode, config, config_path, panel_ids, sta
   contract <- data.frame(
     panel_id = panel_ids,
     filename = figure7_panel_filenames(config, panel_ids),
-    tgi_outcome = "day", tgi_day = 17L, tgi_measure = "TGI_percent_Day_17",
+    tgi_outcome = "day", tgi_day = tgi_day, tgi_measure = tgi_measure,
     matched_control_summary = "mean", matched_control_group = "initial_ploidy",
     stringsAsFactors = FALSE
   )
@@ -62,6 +65,8 @@ write_metadata <- function(output_dir, mode, config, config_path, panel_ids, sta
 }
 
 render_from_run <- function(source_dir, output_dir, config, config_path, panel_ids, include_panel_f) {
+  tgi_day <- figure7_tgi_day(config)
+  tgi_measure <- figure7_tgi_measure(config)
   source_dir <- normalizePath(source_dir, mustWork = TRUE)
   if (identical(source_dir, normalizePath(output_dir, mustWork = FALSE))) {
     figure7_stop("render-only output must differ from the immutable source run")
@@ -81,8 +86,8 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
   if (!identical(observed_contract, expected_contract)) {
     figure7_stop("render-only source panel contract disagrees with the requested panel-set contract")
   }
-  if (any(source_contract$tgi_outcome != "day") || any(figure7_numeric(source_contract$tgi_day) != 17) ||
-      any(source_contract$tgi_measure != "TGI_percent_Day_17") ||
+  if (any(source_contract$tgi_outcome != "day") || any(figure7_numeric(source_contract$tgi_day) != tgi_day) ||
+      any(source_contract$tgi_measure != tgi_measure) ||
       any(source_contract$matched_control_summary != "mean") ||
       any(source_contract$matched_control_group != "initial_ploidy")) {
     figure7_stop("render-only source panel contract has incompatible TGI metadata")
@@ -94,18 +99,19 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
   b <- figure7_read_tsv(table_path("panel_7B_plot_data.tsv"),
     c("comparison_id", "panel", "pseudotime", "mean_ecdf", "color_group", "curve_label", "line_group"))
   bt <- figure7_read_tsv(table_path("panel_7B_tests.tsv"), c("comparison_id", "panel", "annotation"))
-  cdata <- figure7_read_tsv(table_path("panel_7C_plot_data.tsv"), c("sample_id", "initial_ploidy", "dose", "TGI_percent_Day_17"))
+  cdata <- figure7_read_tsv(table_path("panel_7C_plot_data.tsv"), c("sample_id", "initial_ploidy", "dose", tgi_measure))
   ct <- figure7_read_tsv(table_path("panel_7C_test.tsv"),
     c("dose_adjusted_difference_high_minus_low", "permutation_p_two_sided", "n_group_low", "n_group_high"))
   d <- figure7_read_tsv(table_path("panel_7D_plot_data.tsv"), c("sample_id", "shift_centered", "tgi_centered", "dose", "etp_group"))
   dt <- figure7_read_tsv(table_path("panel_7D_test.tsv"), c("n", "estimate", "permutation_p_two_sided"))
-  e <- figure7_read_tsv(table_path("panel_7E_plot_data.tsv"), c("sample_id", "sample_mean_endpoint_ploidy", "TGI_percent_Day_17", "dose", "etp_group"))
+  e <- figure7_read_tsv(table_path("panel_7E_plot_data.tsv"), c("sample_id", "sample_mean_endpoint_ploidy", tgi_measure, "dose", "etp_group"))
   et <- figure7_read_tsv(table_path("panel_7E_test.tsv"), c("n", "estimate", "permutation_p_two_sided"))
   for (tab in list(a, b, bt, cdata, ct, d, dt, e, et)) {
     required_metadata <- c("tgi_outcome", "tgi_day", "tgi_measure", "matched_control_summary", "matched_control_group")
     missing_metadata <- setdiff(required_metadata, names(tab))
-    if (length(missing_metadata) || any(tab$tgi_outcome != "day") || any(figure7_numeric(tab$tgi_day) != 17) ||
-        any(tab$tgi_measure != "TGI_percent_Day_17") || any(tab$matched_control_summary != "mean") ||
+    if (length(missing_metadata) || any(tab$tgi_outcome != "day") ||
+        any(figure7_numeric(tab$tgi_day) != tgi_day) ||
+        any(tab$tgi_measure != tgi_measure) || any(tab$matched_control_summary != "mean") ||
         any(tab$matched_control_group != "initial_ploidy")) {
       figure7_stop("render-only source A-E tables have missing or incompatible frozen TGI metadata")
     }
@@ -135,16 +141,18 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
     figure7_copy_file(file, file.path(output_dir, "tables", basename(file)))
   }
   if (include_panel_f) figure7_copy_file(provenance, file.path(output_dir, "metadata", basename(provenance)))
-  filenames <- config$panels$filenames
-  figure7_save_panel(figure7_panel_a_plot(a), file.path(output_dir, "figures", filenames[["7A"]]), 10, 6.5)
+  filenames <- stats::setNames(figure7_panel_filenames(config), figure7_panel_ids(TRUE))
+  figure7_save_panel(figure7_panel_a_plot(a, config), file.path(output_dir, "figures", filenames[["7A"]]), 10, 6.5)
   figure7_save_panel(figure7_panel_b_plot(b, bt), file.path(output_dir, "figures", filenames[["7B"]]), 15, 5.5)
-  figure7_save_panel(figure7_panel_c_plot(cdata, ct), file.path(output_dir, "figures", filenames[["7C"]]), 6.8, 6.4)
+  figure7_save_panel(figure7_panel_c_plot(cdata, ct, config), file.path(output_dir, "figures", filenames[["7C"]]), 6.8, 6.4)
   figure7_save_panel(figure7_scatter_plot(d, "shift_centered", "tgi_centered", dt,
-    "CellCycle TGI association after within-dose centering", "Dose-centered ECDF RMSE", "Dose-centered Day 17 TGI (%)") +
+    "CellCycle TGI association after within-dose centering", "Dose-centered ECDF RMSE",
+    paste("Dose-centered Day", tgi_day, "TGI (%)")) +
       ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.35),
     file.path(output_dir, "figures", filenames[["7D"]]), 6.6, 6.6)
-  figure7_save_panel(figure7_scatter_plot(e, "sample_mean_endpoint_ploidy", "TGI_percent_Day_17", et,
-    "Cell-cycle-associated tumor cells: Day 17 TGI vs sample mean ETP", "Sample mean ETP", "Day 17 TGI (%)"),
+  figure7_save_panel(figure7_scatter_plot(e, "sample_mean_endpoint_ploidy", tgi_measure, et,
+    paste("Cell-cycle-associated tumor cells: Day", tgi_day, "TGI vs sample mean ETP"),
+    "Sample mean ETP", paste("Day", tgi_day, "TGI (%)")),
     file.path(output_dir, "figures", filenames[["7E"]]), 6.8, 6.8)
   if (include_panel_f) {
     figure7_save_panel(figure7_panel_f_plot(f, config), file.path(output_dir, "figures", filenames[["7F"]]), 9, 8)
@@ -187,10 +195,10 @@ if (identical(mode, "full-analysis")) {
   )
 }
 
-cellcycle <- figure7_read_cell_table(cellcycle_path, "CellCycle")
-noncellcycle <- figure7_read_cell_table(noncellcycle_path, "NonCellCycle")
+cellcycle <- figure7_read_cell_table(cellcycle_path, "CellCycle", config)
+noncellcycle <- figure7_read_cell_table(noncellcycle_path, "NonCellCycle", config)
 samples <- figure7_sample_table(cellcycle, noncellcycle, config)
-data <- figure7_prepare_cellcycle(cellcycle, samples)
+data <- figure7_prepare_cellcycle(cellcycle, samples, config)
 figure7_prepare_output(output_dir)
 figure7_build_ae(cellcycle, data, samples, output_dir, config)
 if (include_panel_f) figure7_build_f(reference, output_dir, config)
