@@ -26,8 +26,9 @@ testthat::test_that("selected ECDF panel IDs and linetypes are frozen", {
 })
 
 testthat::test_that("all module R files parse and A-E builders emit five PDF/PNG pairs", {
-  for (file in c("run_figure7.R", list.files(file.path(module_dir, "src"), pattern = "[.]R$", full.names = FALSE))) {
-    path <- if (file == "run_figure7.R") file.path(module_dir, file) else file.path(module_dir, "src", file)
+  top_level <- c("run_figure7.R", "export_04i_state_pathway_reference.R")
+  for (file in c(top_level, list.files(file.path(module_dir, "src"), pattern = "[.]R$", full.names = FALSE))) {
+    path <- if (file %in% top_level) file.path(module_dir, file) else file.path(module_dir, "src", file)
     testthat::expect_silent(parse(file = path))
   }
   input <- figure7_test_inputs(); out <- tempfile("figure7_ae_"); figure7_prepare_output(out)
@@ -36,4 +37,19 @@ testthat::test_that("all module R files parse and A-E builders emit five PDF/PNG
   testthat::expect_length(list.files(file.path(out, "figures"), pattern = "[.]png$"), 5L)
   testthat::expect_silent(figure7_validate_figure_inventory(out, input$config, figure7_panel_ids(FALSE)))
   testthat::expect_identical(unique(result$panel_b$tests$comparison_id), c(1L, 8L, 9L))
+})
+
+testthat::test_that("state-pathway exporter requires an explicit results root", {
+  exporter <- file.path(module_dir, "export_04i_state_pathway_reference.R")
+  output_parent <- tempfile("figure7_export_requires_root_")
+  output_dir <- file.path(output_parent, "taoli_04i_etp2_24_day17_v1")
+  status <- suppressWarnings(system2(
+    file.path(R.home("bin"), "Rscript"),
+    c(exporter, paste0("--output-dir=", output_dir)),
+    stdout = TRUE,
+    stderr = TRUE
+  ))
+  testthat::expect_true(!is.null(attr(status, "status")) && attr(status, "status") != 0L)
+  testthat::expect_match(paste(status, collapse = "\n"), "Missing required argument --results-root")
+  testthat::expect_false(dir.exists(output_dir))
 })

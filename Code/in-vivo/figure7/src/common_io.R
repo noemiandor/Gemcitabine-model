@@ -66,6 +66,17 @@ figure7_verify_checksum <- function(path, expected, label = basename(path)) {
   invisible(observed)
 }
 
+figure7_verify_named_checksums <- function(paths, expected) {
+  if (is.null(names(paths)) || is.null(names(expected)) ||
+      !identical(sort(names(paths)), sort(names(expected)))) {
+    figure7_stop("Named checksum paths and expectations must contain identical keys")
+  }
+  observed <- vapply(names(expected), function(key) {
+    figure7_verify_checksum(paths[[key]], expected[[key]], key)
+  }, character(1L))
+  invisible(observed)
+}
+
 figure7_assert_empty_output <- function(path) {
   if (dir.exists(path)) {
     existing <- list.files(path, recursive = TRUE, all.files = TRUE, no.. = TRUE,
@@ -91,6 +102,12 @@ figure7_prepare_output <- function(path) {
 figure7_read_tsv <- function(path, required = character(), label = basename(path)) {
   if (!file.exists(path)) figure7_stop("Missing ", label, ": ", path)
   data <- utils::read.delim(path, check.names = FALSE, stringsAsFactors = FALSE, quote = "", comment.char = "")
+  character_columns <- vapply(data, is.character, logical(1L))
+  data[character_columns] <- lapply(data[character_columns], function(x) {
+    x <- gsub("\\n", "\n", x, fixed = TRUE)
+    x <- gsub("\\r", "\r", x, fixed = TRUE)
+    gsub("\\t", "\t", x, fixed = TRUE)
+  })
   missing <- setdiff(required, names(data))
   if (length(missing)) figure7_stop(label, " is missing column(s): ", paste(missing, collapse = ", "))
   data
@@ -98,7 +115,14 @@ figure7_read_tsv <- function(path, required = character(), label = basename(path
 
 figure7_write_tsv <- function(data, path) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
-  utils::write.table(data, path, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE, na = "NA")
+  encoded <- as.data.frame(data, stringsAsFactors = FALSE)
+  character_columns <- vapply(encoded, is.character, logical(1L))
+  encoded[character_columns] <- lapply(encoded[character_columns], function(x) {
+    x <- gsub("\t", "\\t", x, fixed = TRUE)
+    x <- gsub("\r", "\\r", x, fixed = TRUE)
+    gsub("\n", "\\n", x, fixed = TRUE)
+  })
+  utils::write.table(encoded, path, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE, na = "NA")
   invisible(path)
 }
 

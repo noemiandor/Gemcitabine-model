@@ -1,0 +1,14 @@
+key	value
+status	ok
+source_results_root	/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways
+source_report_html	/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways/report/04i_pseudotime_state_pathways_report.html
+canonical_reference_id	taoli_04i_etp2_24_day17_v1
+exported_reference_dir	Results/manager/runs/figure7_20260717_172530/artifacts/figure7_state_pathway_reference/taoli_04i_etp2_24_day17_v1
+canonical_data_reference_dir	Data/in-vivo/figure7/saved_state_pathway/taoli_04i_etp2_24_day17_v1
+canonical_data_materialization_metadata	Results/manager/runs/figure7_20260717_172530/metadata/figure7_state_pathway_materialization.tsv
+exporter_script	Code/in-vivo/figure7/export_04i_state_pathway_reference.R
+command	Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R --results-root=/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways --output-dir=Results/manager/runs/figure7_20260717_172530/artifacts/figure7_state_pathway_reference/taoli_04i_etp2_24_day17_v1
+stdout_log	Results/manager/runs/figure7_20260717_172530/logs/figure7_state_pathway_export.stdout.log
+stderr_log	Results/manager/runs/figure7_20260717_172530/logs/figure7_state_pathway_export.stderr.log
+started_at	2026-07-17T17:42:43-04:00
+finished_at	2026-07-17T17:42:53-04:00

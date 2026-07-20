@@ -143,12 +143,25 @@ figure7_validate_state_reference <- function(path, config, verify_checksums = TR
     "expression_filter", "normalization", "observation_model", "mouse_block", "nuisance_terms",
     "treatment_by_pseudotime_interaction", "empirical_bayes", "contrast", "gsea_rank_statistic",
     "pathway_activity", "feature_species_policy", "gsea_ranking_rule", "pathway_selection_rule",
-    "activity_table_sha256"
+    "activity_table_sha256", "canonical_reference_id", "workflow_id", "model_id",
+    "accumulated_interval", "left_neighbor_interval", "right_neighbor_interval",
+    "report_html_sha256", "report_html_relative_path", "source_results_id",
+    "source_activity_sha256", "source_primary_gsea_sha256", "source_leading_edge_sha256",
+    "source_gene_contrast_sha256", "source_gene_resolution_sha256",
+    "source_sample_bin_metadata_sha256", "source_design_audit_sha256",
+    "source_primary_coverage_sha256"
   )
   if (!all(required_provenance %in% provenance$key)) {
     figure7_stop("Panel-7F provenance is missing: ", paste(setdiff(required_provenance, provenance$key), collapse = ", "))
   }
   provenance_value <- function(key) as.character(provenance$value[match(key, provenance$key)])
+  runtime_path_keys <- c("report_html_path", "export_source_results_root")
+  if (any(runtime_path_keys %in% provenance$key)) {
+    figure7_stop(
+      "Canonical panel-7F provenance must not contain runtime filesystem paths: ",
+      paste(intersect(runtime_path_keys, provenance$key), collapse = ", ")
+    )
+  }
   character_expectations <- c(
     assay = as.character(config$state_pathways$assay),
     counts_layer = as.character(config$state_pathways$counts_layer),
@@ -161,7 +174,15 @@ figure7_validate_state_reference <- function(path, config, verify_checksums = TR
     contrast = as.character(config$state_pathways$contrast),
     gsea_rank_statistic = as.character(config$state_pathways$gsea_rank_statistic),
     pathway_activity = as.character(config$state_pathways$pathway_activity),
-    pathway_selection_rule = as.character(config$state_pathways$pathway_selector)
+    pathway_selection_rule = as.character(config$state_pathways$pathway_selector),
+    canonical_reference_id = as.character(config$state_pathways$reference_id),
+    workflow_id = "binning",
+    model_id = as.character(config$state_pathways$model),
+    accumulated_interval = "[0.30,0.49]",
+    left_neighbor_interval = "[0.11,0.30)",
+    right_neighbor_interval = "(0.49,0.68]",
+    report_html_relative_path = "report/04i_pseudotime_state_pathways_report.html",
+    source_results_id = "04i_pseudotime_state_pathways"
   )
   for (key in names(character_expectations)) {
     if (!identical(provenance_value(key), character_expectations[[key]])) {
@@ -192,6 +213,11 @@ figure7_validate_state_reference <- function(path, config, verify_checksums = TR
   observed_activity_hash <- figure7_sha256(file.path(path, "panel_7F_pathway_activity_plot_data.tsv"))
   if (!identical(declared_activity_hash, observed_activity_hash)) {
     figure7_stop("Panel-7F provenance activity_table_sha256 does not match the plotting table")
+  }
+  source_hash_keys <- grep("^source_.*_sha256$", provenance$key, value = TRUE)
+  if (length(source_hash_keys) != 8L ||
+      any(!grepl("^[0-9a-f]{64}$", vapply(source_hash_keys, provenance_value, character(1L))))) {
+    figure7_stop("Panel-7F provenance must contain eight valid source-table SHA-256 values")
   }
   list(activity = activity, pathways = pathways, selected = selected, leading = leading,
        provenance = provenance, files = setNames(file.path(path, files), files))

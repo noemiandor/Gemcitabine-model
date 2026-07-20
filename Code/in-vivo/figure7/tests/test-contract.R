@@ -9,6 +9,76 @@ testthat::test_that("panel-F compact reference contract validates and selector i
                          "metadata/order|top-four")
 })
 
+testthat::test_that("tracked canonical 04i reference validates exact report lineage", {
+  input <- figure7_test_inputs()
+  reference_path <- file.path(
+    repo_root,
+    input$config$state_pathways$reference_root,
+    input$config$state_pathways$reference_id
+  )
+  reference <- figure7_validate_state_reference(reference_path, input$config)
+  provenance <- stats::setNames(as.character(reference$provenance$value), reference$provenance$key)
+
+  testthat::expect_equal(nrow(reference$activity), 24L * 501L)
+  testthat::expect_equal(nrow(reference$selected), 24L)
+  testthat::expect_identical(provenance[["canonical_reference_id"]], "taoli_04i_etp2_24_day17_v1")
+  testthat::expect_identical(provenance[["workflow_id"]], "binning")
+  testthat::expect_identical(provenance[["model_id"]], "ETP_reference_balanced_threshold_2_24")
+  testthat::expect_identical(provenance[["accumulated_interval"]], "[0.30,0.49]")
+  testthat::expect_identical(
+    provenance[["report_html_sha256"]],
+    "b9644b1da0399043a6aba28178a2b61375b661780c4fb08a148c7724da00bfa1"
+  )
+  testthat::expect_identical(
+    provenance[["code_revision_04i"]],
+    "dc751eab928bc40f3edb063baec447fe32a69d73"
+  )
+  testthat::expect_false(any(c("report_html_path", "export_source_results_root") %in% names(provenance)))
+  testthat::expect_identical(
+    provenance[["source_primary_coverage_sha256"]],
+    "9fecc5339a86cf2e072dccfb05358580fc0db25fd3a8e9f71af301a8ea423141"
+  )
+})
+
+testthat::test_that("canonical provenance is location-independent and always checksummed", {
+  fixture <- figure7_test_state_reference()
+  provenance_path <- file.path(fixture$path, "state_pathway_provenance.tsv")
+  provenance <- figure7_read_tsv(provenance_path, c("key", "value"))
+  provenance <- rbind(
+    provenance,
+    data.frame(key = "export_source_results_root", value = "/runtime/04i/results", stringsAsFactors = FALSE)
+  )
+  figure7_write_tsv(provenance, provenance_path)
+
+  testthat::expect_error(
+    figure7_validate_state_reference(fixture$path, fixture$config),
+    "SHA-256 mismatch"
+  )
+  testthat::expect_error(
+    figure7_validate_state_reference(fixture$path, fixture$config, verify_checksums = FALSE),
+    "runtime filesystem paths"
+  )
+})
+
+testthat::test_that("named source checksum verification rejects any changed table", {
+  paths <- c(first = tempfile(), second = tempfile())
+  writeLines("first", paths[["first"]], useBytes = TRUE)
+  writeLines("second", paths[["second"]], useBytes = TRUE)
+  expected <- vapply(paths, figure7_sha256, character(1L))
+  testthat::expect_silent(figure7_verify_named_checksums(paths, expected))
+  writeLines("changed", paths[["second"]], useBytes = TRUE)
+  testthat::expect_error(figure7_verify_named_checksums(paths, expected), "SHA-256 mismatch")
+})
+
+testthat::test_that("TSV helpers round-trip multiline annotations without malformed rows", {
+  path <- tempfile(fileext = ".tsv")
+  original <- data.frame(id = 1:2, annotation = c("line one\nline two", "plain"), stringsAsFactors = FALSE)
+  figure7_write_tsv(original, path)
+  testthat::expect_length(readLines(path, warn = FALSE), 3L)
+  observed <- figure7_read_tsv(path, c("id", "annotation"))
+  testthat::expect_identical(observed$annotation, original$annotation)
+})
+
 testthat::test_that("missing F, wrong checksums, and nonempty outputs fail clearly", {
   input <- figure7_test_inputs()
   missing <- file.path(tempdir(), input$config$state_pathways$reference_id)

@@ -7,7 +7,7 @@ cd "${repo_root}"
 run_id="$(date +"%Y%m%dT%H%M%S_manuscript")"
 source_run_id=""
 mode="standard"
-modules="gdsc,ccle,drug_response,pkpd,metabolomics"
+modules="gdsc,ccle,drug_response,pkpd,metabolomics,in_vivo_figure7"
 output_root="Results"
 figure_root="figures"
 module_registry="docs/manuscript_figure_module_registry.tsv"
@@ -37,6 +37,9 @@ figure7_panels_ae_only=false
 figure7_seurat_rds=""
 figure7_gene_set_artifact=""
 figure7_reference_id="taoli_04i_etp2_24_day17_v1"
+figure7_state_pathway_results_root=""
+figure7_canonical_reference_root="${FIGURE7_CANONICAL_REFERENCE_ROOT:-Data/in-vivo/figure7/saved_state_pathway/${figure7_reference_id}}"
+figure7_reference_root="${figure7_canonical_reference_root}"
 skip_analysis_loop=false
 
 usage() {
@@ -74,6 +77,8 @@ Module options:
   --figure7-panels-ae-only         Generate/materialize 7A-7E while canonical panel 7F is unavailable
   --figure7-seurat-rds ABSOLUTE_PATH
   --figure7-gene-set-artifact PATH  Pinned, versioned local gene-set artifact
+  --figure7-state-pathway-results-root PATH
+                                  Export panel-7F reference from this completed 04i result tree
 EOF
 }
 
@@ -107,6 +112,7 @@ while [[ $# -gt 0 ]]; do
     --figure7-panels-ae-only) figure7_panels_ae_only=true; shift ;;
     --figure7-seurat-rds) figure7_seurat_rds="$2"; shift 2 ;;
     --figure7-gene-set-artifact) figure7_gene_set_artifact="$2"; shift 2 ;;
+    --figure7-state-pathway-results-root) figure7_state_pathway_results_root="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -161,6 +167,34 @@ fi
 IFS=',' read -r -a module_list <<< "${modules}"
 if [[ "${include_in_vivo}" == true && ",${modules}," != *",in_vivo,"* ]]; then
   module_list+=("in_vivo")
+fi
+if [[ -n "${figure7_state_pathway_results_root}" ]]; then
+  if [[ "${mode}" == "panels-only" ]]; then
+    echo "--figure7-state-pathway-results-root cannot be used with --mode panels-only" >&2
+    exit 2
+  fi
+  if [[ "${figure7_panels_ae_only}" == true ]]; then
+    echo "--figure7-state-pathway-results-root cannot be used with --figure7-panels-ae-only" >&2
+    exit 2
+  fi
+  figure7_module_selected=false
+  for module in "${module_list[@]}"; do
+    if [[ "${module}" == "in_vivo_figure7" ]]; then
+      figure7_module_selected=true
+      break
+    fi
+  done
+  if [[ "${figure7_module_selected}" != true ]]; then
+    echo "--figure7-state-pathway-results-root requires --modules to include in_vivo_figure7" >&2
+    exit 2
+  fi
+  if [[ ! -d "${figure7_state_pathway_results_root}" ]]; then
+    echo "Missing Figure 7 state-pathway results directory: ${figure7_state_pathway_results_root}" >&2
+    exit 1
+  fi
+  figure7_state_pathway_results_root="$(
+    python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_state_pathway_results_root}"
+  )"
 fi
 
 quote_args() {
@@ -266,21 +300,20 @@ input_paths_for_module() {
     in_vivo)
       printf "%s\n" Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv ;;
     in_vivo_figure7)
-      local reference_root="Data/in-vivo/figure7/saved_state_pathway/${figure7_reference_id}"
       printf "%s\n" \
         Code/in-vivo/figure7/figure7_config.yaml \
         Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
         Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
-      if [[ "${figure7_panels_ae_only}" != true ]]; then
+      if [[ "${figure7_panels_ae_only}" != true && ( -z "${figure7_state_pathway_results_root}" || -d "${figure7_reference_root}" ) ]]; then
         printf "%s\n" \
-          "${reference_root}/panel_7F_pathway_activity_plot_data.tsv" \
-          "${reference_root}/panel_7F_selected_pathway_gsea.tsv" \
-          "${reference_root}/panel_7F_leading_edge_genes.tsv" \
-          "${reference_root}/state_pathway_gene_ranking_complete.tsv" \
-          "${reference_root}/state_pathway_gsea_complete.tsv" \
-          "${reference_root}/state_pathway_sample_bin_coverage.tsv" \
-          "${reference_root}/state_pathway_design_qc.tsv" \
-          "${reference_root}/state_pathway_provenance.tsv"
+          "${figure7_reference_root}/panel_7F_pathway_activity_plot_data.tsv" \
+          "${figure7_reference_root}/panel_7F_selected_pathway_gsea.tsv" \
+          "${figure7_reference_root}/panel_7F_leading_edge_genes.tsv" \
+          "${figure7_reference_root}/state_pathway_gene_ranking_complete.tsv" \
+          "${figure7_reference_root}/state_pathway_gsea_complete.tsv" \
+          "${figure7_reference_root}/state_pathway_sample_bin_coverage.tsv" \
+          "${figure7_reference_root}/state_pathway_design_qc.tsv" \
+          "${figure7_reference_root}/state_pathway_provenance.tsv"
       fi
       if [[ "${figure7_full_analysis}" == true ]]; then
         printf "%s\n" "${figure7_seurat_rds}" "${figure7_gene_set_artifact}"
@@ -292,6 +325,10 @@ input_paths_for_module() {
 check_module_inputs() {
   local module="$1"
   local path
+  if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
+    require_dir "${figure7_state_pathway_results_root}"
+    require_file Code/in-vivo/figure7/export_04i_state_pathway_reference.R
+  fi
   while IFS= read -r path; do
     [[ -z "${path}" ]] && continue
     if [[ "${module}" == "lci_overlays" ]]; then
@@ -377,7 +414,6 @@ command_for_module() {
       ;;
     in_vivo_figure7)
       local figure7_mode="standard"
-      local reference_root="Data/in-vivo/figure7/saved_state_pathway/${figure7_reference_id}"
       local figure7_args=(
         Rscript Code/in-vivo/figure7/run_figure7.R
         "--mode=${figure7_mode}"
@@ -389,7 +425,10 @@ command_for_module() {
       if [[ "${figure7_panels_ae_only}" == true ]]; then
         figure7_args+=(--panel-set=a-e)
       else
-        figure7_args+=("--saved-state-pathway-dir=${reference_root}")
+        figure7_args+=("--saved-state-pathway-dir=${figure7_reference_root}")
+        if [[ -n "${figure7_state_pathway_results_root}" ]]; then
+          figure7_args+=("--state-pathway-results-root=${figure7_state_pathway_results_root}")
+        fi
       fi
       if [[ "${figure7_full_analysis}" == true ]]; then
         figure7_args[2]="--mode=full-analysis"
@@ -435,14 +474,121 @@ record_module_run() {
     "${stdout_log}" "${stderr_log}" "${notes}" >> "${module_runs_file}"
 }
 
+figure7_reference_export_command() {
+  quote_args Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R \
+    "--results-root=${figure7_state_pathway_results_root}" \
+    "--output-dir=${figure7_reference_root}"
+}
+
+record_figure7_reference_export() {
+  local status="$1" command_string="$2" stdout_log="$3" stderr_log="$4" started_at="$5" finished_at="$6"
+  local metadata_path="${manager_run_dir}/metadata/figure7_state_pathway_export.tsv"
+  mkdir -p "$(dirname "${metadata_path}")"
+  {
+    printf "key\tvalue\n"
+    printf "status\t%s\n" "${status}"
+    printf "source_results_root\t%s\n" "${figure7_state_pathway_results_root}"
+    printf "source_report_html\t%s\n" "${figure7_state_pathway_results_root}/report/04i_pseudotime_state_pathways_report.html"
+    printf "canonical_reference_id\t%s\n" "${figure7_reference_id}"
+    printf "exported_reference_dir\t%s\n" "${figure7_reference_root}"
+    printf "canonical_data_reference_dir\t%s\n" "${figure7_canonical_reference_root}"
+    printf "canonical_data_materialization_metadata\t%s\n" "${manager_run_dir}/metadata/figure7_state_pathway_materialization.tsv"
+    printf "exporter_script\t%s\n" "Code/in-vivo/figure7/export_04i_state_pathway_reference.R"
+    printf "command\t%s\n" "${command_string}"
+    printf "stdout_log\t%s\n" "${stdout_log}"
+    printf "stderr_log\t%s\n" "${stderr_log}"
+    printf "started_at\t%s\n" "${started_at}"
+    printf "finished_at\t%s\n" "${finished_at}"
+  } > "${metadata_path}"
+}
+
+prepare_figure7_reference() {
+  local command_string stdout_log stderr_log started_at finished_at status
+  command_string="$(figure7_reference_export_command)"
+  stdout_log="${manager_run_dir}/logs/figure7_state_pathway_export.stdout.log"
+  stderr_log="${manager_run_dir}/logs/figure7_state_pathway_export.stderr.log"
+  mkdir -p "${manager_run_dir}/logs" "$(dirname "${figure7_reference_root}")"
+  started_at="$(date -Iseconds)"
+  status=0
+  bash -c "${command_string}" >"${stdout_log}" 2>"${stderr_log}" || status=$?
+  finished_at="$(date -Iseconds)"
+  if [[ "${status}" -eq 0 ]]; then
+    record_figure7_reference_export "ok" "${command_string}" "${stdout_log}" "${stderr_log}" "${started_at}" "${finished_at}"
+  else
+    record_figure7_reference_export "failed" "${command_string}" "${stdout_log}" "${stderr_log}" "${started_at}" "${finished_at}"
+  fi
+  return "${status}"
+}
+
+figure7_reference_filenames() {
+  printf "%s\n" \
+    panel_7F_pathway_activity_plot_data.tsv \
+    panel_7F_selected_pathway_gsea.tsv \
+    panel_7F_leading_edge_genes.tsv \
+    state_pathway_gene_ranking_complete.tsv \
+    state_pathway_gsea_complete.tsv \
+    state_pathway_sample_bin_coverage.tsv \
+    state_pathway_design_qc.tsv \
+    state_pathway_provenance.tsv
+}
+
+record_figure7_reference_materialization() {
+  local status="$1" started_at="$2" finished_at="$3"
+  local metadata_path="${manager_run_dir}/metadata/figure7_state_pathway_materialization.tsv"
+  {
+    printf "key\tvalue\n"
+    printf "status\t%s\n" "${status}"
+    printf "canonical_reference_id\t%s\n" "${figure7_reference_id}"
+    printf "source_reference_dir\t%s\n" "${figure7_reference_root}"
+    printf "target_data_reference_dir\t%s\n" "${figure7_canonical_reference_root}"
+    printf "materialized_file_count\t8\n"
+    printf "started_at\t%s\n" "${started_at}"
+    printf "finished_at\t%s\n" "${finished_at}"
+  } > "${metadata_path}"
+}
+
+materialize_figure7_reference_to_data() {
+  local filename source_path target_path temporary_path
+  local materialized_count=0
+
+  while IFS= read -r filename; do
+    [[ -z "${filename}" ]] && continue
+    require_file "${figure7_reference_root}/${filename}"
+  done < <(figure7_reference_filenames)
+
+  mkdir -p "${figure7_canonical_reference_root}"
+  while IFS= read -r filename; do
+    [[ -z "${filename}" ]] && continue
+    source_path="${figure7_reference_root}/${filename}"
+    target_path="${figure7_canonical_reference_root}/${filename}"
+    temporary_path="${figure7_canonical_reference_root}/.${filename}.tmp.${run_id}"
+    cp "${source_path}" "${temporary_path}"
+    mv "${temporary_path}" "${target_path}"
+    if ! cmp -s "${source_path}" "${target_path}"; then
+      echo "Materialized Figure 7 reference does not match exported artifact: ${target_path}" >&2
+      return 1
+    fi
+    materialized_count=$((materialized_count + 1))
+  done < <(figure7_reference_filenames)
+
+  if [[ "${materialized_count}" -ne 8 ]]; then
+    echo "Expected to materialize 8 Figure 7 reference files; found ${materialized_count}" >&2
+    return 1
+  fi
+}
+
 run_module() {
   local module="$1"
   local run_dir="$2"
   local command_string="$3"
+  local module_notes=""
 
   check_module_inputs "${module}"
 
   if [[ "${dry_run}" == true || "${mode}" == "check-only" ]]; then
+    if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
+      printf "[in_vivo_figure7_export] %s\n" "$(figure7_reference_export_command)"
+    fi
     printf "[%s] %s\n" "${module}" "${command_string}"
     return 0
   fi
@@ -456,6 +602,23 @@ run_module() {
   fi
   mkdir -p "${run_dir}/metadata" "${run_dir}/logs"
 
+  if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
+    if ! prepare_figure7_reference; then
+      local export_finished_at
+      export_finished_at="$(date -Iseconds)"
+      record_module_run \
+        "${module}" "failed" "${command_string}" "${run_dir}" \
+        "${manager_run_dir}/logs/figure7_state_pathway_export.stdout.log" \
+        "${manager_run_dir}/logs/figure7_state_pathway_export.stderr.log" \
+        "state_pathway_export_failed;state_pathway_source_results_root=${figure7_state_pathway_results_root}" \
+        "${export_finished_at}" "${export_finished_at}"
+      echo "Figure 7 state-pathway export failed; see ${manager_run_dir}/logs/figure7_state_pathway_export.stderr.log" >&2
+      return 1
+    fi
+    check_module_inputs "${module}"
+    module_notes="state_pathway_source_results_root=${figure7_state_pathway_results_root};state_pathway_reference_dir=${figure7_reference_root}"
+  fi
+
   local stdout_log="${run_dir}/logs/stdout.log"
   local stderr_log="${run_dir}/logs/stderr.log"
   local status=0
@@ -464,7 +627,11 @@ run_module() {
   bash -c "${command_string}" >"${stdout_log}" 2>"${stderr_log}" || status=$?
   finished_at="$(date -Iseconds)"
   if [[ "${status}" -ne 0 ]]; then
-    record_module_run "${module}" "failed" "${command_string}" "${run_dir}" "${stdout_log}" "${stderr_log}" "exit_status=${status}" "${started_at}" "${finished_at}"
+    local failure_notes="exit_status=${status}"
+    if [[ -n "${module_notes}" ]]; then
+      failure_notes="${failure_notes};${module_notes}"
+    fi
+    record_module_run "${module}" "failed" "${command_string}" "${run_dir}" "${stdout_log}" "${stderr_log}" "${failure_notes}" "${started_at}" "${finished_at}"
     echo "Module failed: ${module}; see ${stderr_log}" >&2
     return "${status}"
   fi
@@ -497,14 +664,37 @@ run_module() {
   python3 Code/tools/validate_manifest.py "${run_dir}/metadata/output_manifest.tsv" \
     --output-root "${run_dir}" --repo-root "${repo_root}"
 
+  if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
+    local materialization_started_at materialization_finished_at
+    materialization_started_at="$(date -Iseconds)"
+    if ! materialize_figure7_reference_to_data; then
+      materialization_finished_at="$(date -Iseconds)"
+      record_figure7_reference_materialization "failed" "${materialization_started_at}" "${materialization_finished_at}"
+      finished_at="${materialization_finished_at}"
+      record_module_run \
+        "${module}" "failed" "${command_string}" "${run_dir}" "${stdout_log}" "${stderr_log}" \
+        "state_pathway_materialization_failed;${module_notes};state_pathway_canonical_data_dir=${figure7_canonical_reference_root}" \
+        "${started_at}" "${finished_at}"
+      echo "Figure 7 canonical Data reference materialization failed: ${figure7_canonical_reference_root}" >&2
+      return 1
+    fi
+    materialization_finished_at="$(date -Iseconds)"
+    record_figure7_reference_materialization "ok" "${materialization_started_at}" "${materialization_finished_at}"
+    module_notes="${module_notes};state_pathway_canonical_data_dir=${figure7_canonical_reference_root}"
+    finished_at="${materialization_finished_at}"
+  fi
+
   if [[ "${no_update_latest}" != true ]]; then
     write_latest "${module}" "${run_dir}" "${command_string}"
   fi
-  record_module_run "${module}" "ok" "${command_string}" "${run_dir}" "${stdout_log}" "${stderr_log}" "" "${started_at}" "${finished_at}"
+  record_module_run "${module}" "ok" "${command_string}" "${run_dir}" "${stdout_log}" "${stderr_log}" "${module_notes}" "${started_at}" "${finished_at}"
 }
 
 manager_run_dir="${output_root}/manager/runs/${run_id}"
 module_runs_file="${manager_run_dir}/metadata/module_runs.tsv"
+if [[ -n "${figure7_state_pathway_results_root}" ]]; then
+  figure7_reference_root="${manager_run_dir}/artifacts/figure7_state_pathway_reference/${figure7_reference_id}"
+fi
 
 validate_module_registry "${module_list[@]}"
 

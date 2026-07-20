@@ -28,13 +28,13 @@ state_pathways:
   assay: RNA
   counts_layer: counts
   pseudotime_bins: 20
-  minimum_cells_per_sample_bin: 10
-  expression_filter: "CPM > 1 in at least 6 retained sample-bin observations"
+  minimum_cells_per_sample_bin: 5
+  expression_filter: "CPM > 1 in at least 14 retained sample-bin observations"
   normalization: TMM
   observation_model: voom
   mouse_block: duplicateCorrelation
   spline_df: 5
-  nuisance_terms: [dose_factor, ETP_reference_balanced_threshold_2_24_group]
+  nuisance_terms: [dose_mg_factor, ETP_reference_balanced_threshold_2_24_factor]
   treatment_by_pseudotime_interaction: false
   empirical_bayes: robust
   grid_size: 501
@@ -46,14 +46,14 @@ state_pathways:
   top_negative_per_collection: 4
   pathway_selector: "finite adjusted P; no FDR cutoff; top four per sign and collection"
   expected_files:
-    panel_7F_pathway_activity_plot_data.tsv: REQUIRED_CANONICAL_SHA256
-    panel_7F_selected_pathway_gsea.tsv: REQUIRED_CANONICAL_SHA256
-    panel_7F_leading_edge_genes.tsv: REQUIRED_CANONICAL_SHA256
-    state_pathway_gene_ranking_complete.tsv: REQUIRED_CANONICAL_SHA256
-    state_pathway_gsea_complete.tsv: REQUIRED_CANONICAL_SHA256
-    state_pathway_sample_bin_coverage.tsv: REQUIRED_CANONICAL_SHA256
-    state_pathway_design_qc.tsv: REQUIRED_CANONICAL_SHA256
-    state_pathway_provenance.tsv: REQUIRED_CANONICAL_SHA256
+    panel_7F_pathway_activity_plot_data.tsv: 0ab4631d00126b7ad3c8e8f653102c0ed69f03d6db0a6db605198bc0b993ee3c
+    panel_7F_selected_pathway_gsea.tsv: eed1418505ff120f2212b59d337833bb42e5cdeaadeff053b7fb94e66ea062e0
+    panel_7F_leading_edge_genes.tsv: 270e352e506664d44f61ebea3af5d36270c33f9806baaf224580a8e5c8342a41
+    state_pathway_gene_ranking_complete.tsv: fc8f1f8a24915e91c108e026b71d61ab1222dee2ce9469e48984d53a295e4738
+    state_pathway_gsea_complete.tsv: 0439be2fc152e7a3f0a070410bfa0cfdc01a30624b09d453e9511b031c065e36
+    state_pathway_sample_bin_coverage.tsv: b42694cd910b5faf6a5b9e5add8a90b06f5207317df98f2969cf57887027e8d8
+    state_pathway_design_qc.tsv: 156cc8b7aaeb56866c258c6d6433635b881040691ab816fc7c5edc7cd5048b4c
+    state_pathway_provenance.tsv: bb8f08f9afd0786216babcd5c38d577caa6fd41c4f1d52f28e54d8558c66b424
   comparison_tolerances:
     absolute: 1.0e-10
     relative: 1.0e-6
