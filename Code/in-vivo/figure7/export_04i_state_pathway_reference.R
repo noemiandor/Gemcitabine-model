@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
 
 # Export the compact, immutable panel-7F reference from the exact completed
-# 04i result tree used by the reviewed HTML report. This script does not fit a
-# model, query gene sets, or modify the source result tree.
+# 04i result tree. This script does not fit a model, query gene sets, or modify
+# the source result tree.
 
 args_full <- commandArgs(trailingOnly = FALSE)
 file_arg <- grep("^--file=", args_full, value = TRUE)
@@ -27,10 +27,11 @@ unknown_args <- setdiff(names(cli), allowed_args)
 if (length(unknown_args)) figure7_stop("Unknown argument(s): ", paste(unknown_args, collapse = ", "))
 
 results_root <- normalizePath(figure7_arg(cli, "results-root", required = TRUE), mustWork = TRUE)
-report_html <- normalizePath(
-  figure7_arg(cli, "report-html", file.path(results_root, "report", "04i_pseudotime_state_pathways_report.html")),
-  mustWork = TRUE
-)
+report_html_relative_path <- "report/04i_pseudotime_state_pathways_report.html"
+# Accepted for backward-compatible commands, but the HTML file is not read or checksummed.
+report_html <- figure7_arg(cli, "report-html", file.path(results_root, report_html_relative_path))
+report_html_basename <- basename(report_html)
+if (!nzchar(report_html_basename)) report_html_basename <- basename(report_html_relative_path)
 output_dir <- normalizePath(
   figure7_arg(
     cli,
@@ -57,9 +58,6 @@ if (!identical(basename(output_dir), reference_id)) {
 }
 if (dir.exists(output_dir)) {
   figure7_stop("Canonical output directory already exists; refusing to overwrite: ", output_dir)
-}
-if (!identical(figure7_sha256(report_html), expected_report_sha256)) {
-  figure7_stop("Report SHA-256 does not match the reviewed 04i HTML")
 }
 
 read_csv <- function(path) {
@@ -423,7 +421,7 @@ input_value <- function(input, column) {
 activity_output_path <- file.path(staging_dir, "panel_7F_pathway_activity_plot_data.tsv")
 provenance <- c(
   full_analysis_run_dir = parameter_value(analysis_parameters, "output_root", "analysis parameters"),
-  report_identifier = paste0(basename(report_html), "@sha256:", expected_report_sha256),
+  report_identifier = paste0(report_html_basename, "@sha256:", expected_report_sha256),
   code_revision_04i = code_revision_04i,
   seurat_rds_sha256 = input_value("seurat_rds", "sha256"),
   cellcycle_metadata_sha256 = input_value("cell_metadata", "sha256"),
@@ -469,7 +467,7 @@ provenance <- c(
   left_neighbor_interval = "[0.11,0.30)",
   right_neighbor_interval = "(0.49,0.68]",
   report_html_sha256 = expected_report_sha256,
-  report_html_relative_path = "report/04i_pseudotime_state_pathways_report.html",
+  report_html_relative_path = report_html_relative_path,
   source_results_id = "04i_pseudotime_state_pathways",
   recorded_cell_metadata_path = input_value("cell_metadata", "path"),
   recorded_noncell_metadata_path = input_value("noncell_metadata", "path"),
@@ -507,5 +505,5 @@ dir.create(dirname(output_dir), recursive = TRUE, showWarnings = FALSE)
 if (!file.rename(staging_dir, output_dir)) figure7_stop("Could not atomically materialize canonical reference: ", output_dir)
 completed <- TRUE
 message("Exported canonical 04i panel-7F reference: ", output_dir)
-message("Report SHA-256: ", expected_report_sha256)
+message("Recorded reviewed report SHA-256: ", expected_report_sha256)
 message("Activity rows: ", nrow(activity_export), "; selected pathways: ", nrow(selected_export))

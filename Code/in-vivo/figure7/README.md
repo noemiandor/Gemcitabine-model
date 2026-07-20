@@ -141,6 +141,9 @@ Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R \
   --output-dir=Results/in-vivo/figure7/reference_exports/<run_id>/taoli_04i_etp2_24_day17_v1
 ```
 
+The exporter audits the source CSV/manifest tables from the 04i result tree. It
+does not read or checksum the rendered HTML report.
+
 On the HPC, run the exporter from the repository root with explicit source and
 output paths:
 
@@ -149,7 +152,6 @@ cd /share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures
 
 Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R \
   --results-root=/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways \
-  --report-html=/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways/report/04i_pseudotime_state_pathways_report.html \
   --output-dir=/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures/Results/in-vivo/figure7/hpc_export_recheck_20260717/taoli_04i_etp2_24_day17_v1
 ```
 
