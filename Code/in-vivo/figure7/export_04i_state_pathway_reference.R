@@ -85,6 +85,28 @@ parameter_value <- function(data, key, label) {
 manifest_root <- file.path(results_root, "00_manifest")
 workflow_root <- file.path(results_root, workflow_id)
 model_root <- file.path(workflow_root, model_id)
+source_paths <- c(
+  primary_gsea = file.path(model_root, "04_gsea", "all_collections_primary_adjacent_state_gsea.csv"),
+  activity = file.path(model_root, "04_gsea", "pathway_activity_over_pseudotime.csv"),
+  leading_edge = file.path(model_root, "04_gsea", "all_collections_leading_edge_genes.csv"),
+  gene_contrast = file.path(model_root, "03_gene_models", "gene_primary_adjacent_state_contrast.csv"),
+  gene_resolution = file.path(model_root, "03_gene_models", "gene_symbol_resolution.csv"),
+  sample_bin_metadata = file.path(workflow_root, "02_pseudobulk", "sample_bin_metadata.csv"),
+  design_audit = file.path(model_root, "01_qc", "model_design_rank_audit.csv"),
+  primary_coverage = file.path(workflow_root, "01_qc", "primary_coverage_check.csv")
+)
+expected_source_sha256 <- c(
+  primary_gsea = "aaca8d189c1288c78502882a15b80a9ca35c98da42bafd89d140d6f4e68faee1",
+  activity = "0f545a39cd9ce25e0335c8db2aed69b44834e3c86d11164e492419dada58db76",
+  leading_edge = "916a8d3db4b3e936595714c08d4cc666f2e77663f641aaad7f6581b387ebd2aa",
+  gene_contrast = "b371b2931dabafa1850ab55313d724a4862b8723c5c9e1f65e5d8b0eab47be5f",
+  gene_resolution = "b5973dab047ebf92b645007972f46e6a9bb7629d97eabd8cb3d62d75d2c32100",
+  sample_bin_metadata = "89d757f074932eb81951f22adc4f93d1c4e2e62de59f742467c5765f6df011d5",
+  design_audit = "1dd5dc5b7e3453dec06780f8092150a7f7c1c31c679596e3eda85019a910146e",
+  primary_coverage = "9fecc5339a86cf2e072dccfb05358580fc0db25fd3a8e9f71af301a8ea423141"
+)
+figure7_verify_named_checksums(source_paths, expected_source_sha256)
+
 analysis_parameters <- read_csv(file.path(workflow_root, "00_manifest", "analysis_parameters.csv"))
 intervals <- read_csv(file.path(manifest_root, "frozen_interval_definition.csv"))
 input_checksums <- read_csv(file.path(manifest_root, "input_checksums.csv"))
@@ -140,7 +162,7 @@ for (i in seq_len(nrow(expected_intervals))) {
   }
 }
 
-gsea_path <- file.path(model_root, "04_gsea", "all_collections_primary_adjacent_state_gsea.csv")
+gsea_path <- source_paths[["primary_gsea"]]
 gsea <- read_csv(gsea_path)
 assert_columns(
   gsea,
@@ -193,7 +215,7 @@ if (nrow(selected_export) != 24L || anyDuplicated(selected_keys)) {
   figure7_stop("Canonical pathway selection must contain 24 unique collection/pathway keys")
 }
 
-activity_path <- file.path(model_root, "04_gsea", "pathway_activity_over_pseudotime.csv")
+activity_path <- source_paths[["activity"]]
 if (!file.exists(activity_path)) figure7_stop("Missing 04i activity source: ", activity_path)
 activity_pieces <- list()
 callback <- readr::SideEffectChunkCallback$new(function(chunk, position) {
@@ -236,7 +258,7 @@ if (nrow(activity_export) != 24L * 501L || any(lengths(activity_groups) != 501L)
   figure7_stop("Canonical activity table must contain 24 pathways on an identical 501-point grid")
 }
 
-leading_path <- file.path(model_root, "04_gsea", "all_collections_leading_edge_genes.csv")
+leading_path <- source_paths[["leading_edge"]]
 leading <- read_csv(leading_path)
 assert_columns(leading, c("collection", "pathway", "ranking_id", "leading_edge_gene", "model_id"), "leading-edge genes")
 leading$.source_row <- seq_len(nrow(leading))
@@ -260,8 +282,8 @@ if (any(!selected_keys %in% names(leading_counts)) || any(leading_counts[selecte
   figure7_stop("Every selected pathway must have at least one leading-edge gene")
 }
 
-contrast_path <- file.path(model_root, "03_gene_models", "gene_primary_adjacent_state_contrast.csv")
-resolution_path <- file.path(model_root, "03_gene_models", "gene_symbol_resolution.csv")
+contrast_path <- source_paths[["gene_contrast"]]
+resolution_path <- source_paths[["gene_resolution"]]
 contrast <- read_csv(contrast_path)
 resolution <- read_csv(resolution_path)
 assert_columns(
@@ -324,7 +346,7 @@ if (anyNA(gsea_complete_export$collection_label) || anyDuplicated(gsea_complete_
   figure7_stop("Complete GSEA table contains unexpected collections or duplicated pathway keys")
 }
 
-sample_bins_path <- file.path(workflow_root, "02_pseudobulk", "sample_bin_metadata.csv")
+sample_bins_path <- source_paths[["sample_bin_metadata"]]
 sample_bins <- read_csv(sample_bins_path)
 assert_columns(
   sample_bins,
@@ -337,8 +359,8 @@ if (nrow(sample_bins) != 320L) figure7_stop("Unexpected sample-bin metadata row 
 names(sample_bins)[names(sample_bins) == "bin_id"] <- "pseudotime_bin"
 sample_bin_export <- sample_bins
 
-design_path <- file.path(model_root, "01_qc", "model_design_rank_audit.csv")
-coverage_path <- file.path(workflow_root, "01_qc", "primary_coverage_check.csv")
+design_path <- source_paths[["design_audit"]]
+coverage_path <- source_paths[["primary_coverage"]]
 design <- read_csv(design_path)
 coverage <- read_csv(coverage_path)
 assert_columns(
@@ -447,20 +469,21 @@ provenance <- c(
   left_neighbor_interval = "[0.11,0.30)",
   right_neighbor_interval = "(0.49,0.68]",
   report_html_sha256 = expected_report_sha256,
-  report_html_path = report_html,
-  export_source_results_root = results_root,
+  report_html_relative_path = "report/04i_pseudotime_state_pathways_report.html",
+  source_results_id = "04i_pseudotime_state_pathways",
   recorded_cell_metadata_path = input_value("cell_metadata", "path"),
   recorded_noncell_metadata_path = input_value("noncell_metadata", "path"),
   recorded_seurat_rds_path = input_value("seurat_rds", "path"),
   msigdbr_package_version = package_value("msigdbr"),
   fgsea_package_version = package_value("fgsea"),
-  source_activity_sha256 = figure7_sha256(activity_path),
-  source_primary_gsea_sha256 = figure7_sha256(gsea_path),
-  source_leading_edge_sha256 = figure7_sha256(leading_path),
-  source_gene_contrast_sha256 = figure7_sha256(contrast_path),
-  source_gene_resolution_sha256 = figure7_sha256(resolution_path),
-  source_sample_bin_metadata_sha256 = figure7_sha256(sample_bins_path),
-  source_design_audit_sha256 = figure7_sha256(design_path)
+  source_activity_sha256 = expected_source_sha256[["activity"]],
+  source_primary_gsea_sha256 = expected_source_sha256[["primary_gsea"]],
+  source_leading_edge_sha256 = expected_source_sha256[["leading_edge"]],
+  source_gene_contrast_sha256 = expected_source_sha256[["gene_contrast"]],
+  source_gene_resolution_sha256 = expected_source_sha256[["gene_resolution"]],
+  source_sample_bin_metadata_sha256 = expected_source_sha256[["sample_bin_metadata"]],
+  source_design_audit_sha256 = expected_source_sha256[["design_audit"]],
+  source_primary_coverage_sha256 = expected_source_sha256[["primary_coverage"]]
 )
 provenance_export <- data.frame(key = names(provenance), value = unname(provenance), stringsAsFactors = FALSE)
 write_reference(provenance_export, "state_pathway_provenance.tsv")

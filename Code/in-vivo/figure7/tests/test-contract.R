@@ -33,9 +33,14 @@ testthat::test_that("tracked canonical 04i reference validates exact report line
     provenance[["code_revision_04i"]],
     "dc751eab928bc40f3edb063baec447fe32a69d73"
   )
+  testthat::expect_false(any(c("report_html_path", "export_source_results_root") %in% names(provenance)))
+  testthat::expect_identical(
+    provenance[["source_primary_coverage_sha256"]],
+    "9fecc5339a86cf2e072dccfb05358580fc0db25fd3a8e9f71af301a8ea423141"
+  )
 })
 
-testthat::test_that("runtime export may vary only in location-bearing provenance", {
+testthat::test_that("canonical provenance is location-independent and always checksummed", {
   fixture <- figure7_test_state_reference()
   provenance_path <- file.path(fixture$path, "state_pathway_provenance.tsv")
   provenance <- figure7_read_tsv(provenance_path, c("key", "value"))
@@ -49,12 +54,29 @@ testthat::test_that("runtime export may vary only in location-bearing provenance
     figure7_validate_state_reference(fixture$path, fixture$config),
     "SHA-256 mismatch"
   )
-  testthat::expect_silent(figure7_validate_state_reference(
-    fixture$path,
-    fixture$config,
-    verify_checksums = TRUE,
-    verify_provenance_checksum = FALSE
-  ))
+  testthat::expect_error(
+    figure7_validate_state_reference(fixture$path, fixture$config, verify_checksums = FALSE),
+    "runtime filesystem paths"
+  )
+})
+
+testthat::test_that("named source checksum verification rejects any changed table", {
+  paths <- c(first = tempfile(), second = tempfile())
+  writeLines("first", paths[["first"]], useBytes = TRUE)
+  writeLines("second", paths[["second"]], useBytes = TRUE)
+  expected <- vapply(paths, figure7_sha256, character(1L))
+  testthat::expect_silent(figure7_verify_named_checksums(paths, expected))
+  writeLines("changed", paths[["second"]], useBytes = TRUE)
+  testthat::expect_error(figure7_verify_named_checksums(paths, expected), "SHA-256 mismatch")
+})
+
+testthat::test_that("TSV helpers round-trip multiline annotations without malformed rows", {
+  path <- tempfile(fileext = ".tsv")
+  original <- data.frame(id = 1:2, annotation = c("line one\nline two", "plain"), stringsAsFactors = FALSE)
+  figure7_write_tsv(original, path)
+  testthat::expect_length(readLines(path, warn = FALSE), 3L)
+  observed <- figure7_read_tsv(path, c("id", "annotation"))
+  testthat::expect_identical(observed$annotation, original$annotation)
 })
 
 testthat::test_that("missing F, wrong checksums, and nonempty outputs fail clearly", {

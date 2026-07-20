@@ -76,7 +76,13 @@ figure7_test_state_reference <- function() {
     "expression_filter", "normalization", "observation_model", "mouse_block", "nuisance_terms",
     "treatment_by_pseudotime_interaction", "empirical_bayes", "contrast", "gsea_rank_statistic",
     "pathway_activity", "feature_species_policy", "gsea_ranking_rule", "pathway_selection_rule",
-    "activity_table_sha256"
+    "activity_table_sha256", "canonical_reference_id", "workflow_id", "model_id",
+    "accumulated_interval", "left_neighbor_interval", "right_neighbor_interval",
+    "report_html_sha256", "report_html_relative_path", "source_results_id",
+    "source_activity_sha256", "source_primary_gsea_sha256", "source_leading_edge_sha256",
+    "source_gene_contrast_sha256", "source_gene_resolution_sha256",
+    "source_sample_bin_metadata_sha256", "source_design_audit_sha256",
+    "source_primary_coverage_sha256"
   )
   values <- rep("fixture", length(provenance_keys)); names(values) <- provenance_keys
   values[c("assay", "counts_layer", "expression_filter", "normalization", "observation_model", "mouse_block",
@@ -94,6 +100,17 @@ figure7_test_state_reference <- function() {
   values["treatment_by_pseudotime_interaction"] <- as.character(config$state_pathways$treatment_by_pseudotime_interaction)
   values["pathway_selection_rule"] <- as.character(config$state_pathways$pathway_selector)
   values["activity_table_sha256"] <- activity_hash
+  values["canonical_reference_id"] <- as.character(config$state_pathways$reference_id)
+  values["workflow_id"] <- "binning"
+  values["model_id"] <- as.character(config$state_pathways$model)
+  values["accumulated_interval"] <- "[0.30,0.49]"
+  values["left_neighbor_interval"] <- "[0.11,0.30)"
+  values["right_neighbor_interval"] <- "(0.49,0.68]"
+  values["report_html_sha256"] <- paste(rep("a", 64L), collapse = "")
+  values["report_html_relative_path"] <- "report/04i_pseudotime_state_pathways_report.html"
+  values["source_results_id"] <- "04i_pseudotime_state_pathways"
+  source_hash_keys <- grep("^source_.*_sha256$", provenance_keys, value = TRUE)
+  values[source_hash_keys] <- paste(rep("b", 64L), collapse = "")
   figure7_write_tsv(data.frame(key = provenance_keys, value = values),
                     file.path(path, "state_pathway_provenance.tsv"))
   for (file in figure7_state_required_files()) {

@@ -53,7 +53,7 @@ state_pathways:
     state_pathway_gsea_complete.tsv: 0439be2fc152e7a3f0a070410bfa0cfdc01a30624b09d453e9511b031c065e36
     state_pathway_sample_bin_coverage.tsv: b42694cd910b5faf6a5b9e5add8a90b06f5207317df98f2969cf57887027e8d8
     state_pathway_design_qc.tsv: 156cc8b7aaeb56866c258c6d6433635b881040691ab816fc7c5edc7cd5048b4c
-    state_pathway_provenance.tsv: 172f1633e96288cfe713dc0c023f1570f449096090ca543f32e8ff93737ff98c
+    state_pathway_provenance.tsv: bb8f08f9afd0786216babcd5c38d577caa6fd41c4f1d52f28e54d8558c66b424
   comparison_tolerances:
     absolute: 1.0e-10
     relative: 1.0e-6

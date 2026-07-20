@@ -57,7 +57,8 @@ write_metadata <- function(output_dir, mode, config, config_path, panel_ids, sta
   )
   figure7_write_tsv(run_config, file.path(output_dir, "metadata", "run_config.tsv"))
   figure7_write_tsv(contract, file.path(output_dir, "metadata", "panel_contract.tsv"))
-  utils::capture.output(sessionInfo(), file = file.path(output_dir, "metadata", "session_info.txt"))
+  session_info <- sub("[[:space:]]+$", "", utils::capture.output(sessionInfo()))
+  writeLines(session_info, file.path(output_dir, "metadata", "session_info.txt"), useBytes = TRUE)
 }
 
 render_from_run <- function(source_dir, output_dir, config, config_path, panel_ids, include_panel_f) {
@@ -174,24 +175,8 @@ if (include_panel_f) {
   reference <- figure7_validate_state_reference(
     saved_dir,
     config,
-    verify_checksums = TRUE,
-    verify_provenance_checksum = !nzchar(state_pathway_results_root)
+    verify_checksums = TRUE
   )
-  provenance_root_index <- match("export_source_results_root", reference$provenance$key)
-  provenance_root <- if (is.na(provenance_root_index)) "" else as.character(reference$provenance$value[[provenance_root_index]])
-  if (nzchar(state_pathway_results_root)) {
-    if (!nzchar(provenance_root)) {
-      figure7_stop("Panel-7F provenance does not record export_source_results_root")
-    }
-    if (!identical(normalizePath(provenance_root, mustWork = FALSE), state_pathway_results_root)) {
-      figure7_stop(
-        "Panel-7F provenance results root does not match --state-pathway-results-root: ",
-        provenance_root, " != ", state_pathway_results_root
-      )
-    }
-  } else if (nzchar(provenance_root)) {
-    state_pathway_results_root <- provenance_root
-  }
 }
 
 if (identical(mode, "full-analysis")) {

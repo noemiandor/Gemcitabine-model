@@ -23,8 +23,11 @@ an embedded report raster is not accepted as plotting data.
 Routine manager execution:
 
 ```bash
-bash Manager.sh --mode standard --modules in_vivo_figure7 --run-id <run_id>
+bash Manager.sh --mode standard --run-id <run_id>
 ```
+
+Figure 7 is part of the default manuscript module set. To run only Figure 7,
+add `--modules in_vivo_figure7`.
 
 To export the canonical panel-7F reference from a completed 04i result tree and
 then generate and publish Figure 7 in one Manager run:
@@ -38,8 +41,10 @@ bash Manager.sh \
 ```
 
 The supplied results root is normalized and recorded in the Manager export
-metadata, module-run notes, Figure 7 `run_config.tsv`, and copied panel-7F
-provenance. The eight exported TSVs are retained under that Manager run's
+metadata, module-run notes, and Figure 7 `run_config.tsv`. Canonical panel-7F
+provenance is deliberately location-independent: it records stable report/source
+identifiers and checksums, never the runtime filesystem location. The eight
+exported TSVs are retained under that Manager run's
 `artifacts/figure7_state_pathway_reference/` directory. After Figure 7 and its
 manifests complete successfully, Manager refreshes the same eight TSVs using
 atomic per-file replacement under
@@ -103,7 +108,8 @@ tree with:
 
 ```bash
 Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R \
-  --results-root=/path/to/04i_pseudotime_state_pathways
+  --results-root=/path/to/04i_pseudotime_state_pathways \
+  --output-dir=Results/in-vivo/figure7/reference_exports/<run_id>/taoli_04i_etp2_24_day17_v1
 ```
 
 On the HPC, run the exporter from the repository root with explicit source and
@@ -123,10 +129,12 @@ final output-directory basename must remain `taoli_04i_etp2_24_day17_v1`, and
 the parent directory must be new because the exporter refuses to overwrite an
 existing canonical export.
 
-The exporter verifies the report, source-input, interval-config, and source-table
-SHA-256 values before reading results, then writes the eight TSVs atomically. It
-does not refit the model or query gene sets. The source analysis did not record a
-separate MSigDB release identifier, so provenance retains
+The exporter verifies the report hash, the source input/config checksum records,
+and the exact SHA-256 values of all eight consumed scientific source tables
+before parsing those tables, then writes the eight TSVs atomically. It does not
+refit the model or query gene sets. Runtime source paths remain in Manager/run
+metadata and are excluded from the immutable canonical provenance. The source
+analysis did not record a separate MSigDB release identifier, so provenance retains
 `gene_set_release=not_recorded_in_04i_manifest` and the recorded `msigdbr`
 package version instead.
 

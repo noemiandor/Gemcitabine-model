@@ -35,6 +35,13 @@ class ManagerFigure7CliTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("--source-run-id is required", result.stderr)
 
+    def test_default_manuscript_modules_include_figure7(self) -> None:
+        manager_text = (REPO_ROOT / "Manager.sh").read_text()
+        default_line = next(
+            line for line in manager_text.splitlines() if line.startswith('modules="')
+        )
+        self.assertIn("in_vivo_figure7", default_line)
+
     def test_source_run_id_is_rejected_outside_panels_only(self) -> None:
         result = self._run(
             "--mode", "standard", "--modules", "in_vivo_figure7",
@@ -121,7 +128,7 @@ if [[ "$entrypoint" == *export_04i_state_pathway_reference.R ]]; then
     state_pathway_design_qc.tsv; do
     printf 'value\\nfixture\\n' > "$output_dir/$name"
   done
-  printf 'key\\tvalue\\nexport_source_results_root\\t%s\\n' "$source_results_root" \
+  printf 'key\\tvalue\\nsource_results_id\\t04i_pseudotime_state_pathways\\n' \
     > "$output_dir/state_pathway_provenance.tsv"
   exit 0
 fi
@@ -182,6 +189,10 @@ exit 99
                 export_metadata["canonical_data_reference_dir"], str(canonical_reference_root)
             )
             self.assertEqual(len(list(canonical_reference_root.glob("*.tsv"))), 8)
+            canonical_provenance = (
+                canonical_reference_root / "state_pathway_provenance.tsv"
+            ).read_text()
+            self.assertNotIn(str(source_results_root.resolve()), canonical_provenance)
             for exported_path in reference_root.glob("*.tsv"):
                 self.assertEqual(
                     exported_path.read_bytes(),
