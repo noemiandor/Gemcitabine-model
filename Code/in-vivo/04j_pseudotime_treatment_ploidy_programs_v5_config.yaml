@@ -1,0 +1,197 @@
+analysis:
+  name: "04j_pseudotime_treatment_ploidy_programs_v5_non_score"
+  version: "04j_v5_non_score_2026_07_16"
+  schema_version: "v5_non_score_schema_1"
+  method_version: "v5_non_score_methods_frozen_2026_07_16"
+  frozen_date: "2026-07-16"
+  post_hoc_status: "post-hoc non-score methodological extension"
+  primary_estimand: "(Gem-Control)_4N-origin - (Gem-Control)_2N-origin"
+  primary_ploidy_variable: "initial_ploidy"
+  plan_path: "/Users/4482173/Documents/GitHub/Gemcitabine-model/Data/in-vivo/Plan/pseudotime_treatment_by_ploidy_matched_state_plan.md"
+  v1_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs"
+  v2_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v2"
+  v3_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v3"
+  v4_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4"
+  v5_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v5_non_score"
+  external_signature_status: "disabled_by_user_no_external_cohort"
+  network_policy: "disabled"
+  species_policy: "input_already_filtered_no_species_filter_or_split"
+  score_policy: "program_scores_forbidden_as_v5_inferential_units"
+  guardrail: "No V5 method, gene, membership, state, weight, threshold, spline, prior, FDR family, or simulation scenario is selected from V1-V4 or V5 P values, directions, leading edges, dominant genes, or intermediate results."
+
+reproducibility:
+  master_seed: 75157
+  gsea_seed: 75159
+  state_seed: 75161
+  bayesian_seed: 75163
+  kernel_seed: 75167
+  trajectory_seed: 75169
+  simulation_seed: 75171
+  report_seed: 75173
+  blas_threads: 1
+  max_process_workers: 8
+  finite_sample_p_formula: "(1 + number of null statistics at least as extreme as observed) / (1 + number of assignments)"
+
+inputs:
+  cell_metadata: "/Users/4482173/Documents/GitHub/Gemcitabine-model/Data/in-vivo/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+  seurat_rds: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/02e_cluster_annotation/04_objects/integrated_sct_cca_seurat_cluster_final_annotation.rds"
+  v4_hdf5: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4/primary_initial_ploidy/mouse_level_gene_statistics/permuted_gene_statistics.h5"
+  v4_mouse_expression_checkpoint: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4/checkpoints/primary_mouse_standardized_expression.rds"
+  v4_gene_statistics_checkpoint: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4/checkpoints/primary_gene_statistics.rds"
+  v4_trajectory_checkpoint: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4/checkpoints/primary_trajectory_global.rds"
+  v4_marginal_checkpoint: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4/checkpoints/secondary_marginal_total_effect.rds"
+  v4_unique_memberships: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4/frozen_definitions/unique_memberships.csv"
+  v4_program_alias: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4/frozen_definitions/program_label_to_membership_alias.csv"
+  v4_program_roles: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4/frozen_definitions/program_universe_role_eligibility.csv"
+  v4_response_families: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4/frozen_definitions/response_family_definitions.csv"
+  v4_gene_weights: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4/frozen_definitions/program_score_gene_weights.csv"
+  v4_assignments: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4/frozen_definitions/primary_4900_assignments.csv"
+  v4_trajectory_support: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4/primary_initial_ploidy/trajectory_global/trajectory_mouse_support.csv"
+
+checkpoint:
+  schema_version: "v5_non_score_checkpoint_1"
+  require_config_checksum: true
+  require_method_version: true
+  require_input_checksum: true
+
+exact_randomization:
+  expected_mice: 16
+  expected_assignments: 4900
+  expected_ploidy_strata: 2
+  treated_per_ploidy: 4
+  include_observed_assignment: true
+
+ranked_enrichment:
+  weighted_exponent: 1
+  unweighted_sensitivity_exponent: 0
+  assignment_chunk_size: 40
+  minimum_set_genes: 2
+  test_unique_memberships: true
+  test_response_family_unions: true
+  two_sided_statistic: "max_absolute_positive_negative_weighted_KS"
+  leading_edge_role: "descriptive_after_inference_only"
+  focused_fdr: 0.10
+  westfall_young: true
+
+state_decomposition:
+  minimum_cells_per_mouse_state: 5
+  minimum_mice_per_group: 2
+  clr_count_replacement: 0.5
+  primary_interval: [0.30, 0.49]
+  primary_subbin_break: 0.395
+  phase_inference_levels: ["S", "G2M"]
+  phase_descriptive_levels: ["G1"]
+  cluster_levels: ["6", "10", "4c"]
+  cross_partition_role: "support_gated_sensitivity"
+  reference_distribution: "pooled_mouse_state_fraction_treatment_label_independent"
+  expression_scale: "cell_level_TMM_normalized_linear_CPM_then_mouse_state_mean"
+  vector_components: ["true_maxmean", "mean_square", "max_absolute"]
+  focused_fdr: 0.10
+
+bayesian_gene_vector:
+  maximum_residual_factors: 3
+  residual_factor_variance_target: 0.80
+  gene_correlation_adjustment: "inflate_gene_likelihood_se_by_family_expression_effective_rank"
+  rope_half_width_residual_sd: 0.20
+  family_mean_prior_df: 3
+  family_mean_prior_scale: 0.50
+  global_scale_prior: 0.35
+  slab_scale: 1.00
+  slab_df: 4
+  gene_deviation_df: 4
+  chains: 4
+  iterations: 1200
+  warmup: 600
+  thin: 1
+  adapt_delta: 0.95
+  max_treedepth: 12
+  rhat_threshold: 1.01
+  minimum_bulk_ess: 400
+  minimum_tail_ess: 400
+  maximum_divergences: 0
+  prior_sensitivity_scales: [0.25, 1.00]
+  sbc_replicates: 24
+  sbc_chains: 2
+  sbc_iterations: 500
+  sbc_warmup: 250
+
+mechanistic_kernel:
+  response_families:
+    - "gemcitabine_handling"
+    - "nucleotide_supply_buffering"
+    - "replication_execution"
+    - "replication_stress_checkpoint"
+    - "fork_repair"
+  ridge_lambda: 0.20
+  directional_family: "gemcitabine_handling"
+  family_threshold: 0.10
+  child_threshold: 0.10
+  gene_threshold: 0.10
+  closure: "family_gate_plus_within_family_minP_plus_gene_Holm"
+  single_gene_fragility: true
+
+gene_wise_trajectory:
+  initial_bins: 20
+  support_min_mice_per_group: 2
+  minimum_supported_bins: 3
+  spline_df_candidates: [2, 3]
+  df_selection: "inside_every_assignment"
+  gene_chunk_size: 128
+  primary_interval: [0.30, 0.49]
+  whole_trajectory_interval: [0.00, 1.00]
+  unsupported_region: "not_estimable_no_extrapolation"
+  family_components: ["true_maxmean", "mean_square", "higher_criticism"]
+  focused_fdr: 0.10
+
+simulation:
+  null_replicates: 1000
+  power_replicates: 300
+  alpha: 0.05
+  q: 0.10
+  empirical_null_shift_benchmark:
+    coherent_family_shift_sd: 0.75
+    sparse_family_shift_sd: 1.50
+    mixed_direction_shift_sd: 1.00
+    composition_only_shift_sd: 1.00
+    within_state_only_shift_sd: 1.00
+    local_trajectory_peak_sd: 1.25
+    early_late_reversal_sd: 1.25
+    role: "generic standardized statistic-shift stress test, not a fitted biological effect model"
+  type1_reference_interval: [0.035, 0.065]
+  coverage_reference_interval: [0.925, 0.975]
+  scenarios:
+    - "global_null"
+    - "coherent_family_shift"
+    - "sparse_family_shift"
+    - "mixed_direction_shift"
+    - "composition_only_shift"
+    - "within_state_only_shift"
+    - "local_trajectory_peak"
+    - "early_late_reversal"
+
+report:
+  title: "Five non-score tests of gemcitabine response heterogeneity by baseline ploidy"
+  audience: "technical"
+  delivery_mode: "html"
+  self_contained: true
+  artifact_json: "report/artifact.json"
+  html_file: "report/04j_pseudotime_treatment_ploidy_programs_v5_non_score_report.html"
+
+acceptance:
+  expected_program_labels: 106
+  expected_unique_memberships: 86
+  expected_response_families: 15
+  expected_primary_assignments: 4900
+  expected_mice: 16
+  expected_genes: 25736
+  expected_methods: 5
+  require_v1_v2_v3_v4_sources_unchanged: true
+  require_v1_v2_v3_v4_results_unchanged: true
+  require_input_checksums_match: true
+  require_no_program_score_inference: true
+  require_no_external_cohort: true
+  require_no_species_filtering: true
+  require_all_branches_result_or_not_estimable: true
+  require_exact_assignment_reuse: true
+  require_report_builder_validation: true
+  require_git_diff_check: true

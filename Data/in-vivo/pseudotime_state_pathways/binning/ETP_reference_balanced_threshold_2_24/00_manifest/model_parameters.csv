@@ -1,0 +1,8 @@
+parameter,value
+model_id,ETP_reference_balanced_threshold_2_24
+model_label,ETP group-adjusted model: reference_balanced_threshold_2_24
+covariate_mode,etp_group
+covariate_terms,ETP_reference_balanced_threshold_2_24_factor
+etp_method,ETP_reference_balanced_threshold_2_24
+etp_threshold,2.24
+is_primary,FALSE

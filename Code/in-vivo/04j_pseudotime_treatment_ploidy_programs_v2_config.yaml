@@ -1,0 +1,757 @@
+analysis:
+  name: "04j_pseudotime_treatment_ploidy_programs_v2"
+  version: "04j_v2_2026_07_15"
+  frozen_date: "2026-07-15"
+  plan_path: "/Users/4482173/Documents/GitHub/Gemcitabine-model/Data/in-vivo/Plan/pseudotime_treatment_by_ploidy_matched_state_plan.md"
+  objective: "Post-hoc methodological investigation of matched-pseudotime treatment-by-baseline-initial-ploidy transcriptional program analysis."
+  expression_data_inspected_for_interval_selection: false
+  estimand_note: "Association in captured endpoint cells from an outcome-selected sequenced cohort; not a population-average causal treatment effect."
+  v1_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs"
+  v2_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v2"
+  v1_role: "legacy_v1_comparison"
+  method_lock_note: "Program universe, score methods, gene-set methods, simulations, FDR families, and coordinate rules are fixed before inspecting v2 interaction results."
+
+inputs:
+  cell_metadata: "Data/in-vivo/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+  sample_info: "Data/in-vivo/sample_info.xlsx"
+  seurat_rds_candidates:
+    - "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/03c_cluster_annotation/04_objects/integrated_sct_cca_seurat_cluster_final_annotation.rds"
+    - "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/03b_manual_cluster_merge/objects/integrated_sct_cca_seurat_final_manual_merge.rds"
+    - "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/03_final_cluster/03_objects/integrated_sct_cca_seurat_final_reclustered.rds"
+    - "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/02e_cluster_annotation/04_objects/integrated_sct_cca_seurat_cluster_final_annotation.rds"
+  assay: "RNA"
+  counts_layer: "counts"
+
+pseudotime:
+  scenario: "CellCycle ROOT_6_END_NULL"
+  scale: "[0, 1]"
+  orientation: "Frozen upstream CellCycle pseudotime orientation; no rerooting, rescaling, or interval re-selection."
+
+treatment:
+  primary_control_doses_mg_per_kg: [0]
+  primary_treated_doses_mg_per_kg: [30, 120]
+  dose_specific_levels_mg_per_kg: [0, 30, 120]
+  primary_modifier: "initial_ploidy"
+  primary_modifier_note: "Baseline tumor-of-origin assignment; endpoint cell ploidy is post-treatment and descriptive only."
+
+endpoint_ploidy:
+  source_column: "average_ploidy"
+  continuous_column: "sample_mean_endpoint_ploidy"
+  continuous_scaled_column: "sample_mean_endpoint_ploidy_scaled"
+  interpretation_note: "Post-treatment sample-level endpoint ploidy is a descriptive sensitivity modifier, not a baseline predictive biomarker."
+  thresholds:
+    - method: "ETP_fixed_threshold_2_25"
+      threshold_scheme: "fixed_threshold_2_25"
+      threshold: 2.25
+      group_column: "ETP_fixed_threshold_2_25_group"
+      factor_column: "ETP_fixed_threshold_2_25_factor"
+      group_levels: ["ETP-lower", "ETP-higher"]
+    - method: "ETP_boundary_stress_threshold_2_375"
+      threshold_scheme: "boundary_stress_threshold_2_375"
+      threshold: 2.375
+      group_column: "ETP_boundary_stress_threshold_2_375_group"
+      factor_column: "ETP_boundary_stress_threshold_2_375_factor"
+      group_levels: ["ETP-lower", "ETP-higher"]
+    - method: "ETP_reference_balanced_threshold_2_24"
+      threshold_scheme: "reference_balanced_threshold_2_24"
+      threshold: 2.24
+      group_column: "ETP_reference_balanced_threshold_2_24_group"
+      factor_column: "ETP_reference_balanced_threshold_2_24_factor"
+      group_levels: ["ETP-lower", "ETP-higher"]
+
+qc:
+  min_metadata_to_counts_match_rate: 1.0
+  min_cells_per_mouse_subbin: 5
+  min_library_size_per_mouse_subbin: 5000
+  min_detected_genes_per_mouse_subbin: 250
+  min_mice_per_ploidy_treatment_subbin: 2
+  min_common_support_subbins: 2
+  min_cells_per_mouse_region: 10
+  gene_filter_cpm: 1
+  gene_filter_min_observations: 4
+  min_program_genes_observed: 2
+  voom_quality_weight_min: 0
+  voom_quality_weight_note: "Recorded for diagnostics; not used as a hard exclusion in the first frozen implementation."
+
+primary_interval:
+  id: "primary_matched_state"
+  label: "Primary matched accumulated state"
+  start: 0.30
+  end: 0.49
+  include_start: true
+  include_end: true
+
+primary_subbins:
+  - id: "pt030_035"
+    label: "[0.30,0.35)"
+    start: 0.30
+    end: 0.35
+    include_start: true
+    include_end: false
+  - id: "pt035_040"
+    label: "[0.35,0.40)"
+    start: 0.35
+    end: 0.40
+    include_start: true
+    include_end: false
+  - id: "pt040_045"
+    label: "[0.40,0.45)"
+    start: 0.40
+    end: 0.45
+    include_start: true
+    include_end: false
+  - id: "pt045_049"
+    label: "[0.45,0.49]"
+    start: 0.45
+    end: 0.49
+    include_start: true
+    include_end: true
+
+fallback_subbins:
+  - id: "pt030_0395"
+    label: "[0.30,0.395)"
+    start: 0.30
+    end: 0.395
+    include_start: true
+    include_end: false
+  - id: "pt0395_049"
+    label: "[0.395,0.49]"
+    start: 0.395
+    end: 0.49
+    include_start: true
+    include_end: true
+
+regions:
+  left_state:
+    label: "Left state"
+    start: 0.11
+    end: 0.30
+    include_start: true
+    include_end: false
+  primary_matched_state:
+    label: "Primary matched state"
+    start: 0.30
+    end: 0.49
+    include_start: true
+    include_end: true
+  right_state:
+    label: "Right state"
+    start: 0.49
+    end: 0.68
+    include_start: false
+    include_end: true
+  broad_accumulated_state:
+    label: "Broad accumulated state"
+    start: 0.30
+    end: 0.61
+    include_start: true
+    include_end: true
+  late_state:
+    label: "Late exploratory state"
+    start: 0.80
+    end: 0.98
+    include_start: true
+    include_end: true
+
+program_scoring:
+  default_mode: "signed_weighted_mean"
+  normalization: "TMM_logCPM_prior_count_1"
+  gene_standardization: "gene_wise_zscore_across_retained_mouse_subbins"
+  weight_denominator: "sum_abs_observed_gene_weights"
+  default_gene_weight: 1
+  direction_source: "expected_direction_fixed_in_config"
+  direction_signs:
+    contextual: 1
+    replication_execution: -1
+    stress_response: 1
+    fate_response: 1
+    negative_control: 1
+  direction_labels:
+    contextual: "higher contextual expression"
+    replication_execution: "lower replication-execution expression"
+    stress_response: "higher stress-response expression"
+    fate_response: "higher fate-response expression"
+    negative_control: "higher negative-control expression"
+  score_methods:
+    - id: "signed_weighted_mean_zscore"
+      label: "Primary signed weighted mean z-score"
+      role: "primary"
+      mode: "signed_weighted_mean_zscore"
+      description: "Mean of pre-specified signed gene-wise z-scores; md-defined primary score."
+    - id: "signed_pca_eigengene"
+      label: "Signed PCA eigengene"
+      role: "score_definition_sensitivity"
+      mode: "signed_pca_eigengene"
+      min_genes: 2
+      orient_to: "signed_weighted_mean_zscore"
+      standardize_scores: true
+      description: "PC1 of sign-oriented gene z-scores, oriented to correlate positively with the primary signed mean score."
+    - id: "signed_rank_mean"
+      label: "Signed rank-mean score"
+      role: "score_definition_sensitivity"
+      mode: "signed_rank_mean"
+      rank_background: "retained_gene_logcpm"
+      rank_transform: "centered_percentile"
+      description: "Signed weighted mean of within-observation retained-gene centered percentile ranks."
+    - id: "trimmed_signed_mean_zscore"
+      label: "Robust trimmed signed mean z-score"
+      role: "score_definition_sensitivity"
+      mode: "trimmed_signed_mean_zscore"
+      trim_fraction: 0.10
+      min_genes_for_trimming: 10
+      fallback_method: "signed_weighted_mean_zscore"
+      description: "Signed weighted mean after trimming the lowest and highest 10% signed gene-z contributions; small programs fall back to primary score."
+    - id: "within_subbin_residual_zscore"
+      label: "Within-subbin residual standardized z-score"
+      role: "targeted_v2_score"
+      mode: "within_subbin_residual_zscore"
+      residual_model: "subbin_only_no_treatment_no_ploidy_no_etp"
+      gene_scale: "robust_empirical_bayes_posterior_residual_sd"
+      weight_denominator: "sum_abs_observed_gene_weights"
+      program_observation_weight: "robust_program_gene_voom_weight_mean_standardized_to_mean_1"
+      description: "V2 targeted score centered within pseudotime subbin and scaled without treatment, initial ploidy, endpoint ploidy, TGI, or interaction information."
+
+v2_methods:
+  existing_score_phase: ["signed_weighted_mean_zscore", "signed_pca_eigengene", "signed_rank_mean", "trimmed_signed_mean_zscore"]
+  targeted_score_phase: ["within_subbin_residual_zscore"]
+  self_contained:
+    fry_directional_mean: true
+    mroast_directional_mean: true
+    mroast_msq: true
+    mroast_rotations_observed: 9999
+    mroast_seed: 41041
+  competitive_camera:
+    use_ranks: [false, true]
+    rho_values: [0.01, 0.03, 0.05, 0.10]
+  ranked_gsea:
+    exploratory_only: true
+  fdr_families: ["all_universe", "focused_tier1_tier2", "tier3", "controls"]
+
+simulation:
+  seed: 91157
+  null_replicates: 1000
+  power_replicates: 300
+  mroast_validation_replicates: 120
+  alpha: 0.05
+  fdr_alpha: 0.10
+  program_sizes: ["small", "medium", "large"]
+  active_gene_fractions: [0.10, 0.25, 0.50, 1.00]
+  direction_patterns: ["coherent", "mixed", "externally_signed"]
+  standardized_effect_sizes: [0.00, 0.20, 0.35, 0.50, 0.80]
+  overlap_modes: ["observed", "low_overlap", "high_overlap"]
+  inter_gene_correlation_modes: ["observed", "low", "moderate", "high"]
+  judgment_thresholds:
+    calibrated_type1_upper: 0.075
+    calibrated_fdr_upper: 0.15
+    useful_power_minimum: 0.50
+    direction_accuracy_minimum: 0.70
+
+coordinates:
+  original:
+    id: "original_pseudotime"
+    role: "primary"
+  sensitivity:
+    - id: "untreated_learned_coordinate"
+      role: "independent_coordinate"
+      learner: "control_only_expression_pca_projection"
+      root_orientation: "orient_to_original_control_pseudotime"
+    - id: "target_genes_excluded_coordinate"
+      role: "target_excluded_coordinate"
+      learner: "expression_pca_projection_after_excluding_tested_program_genes"
+      root_orientation: "orient_to_original_pseudotime"
+
+signature_projection:
+  external_invitro_projection:
+    search_roots:
+      - "Data"
+      - "Code"
+      - "Figs"
+      - "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels"
+    search_patterns: ["invitro", "in-vitro", "gemcitabine", "response", "treated", "control"]
+    weight_cap_abs: 3.0
+    status_if_no_unique_source: "unrecoverable_external_metadata"
+  cross_fitted_04i_state_projection:
+    source_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways"
+    source_gene_contrast: "binning/primary_initial_ploidy/03_gene_models/gene_primary_adjacent_state_contrast.csv"
+    role: "exploratory_bridge"
+    held_out_unit: "sample_id"
+    winsor_quantiles: [0.01, 0.99]
+
+programs:
+  - id: "gemcitabine_handling_custom"
+    label: "Gemcitabine uptake activation inactivation"
+    family: "gemcitabine_handling"
+    response_family: "gemcitabine_handling"
+    response_family_label: "Gemcitabine handling"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "contextual"
+    source: "custom"
+    genes: ["SLC29A1", "SLC28A1", "SLC28A3", "DCK", "CMPK1", "NME1", "NME2", "CDA", "DCTD", "NT5C1A", "NT5C2", "NT5C3A", "NT5C3B"]
+    scoring:
+      mode: "signed_weighted_mean"
+      direction_source: "custom_pre_specified_components"
+      component_policy: "combine_signed_components"
+      components:
+        - id: "uptake_activation"
+          label: "Uptake and activation"
+          sign: 1
+          weight: 1
+          genes: ["SLC29A1", "SLC28A1", "SLC28A3", "DCK", "CMPK1", "NME1", "NME2"]
+        - id: "inactivation_clearance"
+          label: "Inactivation and dephosphorylation"
+          sign: -1
+          weight: 1
+          genes: ["CDA", "DCTD", "NT5C1A", "NT5C2", "NT5C3A", "NT5C3B"]
+  - id: "de_novo_pyrimidine"
+    label: "De novo pyrimidine synthesis"
+    family: "nucleotide_supply"
+    response_family: "nucleotide_supply_buffering"
+    response_family_label: "Nucleotide supply and buffering"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["GOBP_DE_NOVO_PYRIMIDINE_NUCLEOBASE_BIOSYNTHETIC_PROCESS"]
+  - id: "purine_biosynthesis"
+    label: "Purine nucleotide biosynthesis"
+    family: "nucleotide_supply"
+    response_family: "nucleotide_supply_buffering"
+    response_family_label: "Nucleotide supply and buffering"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["GOBP_PURINE_NUCLEOTIDE_BIOSYNTHETIC_PROCESS"]
+  - id: "deoxyribonucleotide_biosynthesis"
+    label: "Deoxyribonucleotide biosynthesis"
+    family: "nucleotide_supply"
+    response_family: "nucleotide_supply_buffering"
+    response_family_label: "Nucleotide supply and buffering"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["GOBP_DEOXYRIBONUCLEOTIDE_BIOSYNTHETIC_PROCESS"]
+  - id: "ribonucleotide_reductase_custom"
+    label: "Ribonucleotide reductase"
+    family: "nucleotide_supply"
+    response_family: "nucleotide_supply_buffering"
+    response_family_label: "Nucleotide supply and buffering"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "contextual"
+    source: "custom"
+    genes: ["RRM1", "RRM2", "RRM2B"]
+  - id: "nucleoside_salvage_transport"
+    label: "Nucleoside salvage and transport"
+    family: "nucleotide_supply"
+    response_family: "nucleotide_supply_buffering"
+    response_family_label: "Nucleotide supply and buffering"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["GOBP_NUCLEOSIDE_SALVAGE", "GOBP_NUCLEOSIDE_TRANSPORT", "GOBP_NUCLEOSIDE_TRANSMEMBRANE_TRANSPORT"]
+  - id: "pentose_phosphate"
+    label: "Pentose phosphate shunt"
+    family: "nucleotide_supply"
+    response_family: "nucleotide_supply_buffering"
+    response_family_label: "Nucleotide supply and buffering"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["GOBP_PENTOSE_PHOSPHATE_SHUNT"]
+  - id: "dna_replication"
+    label: "DNA replication"
+    family: "replication_execution"
+    response_family: "replication_execution"
+    response_family_label: "Replication execution"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "replication_execution"
+    source: "msigdbr"
+    set_names: ["REACTOME_DNA_REPLICATION", "GOBP_DNA_REPLICATION"]
+  - id: "e2f_targets"
+    label: "E2F targets"
+    family: "replication_execution"
+    response_family: "replication_execution"
+    response_family_label: "Replication execution"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "replication_execution"
+    source: "msigdbr"
+    set_names: ["HALLMARK_E2F_TARGETS"]
+  - id: "s_phase_dna_synthesis"
+    label: "S phase DNA synthesis"
+    family: "replication_execution"
+    response_family: "replication_execution"
+    response_family_label: "Replication execution"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "replication_execution"
+    source: "msigdbr"
+    set_names: ["GOBP_DNA_REPLICATION_INITIATION", "GOBP_DNA_STRAND_ELONGATION_INVOLVED_IN_DNA_REPLICATION"]
+  - id: "atr_replication_stress"
+    label: "ATR activation in response to replication stress"
+    family: "checkpoint_replication_stress"
+    response_family: "replication_stress_checkpoint"
+    response_family_label: "Replication-stress checkpoint"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "stress_response"
+    source: "msigdbr"
+    set_names: ["REACTOME_ACTIVATION_OF_ATR_IN_RESPONSE_TO_REPLICATION_STRESS"]
+  - id: "dna_replication_checkpoint"
+    label: "DNA replication checkpoint signaling"
+    family: "checkpoint_replication_stress"
+    response_family: "replication_stress_checkpoint"
+    response_family_label: "Replication-stress checkpoint"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "stress_response"
+    source: "msigdbr"
+    set_names: ["GOBP_DNA_REPLICATION_CHECKPOINT_SIGNALING"]
+  - id: "dna_damage_checkpoints"
+    label: "DNA damage checkpoints"
+    family: "checkpoint_replication_stress"
+    response_family: "replication_stress_checkpoint"
+    response_family_label: "Replication-stress checkpoint"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "stress_response"
+    source: "msigdbr"
+    set_names: ["REACTOME_G1_S_DNA_DAMAGE_CHECKPOINTS", "REACTOME_G2_M_DNA_DAMAGE_CHECKPOINT"]
+  - id: "fanconi_anemia"
+    label: "Fanconi anemia pathway"
+    family: "fork_repair"
+    response_family: "fork_repair"
+    response_family_label: "Fork repair"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "stress_response"
+    source: "msigdbr"
+    set_names: ["REACTOME_FANCONI_ANEMIA_PATHWAY"]
+  - id: "homology_directed_repair"
+    label: "Homology directed repair"
+    family: "fork_repair"
+    response_family: "fork_repair"
+    response_family_label: "Fork repair"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "stress_response"
+    source: "msigdbr"
+    set_names: ["REACTOME_HOMOLOGY_DIRECTED_REPAIR", "GOBP_HOMOLOGOUS_RECOMBINATION"]
+  - id: "p53_response"
+    label: "p53 response"
+    family: "downstream_fate"
+    response_family: "downstream_fate"
+    response_family_label: "Downstream fate"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "stress_response"
+    source: "msigdbr"
+    set_names: ["HALLMARK_P53_PATHWAY"]
+  - id: "apoptosis"
+    label: "Apoptosis"
+    family: "downstream_fate"
+    response_family: "downstream_fate"
+    response_family_label: "Downstream fate"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "fate_response"
+    source: "msigdbr"
+    set_names: ["HALLMARK_APOPTOSIS"]
+  - id: "senescence"
+    label: "Cellular senescence"
+    family: "downstream_fate"
+    response_family: "downstream_fate"
+    response_family_label: "Downstream fate"
+    tier: "tier1_core"
+    tier_label: "Tier 1 original core"
+    upgrade_status: "original_core"
+    expected_direction: "fate_response"
+    source: "msigdbr"
+    set_names: ["GOBP_CELLULAR_SENESCENCE"]
+  - id: "g2m_checkpoint"
+    label: "G2M checkpoint"
+    family: "cell_cycle_checkpoint"
+    response_family: "g2m_cell_cycle_checkpoint"
+    response_family_label: "G2M and cell-cycle checkpoint"
+    tier: "tier2_upgraded_focused"
+    tier_label: "Tier 2 upgraded focused"
+    upgrade_status: "upgraded_from_exploratory_gsea"
+    expected_direction: "stress_response"
+    source: "msigdbr"
+    set_names: ["HALLMARK_G2M_CHECKPOINT", "REACTOME_G2_M_CHECKPOINTS"]
+  - id: "cell_cycle_checkpoints"
+    label: "Cell-cycle checkpoints"
+    family: "cell_cycle_checkpoint"
+    response_family: "g2m_cell_cycle_checkpoint"
+    response_family_label: "G2M and cell-cycle checkpoint"
+    tier: "tier2_upgraded_focused"
+    tier_label: "Tier 2 upgraded focused"
+    upgrade_status: "upgraded_from_exploratory_gsea"
+    expected_direction: "stress_response"
+    source: "msigdbr"
+    set_names: ["REACTOME_CELL_CYCLE_CHECKPOINTS"]
+  - id: "reactome_s_phase"
+    label: "Reactome S phase"
+    family: "cell_cycle_checkpoint"
+    response_family: "g2m_cell_cycle_checkpoint"
+    response_family_label: "G2M and cell-cycle checkpoint"
+    tier: "tier2_upgraded_focused"
+    tier_label: "Tier 2 upgraded focused"
+    upgrade_status: "upgraded_from_exploratory_gsea"
+    expected_direction: "replication_execution"
+    source: "msigdbr"
+    set_names: ["REACTOME_S_PHASE"]
+  - id: "dna_repair_broad"
+    label: "Broad DNA repair"
+    family: "dna_repair_recombination"
+    response_family: "dna_repair_recombination"
+    response_family_label: "DNA repair and recombination"
+    tier: "tier2_upgraded_focused"
+    tier_label: "Tier 2 upgraded focused"
+    upgrade_status: "upgraded_from_exploratory_gsea"
+    expected_direction: "stress_response"
+    source: "msigdbr"
+    set_names: ["HALLMARK_DNA_REPAIR", "REACTOME_DNA_REPAIR"]
+  - id: "nucleotide_excision_repair"
+    label: "Nucleotide excision repair"
+    family: "dna_repair_recombination"
+    response_family: "dna_repair_recombination"
+    response_family_label: "DNA repair and recombination"
+    tier: "tier2_upgraded_focused"
+    tier_label: "Tier 2 upgraded focused"
+    upgrade_status: "upgraded_from_exploratory_gsea"
+    expected_direction: "stress_response"
+    source: "msigdbr"
+    set_names: ["REACTOME_NUCLEOTIDE_EXCISION_REPAIR", "GOBP_NUCLEOTIDE_EXCISION_REPAIR"]
+  - id: "double_strand_break_repair"
+    label: "Double-strand break repair"
+    family: "dna_repair_recombination"
+    response_family: "dna_repair_recombination"
+    response_family_label: "DNA repair and recombination"
+    tier: "tier2_upgraded_focused"
+    tier_label: "Tier 2 upgraded focused"
+    upgrade_status: "upgraded_from_exploratory_gsea"
+    expected_direction: "stress_response"
+    source: "msigdbr"
+    set_names: ["GOBP_DOUBLE_STRAND_BREAK_REPAIR"]
+  - id: "dna_recombination_broad"
+    label: "DNA recombination"
+    family: "dna_repair_recombination"
+    response_family: "dna_repair_recombination"
+    response_family_label: "DNA repair and recombination"
+    tier: "tier2_upgraded_focused"
+    tier_label: "Tier 2 upgraded focused"
+    upgrade_status: "upgraded_from_exploratory_gsea"
+    expected_direction: "stress_response"
+    source: "msigdbr"
+    set_names: ["GOBP_DNA_RECOMBINATION"]
+  - id: "tp53_transcriptional_regulation"
+    label: "TP53 transcriptional regulation"
+    family: "tp53_programmed_cell_death"
+    response_family: "tp53_programmed_cell_death"
+    response_family_label: "TP53 and programmed cell death"
+    tier: "tier2_upgraded_focused"
+    tier_label: "Tier 2 upgraded focused"
+    upgrade_status: "upgraded_from_exploratory_gsea"
+    expected_direction: "stress_response"
+    source: "msigdbr"
+    set_names: ["REACTOME_TRANSCRIPTIONAL_REGULATION_BY_TP53"]
+  - id: "programmed_cell_death"
+    label: "Programmed cell death"
+    family: "tp53_programmed_cell_death"
+    response_family: "tp53_programmed_cell_death"
+    response_family_label: "TP53 and programmed cell death"
+    tier: "tier2_upgraded_focused"
+    tier_label: "Tier 2 upgraded focused"
+    upgrade_status: "upgraded_from_exploratory_gsea"
+    expected_direction: "fate_response"
+    source: "msigdbr"
+    set_names: ["REACTOME_PROGRAMMED_CELL_DEATH", "GOBP_REGULATION_OF_PROGRAMMED_CELL_DEATH"]
+  - id: "one_carbon_metabolism"
+    label: "One-carbon metabolism"
+    family: "nucleotide_metabolism"
+    response_family: "one_carbon_nucleotide_metabolism"
+    response_family_label: "One-carbon and nucleotide metabolism"
+    tier: "tier2_upgraded_focused"
+    tier_label: "Tier 2 upgraded focused"
+    upgrade_status: "upgraded_from_exploratory_gsea"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["GOBP_ONE_CARBON_METABOLIC_PROCESS"]
+  - id: "nucleoside_phosphate_biosynthesis"
+    label: "Nucleoside phosphate biosynthesis"
+    family: "nucleotide_metabolism"
+    response_family: "one_carbon_nucleotide_metabolism"
+    response_family_label: "One-carbon and nucleotide metabolism"
+    tier: "tier2_upgraded_focused"
+    tier_label: "Tier 2 upgraded focused"
+    upgrade_status: "upgraded_from_exploratory_gsea"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["GOBP_NUCLEOSIDE_PHOSPHATE_BIOSYNTHETIC_PROCESS"]
+  - id: "mitotic_checkpoint_chromosome_segregation"
+    label: "Mitotic checkpoint and chromosome segregation"
+    family: "mitotic_progression"
+    response_family: "mitotic_progression"
+    response_family_label: "Mitotic progression"
+    tier: "tier2_upgraded_focused"
+    tier_label: "Tier 2 upgraded focused"
+    upgrade_status: "expanded_and_reclassified"
+    expected_direction: "fate_response"
+    source: "msigdbr"
+    set_names: ["HALLMARK_G2M_CHECKPOINT", "GOBP_CHROMOSOME_SEGREGATION"]
+  - id: "tier3_translation_ribosome_myc"
+    label: "Translation ribosome and MYC"
+    family: "translation_rna_myc"
+    response_family: "translation_rna_myc"
+    response_family_label: "Translation, ribosome, RNA processing, and MYC"
+    tier: "tier3_exploratory_only"
+    tier_label: "Tier 3 exploratory-only"
+    upgrade_status: "exploratory_only"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["HALLMARK_MYC_TARGETS_V1", "HALLMARK_MYC_TARGETS_V2", "REACTOME_TRANSLATION", "GOBP_RIBOSOME_BIOGENESIS"]
+  - id: "tier3_rna_processing_splicing"
+    label: "RNA processing and splicing"
+    family: "translation_rna_myc"
+    response_family: "translation_rna_myc"
+    response_family_label: "Translation, ribosome, RNA processing, and MYC"
+    tier: "tier3_exploratory_only"
+    tier_label: "Tier 3 exploratory-only"
+    upgrade_status: "exploratory_only"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["GOBP_MRNA_PROCESSING", "GOBP_RNA_SPLICING", "GOBP_MRNA_METABOLIC_PROCESS"]
+  - id: "tier3_interferon_inflammation"
+    label: "Interferon and inflammatory response"
+    family: "immune_interferon_antigen_cytotoxicity"
+    response_family: "immune_interferon_antigen_cytotoxicity"
+    response_family_label: "Immune, interferon, antigen presentation, and cytotoxicity"
+    tier: "tier3_exploratory_only"
+    tier_label: "Tier 3 exploratory-only"
+    upgrade_status: "exploratory_only"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["HALLMARK_INTERFERON_ALPHA_RESPONSE", "HALLMARK_INTERFERON_GAMMA_RESPONSE", "HALLMARK_INFLAMMATORY_RESPONSE", "REACTOME_INTERFERON_SIGNALING"]
+  - id: "tier3_antigen_cytotoxicity"
+    label: "Antigen presentation and cytotoxicity"
+    family: "immune_interferon_antigen_cytotoxicity"
+    response_family: "immune_interferon_antigen_cytotoxicity"
+    response_family_label: "Immune, interferon, antigen presentation, and cytotoxicity"
+    tier: "tier3_exploratory_only"
+    tier_label: "Tier 3 exploratory-only"
+    upgrade_status: "exploratory_only"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["REACTOME_ANTIGEN_PROCESSING_CROSS_PRESENTATION", "REACTOME_CLASS_I_MHC_MEDIATED_ANTIGEN_PROCESSING_PRESENTATION", "GOBP_ANTIGEN_PROCESSING_AND_PRESENTATION", "GOBP_T_CELL_MEDIATED_CYTOTOXICITY", "GOBP_LEUKOCYTE_MEDIATED_CYTOTOXICITY"]
+  - id: "tier3_immune_effector_t_cell"
+    label: "Immune effector and T-cell activation"
+    family: "immune_interferon_antigen_cytotoxicity"
+    response_family: "immune_interferon_antigen_cytotoxicity"
+    response_family_label: "Immune, interferon, antigen presentation, and cytotoxicity"
+    tier: "tier3_exploratory_only"
+    tier_label: "Tier 3 exploratory-only"
+    upgrade_status: "exploratory_only"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["GOBP_IMMUNE_EFFECTOR_PROCESS", "GOBP_T_CELL_ACTIVATION"]
+  - id: "tier3_adhesion_junction"
+    label: "Cell adhesion and junction organization"
+    family: "adhesion_cell_state_organization"
+    response_family: "adhesion_cell_state_organization"
+    response_family_label: "Adhesion and cell-state organization"
+    tier: "tier3_exploratory_only"
+    tier_label: "Tier 3 exploratory-only"
+    upgrade_status: "exploratory_only"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["GOBP_CELL_CELL_ADHESION", "GOBP_CELL_CELL_ADHESION_VIA_PLASMA_MEMBRANE_ADHESION_MOLECULES", "GOBP_CELL_CELL_JUNCTION_ORGANIZATION"]
+  - id: "tier3_ecm_matrix"
+    label: "Extracellular matrix and cell-matrix adhesion"
+    family: "adhesion_cell_state_organization"
+    response_family: "adhesion_cell_state_organization"
+    response_family_label: "Adhesion and cell-state organization"
+    tier: "tier3_exploratory_only"
+    tier_label: "Tier 3 exploratory-only"
+    upgrade_status: "exploratory_only"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["REACTOME_EXTRACELLULAR_MATRIX_ORGANIZATION", "GOBP_CELL_MATRIX_ADHESION"]
+  - id: "tier3_synapse_sensory_state"
+    label: "Synapse sensory and cell-state organization"
+    family: "adhesion_cell_state_organization"
+    response_family: "adhesion_cell_state_organization"
+    response_family_label: "Adhesion and cell-state organization"
+    tier: "tier3_exploratory_only"
+    tier_label: "Tier 3 exploratory-only"
+    upgrade_status: "exploratory_only"
+    expected_direction: "contextual"
+    source: "msigdbr"
+    set_names: ["GOBP_SYNAPSE_ORGANIZATION", "REACTOME_TRANSMISSION_ACROSS_CHEMICAL_SYNAPSES", "REACTOME_SENSORY_PERCEPTION"]
+  - id: "negative_control_oxidative_phosphorylation"
+    label: "Negative-control oxidative phosphorylation"
+    family: "negative_control"
+    response_family: "negative_control"
+    response_family_label: "Negative control"
+    tier: "negative_control"
+    tier_label: "Negative control"
+    upgrade_status: "negative_control"
+    expected_direction: "negative_control"
+    source: "msigdbr"
+    set_names: ["HALLMARK_OXIDATIVE_PHOSPHORYLATION"]
+  - id: "negative_control_adipogenesis"
+    label: "Negative-control adipogenesis"
+    family: "negative_control"
+    response_family: "negative_control"
+    response_family_label: "Negative control"
+    tier: "negative_control"
+    tier_label: "Negative control"
+    upgrade_status: "negative_control"
+    expected_direction: "negative_control"
+    source: "msigdbr"
+    set_names: ["HALLMARK_ADIPOGENESIS"]
+
+exploratory_response_axes:
+  - id: "translation_ribosome_rna_myc"
+    label: "Translation, ribosome, RNA processing, and MYC"
+    tier: "tier3_exploratory_only"
+    tier_label: "Tier 3 exploratory-only"
+    pathway_patterns: ["TRANSLATION", "RIBOSOM", "RRNA", "MRNA", "RNA_PROCESS", "MYC"]
+  - id: "immune_interferon_antigen_cytotoxicity"
+    label: "Immune, interferon, antigen presentation, and cytotoxicity"
+    tier: "tier3_exploratory_only"
+    tier_label: "Tier 3 exploratory-only"
+    pathway_patterns: ["INTERFERON", "ANTIGEN", "T_CELL", "CYTOTOX", "IMMUNE"]
+  - id: "adhesion_cell_state_organization"
+    label: "Adhesion and cell-state organization"
+    tier: "tier3_exploratory_only"
+    tier_label: "Tier 3 exploratory-only"
+    pathway_patterns: ["ADHESION", "EXTRACELLULAR", "CELL_CELL", "SYNAP", "SENSORY"]
+
+figures:
+  width: 8
+  height: 6
+  dpi: 160

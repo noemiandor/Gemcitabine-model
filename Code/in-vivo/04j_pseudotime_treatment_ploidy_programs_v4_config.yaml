@@ -1,0 +1,312 @@
+analysis:
+  name: "04j_pseudotime_treatment_ploidy_programs_v4"
+  version: "04j_v4_2026_07_16"
+  schema_version: "v4_schema_1"
+  method_version: "v4_methods_frozen_2026_07_16"
+  frozen_date: "2026-07-16"
+  post_hoc_status: "post-hoc methodological repair"
+  base_v3_config: "/Users/4482173/Documents/GitHub/Gemcitabine-model/Code/in-vivo/04j_pseudotime_treatment_ploidy_programs_v3_config.yaml"
+  plan_path: "/Users/4482173/Documents/GitHub/Gemcitabine-model/Data/in-vivo/Plan/pseudotime_treatment_by_ploidy_matched_state_plan.md"
+  v3_manifest_path: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v3/manifest/input_manifest.csv"
+  v1_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs"
+  v2_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v2"
+  v3_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v3"
+  v4_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v4"
+  primary_estimand: "(Gem-Control)_4N-origin - (Gem-Control)_2N-origin"
+  primary_ploidy_variable: "initial_ploidy"
+  external_signature_status: "disabled_by_user_no_external_cohort"
+  network_policy: "disabled"
+  species_policy: "input_already_filtered_no_species_filter_or_split"
+  guardrail: "No method, gene, membership, window, weight, coordinate, threshold, FDR family, or simulation scenario is selected from V4 P values, directions, leading edges, or intermediate results."
+
+reproducibility:
+  master_seed: 74157
+  permutation_seed: 74159
+  simulation_seed: 74161
+  crossfit_seed: 74163
+  coordinate_seed: 74167
+  dose_seed: 74171
+  rotation_seed: 74173
+  active_gene_seed: 74179
+  blas_threads: 1
+  max_process_workers: 8
+  finite_sample_p_formula: "(1 + number of null statistics at least as extreme as observed) / (1 + number of assignments)"
+
+checkpoint:
+  schema_version: "v4_checkpoint_1"
+  require_config_checksum: true
+  require_method_version: true
+  require_input_checksum: true
+
+mouse_standardization:
+  nuisance_model: "subbin_only_treatment_blind_mean"
+  base_subbin_weight: "equal_over_primary_common_support_subbins"
+  missing_subbin_rule: "renormalize_available_frozen_base_weights_to_sum_one"
+  missingness_inputs: ["retained_for_model", "minimum_cell_rule", "eligible_subbin"]
+  biological_unit: "mouse"
+  expected_mice: 16
+  hdf5_gene_chunk_size: 256
+  hdf5_assignment_chunk_size: 490
+  hdf5_compression_level: 4
+
+exact_permutation:
+  treated_per_ploidy: 4
+  expected_unique_assignments: 4900
+  include_observed_assignment: true
+  studentization: "four_group_welch_difference_in_differences"
+  freedman_lane_reduced_terms: ["initial_ploidy", "common_treatment"]
+
+adaptive_gene_set:
+  membership_unit: "sha256_sorted_unique_observed_genes"
+  components:
+    - "legal_directional_signed_mean"
+    - "true_maxmean"
+    - "mean_square"
+    - "max_absolute"
+    - "aspu_gamma_1"
+    - "aspu_gamma_2"
+    - "aspu_gamma_4"
+    - "aspu_gamma_8"
+    - "aspu_gamma_infinity"
+    - "higher_criticism"
+    - "shrinkage_covariance_quadratic"
+  aspu_gamma: [1, 2, 4, 8, "infinity"]
+  covariance_ridge_lambda: 0.20
+  nested_minp: true
+  westfall_young_maxT: true
+  focused_fdr: 0.10
+  within_family_wy_threshold: 0.10
+  small_set_max_genes: 50
+  medium_set_max_genes: 250
+  influence_top_n: 25
+  ppp4r2_hdr_audit: true
+
+response_family:
+  focused_tiers: ["tier1_core", "tier2_upgraded_focused"]
+  focused_expected_families: 11
+  tier3_expected_families: 3
+  control_expected_families: 1
+  family_components: ["deduplicated_gene_union", "member_membership_minP"]
+  family_omnibus: "nested_permutation_minP"
+  transparent_all_family_fdr: true
+  transparent_all_membership_fdr: true
+
+score_models:
+  methods:
+    - "signed_weighted_mean_zscore"
+    - "signed_pca_eigengene"
+    - "signed_rank_mean"
+    - "trimmed_signed_mean_zscore"
+    - "within_subbin_residual_zscore"
+  confidence_level: 0.95
+  mde_alpha: 0.05
+  mde_power: 0.80
+
+self_contained:
+  primary_mroast_rotations: 9999
+  coordinate_mroast_rotations: 999
+  block: "sample_id"
+  correlation: "second_pass_duplicateCorrelation"
+  broad_mixed_p_column: "PValue.Mixed"
+  msq_p_column: "PValue.Mixed"
+  directional_p_eligibility: "mechanistic_directional_signature_only"
+
+camera:
+  use_ranks: [false, true]
+  rho_grid: [0.01, 0.03, 0.05, 0.10]
+  add_residual_empirical_correlation: true
+  negative_control_fail_rule: "any_control_FDR_below_0.10_or_more_than_one_control_nominal_below_0.05"
+  fail_status: "diagnostic_only"
+
+control_reference:
+  reference_groups: ["subbin_id", "initial_ploidy"]
+  treated_reference: "all_assignment_controls"
+  control_reference: "leave_one_control_mouse_out"
+  sd_shrinkage_prior_weight: 4
+  recompute_inside_every_assignment: true
+  allow_self_inclusion: false
+
+covariance_whitened:
+  legal_directional_only: true
+  ridge_lambda: 0.20
+  condition_number_fallback: 1000000
+  max_genes: 100
+  dominant_gene_count: 20
+
+multidimensional:
+  basis_training: "all_16_mice_treatment_label_independent"
+  center_with_treatment_blind_mean: true
+  variance_explained_target: 0.80
+  max_pcs: 3
+  basis_reused_in_permutation: true
+
+simulation:
+  null_replicates: 1000
+  power_replicates: 300
+  alpha: 0.05
+  q: 0.10
+  representative_program_count: 9
+  reduced_model_terms: ["subbin", "initial_ploidy", "common_treatment"]
+  null_interaction_term: "excluded"
+  residual_resampling: "whole_mouse_wild_sign_flip"
+  active_gene_selection: "frozen_seed_random_without_replacement"
+  type1_reference_interval: [0.035, 0.065]
+  coverage_reference_interval: [0.925, 0.975]
+  global_null_fdr_upper: 0.12
+  scenarios:
+    - id: "global_null"
+      program_size: "mixed"
+      active_gene_fraction: 0.00
+      direction_pattern: "null"
+      standardized_effect_size: 0.00
+      replicates: 1000
+    - id: "small_sparse_035"
+      program_size: "small"
+      active_gene_fraction: 0.25
+      direction_pattern: "sparse"
+      standardized_effect_size: 0.35
+      replicates: 300
+    - id: "small_coherent_065"
+      program_size: "small"
+      active_gene_fraction: 1.00
+      direction_pattern: "coherent"
+      standardized_effect_size: 0.65
+      replicates: 300
+    - id: "medium_mixed_035"
+      program_size: "medium"
+      active_gene_fraction: 0.50
+      direction_pattern: "mixed"
+      standardized_effect_size: 0.35
+      replicates: 300
+    - id: "medium_coherent_065"
+      program_size: "medium"
+      active_gene_fraction: 1.00
+      direction_pattern: "coherent"
+      standardized_effect_size: 0.65
+      replicates: 300
+    - id: "large_sparse_035"
+      program_size: "large"
+      active_gene_fraction: 0.10
+      direction_pattern: "sparse"
+      standardized_effect_size: 0.35
+      replicates: 300
+    - id: "large_mixed_065"
+      program_size: "large"
+      active_gene_fraction: 0.50
+      direction_pattern: "mixed"
+      standardized_effect_size: 0.65
+      replicates: 300
+
+multiscale:
+  n_bins: 20
+  window_widths: [2, 3, 4, 5, 6]
+  support_min_mice_per_group: 2
+  eligibility_inputs: ["cell_count", "mouse_support"]
+  inference_statistic: "maximum_absolute_studentized_interaction_across_windows"
+  best_window_role: "localization_only"
+  highlighted_axes:
+    - "nucleoside_salvage"
+    - "ribonucleotide_reductase"
+    - "purine_pyrimidine_biosynthesis"
+    - "dna_repair_replication_stress"
+    - "interferon_rna_processing"
+
+trajectory_global:
+  initial_bins: 20
+  support_min_mice_per_group: 2
+  merge_rule: "deterministic_support_only_adjacent_merge_maximize_minimum_group_support_tie_left"
+  spline_df_candidates: [2, 3]
+  df_selection: "inside_each_permutation"
+  simultaneous_band: "permutation_maxT"
+  integration_interval: [0.30, 0.49]
+  unsupported_region: "blank"
+
+marginal_total_effect:
+  cell_scope: "same_filtered_target_cells_all_pseudotime"
+  aggregation: "raw_counts_sum_per_mouse"
+  normalization: "TMM_logCPM"
+  model: "expression ~ initial_ploidy * treatment"
+  separate_fdr_family: true
+  occupancy_model: "region_fraction ~ initial_ploidy * treatment"
+  causal_mediation_language: false
+
+dose:
+  group_counts_per_ploidy: {control: 4, dose30: 2, dose120: 2}
+  expected_assignments: 176400
+  enumerate_complete_space: true
+  candidates:
+    - "pooled_any_dose_interaction"
+    - "linear_dose_trend_interaction"
+    - "dose30_vs_control_interaction"
+    - "dose120_vs_control_interaction"
+    - "dose120_vs_30_nonlinear_interaction"
+    - "joint_dose_by_ploidy_statistic"
+  selection_calibration: "nested_exact_permutation"
+  checkpoint_every_memberships: 5
+
+coordinates:
+  original_coordinate:
+    training: "supplied_frozen_pseudotime"
+    root_cluster: "6"
+  untreated_learned_coordinate:
+    method: "repository_monocle3_control_training_plus_training_PCA_knn_projection"
+    train_on: "control_target_cells_only"
+    root_cluster: "6"
+    orientation: "root_cluster_6_to_later_control_pseudotime"
+    projection_k: 15
+    pca_dimensions: 30
+    variable_genes: 1500
+  target_genes_excluded_coordinate:
+    method: "repository_monocle3"
+    train_on: "all_target_cells"
+    excluded_genes: "complete_frozen_program_universe"
+    root_cluster: "6"
+    orientation: "root_cluster_6_to_later_pseudotime"
+    pca_dimensions: 30
+    variable_genes: 1500
+  rerun_methods:
+    - "five_score_models"
+    - "adaptive_exact_gene_set"
+    - "family_hierarchical"
+    - "multiscale_scan"
+    - "trajectory_global"
+    - "fry_mroast"
+
+crossfit_04i:
+  role: "internal_cross_fitted_exploratory_bridge"
+  validation_role: "not_independent_validation_or_positive_control"
+  folds: 16
+  training_gene_universe: "original_04i_gene_universe"
+  normalization: "training_fold_only"
+  filtering: "training_fold_only"
+  centering_scaling: "training_fold_only"
+  weight_fitting: "training_fold_only"
+  heldout_in_training_parameters: false
+
+report:
+  self_contained: true
+  embed_png_base64: true
+  forbid_external_image_paths: true
+  forbid_proxy_forest: true
+  expected_sections: 21
+  figure_dpi: 160
+
+acceptance:
+  expected_program_labels: 106
+  expected_primary_assignments: 4900
+  expected_dose_assignments: 176400
+  require_v1_v2_v3_code_unchanged: true
+  require_v1_v2_v3_results_unchanged: true
+  require_input_v3_checksum_comparison: true
+  require_program_universe_matches_v3: true
+  require_alias_mapping_complete: true
+  require_no_program_id_1: true
+  require_complete_metadata: true
+  require_crossfit_no_leakage: true
+  require_pca_no_label_leakage: true
+  require_simulation_numeric_calibration: true
+  require_negative_control_calibration: true
+  require_embedded_figures: true
+  require_no_external_cohort: true
+  require_no_species_filtering: true
+  require_git_diff_check: true

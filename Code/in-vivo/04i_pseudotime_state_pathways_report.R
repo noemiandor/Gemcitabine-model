@@ -178,10 +178,10 @@ add_heading <- function(builder, level, title, card = FALSE) {
   cls <- if (card) "report-card" else "report-section"
   if (level == 1L) {
     if (isTRUE(builder$section_open)) add_html(builder, "</section>")
-    add_html(builder, "<section class=\"", cls, "\" id=\"", id, "\">")
+    add_html(builder, "<section class=\"", cls, "\" id=\"", id, "-section\">")
     builder$section_open <- TRUE
   }
-  add_html(builder, "<h", level, " id=\"", id, "-heading\"><span class=\"secno\">", number, "</span> ", html_escape(title), "</h", level, ">")
+  add_html(builder, "<h", level, " id=\"", id, "\"><span class=\"secno\">", number, "</span> ", html_escape(title), "</h", level, ">")
   invisible(id)
 }
 
@@ -544,42 +544,54 @@ write_css_js <- function(cfg) {
     ".pill{display:inline-block;padding:2px 7px;border-radius:999px;background:#e8f0f7;color:#284662;font-size:12px;font-weight:700;margin-right:4px;}.footer{font-size:12px;color:#617184;margin:28px 0 8px 0;}"
   )
   js <- paste0(
-    "document.querySelectorAll('.nav-toggle').forEach(function(btn){btn.addEventListener('click',function(){var li=btn.closest('li');var kids=li.querySelector(':scope > ul.children');if(kids){kids.classList.toggle('collapsed');btn.textContent=kids.classList.contains('collapsed')?'+':'-';}});});",
-    "var links=[].slice.call(document.querySelectorAll('.report-nav-link'));var ids=links.map(function(a){return document.getElementById(a.getAttribute('href').slice(1));}).filter(Boolean);",
-    "var obs=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.remove('active');});var a=document.querySelector('.report-nav-link[href=\"#'+e.target.id+'\"]');if(a){a.classList.add('active');var p=a.closest('ul.children');while(p){p.classList.remove('collapsed');var li=p.closest('li');if(li){var b=li.querySelector(':scope > .nav-row > .nav-toggle');if(b)b.textContent='-';}p=li?li.parentElement.closest('ul.children'):null;}}}});},{rootMargin:'-15% 0px -75% 0px',threshold:0});ids.forEach(function(id){obs.observe(id);});"
+    "document.addEventListener('DOMContentLoaded',function(){",
+    "function childList(li){for(var i=0;i<li.children.length;i++){var el=li.children[i];if(el.tagName==='UL'&&el.classList.contains('children'))return el;}return null;}",
+    "function directToggle(li){var row=li.firstElementChild;if(!row)return null;for(var i=0;i<row.children.length;i++){var el=row.children[i];if(el.classList&&el.classList.contains('nav-toggle'))return el;}return null;}",
+    "function setCollapsed(li,collapsed){var kids=childList(li);var btn=directToggle(li);if(!kids)return;if(collapsed){kids.classList.add('collapsed');if(btn)btn.textContent='+';}else{kids.classList.remove('collapsed');if(btn)btn.textContent='-';}}",
+    "function topItem(li){var cur=li,last=li;while(cur){if(cur.parentElement&&cur.parentElement.classList&&cur.parentElement.classList.contains('report-nav-list'))return cur;last=cur;cur=cur.parentElement?cur.parentElement.closest('li.report-nav-item'):null;}return last;}",
+    "function expandBranch(link){var li=link.closest('li.report-nav-item');if(!li)return;var top=topItem(li);document.querySelectorAll('.report-nav-list>li.report-nav-item').forEach(function(item){if(item!==top)setCollapsed(item,true);});var cur=li;while(cur){setCollapsed(cur,false);cur=cur.parentElement?cur.parentElement.closest('li.report-nav-item'):null;}}",
+    "function activate(link){document.querySelectorAll('.report-nav-link').forEach(function(a){a.classList.remove('active');});if(link){link.classList.add('active');expandBranch(link);}}",
+    "document.querySelectorAll('li.report-nav-item').forEach(function(li){if(childList(li))setCollapsed(li,true);});",
+    "document.querySelectorAll('.nav-toggle').forEach(function(btn){btn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();var li=btn.closest('li.report-nav-item');var kids=li?childList(li):null;if(kids)setCollapsed(li,!kids.classList.contains('collapsed'));});});",
+    "var links=[].slice.call(document.querySelectorAll('.report-nav-link'));",
+    "links.forEach(function(a){a.addEventListener('click',function(e){var id=a.getAttribute('href').slice(1);var target=document.getElementById(id);if(target){e.preventDefault();activate(a);target.scrollIntoView({behavior:'smooth',block:'start'});if(history.pushState)history.pushState(null,'','#'+id);else location.hash=id;}});});",
+    "var first=links[0];var hash=window.location.hash?window.location.hash.slice(1):'';var initial=hash?document.querySelector('.report-nav-link[href=\"#'+hash+'\"]'):first;if(initial)activate(initial);",
+    "var ids=links.map(function(a){return document.getElementById(a.getAttribute('href').slice(1));}).filter(Boolean);",
+    "if('IntersectionObserver' in window){var obs=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){var a=document.querySelector('.report-nav-link[href=\"#'+e.target.id+'\"]');if(a)activate(a);}});},{rootMargin:'-18% 0px -72% 0px',threshold:0});ids.forEach(function(id){obs.observe(id);});}",
+    "});"
   )
   list(css = css, js = js)
 }
 
 build_nav <- function(nav) {
   if (nrow(nav) == 0L) return("")
-  html <- character()
-  stack <- integer()
-  for (i in seq_len(nrow(nav))) {
-    level <- nav$level[[i]]
-    while (length(stack) > 0L && tail(stack, 1L) >= level) {
-      html <- c(html, "</li></ul>")
-      stack <- head(stack, -1L)
+  cursor <- new.env(parent = emptyenv())
+  cursor$i <- 1L
+  render_level <- function(level) {
+    cls <- if (identical(level, 1L)) "report-nav-list" else "children"
+    out <- c(paste0("<ul class=\"", cls, "\">"))
+    while (cursor$i <= nrow(nav)) {
+      current_level <- nav$level[[cursor$i]]
+      if (current_level < level) break
+      if (current_level > level) {
+        out <- c(out, render_level(current_level))
+        next
+      }
+      row <- cursor$i
+      cursor$i <- cursor$i + 1L
+      has_child <- cursor$i <= nrow(nav) && nav$level[[cursor$i]] > level
+      toggle <- if (has_child) "<button class=\"nav-toggle\" type=\"button\" aria-label=\"Toggle section\">-</button>" else "<span class=\"nav-spacer\"></span>"
+      link <- paste0(
+        "<a class=\"report-nav-link report-nav-", level, "\" href=\"#", html_escape(nav$id[[row]]), "\">",
+        html_escape(nav$number[[row]]), " ", html_escape(nav$title[[row]]), "</a>"
+      )
+      out <- c(out, paste0("<li class=\"report-nav-item report-nav-level-", level, "\"><div class=\"nav-row\">", toggle, link, "</div>"))
+      if (has_child) out <- c(out, render_level(nav$level[[cursor$i]]))
+      out <- c(out, "</li>")
     }
-    if (length(stack) == 0L) {
-      html <- c(html, "<ul class=\"report-nav-list\">")
-    } else if (tail(stack, 1L) < level) {
-      html <- c(html, "<ul class=\"children\">")
-    }
-    has_child <- i < nrow(nav) && nav$level[[i + 1L]] > level
-    toggle <- if (has_child) "<button class=\"nav-toggle\" type=\"button\">-</button>" else "<span class=\"nav-spacer\"></span>"
-    link <- paste0(
-      "<a class=\"report-nav-link report-nav-", level, "\" href=\"#", html_escape(nav$id[[i]]), "\">",
-      html_escape(nav$number[[i]]), " ", html_escape(nav$title[[i]]), "</a>"
-    )
-    html <- c(html, "<li class=\"report-nav-item\">", "<div class=\"nav-row\">", toggle, link, "</div>")
-    stack <- c(stack, level)
+    c(out, "</ul>")
   }
-  while (length(stack) > 0L) {
-    html <- c(html, "</li></ul>")
-    stack <- head(stack, -1L)
-  }
-  paste(html, collapse = "\n")
+  paste(render_level(nav$level[[1L]]), collapse = "\n")
 }
 
 add_model_section <- function(builder, cfg, model_id, specs) {
@@ -1206,6 +1218,133 @@ add_cross_workflow_section <- function(builder, cfg) {
   }
 }
 
+minimum_or_na <- function(x) {
+  x <- suppressWarnings(as.numeric(x))
+  x <- x[is.finite(x)]
+  if (length(x) == 0L) return(NA_real_)
+  min(x)
+}
+
+format_metric <- function(x, digits = 3L) {
+  if (!is.finite(x)) return("not available")
+  formatC(x, format = "f", digits = digits)
+}
+
+conclusion_workflow_metrics <- function(cfg, workflow_id) {
+  comp_root <- file.path(cfg$results_root, workflow_id, "model_comparison")
+  coverage <- safe_read_csv(file.path(cfg$results_root, workflow_id, "01_qc", "primary_coverage_check.csv"))
+  gene_cor <- safe_read_csv(file.path(comp_root, "gene_t_stat_correlations.csv"))
+  nes_cor <- safe_read_csv(file.path(comp_root, "gsea_NES_correlations.csv"))
+  overlap <- safe_read_csv(file.path(comp_root, "gsea_significant_overlap.csv"))
+  if (nrow(gene_cor) > 0L && "model_id" %in% names(gene_cor)) {
+    gene_cor <- gene_cor[gene_cor$model_id != "primary_initial_ploidy", , drop = FALSE]
+  }
+  if (nrow(nes_cor) > 0L && "model_id" %in% names(nes_cor)) {
+    nes_cor <- nes_cor[nes_cor$model_id != "primary_initial_ploidy", , drop = FALSE]
+  }
+  if (nrow(overlap) > 0L && "model_id" %in% names(overlap)) {
+    overlap <- overlap[overlap$model_id != "primary_initial_ploidy", , drop = FALSE]
+  }
+  data.frame(
+    workflow = workflow_display_name(workflow_id),
+    contributing_mice = if (nrow(coverage) > 0L && "n_contributing_mice" %in% names(coverage)) coverage$n_contributing_mice[[1L]] else NA_integer_,
+    min_gene_t_pearson_across_ETP_models = minimum_or_na(gene_cor$pearson_r),
+    min_pathway_NES_pearson_across_ETP_models = minimum_or_na(nes_cor$pearson_r),
+    min_FDR_pathway_Jaccard_across_ETP_models = minimum_or_na(overlap$jaccard),
+    stringsAsFactors = FALSE
+  )
+}
+
+conclusion_cross_metrics <- function(cfg) {
+  comp_root <- file.path(cfg$results_root, "cross_workflow_comparison")
+  gene_cor <- safe_read_csv(file.path(comp_root, "gene_t_stat_correlations_binning_vs_non_binning.csv"))
+  nes_cor <- safe_read_csv(file.path(comp_root, "gsea_NES_correlations_binning_vs_non_binning.csv"))
+  overlap <- safe_read_csv(file.path(comp_root, "gsea_significant_overlap_binning_vs_non_binning.csv"))
+  data.frame(
+    comparison = "Binning versus non-binning",
+    min_gene_t_pearson = minimum_or_na(gene_cor$pearson_r),
+    min_pathway_NES_pearson = minimum_or_na(nes_cor$pearson_r),
+    min_FDR_pathway_Jaccard = minimum_or_na(overlap$jaccard),
+    stringsAsFactors = FALSE
+  )
+}
+
+conclusion_direction_metrics <- function(cfg) {
+  binning <- safe_read_csv(file.path(cfg$results_root, "binning", "primary_initial_ploidy", "04_gsea", "all_collections_primary_adjacent_state_gsea.csv"))
+  non_binning <- safe_read_csv(file.path(cfg$results_root, "non_binning", "primary_initial_ploidy", "04_gsea", "all_collections_primary_adjacent_state_gsea.csv"))
+  needed <- c("collection_label", "pathway", "pathway_label", "NES", "padj")
+  if (!all(needed %in% names(binning)) || !all(needed %in% names(non_binning))) return(data.frame())
+  b <- binning[, needed, drop = FALSE]
+  n <- non_binning[, c("collection_label", "pathway", "NES", "padj"), drop = FALSE]
+  names(b)[names(b) == "NES"] <- "NES_binning"
+  names(b)[names(b) == "padj"] <- "padj_binning"
+  names(n)[names(n) == "NES"] <- "NES_non_binning"
+  names(n)[names(n) == "padj"] <- "padj_non_binning"
+  merged <- merge(b, n, by = c("collection_label", "pathway"), all = FALSE, sort = FALSE)
+  merged$binning_significant <- is.finite(merged$padj_binning) & merged$padj_binning < 0.05
+  merged$non_binning_significant <- is.finite(merged$padj_non_binning) & merged$padj_non_binning < 0.05
+  merged$both_significant <- merged$binning_significant & merged$non_binning_significant
+  merged$same_direction <- sign(merged$NES_binning) == sign(merged$NES_non_binning)
+  rows <- lapply(split(merged, merged$collection_label), function(df) {
+    data.frame(
+      collection_label = df$collection_label[[1L]],
+      common_tested_pathways = nrow(df),
+      binning_FDR_lt_0_05 = sum(df$binning_significant, na.rm = TRUE),
+      non_binning_FDR_lt_0_05 = sum(df$non_binning_significant, na.rm = TRUE),
+      both_FDR_lt_0_05 = sum(df$both_significant, na.rm = TRUE),
+      both_significant_same_direction = sum(df$both_significant & df$same_direction, na.rm = TRUE),
+      both_significant_opposite_direction = sum(df$both_significant & !df$same_direction, na.rm = TRUE),
+      NES_pearson = minimum_or_na(stats::cor(df$NES_binning, df$NES_non_binning, use = "pairwise.complete.obs")),
+      stringsAsFactors = FALSE
+    )
+  })
+  out <- do.call(rbind, rows)
+  out[order(match(out$collection_label, c("hallmark", "reactome", "go_bp"))), , drop = FALSE]
+}
+
+add_conclusion_section <- function(builder, cfg) {
+  workflow_metrics <- rbind(
+    conclusion_workflow_metrics(cfg, "binning"),
+    conclusion_workflow_metrics(cfg, "non_binning")
+  )
+  cross_metrics <- conclusion_cross_metrics(cfg)
+  direction_metrics <- conclusion_direction_metrics(cfg)
+  add_heading(builder, 1L, "Conclusion")
+  add_paragraph(
+    builder,
+    "The accumulated CellCycle pseudotime state is most consistently characterized by depletion of proliferation, MYC/E2F/G2M, DNA replication and repair, mitochondrial oxidative phosphorylation, mitochondrial gene-expression, and translation-related programs. This is the high-confidence biological conclusion because it is preserved across the initial-ploidy model, continuous ETP adjustment, ETP threshold models, and both binned and non-binned pseudobulk workflows.",
+    "callout"
+  )
+  add_bullets(
+    builder,
+    c(
+      paste0(
+        "ETP handling does not drive the result. Within the binning workflow, the minimum gene-level Pearson correlation across ETP models is ",
+        format_metric(workflow_metrics$min_gene_t_pearson_across_ETP_models[workflow_metrics$workflow == "Binning workflow"]),
+        " and the minimum pathway-NES Pearson correlation is ",
+        format_metric(workflow_metrics$min_pathway_NES_pearson_across_ETP_models[workflow_metrics$workflow == "Binning workflow"]),
+        ". Within the non-binning workflow, the corresponding minima are ",
+        format_metric(workflow_metrics$min_gene_t_pearson_across_ETP_models[workflow_metrics$workflow == "Non-binning workflow"]),
+        " and ",
+        format_metric(workflow_metrics$min_pathway_NES_pearson_across_ETP_models[workflow_metrics$workflow == "Non-binning workflow"]),
+        "."
+      ),
+      paste0(
+        "The main difference is the workflow, not the covariate choice. Binning is more sensitive and calls a broader set of significant pathways, while non-binning is more conservative and avoids choosing a pseudotime bin size. Cross-workflow pathway-NES concordance is moderate rather than near-identical, with minimum Pearson correlation ",
+        format_metric(cross_metrics$min_pathway_NES_pearson[[1L]]),
+        "."
+      ),
+      "The shared significant signal is directionally stable. Among pathways significant in both primary workflows, no collection shows opposite-direction enrichment for the shared significant pathways.",
+      "Workflow-specific positive pathways, including hypoxia/GPCR/sensory-like signals, should be treated as secondary or exploratory. The primary interpretation should emphasize the shared negative cell-cycle, replication-repair, mitochondrial, and translation programs."
+    )
+  )
+  add_html(builder, format_table(workflow_metrics, cfg, max_rows = 10L, caption = "Internal robustness of ETP handling within each workflow."))
+  add_html(builder, format_table(cross_metrics, cfg, max_rows = 5L, caption = "Cross-workflow concordance summary."))
+  if (nrow(direction_metrics) > 0L) {
+    add_html(builder, format_table(direction_metrics, cfg, max_rows = 10L, caption = "Direction check for pathways tested in both primary workflows."))
+  }
+}
+
 build_report <- function(cfg) {
   cfg$results_root <- normalize_existing(cfg$results_root)
   cfg$output_dir <- normalizePath(cfg$output_dir, winslash = "/", mustWork = FALSE)
@@ -1242,6 +1381,8 @@ build_report <- function(cfg) {
     "<p>This self-contained HTML report summarizes the 04i binning and non-binning pathway workflows. It is generated from local result files, but all displayed absolute paths are mapped to the HPC namespace.</p>",
     "</section>"
   )
+
+  add_conclusion_section(b, cfg)
 
   add_heading(b, 1L, "Executive summary")
   add_bullets(

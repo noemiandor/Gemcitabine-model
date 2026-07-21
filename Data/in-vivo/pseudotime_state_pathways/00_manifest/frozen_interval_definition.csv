@@ -1,0 +1,7 @@
+interval_id,role,label,start,end,include_start,include_end,source
+primary_accumulated_state,primary,Primary accumulated state,0.3,0.49,TRUE,TRUE,rounded from approximately 0.296-0.486 pointwise treated-cell excess
+left_neighbor,left_flank,Left neighboring state,0.11,0.3,TRUE,FALSE,equal-width state immediately before the primary interval
+right_neighbor,right_flank,Right neighboring state,0.49,0.68,FALSE,TRUE,equal-width state immediately after the primary interval
+broad_sensitivity,sensitivity,Broad treated-cell excess sensitivity,0.11,0.61,TRUE,TRUE,broader region of numerical treated-cell excess
+strict_support_sensitivity,sensitivity,Strict simultaneous-band support sensitivity,0.414,0.426,TRUE,TRUE,narrow region supported by the simultaneous density-difference band
+depleted_negative_control,negative_control,Depleted-region negative control,0.8,0.98,TRUE,TRUE,region in which treated cells were depleted rather than enriched

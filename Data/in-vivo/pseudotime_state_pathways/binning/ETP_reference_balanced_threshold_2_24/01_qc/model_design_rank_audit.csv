@@ -1,0 +1,2 @@
+model_id,covariate_mode,etp_method,etp_threshold,include_dose,n_observations,n_design_columns_original,design_rank,rank_deficient,retained_design_columns,dropped_design_columns,duplicate_correlation
+ETP_reference_balanced_threshold_2_24,etp_group,ETP_reference_balanced_threshold_2_24,2.24,TRUE,211,9,9,FALSE,(Intercept);pt_spline1;pt_spline2;pt_spline3;pt_spline4;pt_spline5;dose_mg_factor30;dose_mg_factor120;ETP_reference_balanced_threshold_2_24_factorETP-higher,,0.40708755223387977

@@ -1,0 +1,148 @@
+analysis:
+  name: "04j_pseudotime_treatment_ploidy_programs_v3"
+  version: "04j_v3_2026_07_15"
+  frozen_date: "2026-07-15"
+  post_hoc_status: "post-hoc methodological analysis"
+  base_v2_config: "/Users/4482173/Documents/GitHub/Gemcitabine-model/Code/in-vivo/04j_pseudotime_treatment_ploidy_programs_v2_config.yaml"
+  plan_path: "/Users/4482173/Documents/GitHub/Gemcitabine-model/Data/in-vivo/Plan/pseudotime_treatment_by_ploidy_matched_state_plan.md"
+  objective: "V3 methodological repair and calibration of matched-pseudotime treatment-by-baseline-initial-ploidy transcriptional program analysis."
+  primary_estimand: "treatment_by_initial_ploidy_interaction"
+  v1_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs"
+  v2_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v2"
+  v3_result_root: "/Volumes/Protable Disk/Project/BreastCancerOrthotopicModels/Results/04j_pseudotime_treatment_ploidy_programs_v3"
+  guardrail: "No V3 program, weight, FDR family, seed, permutation space, or method eligibility is selected from 04j P values, GSEA leading edges, interaction direction, or V3 intermediate results."
+
+reproducibility:
+  master_seed: 73157
+  rotation_seed: 41043
+  exact_permutation_seed: 73159
+  simulation_seed: 73161
+  crossfit_seed: 73163
+  blas_threads: 1
+  finite_sample_p_formula: "(1 + number of null statistics at least as extreme as observed) / (1 + number of permutations)"
+
+method_families:
+  existing_score_methods:
+    - "signed_weighted_mean_zscore"
+    - "signed_pca_eigengene"
+    - "signed_rank_mean"
+    - "trimmed_signed_mean_zscore"
+  fdr_families:
+    - "all_universe"
+    - "focused_tier1_tier2"
+    - "tier3"
+    - "negative_control"
+  directional_claim_rule: "Directional scalar claims require an external in-vitro signature or a pre-frozen mechanistic signed definition; broad MSigDB pathways and legacy unions are legacy_non_directional."
+
+exact_permutation:
+  treatment_labels_per_ploidy: 4
+  expected_unique_assignments: 4900
+  statistics:
+    - "directional_signed_mean"
+    - "maxmean"
+    - "msq"
+    - "maxabs"
+    - "adaptive_omnibus"
+  westfall_young: true
+
+self_contained_gene_set_tests:
+  mroast_rotations: 9999
+  use_duplicate_correlation: true
+  block_column: "sample_id"
+  mixed_direction_primary_statistic: "PValue.Mixed"
+
+external_directional_signature:
+  max_genes_per_direction: 50
+  abs_weight_cap: 3.0
+  l1_normalize: true
+  status_if_no_unique_source: "not_estimable"
+
+control_reference_residual:
+  train_reference_on: "control samples within subbin and initial ploidy"
+  sd_shrinkage_prior_weight: 4
+  leakage_rule: "Reference estimation uses controls only and is recomputed inside permutation/cross-fit contexts when used there."
+
+covariance_whitened_score:
+  ridge_lambda: 0.10
+  condition_number_fallback: 1000000
+  max_genes: 80
+
+multidimensional_pathway:
+  pca_training: "control observations"
+  variance_explained_target: 0.80
+  max_pcs: 3
+
+trajectory_global:
+  n_bins: 20
+  spline_df: 3
+  global_null: "all treatment × initial-ploidy × spline coefficients equal zero"
+
+simulation:
+  null_replicates: 1000
+  power_replicates: 300
+  alpha: 0.05
+  fdr_alpha: 0.10
+  representative_program_count: 9
+  active_gene_fractions: [0.10, 0.25, 0.50, 1.00]
+  direction_patterns: ["coherent", "mixed", "sparse"]
+  standardized_effect_sizes: [0.00, 0.35, 0.65]
+  scenarios:
+    - id: "null_observed_structure"
+      program_size: "mixed"
+      active_gene_fraction: 0.00
+      direction_pattern: "null"
+      standardized_effect_size: 0.00
+      replicates: 1000
+      layer: "end_to_end_expression_scale"
+    - id: "small_sparse_035"
+      program_size: "small"
+      active_gene_fraction: 0.25
+      direction_pattern: "sparse"
+      standardized_effect_size: 0.35
+      replicates: 300
+      layer: "end_to_end_expression_scale"
+    - id: "small_coherent_065"
+      program_size: "small"
+      active_gene_fraction: 1.00
+      direction_pattern: "coherent"
+      standardized_effect_size: 0.65
+      replicates: 300
+      layer: "end_to_end_expression_scale"
+    - id: "medium_mixed_035"
+      program_size: "medium"
+      active_gene_fraction: 0.50
+      direction_pattern: "mixed"
+      standardized_effect_size: 0.35
+      replicates: 300
+      layer: "end_to_end_expression_scale"
+    - id: "medium_coherent_065"
+      program_size: "medium"
+      active_gene_fraction: 1.00
+      direction_pattern: "coherent"
+      standardized_effect_size: 0.65
+      replicates: 300
+      layer: "end_to_end_expression_scale"
+    - id: "large_sparse_035"
+      program_size: "large"
+      active_gene_fraction: 0.10
+      direction_pattern: "sparse"
+      standardized_effect_size: 0.35
+      replicates: 300
+      layer: "end_to_end_expression_scale"
+    - id: "large_mixed_065"
+      program_size: "large"
+      active_gene_fraction: 0.50
+      direction_pattern: "mixed"
+      standardized_effect_size: 0.65
+      replicates: 300
+      layer: "end_to_end_expression_scale"
+
+acceptance:
+  require_v1_v2_checksum_unchanged: true
+  require_frozen_universe_before_results: true
+  require_4900_unique_permutations: true
+  fail_if_eligible_program_missing_tier: true
+  require_crossfit_training_excludes_heldout: true
+  require_no_broad_pathway_directional_claim: true
+  require_html_embedded_images: true
+  require_git_diff_check: true
