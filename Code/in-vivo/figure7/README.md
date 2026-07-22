@@ -114,6 +114,13 @@ files, and promoted only after the Zenodo size/MD5 checks pass. The Seurat RDS
 also must match the frozen SHA-256 in `figure7_config.yaml`. A valid cache is
 verified and reused without network transfer.
 
+When `aria2c` is available, the downloader runs multiple files concurrently and
+uses multiple HTTP range connections per file. The defaults are four concurrent
+files and two connections per file. Configure them with `--download-workers`
+and `--download-connections-per-file` (each 1-16). The fallback order is
+external wget, external curl, then R libcurl; resumable `.part` files are retained
+after an interrupted download.
+
 After the cell-level pair is ready, the workflow generates the state-pathway
 result tree, exports the compact panel-7F reference, and renders Figure 7A-F.
 For files generated inside `full-workflow`, validation uses the complete table
@@ -137,6 +144,8 @@ Rscript Code/in-vivo/figure7/run_figure7.R \
   --cell-ploidy-input=/path/to/all_ploidy.tsv \
   --sample-info-input=/path/to/sample_info.xlsx \
   --growth-curve-input=/path/to/dt_Gem_VT_20241223_v4.xlsx \
+  --download-workers=4 \
+  --download-connections-per-file=2 \
   --output-dir=/path/to/new_figure7_run
 ```
 

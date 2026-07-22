@@ -75,7 +75,8 @@ write_metadata <- function(
           "workflow_noncellcycle_input", "workflow_noncellcycle_sha256",
           "workflow_seurat_metadata", "workflow_seurat_metadata_sha256",
           "raw_data_source", "raw_data_doi", "zenodo_record_id", "raw_data_dir",
-          "raw_data_download_roles", "raw_data_validation_roles", "raw_data_manifest_sha256", "seurat_rds_sha256",
+          "raw_data_download_roles", "raw_data_validation_roles", "raw_download_workers",
+          "raw_download_connections_per_file", "raw_data_manifest_sha256", "seurat_rds_sha256",
           "loom_file_count", "loom_total_bytes", "workflow_log_dir"
         ),
         value = c(
@@ -95,6 +96,8 @@ write_metadata <- function(
           workflow$raw_data_dir,
           if (length(workflow$raw_download_roles)) paste(workflow$raw_download_roles, collapse = ",") else "none",
           if (length(workflow$raw_validation_roles)) paste(workflow$raw_validation_roles, collapse = ",") else "none",
+          as.character(workflow$download_workers),
+          as.character(workflow$download_connections_per_file),
           figure7_sha256(workflow$raw_manifest),
           if (nzchar(workflow$seurat_rds_sha256)) workflow$seurat_rds_sha256 else "not_available",
           as.character(length(workflow_loom_files)),
@@ -241,6 +244,8 @@ if (identical(mode, "full-workflow")) {
     cat("raw_download_roles\t", if (length(preflight$raw_download_roles)) paste(preflight$raw_download_roles, collapse = ",") else "none", "\n", sep = "")
     cat("raw_validation_roles\t", if (length(preflight$raw_validation_roles)) paste(preflight$raw_validation_roles, collapse = ",") else "none", "\n", sep = "")
     cat("raw_data_dir\t", workflow_paths$raw_data_dir, "\n", sep = "")
+    cat("download_workers\t", workflow_paths$download_workers, "\n", sep = "")
+    cat("download_connections_per_file\t", workflow_paths$download_connections_per_file, "\n", sep = "")
     cat("loom_root\t", workflow_paths$loom_root, "\n", sep = "")
     cat("seurat_rds\t", workflow_paths$seurat_rds, "\n", sep = "")
     cat("scvelo_metrics\t", workflow_paths$scvelo_metrics, "\n", sep = "")

@@ -4,6 +4,8 @@ workflow_paths_fixture <- function(root) {
     raw_data_dir = file.path(root, "raw"),
     raw_manifest = file.path(module_dir, "zenodo_required_files.tsv"),
     download_missing_raw = TRUE,
+    download_workers = 4L,
+    download_connections_per_file = 2L,
     loom_root_explicit = TRUE,
     seurat_rds_explicit = TRUE,
     scvelo_metrics = file.path(root, "scvelo_cell_metrics.csv"),
@@ -281,6 +283,50 @@ testthat::test_that("pinned Zenodo manifest contains the complete raw-data contr
   )
 })
 
+testthat::test_that("aria2c input dispatches parallel files and split connections", {
+  env <- new.env(parent = globalenv())
+  expressions <- parse(file.path(module_dir, "download_figure7_raw_data.R"))
+  for (expression in expressions) eval(expression, envir = env)
+  root <- tempfile("figure7_fake_aria2_"); dir.create(root)
+  args_log <- file.path(root, "aria2_args.txt")
+  fake_aria2 <- file.path(root, "aria2c")
+  writeLines(
+    c(
+      "#!/bin/sh",
+      paste0("args_log=", shQuote(args_log)),
+      "printf '%s\\n' \"$@\" > \"$args_log\"",
+      "input_file=",
+      "for arg in \"$@\"; do case \"$arg\" in --input-file=*) input_file=${arg#*=};; esac; done",
+      "dir=",
+      "while IFS= read -r line; do",
+      "  case \"$line\" in",
+      "    '  dir='*) dir=${line#  dir=};;",
+      "    '  out='*) out=${line#  out=}; mkdir -p \"$dir\"; printf fixture > \"$dir/$out\";;",
+      "  esac",
+      "done < \"$input_file\""
+    ),
+    fake_aria2
+  )
+  Sys.chmod(fake_aria2, mode = "0755")
+  selected <- data.frame(
+    url = c("https://example.invalid/a", "https://example.invalid/b"),
+    path = c(file.path(root, "raw", "a.loom"), file.path(root, "raw", "b.loom")),
+    filename = c("a.loom", "b.loom"),
+    size_bytes = c(7, 7), stringsAsFactors = FALSE
+  )
+  env$download_parallel_aria2(
+    selected, 1:2, fake_aria2, download_workers = 4L,
+    connections_per_file = 2L, raw_data_dir = file.path(root, "raw")
+  )
+  testthat::expect_true(all(file.exists(paste0(selected$path, ".part"))))
+  observed_args <- readLines(args_log, warn = FALSE)
+  testthat::expect_true("--max-concurrent-downloads=4" %in% observed_args)
+  testthat::expect_true("--split=2" %in% observed_args)
+  testthat::expect_true("--max-connection-per-server=2" %in% observed_args)
+  testthat::expect_error(env$parse_positive_integer("0", "download-workers", 16L), "integer from 1 to 16")
+  testthat::expect_error(env$parse_positive_integer("2.5", "download-workers", 16L), "integer from 1 to 16")
+})
+
 testthat::test_that("raw-data downloader materializes, reuses, and rejects corrupt offline fixtures", {
   root <- tempfile("figure7_download_fixture_"); dir.create(root)
   source_dir <- file.path(root, "source"); dir.create(source_dir)
@@ -314,9 +360,10 @@ testthat::test_that("raw-data downloader materializes, reuses, and rejects corru
   testthat::expect_true(file.exists(file.path(raw_dir, basename(rds_source))))
   audit <- figure7_read_tsv(
     file.path(raw_dir, "provenance", "downloaded_files_checksums.tsv"),
-    c("filename", "action", "md5", "sha256")
+    c("filename", "action", "md5", "sha256", "download_client")
   )
   testthat::expect_true(all(audit$action == "downloaded"))
+  testthat::expect_true(all(audit$download_client %in% c("curl", "R_libcurl")))
 
   second <- system2(
     file.path(R.home("bin"), "Rscript"),

@@ -32,6 +32,15 @@ parse_boolean <- function(value, argument) {
   normalized %in% c("true", "1", "yes", "y")
 }
 
+parse_positive_integer <- function(value, argument, maximum = 64L) {
+  numeric_value <- suppressWarnings(as.numeric(value))
+  if (length(numeric_value) != 1L || !is.finite(numeric_value) ||
+      numeric_value < 1 || numeric_value > maximum || numeric_value != floor(numeric_value)) {
+    stop("--", argument, " must be an integer from 1 to ", maximum, call. = FALSE)
+  }
+  as.integer(numeric_value)
+}
+
 script_location <- function() {
   file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
   if (length(file_arg)) sub("^--file=", "", file_arg[[1L]]) else "Code/in-vivo/figure7/download_figure7_raw_data.R"
@@ -112,6 +121,68 @@ available_bytes <- function(path) {
   if (is.finite(blocks)) blocks * 1024 else NA_real_
 }
 
+aria2_input_lines <- function(selected, indices) {
+  unlist(lapply(indices, function(i) {
+    part_path <- paste0(selected$path[[i]], ".part")
+    c(
+      selected$url[[i]],
+      paste0("  dir=", normalizePath(dirname(part_path), mustWork = FALSE)),
+      paste0("  out=", basename(part_path))
+    )
+  }), use.names = FALSE)
+}
+
+download_parallel_aria2 <- function(
+  selected,
+  indices,
+  aria2_bin,
+  download_workers,
+  connections_per_file,
+  raw_data_dir
+) {
+  if (!length(indices)) return(invisible(integer()))
+  for (i in indices) dir.create(dirname(selected$path[[i]]), recursive = TRUE, showWarnings = FALSE)
+  input_file <- tempfile("figure7_aria2_", tmpdir = nearest_existing_directory(raw_data_dir), fileext = ".txt")
+  on.exit(unlink(input_file, force = TRUE), add = TRUE)
+  writeLines(aria2_input_lines(selected, indices), input_file, useBytes = TRUE)
+  args <- c(
+    paste0("--input-file=", input_file),
+    "--continue=true",
+    paste0("--max-concurrent-downloads=", download_workers),
+    paste0("--split=", connections_per_file),
+    paste0("--max-connection-per-server=", connections_per_file),
+    "--min-split-size=16M",
+    "--file-allocation=none",
+    "--allow-overwrite=true",
+    "--auto-file-renaming=false",
+    "--check-certificate=true",
+    "--max-tries=5",
+    "--retry-wait=5",
+    "--connect-timeout=60",
+    "--timeout=60",
+    "--summary-interval=10",
+    "--console-log-level=notice"
+  )
+  message(
+    "Starting aria2c parallel download: files=", length(indices),
+    "; workers=", download_workers,
+    "; connections_per_file=", connections_per_file
+  )
+  status <- system2(aria2_bin, args)
+  if (!identical(status, 0L)) {
+    stop("aria2c parallel download failed with exit status ", status, "; resumable .part files were retained", call. = FALSE)
+  }
+  for (i in indices) {
+    part_path <- paste0(selected$path[[i]], ".part")
+    if (!file.exists(part_path) || !is.finite(file.info(part_path)$size) ||
+        file.info(part_path)$size > selected$size_bytes[[i]]) {
+      stop("aria2c returned a missing or invalid byte range for ", selected$filename[[i]], call. = FALSE)
+    }
+    unlink(paste0(part_path, ".aria2"), force = TRUE)
+  }
+  invisible(indices)
+}
+
 download_resumable <- function(url, part_path, wget_bin, curl_bin, expected_size) {
   dir.create(dirname(part_path), recursive = TRUE, showWarnings = FALSE)
   if (startsWith(url, "https://") && nzchar(wget_bin) && file.exists(wget_bin)) {
@@ -125,7 +196,21 @@ download_resumable <- function(url, part_path, wget_bin, curl_bin, expected_size
     if (!identical(status, 0L) || !file.exists(part_path) || file.info(part_path)$size > expected_size) {
       stop("wget failed or returned an invalid byte range for ", url, call. = FALSE)
     }
-    return(invisible(part_path))
+    return("wget")
+  }
+  if (nzchar(curl_bin) && file.exists(curl_bin)) {
+    status <- system2(
+      curl_bin,
+      c(
+        "--fail", "--location", "--retry", "5", "--retry-delay", "5",
+        "--connect-timeout", "60", "--continue-at", "-",
+        "--output", shQuote(part_path), shQuote(url)
+      )
+    )
+    if (!identical(status, 0L) || !file.exists(part_path) || file.info(part_path)$size > expected_size) {
+      stop("curl failed or returned an invalid byte range for ", url, call. = FALSE)
+    }
+    return("curl")
   }
   if (capabilities("libcurl")) {
     status <- 1L
@@ -157,17 +242,9 @@ download_resumable <- function(url, part_path, wget_bin, curl_bin, expected_size
         call. = FALSE
       )
     }
-    return(invisible(part_path))
+    return("R_libcurl")
   }
-  status <- system2(
-    curl_bin,
-    c(
-      "--fail", "--location", "--retry", "5", "--retry-delay", "5",
-      "--continue-at", "-", "--output", shQuote(part_path), shQuote(url)
-    )
-  )
-  if (!identical(status, 0L)) stop("Download failed for ", url, "; curl exit status ", status, call. = FALSE)
-  invisible(part_path)
+  stop("No supported download client is available for ", url, call. = FALSE)
 }
 
 write_download_provenance <- function(raw_data_dir, source_manifest, audit) {
@@ -199,13 +276,27 @@ write_download_provenance <- function(raw_data_dir, source_manifest, audit) {
   invisible(provenance_dir)
 }
 
-download_figure7_raw_data <- function(raw_data_dir, manifest_path, roles = c("loom", "seurat_rds"), wget_bin = Sys.which("wget"), curl_bin = Sys.which("curl"), enforce_published_contract = FALSE, allow_download = TRUE) {
+download_figure7_raw_data <- function(
+  raw_data_dir,
+  manifest_path,
+  roles = c("loom", "seurat_rds"),
+  aria2_bin = Sys.which("aria2c"),
+  wget_bin = Sys.which("wget"),
+  curl_bin = Sys.which("curl"),
+  download_workers = 4L,
+  connections_per_file = 2L,
+  enforce_published_contract = FALSE,
+  allow_download = TRUE
+) {
   roles <- unique(roles)
   if (!length(roles) || any(!roles %in% c("loom", "seurat_rds"))) stop("--roles must select loom, seurat_rds, or all", call. = FALSE)
+  download_workers <- parse_positive_integer(download_workers, "download-workers", maximum = 16L)
+  connections_per_file <- parse_positive_integer(connections_per_file, "download-connections-per-file", maximum = 16L)
+  has_aria2 <- nzchar(aria2_bin) && file.exists(aria2_bin)
   has_wget <- nzchar(wget_bin) && file.exists(wget_bin)
   has_curl <- nzchar(curl_bin) && file.exists(curl_bin)
-  if (!has_wget && !capabilities("libcurl") && !has_curl) {
-    stop("wget, R libcurl support, or a system curl executable is required for resumable Zenodo downloads", call. = FALSE)
+  if (!has_aria2 && !has_wget && !has_curl && !capabilities("libcurl")) {
+    stop("aria2c, wget, a system curl executable, or R libcurl support is required for resumable Zenodo downloads", call. = FALSE)
   }
   manifest <- read_download_manifest(manifest_path, enforce_published_contract)
   selected <- manifest[manifest$role %in% roles, , drop = FALSE]
@@ -245,6 +336,20 @@ download_figure7_raw_data <- function(raw_data_dir, manifest_path, roles = c("lo
     }
   }
 
+  download_client <- rep("cache", nrow(selected))
+  aria_indices <- which(need & startsWith(selected$url, "https://") & has_aria2)
+  if (length(aria_indices)) {
+    download_parallel_aria2(
+      selected = selected,
+      indices = aria_indices,
+      aria2_bin = aria2_bin,
+      download_workers = download_workers,
+      connections_per_file = connections_per_file,
+      raw_data_dir = raw_data_dir
+    )
+    download_client[aria_indices] <- "aria2c"
+  }
+
   audit_rows <- vector("list", nrow(selected))
   for (i in seq_len(nrow(selected))) {
     row <- selected[i, , drop = FALSE]
@@ -257,7 +362,11 @@ download_figure7_raw_data <- function(raw_data_dir, manifest_path, roles = c("lo
       if (!isTRUE(part_status$valid) && file.exists(part) && file.info(part)$size >= row$size_bytes[[1L]]) {
         unlink(part, force = TRUE)
       }
-      if (!isTRUE(part_status$valid)) download_resumable(row$url[[1L]], part, wget_bin, curl_bin, row$size_bytes[[1L]])
+      if (!isTRUE(part_status$valid) && !identical(download_client[[i]], "aria2c")) {
+        download_client[[i]] <- download_resumable(
+          row$url[[1L]], part, wget_bin, curl_bin, row$size_bytes[[1L]]
+        )
+      }
       part_status <- file_checksum_status(part, row$size_bytes[[1L]], row$md5[[1L]], row$sha256[[1L]])
       if (!isTRUE(part_status$valid)) {
         stop("Downloaded file failed integrity validation: ", row$filename[[1L]], " (", part_status$reason, ")", call. = FALSE)
@@ -276,6 +385,9 @@ download_figure7_raw_data <- function(raw_data_dir, manifest_path, roles = c("lo
     audit_rows[[i]] <- data.frame(
       role = row$role, filename = row$filename, path = target, action = action,
       size_bytes = row$size_bytes, md5 = status$md5, sha256 = observed_sha256,
+      download_client = if (identical(action, "downloaded")) download_client[[i]] else "cache",
+      download_workers = if (identical(action, "downloaded")) download_workers else NA_integer_,
+      connections_per_file = if (identical(action, "downloaded")) connections_per_file else NA_integer_,
       verified_utc = format(Sys.time(), tz = "UTC", usetz = TRUE), stringsAsFactors = FALSE
     )
     message("[", action, "] ", row$filename[[1L]])
@@ -310,8 +422,16 @@ main <- function() {
     raw_data_dir = normalizePath(raw_data_dir, mustWork = FALSE),
     manifest_path = normalizePath(manifest_arg, mustWork = TRUE),
     roles = roles,
+    aria2_bin = arg_value(args, "aria2c", Sys.which("aria2c")),
     wget_bin = arg_value(args, "wget", Sys.which("wget")),
     curl_bin = arg_value(args, "curl", Sys.which("curl")),
+    download_workers = parse_positive_integer(
+      arg_value(args, "download-workers", "4"), "download-workers", maximum = 16L
+    ),
+    connections_per_file = parse_positive_integer(
+      arg_value(args, "download-connections-per-file", "2"),
+      "download-connections-per-file", maximum = 16L
+    ),
     enforce_published_contract = identical(normalizePath(manifest_arg, mustWork = TRUE), default_manifest),
     allow_download = parse_boolean(arg_value(args, "allow-download", "true"), "allow-download")
   )

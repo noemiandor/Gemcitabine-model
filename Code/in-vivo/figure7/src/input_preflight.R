@@ -15,6 +15,16 @@ figure7_workflow_path <- function(path, repo_root) {
   normalizePath(path, mustWork = FALSE)
 }
 
+figure7_workflow_integer_arg <- function(args, name, default, maximum = 16L) {
+  raw <- figure7_arg(args, name, as.character(default))
+  value <- suppressWarnings(as.numeric(raw))
+  if (length(value) != 1L || !is.finite(value) || value < 1 ||
+      value > maximum || value != floor(value)) {
+    figure7_stop("--", name, " must be an integer from 1 to ", maximum)
+  }
+  as.integer(value)
+}
+
 figure7_workflow_paths <- function(args, repo_root, output_dir, config) {
   intermediate_dir <- figure7_workflow_path(
     figure7_arg(args, "intermediate-dir", file.path("Results", "in-vivo", "figure7", "intermediates")),
@@ -33,6 +43,10 @@ figure7_workflow_paths <- function(args, repo_root, output_dir, config) {
     raw_data_dir = raw_data_dir,
     raw_manifest = figure7_workflow_path(as.character(config$raw_data$required_manifest), repo_root),
     download_missing_raw = figure7_flag(args, "download-missing-raw", TRUE),
+    download_workers = figure7_workflow_integer_arg(args, "download-workers", 4L),
+    download_connections_per_file = figure7_workflow_integer_arg(
+      args, "download-connections-per-file", 2L
+    ),
     loom_root_explicit = nzchar(loom_root_arg),
     seurat_rds_explicit = nzchar(seurat_rds_arg),
     scvelo_metrics = figure7_workflow_path(
@@ -244,6 +258,8 @@ figure7_prepare_full_workflow <- function(
         raw_data_dir = paths$raw_data_dir,
         manifest = paths$raw_manifest,
         roles = paste(preflight$raw_validation_roles, collapse = ","),
+        "download-workers" = paths$download_workers,
+        "download-connections-per-file" = paths$download_connections_per_file,
         allow_download = if (isTRUE(paths$download_missing_raw)) "TRUE" else "FALSE"
       ),
       file.path(paths$log_dir, "00_raw_data_download.log")
@@ -370,6 +386,8 @@ figure7_prepare_full_workflow <- function(
     raw_data_status = raw_data_status,
     raw_download_roles = preflight$raw_download_roles,
     raw_validation_roles = preflight$raw_validation_roles,
+    download_workers = paths$download_workers,
+    download_connections_per_file = paths$download_connections_per_file,
     loom_root = paths$loom_root,
     seurat_rds = paths$seurat_rds,
     seurat_rds_sha256 = seurat_rds_sha256,
