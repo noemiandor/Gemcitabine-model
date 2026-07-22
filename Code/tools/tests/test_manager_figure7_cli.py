@@ -125,9 +125,9 @@ class ManagerFigure7CliTest(unittest.TestCase):
             tmp_path = Path(tmp)
             output_root = tmp_path / "Results"
             figure_root = tmp_path / "figures"
-            source_results_root = tmp_path / "04i results"
+            source_results_root = tmp_path / "state pathway results"
             source_results_root.mkdir()
-            canonical_reference_root = tmp_path / "canonical Data" / "taoli_04i_etp2_24_day17_v1"
+            canonical_reference_root = tmp_path / "canonical Data" / "taoli_state_pathway_etp2_24_day17_v1"
             run_id = "integrated_state_export"
 
             fake_bin = tmp_path / "bin"
@@ -148,7 +148,7 @@ for arg in "$@"; do
     --results-root=*|--state-pathway-results-root=*) source_results_root="${arg#*=}" ;;
   esac
 done
-if [[ "$entrypoint" == *export_04i_state_pathway_reference.R ]]; then
+if [[ "$entrypoint" == *export_state_pathway_reference.R ]]; then
   mkdir -p "$output_dir"
   for name in \
     panel_7F_pathway_activity_plot_data.tsv \
@@ -160,7 +160,7 @@ if [[ "$entrypoint" == *export_04i_state_pathway_reference.R ]]; then
     state_pathway_design_qc.tsv; do
     printf 'value\\nfixture\\n' > "$output_dir/$name"
   done
-  printf 'key\\tvalue\\nsource_results_id\\t04i_pseudotime_state_pathways\\n' \
+  printf 'key\\tvalue\\nsource_results_id\\tpseudotime_state_pathways\\n' \
     > "$output_dir/state_pathway_provenance.tsv"
   exit 0
 fi
@@ -215,7 +215,7 @@ exit 99
             self.assertEqual(export_metadata["status"], "ok")
             self.assertEqual(export_metadata["source_results_root"], str(source_results_root.resolve()))
             reference_root = Path(export_metadata["exported_reference_dir"])
-            self.assertEqual(reference_root.name, "taoli_04i_etp2_24_day17_v1")
+            self.assertEqual(reference_root.name, "taoli_state_pathway_etp2_24_day17_v1")
             self.assertEqual(len(list(reference_root.glob("*.tsv"))), 8)
             self.assertEqual(
                 export_metadata["canonical_data_reference_dir"], str(canonical_reference_root)
@@ -260,8 +260,8 @@ exit 99
             tmp_path = Path(tmp)
             output_root = tmp_path / "Results"
             figure_root = tmp_path / "figures"
-            source_results_root = tmp_path / "04i_results"
-            canonical_reference_root = tmp_path / "canonical" / "taoli_04i_etp2_24_day17_v1"
+            source_results_root = tmp_path / "state_pathway_results"
+            canonical_reference_root = tmp_path / "canonical" / "taoli_state_pathway_etp2_24_day17_v1"
             source_results_root.mkdir()
 
             fake_bin = tmp_path / "bin"
@@ -278,7 +278,7 @@ for arg in "$@"; do
     --output-dir=*) output_dir="${arg#*=}" ;;
   esac
 done
-if [[ "$entrypoint" == *export_04i_state_pathway_reference.R ]]; then
+if [[ "$entrypoint" == *export_state_pathway_reference.R ]]; then
   mkdir -p "$output_dir"
   for name in \
     panel_7F_pathway_activity_plot_data.tsv \

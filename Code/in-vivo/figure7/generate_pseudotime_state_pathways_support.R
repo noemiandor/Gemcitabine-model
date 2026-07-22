@@ -46,7 +46,7 @@ usage <- function() {
   cat(
     paste(
       "Usage:",
-      "  Rscript Code/in-vivo/Figures/generate_pseudotime_state_pathways_support.R \\",
+      "  Rscript Code/in-vivo/figure7/generate_pseudotime_state_pathways_support.R \\",
       "    --output_root Data/in-vivo/pseudotime_state_pathways \\",
       "    --seurat_rds /path/to/integrated_sct_cca_seurat_final_reclustered.rds",
       "",
@@ -54,7 +54,7 @@ usage <- function() {
       "  Data/in-vivo/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
       "  Data/in-vivo/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
       "  Data/in-vivo/scRNA_Seq_Data/seurat_obj_annotated/integrated_sct_cca_seurat_final_reclustered.rds",
-      "  Code/in-vivo/04i_pseudotime_state_pathways_config.yaml",
+      "  Code/in-vivo/figure7/figure7_config.yaml",
       "",
       "This standalone script writes only the Figure 7 support files requested under:",
       "  <output_root>/00_manifest",
@@ -1107,7 +1107,7 @@ main <- function() {
     cell_metadata = file.path(repo_root, "Data/in-vivo/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"),
     noncell_metadata = file.path(repo_root, "Data/in-vivo/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"),
     seurat_rds = file.path(repo_root, "Data/in-vivo/scRNA_Seq_Data/seurat_obj_annotated/integrated_sct_cca_seurat_final_reclustered.rds"),
-    config = file.path(repo_root, "Code/in-vivo/04i_pseudotime_state_pathways_config.yaml"),
+    config = file.path(repo_root, "Code/in-vivo/figure7/figure7_config.yaml"),
     output_root = file.path(repo_root, "Data/in-vivo/pseudotime_state_pathways"),
     snapshot_root = file.path(repo_root, "Figs/pseudotime_state_pathways"),
     assay = "RNA",

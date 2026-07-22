@@ -20,3 +20,4 @@ Data/GemDelayKillTerm/raw/object_tables/
 Data/GemDelayKillTerm/raw/tracks/
 Data/GemDelayKillTerm/processed/object_cells_long.parquet
 Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/20*/
+Data/in-vivo/figure7/raw/

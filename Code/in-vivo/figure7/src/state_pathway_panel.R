@@ -15,7 +15,7 @@ figure7_validate_state_reference <- function(path, config, verify_checksums = TR
   expected_id <- as.character(config$state_pathways$reference_id)
   if (!dir.exists(path)) {
     figure7_stop("Missing canonical panel-7F saved-state directory: ", path,
-                 ". Export the reviewed 04i compact audit tables; the report PDF/HTML is not a substitute.")
+                 ". Export the reviewed state-pathway compact audit tables; the report PDF/HTML is not a substitute.")
   }
   if (!identical(basename(normalizePath(path)), expected_id)) {
     figure7_stop("Saved-state directory must use frozen reference ID ", expected_id, ": ", path)
@@ -24,6 +24,14 @@ figure7_validate_state_reference <- function(path, config, verify_checksums = TR
   missing <- files[!file.exists(file.path(path, files))]
   if (length(missing)) figure7_stop("Panel-7F saved state is incomplete; missing: ", paste(missing, collapse = ", "))
   expected_hashes <- config$state_pathways$expected_files
+  observed_hashes <- setNames(
+    vapply(file.path(path, files), figure7_sha256, character(1L)),
+    files
+  )
+  checksum_match <- setNames(
+    vapply(files, function(file) identical(observed_hashes[[file]], as.character(expected_hashes[[file]])), logical(1L)),
+    files
+  )
   if (isTRUE(verify_checksums)) {
     for (file in files) figure7_verify_checksum(file.path(path, file), expected_hashes[[file]], file)
   }
@@ -135,7 +143,7 @@ figure7_validate_state_reference <- function(path, config, verify_checksums = TR
   }
   provenance <- figure7_read_tsv(file.path(path, "state_pathway_provenance.tsv"), c("key", "value"))
   required_provenance <- c(
-    "full_analysis_run_dir", "report_identifier", "code_revision_04i", "seurat_rds_sha256",
+    "full_analysis_run_dir", "report_identifier", "source_code_revision", "seurat_rds_sha256",
     "cellcycle_metadata_sha256", "noncellcycle_metadata_sha256", "interval_config_sha256",
     "assay", "counts_layer", "etp_method", "etp_threshold", "spline_df", "pseudotime_bins",
     "minimum_cells_per_sample_bin", "grid_size", "seed", "gene_set_source", "gene_set_release",
@@ -181,8 +189,8 @@ figure7_validate_state_reference <- function(path, config, verify_checksums = TR
     accumulated_interval = "[0.30,0.49]",
     left_neighbor_interval = "[0.11,0.30)",
     right_neighbor_interval = "(0.49,0.68]",
-    report_html_relative_path = "report/04i_pseudotime_state_pathways_report.html",
-    source_results_id = "04i_pseudotime_state_pathways"
+    report_html_relative_path = "report/pseudotime_state_pathways_report.html",
+    source_results_id = "pseudotime_state_pathways"
   )
   for (key in names(character_expectations)) {
     if (!identical(provenance_value(key), character_expectations[[key]])) {
@@ -219,8 +227,17 @@ figure7_validate_state_reference <- function(path, config, verify_checksums = TR
       any(!grepl("^[0-9a-f]{64}$", vapply(source_hash_keys, provenance_value, character(1L))))) {
     figure7_stop("Panel-7F provenance must contain eight valid source-table SHA-256 values")
   }
-  list(activity = activity, pathways = pathways, selected = selected, leading = leading,
-       provenance = provenance, files = setNames(file.path(path, files), files))
+  list(
+    activity = activity,
+    pathways = pathways,
+    selected = selected,
+    leading = leading,
+    provenance = provenance,
+    files = setNames(file.path(path, files), files),
+    observed_hashes = observed_hashes,
+    checksum_match = checksum_match,
+    checksums_verified = isTRUE(verify_checksums)
+  )
 }
 
 figure7_panel_f_plot <- function(activity, config) {
@@ -248,8 +265,12 @@ figure7_build_f <- function(reference, output_dir, config) {
   figure7_copy_file(reference$files[["state_pathway_provenance.tsv"]],
                     file.path(output_dir, "metadata", "state_pathway_provenance.tsv"))
   comparison <- data.frame(
-    file = names(reference$files), sha256 = vapply(reference$files, figure7_sha256, character(1L)),
-    checksum_match = TRUE, reference_id = config$state_pathways$reference_id, stringsAsFactors = FALSE
+    file = names(reference$files),
+    sha256 = unname(reference$observed_hashes[names(reference$files)]),
+    checksum_match = unname(reference$checksum_match[names(reference$files)]),
+    strict_checksum_verification = reference$checksums_verified,
+    reference_id = config$state_pathways$reference_id,
+    stringsAsFactors = FALSE
   )
   figure7_write_tsv(comparison, file.path(output_dir, "tables", "state_pathway_frozen_reference_comparison.tsv"))
   figure7_save_panel(figure7_panel_f_plot(reference$activity, config),

@@ -34,7 +34,7 @@ usage <- function() {
   cat(
     paste(
       "Usage:",
-      "  Rscript Code/in-vivo/Figures/generate_pseudotime_distribution_with_ploidy_dose_tgi.R \\",
+      "  Rscript Code/in-vivo/figure7/generate_pseudotime_distribution_with_ploidy_dose_tgi.R \\",
       "    --input_root Data/in-vivo",
       "",
       "Default inputs under --input_root:",

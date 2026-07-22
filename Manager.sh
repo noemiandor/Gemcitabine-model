@@ -38,7 +38,7 @@ figure7_tgi_day="17"
 figure7_figure_name="Figure7"
 figure7_seurat_rds=""
 figure7_gene_set_artifact=""
-figure7_reference_id="taoli_04i_etp2_24_day17_v1"
+figure7_reference_id="taoli_state_pathway_etp2_24_day17_v1"
 figure7_state_pathway_results_root=""
 figure7_canonical_reference_root="${FIGURE7_CANONICAL_REFERENCE_ROOT:-Data/in-vivo/figure7/saved_state_pathway/${figure7_reference_id}}"
 figure7_reference_root="${figure7_canonical_reference_root}"
@@ -82,7 +82,7 @@ Module options:
   --figure7-seurat-rds ABSOLUTE_PATH
   --figure7-gene-set-artifact PATH  Pinned, versioned local gene-set artifact
   --figure7-state-pathway-results-root PATH
-                                  Export panel-7F reference from this completed 04i result tree
+                                  Export panel-7F reference from this completed state-pathway result tree
 EOF
 }
 
@@ -341,7 +341,7 @@ check_module_inputs() {
   local path
   if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
     require_dir "${figure7_state_pathway_results_root}"
-    require_file Code/in-vivo/figure7/export_04i_state_pathway_reference.R
+    require_file Code/in-vivo/figure7/export_state_pathway_reference.R
   fi
   while IFS= read -r path; do
     [[ -z "${path}" ]] && continue
@@ -490,7 +490,7 @@ record_module_run() {
 }
 
 figure7_reference_export_command() {
-  quote_args Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R \
+  quote_args Rscript Code/in-vivo/figure7/export_state_pathway_reference.R \
     "--results-root=${figure7_state_pathway_results_root}" \
     "--output-dir=${figure7_reference_root}"
 }
@@ -503,12 +503,12 @@ record_figure7_reference_export() {
     printf "key\tvalue\n"
     printf "status\t%s\n" "${status}"
     printf "source_results_root\t%s\n" "${figure7_state_pathway_results_root}"
-    printf "source_report_html\t%s\n" "${figure7_state_pathway_results_root}/report/04i_pseudotime_state_pathways_report.html"
+    printf "source_report_html\t%s\n" "${figure7_state_pathway_results_root}/report/pseudotime_state_pathways_report.html"
     printf "canonical_reference_id\t%s\n" "${figure7_reference_id}"
     printf "exported_reference_dir\t%s\n" "${figure7_reference_root}"
     printf "canonical_data_reference_dir\t%s\n" "${figure7_canonical_reference_root}"
     printf "canonical_data_materialization_metadata\t%s\n" "${manager_run_dir}/metadata/figure7_state_pathway_materialization.tsv"
-    printf "exporter_script\t%s\n" "Code/in-vivo/figure7/export_04i_state_pathway_reference.R"
+    printf "exporter_script\t%s\n" "Code/in-vivo/figure7/export_state_pathway_reference.R"
     printf "command\t%s\n" "${command_string}"
     printf "stdout_log\t%s\n" "${stdout_log}"
     printf "stderr_log\t%s\n" "${stderr_log}"

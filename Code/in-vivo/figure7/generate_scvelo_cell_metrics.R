@@ -40,11 +40,13 @@ usage <- function() {
   cat(
     paste(
       "Usage:",
-      "  Rscript Code/in-vivo/Figures/generate_scvelo_cell_metrics.R \\",
-      "    --input_root \"/path/to/scRNA_Seq_Data\" \\",
-      "    --output Data/in-vivo/scvelo_cell_metrics.csv",
+      "  Rscript Code/in-vivo/figure7/generate_scvelo_cell_metrics.R \\",
+      "    --seurat_rds \"/path/to/integrated_sct_cca_seurat_final_reclustered.rds\" \\",
+      "    --loom_root \"/path/to/velocyto_loom\" \\",
+      "    --output Data/in-vivo/scvelo_cell_metrics.csv \\",
+      "    --seurat_metadata_output Data/in-vivo/seurat_metadata.csv",
       "",
-      "Required input_root layout:",
+      "Alternatively, use the legacy --input_root layout:",
       "  seurat_obj_annotated/integrated_sct_cca_seurat_final_reclustered.rds",
       "  velocyto_loom/<sample_folder>/<sample_folder>.loom",
       "",
@@ -184,7 +186,8 @@ build_all_cells_metadata <- function(
   umap_reduction = "umap",
   pca_reduction = "pca",
   root_clusters = "6",
-  end_clusters = ""
+  end_clusters = "",
+  seurat_metadata_output = NULL
 ) {
   message("Reading Seurat object: ", seurat_rds)
   obj <- readRDS(seurat_rds)
@@ -193,7 +196,8 @@ build_all_cells_metadata <- function(
   }
   require_package("Seurat")
 
-  meta <- obj@meta.data
+  seurat_metadata_raw <- obj@meta.data
+  meta <- seurat_metadata_raw
   if (!(dose_col %in% colnames(meta))) {
     stop("Seurat metadata is missing dose column: ", dose_col, call. = FALSE)
   }
@@ -339,13 +343,38 @@ build_all_cells_metadata <- function(
     drop = FALSE
   ]
   rownames(meta_all) <- NULL
+
+  if (!is.null(seurat_metadata_output) && nzchar(seurat_metadata_output)) {
+    metadata_index <- match(meta_all$cell, rownames(meta))
+    if (anyNA(metadata_index)) {
+      stop("Could not align Seurat metadata rows to exported cell IDs.", call. = FALSE)
+    }
+    seurat_metadata <- data.frame(
+      cell = meta_all$cell,
+      seurat_metadata_raw[metadata_index, , drop = FALSE],
+      check.names = FALSE,
+      stringsAsFactors = FALSE
+    )
+    exported_umap <- umap[meta_all$cell, c("UMAP_1", "UMAP_2"), drop = FALSE]
+    seurat_metadata$UMAP_1 <- as.numeric(exported_umap$UMAP_1)
+    seurat_metadata$UMAP_2 <- as.numeric(exported_umap$UMAP_2)
+    metadata_output_dir <- dirname(seurat_metadata_output)
+    if (!dir.exists(metadata_output_dir)) {
+      dir.create(metadata_output_dir, recursive = TRUE, showWarnings = FALSE)
+    }
+    readr::write_csv(seurat_metadata, seurat_metadata_output, na = "NA")
+    if (!file.exists(seurat_metadata_output) || file.info(seurat_metadata_output)$size <= 0) {
+      stop("Failed to write Seurat metadata output: ", seurat_metadata_output, call. = FALSE)
+    }
+    message("Wrote Seurat metadata: ", seurat_metadata_output)
+  }
+
   attr(meta_all, "sample_folder_col") <- sample_folder_col
   attr(meta_all, "cluster_col") <- cluster_col
   meta_all
 }
 
-resolve_loom_files <- function(input_root, metadata_df, sample_folder_col) {
-  loom_root <- file.path(input_root, "velocyto_loom")
+resolve_loom_files <- function(loom_root, metadata_df, sample_folder_col) {
   if (!dir.exists(loom_root)) {
     stop("Missing loom root: ", loom_root, call. = FALSE)
   }
@@ -354,10 +383,19 @@ resolve_loom_files <- function(input_root, metadata_df, sample_folder_col) {
   }
   sample_folders <- sort(unique(as.character(metadata_df[[sample_folder_col]])))
   sample_folders <- sample_folders[!is.na(sample_folders) & nzchar(sample_folders)]
-  loom_files <- file.path(loom_root, sample_folders, paste0(sample_folders, ".loom"))
+  nested_files <- file.path(loom_root, sample_folders, paste0(sample_folders, ".loom"))
+  flat_files <- file.path(loom_root, paste0(sample_folders, ".loom"))
+  loom_files <- ifelse(file.exists(nested_files), nested_files, flat_files)
   missing <- loom_files[!file.exists(loom_files)]
   if (length(missing) > 0) {
-    stop("Missing expected loom file(s):\n", paste(missing, collapse = "\n"), call. = FALSE)
+    missing_samples <- sample_folders[!file.exists(loom_files)]
+    expected <- vapply(missing_samples, function(sample) {
+      paste0(
+        file.path(loom_root, paste0(sample, ".loom")), " or ",
+        file.path(loom_root, sample, paste0(sample, ".loom"))
+      )
+    }, character(1L))
+    stop("Missing expected loom file(s):\n", paste(expected, collapse = "\n"), call. = FALSE)
   }
   normalizePath(loom_files, mustWork = TRUE)
 }
@@ -797,16 +835,22 @@ main <- function() {
   in_vivo_dir <- normalizePath(dirname(script_dir), mustWork = TRUE)
   repo_root <- normalizePath(dirname(dirname(in_vivo_dir)), mustWork = TRUE)
 
-  input_root <- arg_value(args, "input_root", NULL)
-  if (is.null(input_root)) {
+  input_root_arg <- arg_value(args, "input_root", NULL)
+  seurat_rds_arg <- arg_value(args, "seurat_rds", NULL)
+  loom_root_arg <- arg_value(args, "loom_root", NULL)
+  if (is.null(input_root_arg) && (is.null(seurat_rds_arg) || is.null(loom_root_arg))) {
     usage()
-    stop("--input_root is required.", call. = FALSE)
+    stop("Pass both --seurat_rds and --loom_root, or use legacy --input_root.", call. = FALSE)
   }
-  input_root <- normalizePath(input_root, mustWork = TRUE)
+  input_root <- if (is.null(input_root_arg)) NULL else normalizePath(input_root_arg, mustWork = TRUE)
 
   output_path <- resolve_output_path(arg_value(args, "output", "Data/in-vivo/scvelo_cell_metrics.csv"), repo_root)
   output_dir <- dirname(output_path)
   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  seurat_metadata_output <- resolve_output_path(
+    arg_value(args, "seurat_metadata_output", "Data/in-vivo/seurat_metadata.csv"),
+    repo_root
+  )
 
   work_dir_arg <- arg_value(args, "work_dir", NULL)
   work_dir <- if (is.null(work_dir_arg)) {
@@ -819,10 +863,14 @@ main <- function() {
   if (!dir.exists(work_dir)) dir.create(work_dir, recursive = TRUE, showWarnings = FALSE)
   keep_work <- arg_flag(args, "keep_work", FALSE) || !is.null(work_dir_arg)
 
-  seurat_rds <- file.path(
-    input_root,
-    arg_value(args, "seurat_rds_rel", file.path("seurat_obj_annotated", "integrated_sct_cca_seurat_final_reclustered.rds"))
-  )
+  seurat_rds <- if (!is.null(seurat_rds_arg)) {
+    resolve_output_path(seurat_rds_arg, repo_root)
+  } else {
+    file.path(
+      input_root,
+      arg_value(args, "seurat_rds_rel", file.path("seurat_obj_annotated", "integrated_sct_cca_seurat_final_reclustered.rds"))
+    )
+  }
   if (!file.exists(seurat_rds)) {
     stop("Missing Seurat RDS: ", seurat_rds, call. = FALSE)
   }
@@ -854,11 +902,17 @@ main <- function() {
     umap_reduction = arg_value(args, "umap_reduction", "umap"),
     pca_reduction = arg_value(args, "pca_reduction", "pca"),
     root_clusters = root_clusters,
-    end_clusters = end_clusters
+    end_clusters = end_clusters,
+    seurat_metadata_output = seurat_metadata_output
   )
   sample_folder_col <- attr(metadata_df, "sample_folder_col")
   cluster_col <- attr(metadata_df, "cluster_col")
-  loom_files <- resolve_loom_files(input_root, metadata_df, sample_folder_col)
+  loom_root <- if (!is.null(loom_root_arg)) {
+    resolve_output_path(loom_root_arg, repo_root)
+  } else {
+    file.path(input_root, "velocyto_loom")
+  }
+  loom_files <- resolve_loom_files(loom_root, metadata_df, sample_folder_col)
 
   metadata_file <- file.path(work_dir, "cells_metadata_umap.csv")
   readr::write_csv(as.data.frame(metadata_df, stringsAsFactors = FALSE), metadata_file)
@@ -921,6 +975,7 @@ main <- function() {
   }
 
   message("Wrote scVelo cell metrics: ", output_path)
+  message("Seurat metadata output: ", seurat_metadata_output)
   if (!keep_work) {
     unlink(work_dir, recursive = TRUE, force = TRUE)
   } else {

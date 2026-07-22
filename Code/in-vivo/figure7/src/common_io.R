@@ -34,10 +34,16 @@ figure7_read_config <- function(path, tgi_day = NULL) {
   if (!file.exists(path)) figure7_stop("Missing Figure 7 config: ", path)
   if (!requireNamespace("yaml", quietly = TRUE)) figure7_stop("R package 'yaml' is required")
   config <- yaml::read_yaml(path)
-  required <- c("schema_version", "module", "inputs", "tgi", "statistics", "etp", "state_pathways", "panels")
+  required <- c("schema_version", "module", "raw_data", "inputs", "tgi", "statistics", "etp", "intervals", "state_pathways", "panels")
   missing <- setdiff(required, names(config))
   if (length(missing)) figure7_stop("Config is missing section(s): ", paste(missing, collapse = ", "))
   if (!identical(as.character(config$module), "in_vivo_figure7")) figure7_stop("Unexpected config module")
+  if (!identical(as.character(config$raw_data$doi), "10.5281/zenodo.21463392") ||
+      !identical(as.integer(config$raw_data$required_loom_files), 18L) ||
+      !identical(as.character(config$raw_data$seurat_rds_sha256),
+                 "727b8a5e5868da911c3b0873838fb1b0023377ed21ea5498dc6493acbbef6d98")) {
+    figure7_stop("Figure 7 raw-data Zenodo contract is not the reviewed record")
+  }
   configured_day <- suppressWarnings(as.integer(config$tgi$day))
   if (length(configured_day) != 1L || !is.finite(configured_day) || configured_day < 0L ||
       !identical(as.character(config$tgi$outcome), "day") ||

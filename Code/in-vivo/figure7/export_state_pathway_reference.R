@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
 # Export the compact, immutable panel-7F reference from the exact completed
-# 04i result tree. This script does not fit a model, query gene sets, or modify
+# state-pathway result tree. This script does not fit a model, query gene sets, or modify
 # the source result tree.
 
 args_full <- commandArgs(trailingOnly = FALSE)
@@ -9,7 +9,7 @@ file_arg <- grep("^--file=", args_full, value = TRUE)
 script_path <- if (length(file_arg)) {
   sub("^--file=", "", file_arg[[1L]])
 } else {
-  "Code/in-vivo/figure7/export_04i_state_pathway_reference.R"
+  "Code/in-vivo/figure7/export_state_pathway_reference.R"
 }
 script_dir <- dirname(normalizePath(script_path, mustWork = FALSE))
 repo_root <- normalizePath(file.path(script_dir, "..", "..", ".."), mustWork = TRUE)
@@ -22,12 +22,24 @@ if (length(missing_packages)) {
 }
 
 cli <- figure7_parse_args(commandArgs(trailingOnly = TRUE))
-allowed_args <- c("results_root", "report_html", "output_dir")
+allowed_args <- c("results_root", "report_html", "output_dir", "verify_source_checksums")
 unknown_args <- setdiff(names(cli), allowed_args)
 if (length(unknown_args)) figure7_stop("Unknown argument(s): ", paste(unknown_args, collapse = ", "))
 
+parse_boolean <- function(value, argument) {
+  normalized <- tolower(trimws(as.character(value)))
+  if (!normalized %in% c("true", "false", "1", "0", "yes", "no", "y", "n")) {
+    figure7_stop("--", argument, " must be true or false")
+  }
+  normalized %in% c("true", "1", "yes", "y")
+}
+verify_source_checksums <- parse_boolean(
+  figure7_arg(cli, "verify-source-checksums", "true"),
+  "verify-source-checksums"
+)
+
 results_root <- normalizePath(figure7_arg(cli, "results-root", required = TRUE), mustWork = TRUE)
-report_html_relative_path <- "report/04i_pseudotime_state_pathways_report.html"
+report_html_relative_path <- "report/pseudotime_state_pathways_report.html"
 # Accepted for backward-compatible commands, but the HTML file is not read or checksummed.
 report_html <- figure7_arg(cli, "report-html", file.path(results_root, report_html_relative_path))
 report_html_basename <- basename(report_html)
@@ -36,21 +48,35 @@ output_dir <- normalizePath(
   figure7_arg(
     cli,
     "output-dir",
-    file.path(repo_root, "Data", "in-vivo", "figure7", "saved_state_pathway", "taoli_04i_etp2_24_day17_v1")
+    file.path(repo_root, "Data", "in-vivo", "figure7", "saved_state_pathway", "taoli_state_pathway_etp2_24_day17_v1")
   ),
   mustWork = FALSE
 )
 
-reference_id <- "taoli_04i_etp2_24_day17_v1"
+reference_id <- "taoli_state_pathway_etp2_24_day17_v1"
 workflow_id <- "binning"
 model_id <- "ETP_reference_balanced_threshold_2_24"
-code_revision_04i <- "dc751eab928bc40f3edb063baec447fe32a69d73"
+source_code_revision <- "dc751eab928bc40f3edb063baec447fe32a69d73"
 expected_report_sha256 <- "b9644b1da0399043a6aba28178a2b61375b661780c4fb08a148c7724da00bfa1"
+recorded_source_code_revision <- if (isTRUE(verify_source_checksums)) {
+  source_code_revision
+} else {
+  paste0(
+    "sha256:",
+    figure7_sha256(file.path(script_dir, "generate_pseudotime_state_pathways_support.R"))
+  )
+}
+recorded_report_sha256 <- if (isTRUE(verify_source_checksums)) {
+  expected_report_sha256
+} else if (file.exists(report_html)) {
+  figure7_sha256(report_html)
+} else {
+  "not_generated_by_support_workflow"
+}
 expected_input_sha256 <- c(
   cell_metadata = "bd0c6fcf3f6691114445a7c8a9fb8de7e55ef6580a9737284cd38f5bba216186",
   noncell_metadata = "1e44794fb2b2c402b49cf9d17abcc54cd7690dc5d1d611e38a6aa3b996093d3c",
-  seurat_rds = "727b8a5e5868da911c3b0873838fb1b0023377ed21ea5498dc6493acbbef6d98",
-  config = "814e2d0d2d1eb92c62dbd6f00eeac23277bc602cdb5b836da72671c1e97ff49c"
+  seurat_rds = "727b8a5e5868da911c3b0873838fb1b0023377ed21ea5498dc6493acbbef6d98"
 )
 
 if (!identical(basename(output_dir), reference_id)) {
@@ -61,7 +87,7 @@ if (dir.exists(output_dir)) {
 }
 
 read_csv <- function(path) {
-  if (!file.exists(path)) figure7_stop("Missing 04i source table: ", path)
+  if (!file.exists(path)) figure7_stop("Missing state-pathway source table: ", path)
   as.data.frame(
     readr::read_csv(path, show_col_types = FALSE, progress = FALSE, name_repair = "minimal"),
     stringsAsFactors = FALSE
@@ -103,7 +129,14 @@ expected_source_sha256 <- c(
   design_audit = "1dd5dc5b7e3453dec06780f8092150a7f7c1c31c679596e3eda85019a910146e",
   primary_coverage = "9fecc5339a86cf2e072dccfb05358580fc0db25fd3a8e9f71af301a8ea423141"
 )
-figure7_verify_named_checksums(source_paths, expected_source_sha256)
+missing_source_paths <- source_paths[!file.exists(source_paths)]
+if (length(missing_source_paths)) {
+  figure7_stop("Missing state-pathway source table(s): ", paste(missing_source_paths, collapse = ", "))
+}
+observed_source_sha256 <- vapply(source_paths, figure7_sha256, character(1L))
+if (isTRUE(verify_source_checksums)) {
+  figure7_verify_named_checksums(source_paths, expected_source_sha256)
+}
 
 analysis_parameters <- read_csv(file.path(workflow_root, "00_manifest", "analysis_parameters.csv"))
 intervals <- read_csv(file.path(manifest_root, "frozen_interval_definition.csv"))
@@ -117,8 +150,9 @@ assert_columns(package_versions, c("package", "version"), "package versions")
 assert_columns(model_parameters, c("parameter", "value"), "model parameters")
 
 observed_inputs <- setNames(as.character(input_checksums$sha256), as.character(input_checksums$input))
-if (!identical(unname(observed_inputs[names(expected_input_sha256)]), unname(expected_input_sha256))) {
-  figure7_stop("04i input checksums do not match the reviewed result tree")
+if (isTRUE(verify_source_checksums) &&
+    !identical(unname(observed_inputs[names(expected_input_sha256)]), unname(expected_input_sha256))) {
+  figure7_stop("State-pathway input checksums do not match the reviewed result tree")
 }
 expected_parameters <- c(
   assay = "RNA",
@@ -134,13 +168,13 @@ expected_parameters <- c(
 )
 for (key in names(expected_parameters)) {
   if (!identical(parameter_value(analysis_parameters, key, "analysis parameters"), expected_parameters[[key]])) {
-    figure7_stop("Unexpected 04i analysis parameter ", key)
+    figure7_stop("Unexpected state-pathway analysis parameter ", key)
   }
 }
 if (!identical(parameter_value(model_parameters, "model_id", "model parameters"), model_id) ||
     !identical(parameter_value(model_parameters, "covariate_mode", "model parameters"), "etp_group") ||
     !isTRUE(all.equal(as.numeric(parameter_value(model_parameters, "etp_threshold", "model parameters")), 2.24, tolerance = 0))) {
-  figure7_stop("Unexpected 04i ETP model parameters")
+  figure7_stop("Unexpected state-pathway ETP model parameters")
 }
 
 expected_intervals <- data.frame(
@@ -168,8 +202,11 @@ assert_columns(
     "collection_label", "ranking_id", "pathway_label", "direction", "model_id"),
   "primary-adjacent GSEA"
 )
-if (nrow(gsea) != 4870L || any(gsea$ranking_id != "primary_adjacent_state") || any(gsea$model_id != model_id)) {
+if (!nrow(gsea) || any(gsea$ranking_id != "primary_adjacent_state") || any(gsea$model_id != model_id)) {
   figure7_stop("Primary-adjacent GSEA does not match the reviewed ETP model")
+}
+if (isTRUE(verify_source_checksums) && nrow(gsea) != 4870L) {
+  figure7_stop("Reviewed primary-adjacent GSEA must contain exactly 4,870 pathways")
 }
 
 collection_ids <- c("H", "C2:CP:REACTOME", "C5:GO:BP")
@@ -214,7 +251,7 @@ if (nrow(selected_export) != 24L || anyDuplicated(selected_keys)) {
 }
 
 activity_path <- source_paths[["activity"]]
-if (!file.exists(activity_path)) figure7_stop("Missing 04i activity source: ", activity_path)
+if (!file.exists(activity_path)) figure7_stop("Missing state-pathway activity source: ", activity_path)
 activity_pieces <- list()
 callback <- readr::SideEffectChunkCallback$new(function(chunk, position) {
   assert_columns(chunk, c("collection", "pathway", "ranking_id", "model_id", "pseudotime", "standardized_activity"),
@@ -420,13 +457,17 @@ input_value <- function(input, column) {
 
 activity_output_path <- file.path(staging_dir, "panel_7F_pathway_activity_plot_data.tsv")
 provenance <- c(
-  full_analysis_run_dir = parameter_value(analysis_parameters, "output_root", "analysis parameters"),
-  report_identifier = paste0(report_html_basename, "@sha256:", expected_report_sha256),
-  code_revision_04i = code_revision_04i,
+  full_analysis_run_dir = "pseudotime_state_pathways",
+  report_identifier = if (grepl("^[0-9a-f]{64}$", recorded_report_sha256)) {
+    paste0(report_html_basename, "@sha256:", recorded_report_sha256)
+  } else {
+    paste0(report_html_basename, "@", recorded_report_sha256)
+  },
+  source_code_revision = recorded_source_code_revision,
   seurat_rds_sha256 = input_value("seurat_rds", "sha256"),
   cellcycle_metadata_sha256 = input_value("cell_metadata", "sha256"),
   noncellcycle_metadata_sha256 = input_value("noncell_metadata", "sha256"),
-  interval_config_sha256 = input_value("config", "sha256"),
+  interval_config_sha256 = figure7_sha256(file.path(manifest_root, "frozen_interval_definition.csv")),
   assay = "RNA",
   counts_layer = "counts",
   etp_method = "reference_balanced",
@@ -437,7 +478,7 @@ provenance <- c(
   grid_size = "501",
   seed = "1",
   gene_set_source = paste0("msigdbr runtime query; package version ", package_value("msigdbr")),
-  gene_set_release = "not_recorded_in_04i_manifest",
+  gene_set_release = "not_recorded_in_source_manifest",
   gene_set_species = "Homo sapiens",
   gene_set_collections = "H,C2:CP:REACTOME,C5:GO:BP",
   gene_set_min_size = "15",
@@ -466,22 +507,22 @@ provenance <- c(
   accumulated_interval = "[0.30,0.49]",
   left_neighbor_interval = "[0.11,0.30)",
   right_neighbor_interval = "(0.49,0.68]",
-  report_html_sha256 = expected_report_sha256,
+  report_html_sha256 = recorded_report_sha256,
   report_html_relative_path = report_html_relative_path,
-  source_results_id = "04i_pseudotime_state_pathways",
-  recorded_cell_metadata_path = input_value("cell_metadata", "path"),
-  recorded_noncell_metadata_path = input_value("noncell_metadata", "path"),
-  recorded_seurat_rds_path = input_value("seurat_rds", "path"),
+  source_results_id = "pseudotime_state_pathways",
+  recorded_cell_metadata_path = basename(input_value("cell_metadata", "path")),
+  recorded_noncell_metadata_path = basename(input_value("noncell_metadata", "path")),
+  recorded_seurat_rds_path = basename(input_value("seurat_rds", "path")),
   msigdbr_package_version = package_value("msigdbr"),
   fgsea_package_version = package_value("fgsea"),
-  source_activity_sha256 = expected_source_sha256[["activity"]],
-  source_primary_gsea_sha256 = expected_source_sha256[["primary_gsea"]],
-  source_leading_edge_sha256 = expected_source_sha256[["leading_edge"]],
-  source_gene_contrast_sha256 = expected_source_sha256[["gene_contrast"]],
-  source_gene_resolution_sha256 = expected_source_sha256[["gene_resolution"]],
-  source_sample_bin_metadata_sha256 = expected_source_sha256[["sample_bin_metadata"]],
-  source_design_audit_sha256 = expected_source_sha256[["design_audit"]],
-  source_primary_coverage_sha256 = expected_source_sha256[["primary_coverage"]]
+  source_activity_sha256 = observed_source_sha256[["activity"]],
+  source_primary_gsea_sha256 = observed_source_sha256[["primary_gsea"]],
+  source_leading_edge_sha256 = observed_source_sha256[["leading_edge"]],
+  source_gene_contrast_sha256 = observed_source_sha256[["gene_contrast"]],
+  source_gene_resolution_sha256 = observed_source_sha256[["gene_resolution"]],
+  source_sample_bin_metadata_sha256 = observed_source_sha256[["sample_bin_metadata"]],
+  source_design_audit_sha256 = observed_source_sha256[["design_audit"]],
+  source_primary_coverage_sha256 = observed_source_sha256[["primary_coverage"]]
 )
 provenance_export <- data.frame(key = names(provenance), value = unname(provenance), stringsAsFactors = FALSE)
 write_reference(provenance_export, "state_pathway_provenance.tsv")
@@ -504,6 +545,7 @@ if (!identical(observed_files, sort(expected_files)) || any(file.info(file.path(
 dir.create(dirname(output_dir), recursive = TRUE, showWarnings = FALSE)
 if (!file.rename(staging_dir, output_dir)) figure7_stop("Could not atomically materialize canonical reference: ", output_dir)
 completed <- TRUE
-message("Exported canonical 04i panel-7F reference: ", output_dir)
-message("Recorded reviewed report SHA-256: ", expected_report_sha256)
+message("Exported canonical state-pathway panel-7F reference: ", output_dir)
+message("Recorded report SHA-256/status: ", recorded_report_sha256)
+message("Strict reviewed-source checksum verification: ", verify_source_checksums)
 message("Activity rows: ", nrow(activity_export), "; selected pathways: ", nrow(selected_export))
