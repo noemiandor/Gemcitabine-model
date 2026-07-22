@@ -327,6 +327,18 @@ testthat::test_that("aria2c input dispatches parallel files and split connection
   testthat::expect_error(env$parse_positive_integer("2.5", "download-workers", 16L), "integer from 1 to 16")
 })
 
+testthat::test_that("scVelo multiprocessing uses a short local socket path", {
+  env <- new.env(parent = globalenv())
+  expressions <- parse(file.path(module_dir, "generate_scvelo_cell_metrics.R"))
+  for (expression in head(expressions, -1L)) eval(expression, envir = env)
+  path <- env$create_scvelo_multiprocessing_tmpdir()
+  on.exit(unlink(path, recursive = TRUE, force = TRUE), add = TRUE)
+  testthat::expect_identical(dirname(path), normalizePath("/tmp", mustWork = TRUE))
+  testthat::expect_true(startsWith(basename(path), "f7mp_"))
+  testthat::expect_lt(nchar(path), 80L)
+  testthat::expect_equal(unname(file.access(path, mode = 2L)), 0L)
+})
+
 testthat::test_that("raw-data downloader materializes, reuses, and rejects corrupt offline fixtures", {
   root <- tempfile("figure7_download_fixture_"); dir.create(root)
   source_dir <- file.path(root, "source"); dir.create(source_dir)

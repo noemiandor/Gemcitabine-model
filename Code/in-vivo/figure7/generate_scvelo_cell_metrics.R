@@ -75,6 +75,18 @@ is_absolute_path <- function(path) {
   grepl("^/", path)
 }
 
+create_scvelo_multiprocessing_tmpdir <- function() {
+  tmp_root <- "/tmp"
+  if (!dir.exists(tmp_root) || file.access(tmp_root, mode = 2L) != 0L) {
+    stop("A writable /tmp directory is required for scVelo multiprocessing", call. = FALSE)
+  }
+  path <- tempfile("f7mp_", tmpdir = tmp_root)
+  if (!dir.create(path, recursive = FALSE, showWarnings = FALSE)) {
+    stop("Cannot create short scVelo multiprocessing temp directory: ", path, call. = FALSE)
+  }
+  normalizePath(path, mustWork = TRUE)
+}
+
 resolve_output_path <- function(path, repo_root) {
   if (is_absolute_path(path)) {
     normalizePath(path, mustWork = FALSE)
@@ -933,6 +945,8 @@ main <- function() {
   )
 
   log_file <- file.path(work_dir, "scvelo.log")
+  multiprocessing_tmpdir <- create_scvelo_multiprocessing_tmpdir()
+  on.exit(unlink(multiprocessing_tmpdir, recursive = TRUE, force = TRUE), add = TRUE)
 
   scvelo_args <- c(
     python_script,
@@ -955,8 +969,21 @@ main <- function() {
     scvelo_args <- c(scvelo_args, "--end-clusters", end_clusters)
   }
 
-  message("Running scVelo metrics extraction with ", length(loom_files), " loom file(s).")
-  status <- system2(python_bin, args = scvelo_args, stdout = log_file, stderr = log_file)
+  message(
+    "Running scVelo metrics extraction with ", length(loom_files),
+    " loom file(s); multiprocessing tmpdir: ", multiprocessing_tmpdir
+  )
+  status <- system2(
+    python_bin,
+    args = scvelo_args,
+    stdout = log_file,
+    stderr = log_file,
+    env = c(
+      paste0("TMPDIR=", multiprocessing_tmpdir),
+      paste0("TMP=", multiprocessing_tmpdir),
+      paste0("TEMP=", multiprocessing_tmpdir)
+    )
+  )
   if (!identical(status, 0L)) {
     log_lines <- if (file.exists(log_file)) readLines(log_file, warn = FALSE) else character(0)
     if (length(log_lines) > 0) {
