@@ -326,7 +326,19 @@ build_all_cells_metadata <- function(
   meta_all$trajectory_ploidy_scope <- "ploidy_all"
   meta_all$trajectory_branch <- make_branch_label(root_clusters, end_clusters)
 
-  meta_all <- meta_all[order(meta_all$cell), , drop = FALSE]
+  meta_all$cell <- enc2utf8(as.character(meta_all$cell))
+  if (anyNA(meta_all$cell) || any(!nzchar(meta_all$cell))) {
+    stop("Metadata contains missing or empty cell IDs.", call. = FALSE)
+  }
+  if (anyDuplicated(meta_all$cell)) {
+    stop("Metadata contains duplicated cell IDs.", call. = FALSE)
+  }
+  meta_all <- meta_all[
+    order(meta_all$cell, method = "radix"),
+    ,
+    drop = FALSE
+  ]
+  rownames(meta_all) <- NULL
   attr(meta_all, "sample_folder_col") <- sample_folder_col
   attr(meta_all, "cluster_col") <- cluster_col
   meta_all
