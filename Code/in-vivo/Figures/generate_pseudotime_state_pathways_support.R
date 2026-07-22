@@ -106,9 +106,13 @@ write_csv <- function(x, path) {
 
 required_packages <- function() {
   c(
-    "Seurat", "Matrix", "yaml", "digest", "edgeR", "limma", "splines",
+    "SeuratObject", "Matrix", "yaml", "digest", "edgeR", "limma", "splines",
     "fgsea", "msigdbr", "dplyr", "readr", "tidyr", "ggplot2"
   )
+}
+
+recorded_packages <- function() {
+  c("Seurat", required_packages())
 }
 
 check_packages <- function(packages = required_packages()) {
@@ -119,10 +123,13 @@ check_packages <- function(packages = required_packages()) {
   invisible(TRUE)
 }
 
-package_versions <- function(packages = required_packages()) {
+package_versions <- function(packages = recorded_packages()) {
   data.frame(
     package = packages,
-    version = vapply(packages, function(pkg) as.character(utils::packageVersion(pkg)), character(1L)),
+    version = vapply(packages, function(pkg) {
+      if (!requireNamespace(pkg, quietly = TRUE) && !nzchar(system.file(package = pkg))) return(NA_character_)
+      as.character(utils::packageVersion(pkg))
+    }, character(1L)),
     stringsAsFactors = FALSE
   )
 }
@@ -169,14 +176,32 @@ clean_gene_symbols <- function(genes) {
 }
 
 get_assay_data_slot <- function(obj, assay = "RNA", slot_name = "counts") {
+  assay_obj <- tryCatch({
+    if (methods::is(obj, "Seurat") && assay %in% names(obj@assays)) {
+      obj@assays[[assay]]
+    } else {
+      obj[[assay]]
+    }
+  }, error = function(e) NULL)
+  if (is.null(assay_obj)) return(NULL)
+
+  direct_slot <- tryCatch({
+    if (methods::is(assay_obj, "Assay") && slot_name %in% slotNames(assay_obj)) {
+      methods::slot(assay_obj, slot_name)
+    } else {
+      NULL
+    }
+  }, error = function(e) NULL)
+  if (!is.null(direct_slot)) return(direct_slot)
+
   tryCatch(
-    Seurat::GetAssayData(obj, assay = assay, slot = slot_name),
+    SeuratObject::LayerData(assay_obj, layer = slot_name),
     error = function(e1) {
       tryCatch(
-        Seurat::GetAssayData(obj, assay = assay, layer = slot_name),
+        Seurat::GetAssayData(obj, assay = assay, slot = slot_name),
         error = function(e2) {
           tryCatch(
-            SeuratObject::LayerData(obj[[assay]], layer = slot_name),
+            Seurat::GetAssayData(obj, assay = assay, layer = slot_name),
             error = function(e3) NULL
           )
         }
@@ -652,6 +677,9 @@ contrast_vector <- function(model, cfg, contrast_name, grid_size = 501L) {
     left <- interval_hit(grid, intervals$left_neighbor)
     right <- interval_hit(grid, intervals$right_neighbor)
     mean_design(primary) - 0.5 * mean_design(left) - 0.5 * mean_design(right)
+  } else if (identical(contrast_name, "full_trajectory_state_specificity")) {
+    primary <- interval_hit(grid, intervals$primary_accumulated_state)
+    mean_design(primary) - mean_design(!primary)
   } else {
     stop("Unsupported contrast in standalone script: ", contrast_name, call. = FALSE)
   }
@@ -1021,16 +1049,21 @@ run_support_workflow <- function(args, repo_root) {
   write_csv(design_audit(model_fit), file.path(model_qc, "model_design_rank_audit.csv"))
 
   primary_contrast <- contrast_vector(model_fit, cfg, "primary_adjacent_state", args$grid_size)
+  secondary_contrast <- contrast_vector(model_fit, cfg, "full_trajectory_state_specificity", args$grid_size)
   primary_genes <- contrast_table(model_fit, primary_contrast, "primary_adjacent_state")
+  secondary_genes <- contrast_table(model_fit, secondary_contrast, "full_trajectory_state_specificity")
   primary_genes$model_id <- model_spec$model_id
+  secondary_genes$model_id <- model_spec$model_id
   symbol_resolution <- resolve_gene_symbols(primary_genes)
   symbol_resolution$model_id <- model_spec$model_id
   write_csv(primary_genes, file.path(model_gene_models, "gene_primary_adjacent_state_contrast.csv"))
+  write_csv(secondary_genes, file.path(model_gene_models, "gene_full_trajectory_state_specificity.csv"))
   write_csv(symbol_resolution, file.path(model_gene_models, "gene_symbol_resolution.csv"))
 
   message("Running GSEA")
   gene_sets <- fetch_gene_sets(args$gene_set_collections)
   primary_stats <- ranked_stats(primary_genes, symbol_resolution)
+  secondary_stats <- ranked_stats(secondary_genes)
   primary_gsea <- run_all_gsea(
     primary_stats,
     gene_sets,
@@ -1040,10 +1073,21 @@ run_support_workflow <- function(args, repo_root) {
     args$gsea_nperm_simple,
     args$seed
   )
+  secondary_gsea <- run_all_gsea(
+    secondary_stats,
+    gene_sets,
+    "full_trajectory_state_specificity",
+    args$gsea_min_size,
+    args$gsea_max_size,
+    args$gsea_nperm_simple,
+    args$seed
+  )
   primary_gsea$model_id <- model_spec$model_id
+  secondary_gsea$model_id <- model_spec$model_id
   write_csv(primary_gsea, file.path(model_gsea, "all_collections_primary_adjacent_state_gsea.csv"))
+  write_csv(secondary_gsea, file.path(model_gsea, "all_collections_full_trajectory_state_specificity_gsea.csv"))
 
-  leading_edge <- leading_edge_table(primary_gsea)
+  leading_edge <- leading_edge_table(rbind(primary_gsea, secondary_gsea))
   if (nrow(leading_edge) > 0L) leading_edge$model_id <- model_spec$model_id
   write_csv(leading_edge, file.path(model_gsea, "all_collections_leading_edge_genes.csv"))
 
