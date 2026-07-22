@@ -1,7 +1,8 @@
 # Gemcitabine-model container
 
 This directory defines the Linux `amd64` analysis image. The environment uses
-R 4.5.0, Bioconductor 3.22, Python 3.10.13, and samtools/htslib 1.23.1.
+R 4.5.0, Bioconductor 3.22, Python 3.10.13, samtools/htslib 1.23.1, aria2c,
+curl, and the system CA certificate bundle.
 
 ## Files
 
@@ -33,7 +34,9 @@ bash containers/build.sh full
 The default image is `gemcitabine-model:full`. Override the tag or platform with
 `IMAGE_TAG` or `TARGET_PLATFORM`. A custom certificate can be passed through the
 optional `CORPORATE_CA_FILE` variable; it is mounted as a build secret and is not
-copied into the image.
+copied into the image. Its SHA-256 fingerprint is used only to invalidate network
+layers when the certificate changes; the temporary trust entry is removed before
+the final image is created.
 
 ## Published Docker Hub image
 
@@ -43,21 +46,21 @@ selects this exact published image:
 
 ```text
 zafiro/gemcitabine-model:full
-zafiro/gemcitabine-model@sha256:73698b88b71afd255bf2a7372dbbfcfbb0e7704ffecc3d07e34642c5869db072
+zafiro/gemcitabine-model@sha256:26945732439fbba9cb49fccd2f6894d9930ac5e5aab06301db1188ad9379239c
 ```
 
 Pull the exact image:
 
 ```bash
 docker pull --platform linux/amd64 \
-  zafiro/gemcitabine-model@sha256:73698b88b71afd255bf2a7372dbbfcfbb0e7704ffecc3d07e34642c5869db072
+  zafiro/gemcitabine-model@sha256:26945732439fbba9cb49fccd2f6894d9930ac5e5aab06301db1188ad9379239c
 ```
 
 Verify the exact image:
 
 ```bash
 docker run --rm --platform linux/amd64 \
-  zafiro/gemcitabine-model@sha256:73698b88b71afd255bf2a7372dbbfcfbb0e7704ffecc3d07e34642c5869db072 \
+  zafiro/gemcitabine-model@sha256:26945732439fbba9cb49fccd2f6894d9930ac5e5aab06301db1188ad9379239c \
   Rscript /opt/gemcitabine-container/environment.R verify full \
   /opt/gemcitabine-container/packages.tsv
 ```
@@ -71,7 +74,7 @@ docker run --rm --platform linux/amd64 \
   -v "$PWD:/work:ro" \
   -v "$PWD/docker-results:/results" \
   -w /work \
-  zafiro/gemcitabine-model@sha256:73698b88b71afd255bf2a7372dbbfcfbb0e7704ffecc3d07e34642c5869db072 \
+  zafiro/gemcitabine-model@sha256:26945732439fbba9cb49fccd2f6894d9930ac5e5aab06301db1188ad9379239c \
   Rscript path/to/script.R
 ```
 
@@ -81,11 +84,15 @@ docker run --rm --platform linux/amd64 \
 docker run --rm --platform linux/amd64 gemcitabine-model:full \
   Rscript /opt/gemcitabine-container/environment.R verify full \
   /opt/gemcitabine-container/packages.tsv
+
+docker run --rm --platform linux/amd64 gemcitabine-model:full sh -c \
+  'set -eu; aria2c --version; curl --version; ! ldd "$(command -v curl)" | grep -q /opt/samtools; test -s /etc/ssl/certs/ca-certificates.crt; echo ca_certificates=PASS'
 ```
 
 Verification checks the architecture, exact R and Python package versions,
 Bioconductor, samtools/htslib, the compiler toolchain, Signac compatibility, and
-the hg38 TwoBitFile path.
+the hg38 TwoBitFile path. It also requires aria2c, curl, and a non-empty system
+CA certificate bundle, and verifies that curl does not load samtools libraries.
 
 ## Run repository code
 

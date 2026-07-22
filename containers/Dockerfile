@@ -10,18 +10,23 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 
 COPY packages.tsv /tmp/packages.tsv
 
-RUN --mount=type=secret,id=corporate_ca,target=/usr/local/share/ca-certificates/build-ca.crt \
+RUN --mount=type=secret,id=corporate_ca,target=/run/secrets/corporate_ca \
     set -eux; \
     awk -F '\t' 'NR > 1 && $1 == "python" { print $2 "==" $3 }' \
         /tmp/packages.tsv > /tmp/python-requirements.txt; \
     apt-get update; \
     apt-get install --yes --no-install-recommends build-essential; \
+    if [ -s /run/secrets/corporate_ca ]; then \
+        cp /run/secrets/corporate_ca /usr/local/share/ca-certificates/build-ca.crt; \
+    fi; \
     update-ca-certificates; \
     grep -v '^velocyto==' /tmp/python-requirements.txt > /tmp/python-before-velocyto.txt; \
     velocyto_requirement="$(grep '^velocyto==' /tmp/python-requirements.txt)"; \
     python -m pip install --no-cache-dir --requirement /tmp/python-before-velocyto.txt; \
     python -m pip install --no-cache-dir --no-build-isolation "$velocyto_requirement"; \
     python -m pip check; \
+    rm -f /usr/local/share/ca-certificates/build-ca.crt; \
+    update-ca-certificates; \
     rm -rf /var/lib/apt/lists/* /tmp/packages.tsv /tmp/python-*.txt /root/.cache
 
 FROM --platform=$TARGETPLATFORM quay.io/biocontainers/samtools@sha256:23cda33a3a42125872766df9aaf1d2db67cdb8c85314b793465188435af31ba6 AS samtools-runtime
@@ -31,6 +36,7 @@ FROM --platform=$TARGETPLATFORM rocker/r-ver@sha256:f97b4944221bdc309583dfbc37dc
 ARG TARGETPLATFORM
 ARG BUILD_DATE
 ARG VCS_REF
+ARG CORPORATE_CA_CACHE_BUST=none
 
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
@@ -42,19 +48,25 @@ ENV LANG=C.UTF-8 \
 
 COPY packages.tsv /opt/gemcitabine-container/packages.tsv
 
-RUN --mount=type=secret,id=corporate_ca,target=/usr/local/share/ca-certificates/build-ca.crt \
+RUN --mount=type=secret,id=corporate_ca,target=/run/secrets/corporate_ca \
     set -eux; \
+    test -n "$CORPORATE_CA_CACHE_BUST"; \
     test "$TARGETPLATFORM" = "linux/amd64"; \
     apt-get update; \
     apt-get install --yes --no-install-recommends \
         bash ca-certificates libbz2-1.0 libexpat1 libffi8 libfontconfig1 \
         libfreetype6 libgomp1 liblzma5 libncursesw6 libreadline8t64 \
         libsqlite3-0 libssl3t64 zlib1g; \
+    if [ -s /run/secrets/corporate_ca ]; then \
+        cp /run/secrets/corporate_ca /usr/local/share/ca-certificates/build-ca.crt; \
+    fi; \
     update-ca-certificates; \
     bioc_manager_version="$(awk -F '\t' '$1 == "r" && $2 == "BiocManager" { print $3 }' /opt/gemcitabine-container/packages.tsv)"; \
     bioc_release="$(awk -F '\t' '$1 == "r" && $2 == "BiocVersion" { sub(/\.0$/, "", $3); print $3 }' /opt/gemcitabine-container/packages.tsv)"; \
     Rscript -e 'version <- commandArgs(TRUE)[1]; install.packages(sprintf("https://cran.r-project.org/src/contrib/BiocManager_%s.tar.gz", version), repos = NULL, type = "source")' "$bioc_manager_version"; \
     Rscript -e 'args <- commandArgs(TRUE); stopifnot(as.character(packageVersion("BiocManager")) == args[1]); BiocManager::install(version = args[2], ask = FALSE, update = FALSE)' "$bioc_manager_version" "$bioc_release"; \
+    rm -f /usr/local/share/ca-certificates/build-ca.crt; \
+    update-ca-certificates; \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
 COPY --from=python-dependencies /usr/local/ /usr/local/
@@ -80,12 +92,15 @@ CMD ["R"]
 
 FROM base-core AS r-package-tools
 
+ARG CORPORATE_CA_CACHE_BUST=none
+
 ENV MAKEFLAGS=-j4 \
     PKG_NUM_PROCS=4 \
     R_REMOTES_NO_ERRORS_FROM_WARNINGS=true
 
-RUN --mount=type=secret,id=corporate_ca,target=/usr/local/share/ca-certificates/build-ca.crt \
+RUN --mount=type=secret,id=corporate_ca,target=/run/secrets/corporate_ca \
     set -eux; \
+    test -n "$CORPORATE_CA_CACHE_BUST"; \
     apt-get update; \
     apt-get install --yes --no-install-recommends \
         build-essential cmake curl gfortran git libabsl-dev libbz2-dev \
@@ -109,10 +124,15 @@ RUN --mount=type=secret,id=corporate_ca,target=/usr/local/share/ca-certificates/
         libsqlite3-0 libssl3t64 libtiff6 libtiffxx6 libudunits2-0 \
         libuv1t64 libwebp7 libwebpdecoder3 libwebpdemux2 libwebpmux3 \
         libx11-6 libxml2 libzstd1 pandoc perl xz-utils zlib1g; \
+    if [ -s /run/secrets/corporate_ca ]; then \
+        cp /run/secrets/corporate_ca /usr/local/share/ca-certificates/build-ca.crt; \
+    fi; \
     update-ca-certificates; \
     pak_version="$(awk -F '\t' '$1 == "r" && $2 == "pak" { print $3 }' /opt/gemcitabine-container/packages.tsv)"; \
     Rscript -e 'version <- commandArgs(TRUE)[1]; install.packages(sprintf("https://cran.r-project.org/src/contrib/Archive/pak/pak_%s.tar.gz", version), repos = NULL, type = "source")' "$pak_version"; \
     Rscript -e 'stopifnot(as.character(packageVersion("pak")) == commandArgs(TRUE)[1])' "$pak_version"; \
+    rm -f /usr/local/share/ca-certificates/build-ca.crt; \
+    update-ca-certificates; \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
 FROM r-package-tools AS r-package-builder
@@ -131,10 +151,20 @@ RUN --mount=type=cache,id=gemcitabine-r-library-v1,target=/opt/r-locked-library 
 
 FROM base AS full
 
+ENV LD_LIBRARY_PATH=
+
 RUN set -eux; \
+    mkdir -p /opt/samtools/bin; \
+    mv /usr/local/bin/samtools /opt/samtools/bin/samtools; \
+    printf '%s\n' \
+        '#!/bin/sh' \
+        'LD_LIBRARY_PATH=/opt/samtools/lib exec /opt/samtools/bin/samtools "$@"' \
+        > /usr/local/bin/samtools; \
+    chmod 0755 /usr/local/bin/samtools; \
     apt-get update; \
     apt-get install --yes --no-install-recommends \
-        gdal-bin gsfonts imagemagick-6-common libabsl20220623t64 libbz2-1.0 \
+        aria2 ca-certificates curl gdal-bin gsfonts imagemagick-6-common \
+        libabsl20220623t64 libbz2-1.0 \
         libcairo-gobject2 libcairo2 libcurl4t64 libfftw3-double3 \
         libfftw3-long3 libfftw3-quad3 libfftw3-single3 libfontconfig1 \
         libfreetype6 libfribidi0 libgdal34t64 libgeos-c1t64 libgit2-1.7 \
@@ -152,8 +182,13 @@ RUN set -eux; \
 
 COPY --from=r-package-builder /usr/local/lib/R/site-library/ /usr/local/lib/R/site-library/
 
-RUN Rscript /opt/gemcitabine-container/environment.R verify full \
-        /opt/gemcitabine-container/packages.tsv
+RUN set -eux; \
+    Rscript /opt/gemcitabine-container/environment.R verify full \
+        /opt/gemcitabine-container/packages.tsv; \
+    aria2c --version; \
+    curl --version; \
+    ! ldd "$(command -v curl)" | grep -q /opt/samtools; \
+    test -s /etc/ssl/certs/ca-certificates.crt
 
 LABEL org.opencontainers.image.title="Gemcitabine-model analysis environment" \
-      org.opencontainers.image.description="R 4.5.0 analysis image with exact R and Python package versions"
+      org.opencontainers.image.description="R 4.5.0 analysis image with exact R and Python package versions, aria2c, curl, and CA certificates"
