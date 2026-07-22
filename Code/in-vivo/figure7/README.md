@@ -104,6 +104,33 @@ cell-table pair. The preflight order is:
    Seurat first, then generate the two cell-level tables.
 4. If only one cell-level table exists, fail rather than mix partial outputs.
 
+The publication-controlled Manager entrypoint for a new input refresh is:
+
+```bash
+bash Manager.sh \
+  --mode full-refit \
+  --modules in_vivo_figure7 \
+  --run-id <run_id> \
+  --figure7-refresh-inputs \
+  --figure7-intermediate-dir Results/in-vivo/figure7/intermediates/<run_id> \
+  --figure7-python /path/to/scvelo/python
+```
+
+Manager first completes the full workflow, validates the Figure 7 run and its
+output manifest, and verifies each generated CSV against the path and SHA-256
+recorded in `metadata/run_config.tsv`. It then stages and atomically replaces:
+
+- `Data/in-vivo/scvelo_cell_metrics.csv`
+- `Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv`
+- `Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv`
+
+Only files whose generating stages are listed in `workflow_executed_stages` are
+published. Reused intermediates are not silently republished. Publication
+provenance, source and target paths, and SHA-256 values are recorded in the
+Manager run at `metadata/figure7_input_materialization.tsv`. A failed workflow,
+manifest check, schema check, or checksum check leaves the reusable `Data/`
+inputs unchanged.
+
 If scVelo or panel 7F requires raw inputs and no explicit local paths were
 provided, the workflow uses the open dataset at DOI
 [`10.5281/zenodo.21463392`](https://doi.org/10.5281/zenodo.21463392). The pinned

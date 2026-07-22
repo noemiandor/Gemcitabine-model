@@ -31,6 +31,73 @@ class ManagerFigure7CliTest(unittest.TestCase):
             capture_output=True,
         )
 
+    @staticmethod
+    def _write_fake_full_workflow_rscript(path: Path) -> None:
+        path.write_text(
+            """#!/usr/bin/env bash
+set -euo pipefail
+entrypoint="$1"
+shift
+[[ "$entrypoint" == *run_figure7.R ]] || exit 99
+output_dir=""
+intermediate_dir=""
+for arg in "$@"; do
+  case "$arg" in
+    --output-dir=*) output_dir="${arg#*=}" ;;
+    --intermediate-dir=*) intermediate_dir="${arg#*=}" ;;
+  esac
+done
+mkdir -p "$output_dir/figures" "$output_dir/metadata" "$output_dir/tables" "$intermediate_dir"
+scvelo="$intermediate_dir/scvelo_cell_metrics.csv"
+cellcycle="$intermediate_dir/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+noncellcycle="$intermediate_dir/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+printf 'cell,velocity_cell,velocity_pseudotime,TN,clusters,sample,Ploidy,Dose\nc1,c1,0.1,Tumor,6,s1,2N,0mg/kg\n' > "$scvelo"
+for table in "$cellcycle" "$noncellcycle"; do
+  printf 'cell_id,sample_id,initial_ploidy,gemcitabine_dose,gemcitabine_dose_mg_per_kg,pseudotime,cell_ploidy\nc1,s1,2N,0mg/kg,0,0.1,2.0\n' > "$table"
+done
+scvelo_sha="$(shasum -a 256 "$scvelo" | awk '{print $1}')"
+cellcycle_sha="$(shasum -a 256 "$cellcycle" | awk '{print $1}')"
+noncellcycle_sha="$(shasum -a 256 "$noncellcycle" | awk '{print $1}')"
+if [[ "${BAD_FIGURE7_HASHES:-false}" == true ]]; then
+  scvelo_sha="$(printf '0%.0s' {1..64})"
+fi
+for name in \
+  panel_7A_day17_tgi_calculation \
+  panel_7B_cellcycle_selected_ecdf_comparisons \
+  panel_7C_day17_tgi_by_initial_ploidy \
+  panel_7D_day17_tgi_vs_centered_ecdf_shift \
+  panel_7E_day17_tgi_vs_mean_etp \
+  panel_7F_pseudotime_state_pathway_activity; do
+  printf 'fake pdf\n' > "$output_dir/figures/$name.pdf"
+  printf 'fake png\n' > "$output_dir/figures/$name.png"
+done
+{
+  printf 'key\tvalue\n'
+  printf 'module\tin_vivo_figure7\n'
+  printf 'mode\tfull-workflow\n'
+  printf 'panel_set\ta-f\n'
+  printf 'tgi_day\t17\n'
+  printf 'workflow_executed_stages\tscvelo_metrics,celllevel_inputs\n'
+  printf 'workflow_scvelo_metrics\t%s\n' "$scvelo"
+  printf 'workflow_scvelo_sha256\t%s\n' "$scvelo_sha"
+  printf 'workflow_cellcycle_input\t%s\n' "$cellcycle"
+  printf 'workflow_cellcycle_sha256\t%s\n' "$cellcycle_sha"
+  printf 'workflow_noncellcycle_input\t%s\n' "$noncellcycle"
+  printf 'workflow_noncellcycle_sha256\t%s\n' "$noncellcycle_sha"
+} > "$output_dir/metadata/run_config.tsv"
+{
+  printf 'panel_id\tfilename\n'
+  printf '7A\tpanel_7A_day17_tgi_calculation.pdf\n'
+  printf '7B\tpanel_7B_cellcycle_selected_ecdf_comparisons.pdf\n'
+  printf '7C\tpanel_7C_day17_tgi_by_initial_ploidy.pdf\n'
+  printf '7D\tpanel_7D_day17_tgi_vs_centered_ecdf_shift.pdf\n'
+  printf '7E\tpanel_7E_day17_tgi_vs_mean_etp.pdf\n'
+  printf '7F\tpanel_7F_pseudotime_state_pathway_activity.pdf\n'
+} > "$output_dir/metadata/panel_contract.tsv"
+"""
+        )
+        path.chmod(0o755)
+
     def test_panels_only_requires_source_run_id(self) -> None:
         result = self._run(
             "--mode", "panels-only", "--modules", "in_vivo_figure7", "--run-id", "operation"
@@ -61,6 +128,127 @@ class ManagerFigure7CliTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertIn("--figure7-gene-set-artifact", result.stderr)
+
+    def test_refresh_inputs_requires_full_refit_or_check_only(self) -> None:
+        result = self._run(
+            "--mode", "standard", "--modules", "in_vivo_figure7",
+            "--run-id", "bad_refresh_mode", "--figure7-refresh-inputs",
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("requires --mode full-refit or check-only", result.stderr)
+
+    def test_refresh_check_forwards_full_workflow_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            cell_ploidy = tmp_path / "all_ploidy.tsv"
+            sample_info = tmp_path / "sample_info.xlsx"
+            growth_curve = tmp_path / "growth.xlsx"
+            for path in (cell_ploidy, sample_info, growth_curve):
+                path.write_text("fixture\n")
+            intermediate = tmp_path / "intermediates"
+            result = self._run(
+                "--mode", "check-only", "--modules", "in_vivo_figure7",
+                "--run-id", "refresh_check", "--figure7-refresh-inputs",
+                "--figure7-intermediate-dir", str(intermediate),
+                "--figure7-python", "/opt/scvelo/bin/python",
+                "--figure7-cell-ploidy-input", str(cell_ploidy),
+                "--figure7-sample-info-input", str(sample_info),
+                "--figure7-growth-curve-input", str(growth_curve),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("--mode=full-workflow", result.stdout)
+            self.assertIn(f"--intermediate-dir={intermediate.resolve()}", result.stdout)
+            self.assertIn("--python=/opt/scvelo/bin/python", result.stdout)
+
+    def test_refresh_publishes_three_validated_csvs_after_success(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            output_root = tmp_path / "Results"
+            figure_root = tmp_path / "figures"
+            intermediate = tmp_path / "intermediates"
+            data_root = tmp_path / "Data/in-vivo"
+            cell_ploidy = tmp_path / "all_ploidy.tsv"
+            sample_info = tmp_path / "sample_info.xlsx"
+            growth_curve = tmp_path / "growth.xlsx"
+            for path in (cell_ploidy, sample_info, growth_curve):
+                path.write_text("fixture\n")
+            fake_bin = tmp_path / "bin"
+            fake_bin.mkdir()
+            self._write_fake_full_workflow_rscript(fake_bin / "Rscript")
+            env = os.environ.copy()
+            env["PATH"] = f"{fake_bin}:{env['PATH']}"
+            env["FIGURE7_DATA_ROOT"] = str(data_root)
+
+            result = self._run(
+                "--mode", "full-refit", "--modules", "in_vivo_figure7",
+                "--run-id", "refresh_publish", "--figure7-refresh-inputs",
+                "--output-root", str(output_root), "--figure-root", str(figure_root),
+                "--figure7-intermediate-dir", str(intermediate),
+                "--figure7-cell-ploidy-input", str(cell_ploidy),
+                "--figure7-sample-info-input", str(sample_info),
+                "--figure7-growth-curve-input", str(growth_curve),
+                env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            expected_pairs = (
+                (
+                    intermediate / "scvelo_cell_metrics.csv",
+                    data_root / "scvelo_cell_metrics.csv",
+                ),
+                (
+                    intermediate / "CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
+                    data_root / "figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
+                ),
+                (
+                    intermediate / "NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
+                    data_root / "figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
+                ),
+            )
+            for source, target in expected_pairs:
+                self.assertEqual(source.read_bytes(), target.read_bytes())
+
+            metadata_path = (
+                output_root
+                / "manager/runs/refresh_publish/metadata/figure7_input_materialization.tsv"
+            )
+            with metadata_path.open(newline="") as handle:
+                metadata = {
+                    row["key"]: row["value"] for row in csv.DictReader(handle, delimiter="\t")
+                }
+            self.assertEqual(metadata["status"], "ok")
+            self.assertEqual(metadata["materialized_file_count"], "3")
+
+    def test_refresh_hash_failure_does_not_publish_any_csv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            output_root = tmp_path / "Results"
+            figure_root = tmp_path / "figures"
+            intermediate = tmp_path / "intermediates"
+            data_root = tmp_path / "Data/in-vivo"
+            inputs = [tmp_path / name for name in ("all_ploidy.tsv", "sample_info.xlsx", "growth.xlsx")]
+            for path in inputs:
+                path.write_text("fixture\n")
+            fake_bin = tmp_path / "bin"
+            fake_bin.mkdir()
+            self._write_fake_full_workflow_rscript(fake_bin / "Rscript")
+            env = os.environ.copy()
+            env["PATH"] = f"{fake_bin}:{env['PATH']}"
+            env["FIGURE7_DATA_ROOT"] = str(data_root)
+            env["BAD_FIGURE7_HASHES"] = "true"
+
+            result = self._run(
+                "--mode", "full-refit", "--modules", "in_vivo_figure7",
+                "--run-id", "refresh_bad_hash", "--figure7-refresh-inputs",
+                "--output-root", str(output_root), "--figure-root", str(figure_root),
+                "--figure7-intermediate-dir", str(intermediate),
+                "--figure7-cell-ploidy-input", str(inputs[0]),
+                "--figure7-sample-info-input", str(inputs[1]),
+                "--figure7-growth-curve-input", str(inputs[2]),
+                env=env,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("changed after validation", result.stderr)
+            self.assertFalse(data_root.exists())
 
     def test_ae_only_check_omits_panel_f_inputs_and_sets_panel_contract(self) -> None:
         result = self._run(
