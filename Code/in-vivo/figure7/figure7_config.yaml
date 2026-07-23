@@ -14,6 +14,27 @@ raw_data:
 inputs:
   cellcycle_sha256: bd0c6fcf3f6691114445a7c8a9fb8de7e55ef6580a9737284cd38f5bba216186
   noncellcycle_sha256: 1e44794fb2b2c402b49cf9d17abcc54cd7690dc5d1d611e38a6aa3b996093d3c
+si_figure4:
+  umap_reduction: umap
+  pca_reduction: pca
+  cluster_id_field: clusters
+  base_cluster_field: integrated_snn_res.0.6
+  clustering_resolution: 0.6
+  cluster_annotation_field: cluster_cell_cycle_annotation
+  sample_field: sample
+  dose_field: Dose
+  ploidy_field: Ploidy
+  context_field: TN
+  cellcycle_mapping:
+    cell_cycle_candidate: CellCycle
+    not_cell_cycle_candidate: NonCellCycle
+  inclusion:
+    context: Tumor
+    ploidy_levels: [2N, 4N]
+    dose_levels: [0mg/kg, 30mg/kg, 120mg/kg]
+    required_nonmissing: [cell_id, UMAP_1, UMAP_2, sample_id, cluster_id, cluster_annotation, initial_ploidy, dose, cellcycle_classification]
+  source_qc_fields: [nCount_RNA, nFeature_RNA, percent.mt, scDblFinder.class, scDblFinder.score]
+  source_qc_policy: "Use the reviewed Seurat object as provided; SI Figure 4 applies no additional expression, mitochondrial, or doublet threshold."
 tgi:
   outcome: day
   day: 17

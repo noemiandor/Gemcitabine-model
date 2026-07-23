@@ -74,6 +74,7 @@ write_metadata <- function(
           "workflow_scvelo_sha256", "workflow_cellcycle_input", "workflow_cellcycle_sha256",
           "workflow_noncellcycle_input", "workflow_noncellcycle_sha256",
           "workflow_seurat_metadata", "workflow_seurat_metadata_sha256",
+          "workflow_seurat_metadata_provenance", "workflow_seurat_metadata_provenance_sha256",
           "raw_data_source", "raw_data_doi", "zenodo_record_id", "raw_data_dir",
           "raw_data_download_roles", "raw_data_validation_roles", "raw_download_workers",
           "raw_download_connections_per_file", "raw_data_manifest_sha256", "seurat_rds_sha256",
@@ -90,6 +91,12 @@ write_metadata <- function(
           figure7_sha256(workflow$noncellcycle),
           if (nzchar(workflow$seurat_metadata)) workflow$seurat_metadata else "not_available",
           if (nzchar(workflow$seurat_metadata)) figure7_sha256(workflow$seurat_metadata) else "not_available",
+          if (nzchar(workflow$seurat_metadata_provenance)) workflow$seurat_metadata_provenance else "not_available",
+          if (nzchar(workflow$seurat_metadata_provenance)) {
+            figure7_sha256(workflow$seurat_metadata_provenance)
+          } else {
+            "not_available"
+          },
           workflow$raw_data_status,
           as.character(config$raw_data$doi),
           as.character(config$raw_data$record_id),
@@ -228,14 +235,16 @@ write_scvelo_input_prep_metadata <- function(output_dir, prep, config_path) {
     key = c(
       "module", "mode", "workflow_initial_state", "workflow_executed_stages",
       "workflow_scvelo_metrics", "workflow_scvelo_sha256", "workflow_seurat_metadata",
-      "workflow_seurat_metadata_sha256", "raw_data_source", "raw_data_dir", "loom_root",
+      "workflow_seurat_metadata_sha256", "workflow_seurat_metadata_provenance",
+      "workflow_seurat_metadata_provenance_sha256", "raw_data_source", "raw_data_dir", "loom_root",
       "seurat_rds", "workflow_log_dir", "config_sha256"
     ),
     value = c(
       "in_vivo_figure7_input_prep", "prepare-scvelo-inputs", prep$initial_state,
       if (length(prep$executed_stages)) paste(prep$executed_stages, collapse = ",") else "none",
       prep$scvelo_metrics, prep$scvelo_sha256, prep$seurat_metadata,
-      prep$seurat_metadata_sha256, prep$raw_data_status, prep$raw_data_dir, prep$loom_root,
+      prep$seurat_metadata_sha256, prep$seurat_metadata_provenance,
+      prep$seurat_metadata_provenance_sha256, prep$raw_data_status, prep$raw_data_dir, prep$loom_root,
       prep$seurat_rds, prep$log_dir, figure7_sha256(config_path)
     ),
     stringsAsFactors = FALSE
@@ -254,11 +263,12 @@ if (identical(mode, "prepare-scvelo-inputs")) {
     cat("raw_data_status\t", preflight$raw_data_status, "\n", sep = "")
     cat("scvelo_metrics\t", workflow_paths$scvelo_metrics, "\n", sep = "")
     cat("seurat_metadata\t", workflow_paths$seurat_metadata, "\n", sep = "")
+    cat("seurat_metadata_provenance\t", workflow_paths$seurat_metadata_provenance, "\n", sep = "")
     quit(save = "no", status = 0L)
   }
   figure7_assert_empty_output(output_dir)
   prep <- figure7_prepare_scvelo_input_pair(
-    workflow_paths, preflight, script_dir, config,
+    workflow_paths, preflight, script_dir, config, config_path,
     overwrite_intermediates = overwrite_intermediates
   )
   write_scvelo_input_prep_metadata(output_dir, prep, config_path)

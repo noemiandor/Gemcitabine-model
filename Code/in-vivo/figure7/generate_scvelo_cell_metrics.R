@@ -44,7 +44,8 @@ usage <- function() {
       "    --seurat_rds \"/path/to/integrated_sct_cca_seurat_final_reclustered.rds\" \\",
       "    --loom_root \"/path/to/velocyto_loom\" \\",
       "    --output Data/in-vivo/scvelo_cell_metrics.csv \\",
-      "    --seurat_metadata_output Data/in-vivo/seurat_metadata.csv",
+      "    --seurat_metadata_output Data/in-vivo/seurat_metadata.csv \\",
+      "    --seurat_metadata_provenance_output Data/in-vivo/seurat_metadata_provenance.tsv",
       "",
       "Alternatively, use the legacy --input_root layout:",
       "  seurat_obj_annotated/integrated_sct_cca_seurat_final_reclustered.rds",
@@ -99,6 +100,31 @@ require_package <- function(pkg) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
     stop("Missing required R package: ", pkg, call. = FALSE)
   }
+}
+
+file_sha256_local <- function(path) {
+  require_package("digest")
+  unname(digest::digest(path, algo = "sha256", file = TRUE, serialize = FALSE))
+}
+
+write_tsv_checked <- function(data, path) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  utils::write.table(
+    data, path, sep = "\t", row.names = FALSE, col.names = TRUE,
+    quote = FALSE, na = "NA"
+  )
+  if (!file.exists(path) || file.info(path)$size <= 0) {
+    stop("Failed to write TSV output: ", path, call. = FALSE)
+  }
+  invisible(path)
+}
+
+git_revision_local <- function(repo_root) {
+  result <- suppressWarnings(system2(
+    "git", c("-C", shQuote(repo_root), "rev-parse", "HEAD"),
+    stdout = TRUE, stderr = FALSE
+  ))
+  if (length(result) == 1L && grepl("^[0-9a-f]{40}$", result[[1L]])) result[[1L]] else "not_available"
 }
 
 split_values <- function(value) {
@@ -197,6 +223,9 @@ build_all_cells_metadata <- function(
   pca_prefix = "PCA_",
   umap_reduction = "umap",
   pca_reduction = "pca",
+  cluster_annotation_col = "cluster_cell_cycle_annotation",
+  base_cluster_col = "integrated_snn_res.0.6",
+  source_qc_fields = character(),
   root_clusters = "6",
   end_clusters = "",
   seurat_metadata_output = NULL
@@ -235,6 +264,15 @@ build_all_cells_metadata <- function(
   if (is.na(cluster_col)) {
     stop("Cannot find cluster_final, clusters, or seurat_clusters metadata column.", call. = FALSE)
   }
+  for (required_field in c(cluster_annotation_col, base_cluster_col)) {
+    if (!(required_field %in% colnames(meta))) {
+      stop("Seurat metadata is missing reviewed SI Figure 4 field: ", required_field, call. = FALSE)
+    }
+  }
+  missing_qc_fields <- setdiff(source_qc_fields, colnames(meta))
+  if (length(missing_qc_fields)) {
+    stop("Seurat metadata is missing reviewed QC field(s): ", paste(missing_qc_fields, collapse = ", "), call. = FALSE)
+  }
 
   dose_values <- standardize_in_vivo_dose_local(meta[[dose_col]])
   observed_doses <- unique(dose_values[!is.na(dose_values)])
@@ -272,6 +310,8 @@ build_all_cells_metadata <- function(
     "Sequencing.IDs",
     "orig.ident",
     "sample_type",
+    cluster_annotation_col,
+    base_cluster_col,
     "cluster_final_annotation_primary",
     "cluster_final_annotation_multi",
     "seurat_clusters",
@@ -383,6 +423,7 @@ build_all_cells_metadata <- function(
 
   attr(meta_all, "sample_folder_col") <- sample_folder_col
   attr(meta_all, "cluster_col") <- cluster_col
+  attr(meta_all, "source_metadata_columns") <- colnames(seurat_metadata_raw)
   meta_all
 }
 
@@ -846,6 +887,15 @@ main <- function() {
   script_dir <- dirname(script_path)
   in_vivo_dir <- normalizePath(dirname(script_dir), mustWork = TRUE)
   repo_root <- normalizePath(dirname(dirname(in_vivo_dir)), mustWork = TRUE)
+  config_path <- resolve_output_path(
+    arg_value(args, "config", file.path(script_dir, "figure7_config.yaml")),
+    repo_root
+  )
+  if (!file.exists(config_path)) stop("Missing Figure 7 config: ", config_path, call. = FALSE)
+  require_package("yaml")
+  config <- yaml::read_yaml(config_path)
+  si_config <- config$si_figure4
+  if (is.null(si_config)) stop("Figure 7 config is missing si_figure4", call. = FALSE)
 
   input_root_arg <- arg_value(args, "input_root", NULL)
   seurat_rds_arg <- arg_value(args, "seurat_rds", NULL)
@@ -861,6 +911,10 @@ main <- function() {
   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   seurat_metadata_output <- resolve_output_path(
     arg_value(args, "seurat_metadata_output", "Data/in-vivo/seurat_metadata.csv"),
+    repo_root
+  )
+  seurat_metadata_provenance_output <- resolve_output_path(
+    arg_value(args, "seurat_metadata_provenance_output", "Data/in-vivo/seurat_metadata_provenance.tsv"),
     repo_root
   )
 
@@ -907,12 +961,15 @@ main <- function() {
     sample_folder_col = arg_value(args, "sample_folder_col", "sample_folder"),
     dose_col = arg_value(args, "dose_col", "Dose"),
     id_col = arg_value(args, "id_col", "ID"),
-    cluster_col = arg_value(args, "cluster_col", "cluster_final"),
+    cluster_col = arg_value(args, "cluster_col", as.character(si_config$cluster_id_field)),
     expected_doses = expected_doses,
     n_pcs = n_pcs,
     pca_prefix = pca_prefix,
-    umap_reduction = arg_value(args, "umap_reduction", "umap"),
-    pca_reduction = arg_value(args, "pca_reduction", "pca"),
+    umap_reduction = arg_value(args, "umap_reduction", as.character(si_config$umap_reduction)),
+    pca_reduction = arg_value(args, "pca_reduction", as.character(si_config$pca_reduction)),
+    cluster_annotation_col = as.character(si_config$cluster_annotation_field),
+    base_cluster_col = as.character(si_config$base_cluster_field),
+    source_qc_fields = as.character(unlist(si_config$source_qc_fields)),
     root_clusters = root_clusters,
     end_clusters = end_clusters,
     seurat_metadata_output = seurat_metadata_output
@@ -1001,8 +1058,52 @@ main <- function() {
     stop("Unexpected scVelo metrics header in output: ", output_path, call. = FALSE)
   }
 
+  cellcycle_mapping <- unlist(si_config$cellcycle_mapping, use.names = TRUE)
+  inclusion <- si_config$inclusion
+  provenance <- data.frame(
+    key = c(
+      "schema_version", "artifact", "source_seurat_rds", "source_seurat_rds_sha256",
+      "source_object_class", "source_object_cells", "source_metadata_columns",
+      "seurat_metadata_output", "seurat_metadata_sha256", "scvelo_metrics_output",
+      "scvelo_metrics_sha256", "umap_reduction", "umap_dimensions", "pca_reduction",
+      "cluster_id_field", "base_cluster_field", "clustering_resolution",
+      "cluster_annotation_field", "sample_field", "dose_field", "ploidy_field",
+      "context_field", "cellcycle_mapping", "inclusion_context", "inclusion_ploidy_levels",
+      "inclusion_dose_levels", "inclusion_required_nonmissing", "source_qc_fields",
+      "source_qc_policy", "figure7_config", "figure7_config_sha256",
+      "export_script", "export_script_sha256", "source_code_revision"
+    ),
+    value = c(
+      "1", "seurat_metadata_export", normalizePath(seurat_rds, mustWork = TRUE),
+      file_sha256_local(seurat_rds), "Seurat", as.character(nrow(metadata_df)),
+      paste(attr(metadata_df, "source_metadata_columns"), collapse = ","),
+      normalizePath(seurat_metadata_output, mustWork = TRUE), file_sha256_local(seurat_metadata_output),
+      normalizePath(output_path, mustWork = TRUE), file_sha256_local(output_path),
+      arg_value(args, "umap_reduction", as.character(si_config$umap_reduction)), "UMAP_1,UMAP_2",
+      arg_value(args, "pca_reduction", as.character(si_config$pca_reduction)),
+      attr(metadata_df, "cluster_col"), as.character(si_config$base_cluster_field),
+      as.character(si_config$clustering_resolution), as.character(si_config$cluster_annotation_field),
+      as.character(si_config$sample_field), as.character(si_config$dose_field),
+      as.character(si_config$ploidy_field), as.character(si_config$context_field),
+      paste(paste(names(cellcycle_mapping), cellcycle_mapping, sep = "->"), collapse = ";"),
+      as.character(inclusion$context), paste(unlist(inclusion$ploidy_levels), collapse = ","),
+      paste(unlist(inclusion$dose_levels), collapse = ","),
+      paste(unlist(inclusion$required_nonmissing), collapse = ","),
+      paste(unlist(si_config$source_qc_fields), collapse = ","),
+      as.character(si_config$source_qc_policy), normalizePath(config_path, mustWork = TRUE),
+      file_sha256_local(config_path), normalizePath(script_path, mustWork = TRUE),
+      file_sha256_local(script_path), git_revision_local(repo_root)
+    ),
+    stringsAsFactors = FALSE
+  )
+  if (anyDuplicated(provenance$key) || anyNA(provenance$value) || any(!nzchar(provenance$value))) {
+    stop("Seurat metadata provenance contains missing or duplicated fields", call. = FALSE)
+  }
+  write_tsv_checked(provenance, seurat_metadata_provenance_output)
+
   message("Wrote scVelo cell metrics: ", output_path)
   message("Seurat metadata output: ", seurat_metadata_output)
+  message("Seurat metadata provenance: ", seurat_metadata_provenance_output)
   if (!keep_work) {
     unlink(work_dir, recursive = TRUE, force = TRUE)
   } else {

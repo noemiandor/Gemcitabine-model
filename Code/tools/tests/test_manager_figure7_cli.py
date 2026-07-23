@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import os
 import subprocess
 import tempfile
@@ -32,19 +33,74 @@ class ManagerFigure7CliTest(unittest.TestCase):
         )
 
     @staticmethod
-    def _write_si_figure4_input_pair(root: Path) -> tuple[Path, Path]:
+    def _sha256(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    @classmethod
+    def _write_si_figure4_input_bundle(
+        cls,
+        root: Path,
+    ) -> tuple[Path, Path, Path]:
         root.mkdir(parents=True, exist_ok=True)
         seurat = root / "seurat_metadata.csv"
         scvelo = root / "scvelo_cell_metrics.csv"
+        provenance = root / "seurat_metadata_provenance.tsv"
         seurat.write_text(
-            "cell,UMAP_1,UMAP_2,Dose,clusters,sample\n"
-            "c1,0,0,0mg/kg,6,s1\n"
+            "cell,UMAP_1,UMAP_2,Dose,clusters,sample,"
+            "cluster_cell_cycle_annotation,integrated_snn_res.0.6,"
+            "nCount_RNA,nFeature_RNA,percent.mt,scDblFinder.class,scDblFinder.score\n"
+            "c1,0,0,0mg/kg,6,s1,cell_cycle_candidate,6,"
+            "1000,500,2.5,singlet,0.01\n"
         )
         scvelo.write_text(
             "cell,velocity_cell,velocity_pseudotime,TN,clusters,sample,Ploidy,Dose\n"
             "c1,c1,0.1,Tumor,6,s1,2N,0mg/kg\n"
         )
-        return seurat, scvelo
+        config = REPO_ROOT / "Code/in-vivo/figure7/figure7_config.yaml"
+        values = {
+            "source_seurat_rds": "/data/source.rds",
+            "source_seurat_rds_sha256": "a" * 64,
+            "source_object_cells": "1",
+            "seurat_metadata_sha256": cls._sha256(seurat),
+            "scvelo_metrics_sha256": cls._sha256(scvelo),
+            "umap_reduction": "umap",
+            "cluster_id_field": "clusters",
+            "base_cluster_field": "integrated_snn_res.0.6",
+            "clustering_resolution": "0.6",
+            "cluster_annotation_field": "cluster_cell_cycle_annotation",
+            "sample_field": "sample",
+            "dose_field": "Dose",
+            "ploidy_field": "Ploidy",
+            "context_field": "TN",
+            "cellcycle_mapping": (
+                "cell_cycle_candidate->CellCycle;"
+                "not_cell_cycle_candidate->NonCellCycle"
+            ),
+            "inclusion_context": "Tumor",
+            "inclusion_ploidy_levels": "2N,4N",
+            "inclusion_dose_levels": "0mg/kg,30mg/kg,120mg/kg",
+            "inclusion_required_nonmissing": (
+                "cell_id,UMAP_1,UMAP_2,sample_id,cluster_id,"
+                "cluster_annotation,initial_ploidy,dose,"
+                "cellcycle_classification"
+            ),
+            "source_qc_fields": (
+                "nCount_RNA,nFeature_RNA,percent.mt,"
+                "scDblFinder.class,scDblFinder.score"
+            ),
+            "source_qc_policy": (
+                "Use the reviewed Seurat object as provided; SI Figure 4 "
+                "applies no additional expression, mitochondrial, or doublet threshold."
+            ),
+            "figure7_config_sha256": cls._sha256(config),
+            "export_script_sha256": "b" * 64,
+            "source_code_revision": "c" * 40,
+        }
+        provenance.write_text(
+            "key\tvalue\n"
+            + "".join(f"{key}\t{value}\n" for key, value in values.items())
+        )
+        return seurat, scvelo, provenance
 
     @staticmethod
     def _write_fake_full_workflow_rscript(path: Path) -> None:
@@ -57,11 +113,15 @@ shift
 output_dir=""
 intermediate_dir=""
 seurat_metadata=""
+seurat_metadata_provenance=""
+config=""
 for arg in "$@"; do
   case "$arg" in
     --output-dir=*) output_dir="${arg#*=}" ;;
     --intermediate-dir=*) intermediate_dir="${arg#*=}" ;;
     --seurat-metadata-output=*) seurat_metadata="${arg#*=}" ;;
+    --seurat-metadata-provenance-output=*) seurat_metadata_provenance="${arg#*=}" ;;
+    --config=*) config="${arg#*=}" ;;
   esac
 done
 mkdir -p "$output_dir/figures" "$output_dir/metadata" "$output_dir/tables" "$intermediate_dir"
@@ -69,8 +129,9 @@ scvelo="$intermediate_dir/scvelo_cell_metrics.csv"
 cellcycle="$intermediate_dir/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
 noncellcycle="$intermediate_dir/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
 [[ -n "$seurat_metadata" ]] || seurat_metadata="$intermediate_dir/seurat_metadata.csv"
+[[ -n "$seurat_metadata_provenance" ]] || seurat_metadata_provenance="$intermediate_dir/seurat_metadata_provenance.tsv"
 printf 'cell,velocity_cell,velocity_pseudotime,TN,clusters,sample,Ploidy,Dose\nc1,c1,0.1,Tumor,6,s1,2N,0mg/kg\n' > "$scvelo"
-printf 'cell,UMAP_1,UMAP_2,Dose,clusters,sample\nc1,0,0,0mg/kg,6,s1\n' > "$seurat_metadata"
+printf 'cell,UMAP_1,UMAP_2,Dose,clusters,sample,cluster_cell_cycle_annotation,integrated_snn_res.0.6,nCount_RNA,nFeature_RNA,percent.mt,scDblFinder.class,scDblFinder.score\nc1,0,0,0mg/kg,6,s1,cell_cycle_candidate,6,1000,500,2.5,singlet,0.01\n' > "$seurat_metadata"
 for table in "$cellcycle" "$noncellcycle"; do
   printf 'cell_id,sample_id,initial_ploidy,gemcitabine_dose,gemcitabine_dose_mg_per_kg,pseudotime,cell_ploidy\nc1,s1,2N,0mg/kg,0,0.1,2.0\n' > "$table"
 done
@@ -78,6 +139,35 @@ scvelo_sha="$(shasum -a 256 "$scvelo" | awk '{print $1}')"
 cellcycle_sha="$(shasum -a 256 "$cellcycle" | awk '{print $1}')"
 noncellcycle_sha="$(shasum -a 256 "$noncellcycle" | awk '{print $1}')"
 seurat_metadata_sha="$(shasum -a 256 "$seurat_metadata" | awk '{print $1}')"
+config_sha="$(shasum -a 256 "$config" | awk '{print $1}')"
+{
+  printf 'key\tvalue\n'
+  printf 'source_seurat_rds\t/data/source.rds\n'
+  printf 'source_seurat_rds_sha256\t%s\n' "$(printf 'a%.0s' {1..64})"
+  printf 'source_object_cells\t1\n'
+  printf 'seurat_metadata_sha256\t%s\n' "$seurat_metadata_sha"
+  printf 'scvelo_metrics_sha256\t%s\n' "$scvelo_sha"
+  printf 'umap_reduction\tumap\n'
+  printf 'cluster_id_field\tclusters\n'
+  printf 'base_cluster_field\tintegrated_snn_res.0.6\n'
+  printf 'clustering_resolution\t0.6\n'
+  printf 'cluster_annotation_field\tcluster_cell_cycle_annotation\n'
+  printf 'sample_field\tsample\n'
+  printf 'dose_field\tDose\n'
+  printf 'ploidy_field\tPloidy\n'
+  printf 'context_field\tTN\n'
+  printf 'cellcycle_mapping\tcell_cycle_candidate->CellCycle;not_cell_cycle_candidate->NonCellCycle\n'
+  printf 'inclusion_context\tTumor\n'
+  printf 'inclusion_ploidy_levels\t2N,4N\n'
+  printf 'inclusion_dose_levels\t0mg/kg,30mg/kg,120mg/kg\n'
+  printf 'inclusion_required_nonmissing\tcell_id,UMAP_1,UMAP_2,sample_id,cluster_id,cluster_annotation,initial_ploidy,dose,cellcycle_classification\n'
+  printf 'source_qc_fields\tnCount_RNA,nFeature_RNA,percent.mt,scDblFinder.class,scDblFinder.score\n'
+  printf 'source_qc_policy\tUse the reviewed Seurat object as provided; SI Figure 4 applies no additional expression, mitochondrial, or doublet threshold.\n'
+  printf 'figure7_config_sha256\t%s\n' "$config_sha"
+  printf 'export_script_sha256\t%s\n' "$(printf 'b%.0s' {1..64})"
+  printf 'source_code_revision\t%s\n' "$(printf 'c%.0s' {1..40})"
+} > "$seurat_metadata_provenance"
+seurat_metadata_provenance_sha="$(shasum -a 256 "$seurat_metadata_provenance" | awk '{print $1}')"
 if [[ "${BAD_FIGURE7_HASHES:-false}" == true ]]; then
   scvelo_sha="$(printf '0%.0s' {1..64})"
 fi
@@ -106,6 +196,8 @@ done
   printf 'workflow_noncellcycle_sha256\t%s\n' "$noncellcycle_sha"
   printf 'workflow_seurat_metadata\t%s\n' "$seurat_metadata"
   printf 'workflow_seurat_metadata_sha256\t%s\n' "$seurat_metadata_sha"
+  printf 'workflow_seurat_metadata_provenance\t%s\n' "$seurat_metadata_provenance"
+  printf 'workflow_seurat_metadata_provenance_sha256\t%s\n' "$seurat_metadata_provenance_sha"
 } > "$output_dir/metadata/run_config.tsv"
 {
   printf 'panel_id\tfilename\n'
@@ -136,11 +228,11 @@ done
         self.assertIn("si_figure4", default_line)
         self.assertLess(default_line.index("si_figure4"), default_line.index("in_vivo_figure7"))
 
-    def test_si_figure4_dry_run_prefers_published_input_pair(self) -> None:
+    def test_si_figure4_dry_run_prefers_published_input_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             data_root = tmp_path / "Data/in-vivo"
-            seurat, scvelo = self._write_si_figure4_input_pair(data_root)
+            seurat, scvelo, provenance = self._write_si_figure4_input_bundle(data_root)
             env = os.environ.copy()
             env["FIGURE7_DATA_ROOT"] = str(data_root)
             result = self._run(
@@ -150,14 +242,18 @@ done
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn(f"--seurat-metadata {seurat.resolve()}", result.stdout)
             self.assertIn(f"--scvelo-metrics {scvelo.resolve()}", result.stdout)
+            self.assertIn(
+                f"--seurat-metadata-provenance {provenance.resolve()}",
+                result.stdout,
+            )
             self.assertNotIn("[si_figure4_input_prep]", result.stdout)
 
-    def test_si_figure4_dry_run_falls_back_to_intermediate_pair(self) -> None:
+    def test_si_figure4_dry_run_falls_back_to_intermediate_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             data_root = tmp_path / "Data/in-vivo"
             intermediate = tmp_path / "intermediates"
-            seurat, scvelo = self._write_si_figure4_input_pair(intermediate)
+            seurat, scvelo, provenance = self._write_si_figure4_input_bundle(intermediate)
             env = os.environ.copy()
             env["FIGURE7_DATA_ROOT"] = str(data_root)
             result = self._run(
@@ -169,9 +265,13 @@ done
             self.assertIn("[si_figure4_input_publish]", result.stdout)
             self.assertIn(f"--seurat-metadata {seurat.resolve()}", result.stdout)
             self.assertIn(f"--scvelo-metrics {scvelo.resolve()}", result.stdout)
+            self.assertIn(
+                f"--seurat-metadata-provenance {provenance.resolve()}",
+                result.stdout,
+            )
             self.assertFalse(data_root.exists())
 
-    def test_si_figure4_dry_run_plans_scvelo_pair_generation_when_both_sources_absent(self) -> None:
+    def test_si_figure4_dry_run_plans_scvelo_bundle_generation_when_sources_absent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             data_root = tmp_path / "Data/in-vivo"
@@ -188,6 +288,10 @@ done
             self.assertIn("--mode=prepare-scvelo-inputs", result.stdout)
             self.assertIn(str(intermediate.resolve() / "seurat_metadata.csv"), result.stdout)
             self.assertIn(str(intermediate.resolve() / "scvelo_cell_metrics.csv"), result.stdout)
+            self.assertIn(
+                str(intermediate.resolve() / "seurat_metadata_provenance.tsv"),
+                result.stdout,
+            )
             self.assertFalse(data_root.exists())
             self.assertFalse(intermediate.exists())
 
@@ -255,7 +359,7 @@ done
             self.assertIn(f"--intermediate-dir={intermediate.resolve()}", result.stdout)
             self.assertIn("--python=/opt/scvelo/bin/python", result.stdout)
 
-    def test_refresh_publishes_four_validated_csvs_after_success(self) -> None:
+    def test_refresh_publishes_five_validated_inputs_after_success(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             output_root = tmp_path / "Results"
@@ -295,6 +399,10 @@ done
                     data_root / "scvelo_cell_metrics.csv",
                 ),
                 (
+                    intermediate / "seurat_metadata_provenance.tsv",
+                    data_root / "seurat_metadata_provenance.tsv",
+                ),
+                (
                     intermediate / "CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
                     data_root / "figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
                 ),
@@ -315,7 +423,20 @@ done
                     row["key"]: row["value"] for row in csv.DictReader(handle, delimiter="\t")
                 }
             self.assertEqual(metadata["status"], "ok")
-            self.assertEqual(metadata["materialized_file_count"], "4")
+            self.assertEqual(metadata["materialized_file_count"], "5")
+            run_root = (
+                output_root
+                / "in-vivo/figure7/runs/refresh_publish_figure7"
+            )
+            upstream_root = run_root / "metadata/upstream_analysis"
+            self.assertEqual(
+                {path.name for path in upstream_root.iterdir()},
+                {"README.md", "zenodo_document_manifest.tsv", "provenance.tsv"},
+            )
+            input_manifest = (run_root / "metadata/input_manifest.tsv").read_text()
+            self.assertIn("zenodo_upstream_analysis_documents.tsv", input_manifest)
+            output_manifest = (run_root / "metadata/output_manifest.tsv").read_text()
+            self.assertIn("upstream_analysis/zenodo_document_manifest.tsv", output_manifest)
 
     def test_refresh_hash_failure_does_not_publish_any_csv(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

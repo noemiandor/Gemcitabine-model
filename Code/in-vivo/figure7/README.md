@@ -130,6 +130,7 @@ recorded in `metadata/run_config.tsv`. It then stages and atomically replaces:
 
 - `Data/in-vivo/scvelo_cell_metrics.csv`
 - `Data/in-vivo/seurat_metadata.csv`
+- `Data/in-vivo/seurat_metadata_provenance.tsv`
 - `Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv`
 - `Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv`
 
@@ -150,6 +151,17 @@ files, and promoted only after the Zenodo size/MD5 checks pass. The Seurat RDS
 also must match the frozen SHA-256 in `figure7_config.yaml`. A valid cache is
 verified and reused without network transfer.
 
+The Seurat RDS and loom files are processed inputs with upstream Cell Ranger,
+Seurat QC/integration/refinement, final clustering/reduction, and velocyto loom
+generation steps. The Zenodo record also archives the reviewed description of
+those steps, structured Seurat provenance, per-sample loom parameters, runtime
+and package inventories, session information, and checksums. After each
+successful Manager `si_figure4` or `in_vivo_figure7` run, Manager publishes a
+uniform offline index under `metadata/upstream_analysis/` containing
+`README.md`, `zenodo_document_manifest.tsv`, and `provenance.tsv`. The index
+records authoritative Zenodo URLs, sizes, MD5 values, and the pinned local
+source-manifest SHA-256 without requiring network access during a rerun.
+
 When `aria2c` is available, the downloader runs multiple files concurrently and
 uses multiple HTTP range connections per file. The defaults are four concurrent
 files and two connections per file. Configure them with `--download-workers`
@@ -167,11 +179,16 @@ numerically equivalent newly serialized CSV/TSV files.
 The run metadata records the actual scVelo (when present), CellCycle, and
 NonCellCycle SHA-256 values used by that invocation. When the scVelo stage reads
 the Seurat RDS, it also exports every `obj@meta.data` column, with cell barcodes
-in the first `cell` column and `UMAP_1`/`UMAP_2` from the Seurat `umap`
-reduction. Standalone runs write `Data/in-vivo/seurat_metadata.csv` by default.
-Manager full-workflow runs stage it beside `scvelo_cell_metrics.csv` in the
-configured intermediate directory and publish both only after validation.
-Use `--seurat-metadata-output` to select another path.
+in the first `cell` column and `UMAP_1`/`UMAP_2` from the configured Seurat
+`umap` reduction. A companion `seurat_metadata_provenance.tsv` records the
+source RDS path and SHA-256, source cell count, reduction names, cluster and
+annotation fields, clustering resolution, CellCycle mapping, QC/inclusion
+policy, config/script hashes, and generated input hashes. Standalone runs write
+both files under `Data/in-vivo/` by default. Manager full-workflow runs stage
+the complete metadata/scVelo/provenance bundle in the configured intermediate
+directory and publishes it only after validation. Use
+`--seurat-metadata-output` and `--seurat-metadata-provenance-output` to select
+other paths.
 
 Automatic download from the pinned Zenodo record:
 
@@ -199,6 +216,7 @@ Rscript Code/in-vivo/figure7/run_figure7.R \
   --loom-root=/path/to/velocyto_loom \
   --seurat-rds=/path/to/integrated_sct_cca_seurat_final_reclustered.rds \
   --seurat-metadata-output=Data/in-vivo/seurat_metadata.csv \
+  --seurat-metadata-provenance-output=Data/in-vivo/seurat_metadata_provenance.tsv \
   --python=/path/to/scvelo/python \
   --cell-ploidy-input=/path/to/all_ploidy.tsv \
   --sample-info-input=/path/to/sample_info.xlsx \

@@ -10,6 +10,7 @@ workflow_paths_fixture <- function(root) {
     seurat_rds_explicit = TRUE,
     scvelo_metrics = file.path(root, "scvelo_cell_metrics.csv"),
     seurat_metadata = file.path(root, "seurat_metadata.csv"),
+    seurat_metadata_provenance = file.path(root, "seurat_metadata_provenance.tsv"),
     cellcycle = file.path(root, "CellCycleCells.csv"),
     noncellcycle = file.path(root, "NonCellCycleCells.csv"),
     loom_root = file.path(root, "velocyto_loom"),
@@ -30,32 +31,33 @@ workflow_paths_fixture <- function(root) {
   paths
 }
 
-testthat::test_that("scVelo input-pair preflight reuses a complete pair", {
+testthat::test_that("scVelo input-bundle preflight reuses a complete bundle", {
   root <- tempfile("figure7_scvelo_pair_"); dir.create(root)
   paths <- workflow_paths_fixture(root)
   writeLines("metrics", paths$scvelo_metrics)
   writeLines("metadata", paths$seurat_metadata)
+  writeLines("provenance", paths$seurat_metadata_provenance)
   state <- figure7_preflight_scvelo_inputs(paths)
-  testthat::expect_identical(state$state, "scvelo_input_pair_ready")
+  testthat::expect_identical(state$state, "scvelo_input_bundle_ready")
   testthat::expect_true(state$pair_ready)
   testthat::expect_false(state$needs_generate)
 })
 
-testthat::test_that("scVelo input-pair preflight rejects a partial pair", {
+testthat::test_that("scVelo input-bundle preflight rejects a partial bundle", {
   root <- tempfile("figure7_scvelo_partial_"); dir.create(root)
   paths <- workflow_paths_fixture(root)
   writeLines("metrics", paths$scvelo_metrics)
   testthat::expect_error(
     figure7_preflight_scvelo_inputs(paths),
-    "Incomplete scVelo/Seurat metadata pair"
+    "Incomplete scVelo/Seurat metadata input bundle"
   )
 })
 
-testthat::test_that("scVelo input-pair preflight schedules generation from explicit raw inputs", {
+testthat::test_that("scVelo input-bundle preflight schedules generation from explicit raw inputs", {
   root <- tempfile("figure7_scvelo_generate_"); dir.create(root)
   paths <- workflow_paths_fixture(root)
   state <- figure7_preflight_scvelo_inputs(paths)
-  testthat::expect_identical(state$state, "scvelo_input_pair_generation_required")
+  testthat::expect_identical(state$state, "scvelo_input_bundle_generation_required")
   testthat::expect_false(state$pair_ready)
   testthat::expect_true(state$needs_generate)
   testthat::expect_false(state$needs_raw_stage)
@@ -165,14 +167,16 @@ testthat::test_that("run_figure7 exposes preflight-only without creating a run",
   testthat::expect_false(dir.exists(output_dir))
 })
 
-testthat::test_that("prepare-scvelo-inputs reuses an existing pair and records provenance", {
+testthat::test_that("prepare-scvelo-inputs reuses an existing bundle and records provenance", {
   root <- tempfile("figure7_prepare_scvelo_"); dir.create(root)
   intermediate <- file.path(root, "intermediates"); dir.create(intermediate)
   scvelo <- file.path(intermediate, "scvelo_cell_metrics.csv")
   metadata <- file.path(intermediate, "seurat_metadata.csv")
+  metadata_provenance <- file.path(intermediate, "seurat_metadata_provenance.tsv")
   output_dir <- file.path(root, "prep_run")
   writeLines(c("cell,TN,clusters,Ploidy,Dose", "c1,Tumor,6,2N,0mg/kg"), scvelo)
   writeLines(c("cell,UMAP_1,UMAP_2,Dose,clusters,sample", "c1,0,0,0mg/kg,6,s1"), metadata)
+  writeLines(c("key\tvalue", "fixture\ttrue"), metadata_provenance)
   status <- system2(
     file.path(R.home("bin"), "Rscript"),
     c(
@@ -182,6 +186,7 @@ testthat::test_that("prepare-scvelo-inputs reuses an existing pair and records p
       paste0("--intermediate-dir=", intermediate),
       paste0("--scvelo-metrics=", scvelo),
       paste0("--seurat-metadata-output=", metadata),
+      paste0("--seurat-metadata-provenance-output=", metadata_provenance),
       paste0("--output-dir=", output_dir)
     ),
     stdout = TRUE,
@@ -193,10 +198,14 @@ testthat::test_that("prepare-scvelo-inputs reuses an existing pair and records p
   )
   values <- stats::setNames(run_config$value, run_config$key)
   testthat::expect_identical(unname(values[["module"]]), "in_vivo_figure7_input_prep")
-  testthat::expect_identical(unname(values[["workflow_initial_state"]]), "scvelo_input_pair_ready")
+  testthat::expect_identical(unname(values[["workflow_initial_state"]]), "scvelo_input_bundle_ready")
   testthat::expect_identical(unname(values[["workflow_executed_stages"]]), "none")
   testthat::expect_identical(unname(values[["workflow_scvelo_metrics"]]), normalizePath(scvelo))
   testthat::expect_identical(unname(values[["workflow_seurat_metadata"]]), normalizePath(metadata))
+  testthat::expect_identical(
+    unname(values[["workflow_seurat_metadata_provenance"]]),
+    normalizePath(metadata_provenance)
+  )
   testthat::expect_false(dir.exists(file.path(output_dir, "figures")))
 })
 
@@ -214,6 +223,7 @@ testthat::test_that("raw full-workflow dispatches scVelo before cell-level gener
       if (grepl("scVelo", label, fixed = TRUE)) {
         writeLines("metrics", paths$scvelo_metrics)
         writeLines("metadata", paths$seurat_metadata)
+        writeLines("provenance", paths$seurat_metadata_provenance)
       }
       if (grepl("CellCycle", label, fixed = TRUE)) {
         writeLines("cellcycle", paths$cellcycle)
@@ -237,6 +247,10 @@ testthat::test_that("raw full-workflow dispatches scVelo before cell-level gener
   )
   testthat::expect_identical(result$executed_stages, c("scvelo_metrics", "celllevel_inputs"))
   testthat::expect_identical(result$seurat_metadata, paths$seurat_metadata)
+  testthat::expect_identical(
+    result$seurat_metadata_provenance,
+    paths$seurat_metadata_provenance
+  )
 })
 
 testthat::test_that("automatic Zenodo materialization runs before scVelo", {
@@ -274,6 +288,7 @@ testthat::test_that("automatic Zenodo materialization runs before scVelo", {
       if (grepl("scVelo", label, fixed = TRUE)) {
         writeLines("metrics", paths$scvelo_metrics)
         writeLines("metadata", paths$seurat_metadata)
+        writeLines("provenance", paths$seurat_metadata_provenance)
       }
       if (grepl("CellCycle", label, fixed = TRUE)) {
         writeLines("cellcycle", paths$cellcycle)
@@ -487,6 +502,10 @@ testthat::test_that("persistent Seurat metadata export includes UMAP reduction c
   metadata <- data.frame(
     Dose = c("120", "0", "30"), IDs = c("4N-Tumor", "2N-Tumor", "4N-Tumor"),
     sample_folder = c("s3", "s1", "s2"), cluster_final = c("6", "4c", "10"),
+    cluster_cell_cycle_annotation = c(
+      "cell_cycle_candidate", "not_cell_cycle_candidate", "cell_cycle_candidate"
+    ),
+    integrated_snn_res.0.6 = c("6", "4", "10"),
     custom_extra = c("z", "x", "y"), row.names = cells, stringsAsFactors = FALSE
   )
   object <- Seurat::CreateSeuratObject(counts = counts, meta.data = metadata)

@@ -29,17 +29,96 @@ class SiFigure4MaterializationTest(unittest.TestCase):
         )
         (self.run_root / "figures").mkdir(parents=True)
         (self.run_root / "metadata").mkdir()
+        (self.run_root / "tables").mkdir()
         self.specs = [spec for spec in PANEL_SPECS if spec["module"] == "si_figure4"]
         for spec in self.specs:
             source = self.run_root / str(spec["source"])
             source.write_bytes(f"fixture {spec['panel']}\n".encode())
-        self.input_path = self.repo / "Data/in-vivo/seurat_metadata.csv"
-        self.input_path.parent.mkdir(parents=True)
-        self.input_path.write_text("cell,UMAP_1,UMAP_2\nc1,0,0\n")
+        input_root = self.repo / "Data/in-vivo"
+        input_root.mkdir(parents=True)
+        self.input_paths = [
+            self.repo / "Code/in-vivo/figure7/figure7_config.yaml",
+            input_root / "seurat_metadata.csv",
+            input_root / "scvelo_cell_metrics.csv",
+            input_root / "seurat_metadata_provenance.tsv",
+        ]
+        self.input_paths[0].parent.mkdir(parents=True)
+        for path in self.input_paths:
+            path.write_text(f"fixture for {path.name}\n")
+        self._write_data_contract()
         self._write_metadata()
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
+
+    def _write_data_contract(self) -> None:
+        self.canonical_path = self.run_root / "tables/si_figure4_cell_metadata.csv"
+        self.cluster_key_path = self.run_root / "tables/si_figure4_cluster_key.tsv"
+        self.mouse_path = self.run_root / "tables/cluster_composition_by_mouse.csv"
+        self.group_path = self.run_root / "tables/cluster_composition_by_ploidy_dose.csv"
+        self.provenance_path = self.run_root / "metadata/si_figure4_provenance.tsv"
+        self.canonical_path.write_text(
+            "cell_id,UMAP_1,UMAP_2,sample_id,cluster_id,cluster_annotation,"
+            "cluster_order,cluster_color,initial_ploidy,treatment,dose,"
+            "dose_mg_per_kg,cellcycle_classification,context,"
+            "included_in_si_figure4,exclusion_reason\n"
+            "c1,0,0,s1,6,cell-cycle,1,#112233,2N,Control,0mg/kg,0,"
+            "CellCycle,Tumor,TRUE,\n"
+            "c2,1,1,s2,6,cell-cycle,1,#112233,2N,Control,0mg/kg,0,"
+            "CellCycle,CellLine,FALSE,context_not_Tumor\n"
+        )
+        self.cluster_key_path.write_text(
+            "cluster_id\tcluster_annotation\tcellcycle_classification\t"
+            "cluster_order\tcolor\tn_all_cells\tn_included_tumor_cells\n"
+            "6\tcell-cycle\tCellCycle\t1\t#112233\t2\t1\n"
+        )
+        self.mouse_path.write_text(
+            "mouse,initial_ploidy,dose,cluster_final,cluster_annotation,"
+            "cluster_order,n_cells,total_cells,proportion,denominator_definition\n"
+            "s1,2N,0mg/kg,6,cell-cycle,1,1,1,1,"
+            "all included SI Figure 4 tumor cells from the mouse\n"
+        )
+        self.group_path.write_text(
+            "initial_ploidy,dose,cluster_final,cluster_annotation,cluster_order,"
+            "n_mice,sum_n_cells,sum_total_cells,mean_proportion,sd_proportion,"
+            "min_proportion,max_proportion\n"
+            "2N,0mg/kg,6,cell-cycle,1,1,1,1,1,NA,1,1\n"
+        )
+        provenance = {
+            "source_seurat_rds_sha256": "a" * 64,
+            "umap_reduction": "umap",
+            "cluster_id_field": "clusters",
+            "base_cluster_field": "integrated_snn_res.0.6",
+            "clustering_resolution": "0.6",
+            "cluster_annotation_field": "cluster_cell_cycle_annotation",
+            "source_qc_fields": (
+                "nCount_RNA,nFeature_RNA,percent.mt,"
+                "scDblFinder.class,scDblFinder.score"
+            ),
+            "source_qc_policy": "reviewed Seurat object as provided",
+            "cell_inclusion_context": "Tumor",
+            "cell_inclusion_required_nonmissing": (
+                "cell,UMAP_1,UMAP_2,sample,cluster,annotation"
+            ),
+            "canonical_cell_rows": "2",
+            "included_cell_rows": "1",
+            "excluded_cell_rows": "1",
+            "canonical_cell_table_sha256": sha256_file(self.canonical_path),
+            "cluster_key_sha256": sha256_file(self.cluster_key_path),
+            "composition_by_mouse_sha256": sha256_file(self.mouse_path),
+            "composition_by_ploidy_dose_sha256": sha256_file(self.group_path),
+            "upstream_analysis_documentation_doi": "10.5281/zenodo.21463392",
+            "upstream_analysis_documentation_url": (
+                "https://zenodo.org/records/21463392"
+            ),
+            "upstream_analysis_documentation_statement": (
+                "The processed inputs have documented upstream analysis."
+            ),
+        }
+        self.provenance_path.write_text(
+            "key\tvalue\n"
+            + "".join(f"{key}\t{value}\n" for key, value in provenance.items())
+        )
 
     def _write_metadata(self) -> None:
         write_tsv(
@@ -57,9 +136,19 @@ class SiFigure4MaterializationTest(unittest.TestCase):
         )
         write_tsv(
             self.run_root / "metadata/input_manifest.tsv",
-            [self._manifest_row(self.input_path, "input_data", "input_file", "")],
+            [
+                self._manifest_row(path, "input_data", "input_file", "")
+                for path in self.input_paths
+            ],
             MODULE_MANIFEST_COLUMNS,
         )
+        formal_outputs = [
+            self.canonical_path,
+            self.cluster_key_path,
+            self.mouse_path,
+            self.group_path,
+            self.provenance_path,
+        ]
         write_tsv(
             self.run_root / "metadata/output_manifest.tsv",
             [
@@ -70,6 +159,15 @@ class SiFigure4MaterializationTest(unittest.TestCase):
                     str(spec["panel"]),
                 )
                 for spec in self.specs
+            ]
+            + [
+                self._manifest_row(
+                    path,
+                    "output_table",
+                    "generated_table",
+                    "",
+                )
+                for path in formal_outputs
             ],
             MODULE_MANIFEST_COLUMNS,
         )
@@ -133,6 +231,29 @@ class SiFigure4MaterializationTest(unittest.TestCase):
         result = self._run()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("exact panel inventory", result.stderr)
+
+    def test_rejects_tampered_canonical_data(self) -> None:
+        self.canonical_path.write_text(
+            self.canonical_path.read_text().replace(
+                "c1,0,0,s1", "c1,not-a-number,0,s1"
+            )
+        )
+        self._write_metadata()
+        result = self._run()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Canonical UMAP coordinate is nonnumeric", result.stderr)
+
+    def test_rejects_tampered_composition_denominator(self) -> None:
+        self.mouse_path.write_text(
+            self.mouse_path.read_text().replace(
+                "cell-cycle,1,1,1,1,all included",
+                "cell-cycle,1,1,2,0.5,all included",
+            )
+        )
+        self._write_metadata()
+        result = self._run()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Composition denominator mismatch", result.stderr)
 
 
 if __name__ == "__main__":

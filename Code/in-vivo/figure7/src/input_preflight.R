@@ -57,6 +57,14 @@ figure7_workflow_paths <- function(args, repo_root, output_dir, config) {
       figure7_arg(args, "seurat-metadata-output", file.path("Data", "in-vivo", "seurat_metadata.csv")),
       repo_root
     ),
+    seurat_metadata_provenance = figure7_workflow_path(
+      figure7_arg(
+        args,
+        "seurat-metadata-provenance-output",
+        file.path("Data", "in-vivo", "seurat_metadata_provenance.tsv")
+      ),
+      repo_root
+    ),
     cellcycle = figure7_workflow_path(
       figure7_arg(
         args,
@@ -215,26 +223,31 @@ figure7_preflight_workflow <- function(paths, include_panel_f = TRUE, overwrite_
 }
 
 figure7_preflight_scvelo_inputs <- function(paths, overwrite_intermediates = FALSE) {
-  has_metrics <- file.exists(paths$scvelo_metrics)
-  has_metadata <- file.exists(paths$seurat_metadata)
-  if (xor(has_metrics, has_metadata) && !isTRUE(overwrite_intermediates)) {
-    present <- if (has_metrics) paths$scvelo_metrics else paths$seurat_metadata
-    missing <- if (has_metrics) paths$seurat_metadata else paths$scvelo_metrics
+  bundle_paths <- c(
+    scvelo_metrics = paths$scvelo_metrics,
+    seurat_metadata = paths$seurat_metadata,
+    seurat_metadata_provenance = paths$seurat_metadata_provenance
+  )
+  bundle_exists <- file.exists(bundle_paths)
+  if (any(bundle_exists) && !all(bundle_exists) && !isTRUE(overwrite_intermediates)) {
+    present <- bundle_paths[bundle_exists]
+    missing <- bundle_paths[!bundle_exists]
     figure7_stop(
-      "Incomplete scVelo/Seurat metadata pair. Present: ", present,
-      "; missing: ", missing,
-      ". Supply both files or rerun with --overwrite-intermediates=true."
+      "Incomplete scVelo/Seurat metadata input bundle. Present: ",
+      paste(present, collapse = ", "),
+      "; missing: ", paste(missing, collapse = ", "),
+      ". Supply all three files or rerun with --overwrite-intermediates=true."
     )
   }
-  pair_ready <- has_metrics && has_metadata && !isTRUE(overwrite_intermediates)
-  if (pair_ready) {
+  bundle_ready <- all(bundle_exists) && !isTRUE(overwrite_intermediates)
+  if (bundle_ready) {
     return(list(
-      state = "scvelo_input_pair_ready",
+      state = "scvelo_input_bundle_ready",
       pair_ready = TRUE,
       needs_raw_stage = FALSE,
       raw_download_roles = character(),
       raw_validation_roles = character(),
-      raw_data_status = "not_required_existing_scvelo_input_pair",
+      raw_data_status = "not_required_existing_scvelo_input_bundle",
       needs_generate = FALSE
     ))
   }
@@ -265,7 +278,7 @@ figure7_preflight_scvelo_inputs <- function(paths, overwrite_intermediates = FAL
     figure7_stop("Missing required scVelo Python executable: ", if (nzchar(paths$python)) paths$python else "not supplied")
   }
   list(
-    state = "scvelo_input_pair_generation_required",
+    state = "scvelo_input_bundle_generation_required",
     pair_ready = FALSE,
     needs_raw_stage = length(raw_validation_roles) > 0L,
     raw_download_roles = raw_download_roles,
@@ -296,7 +309,9 @@ figure7_run_stage <- function(label, script, values, log_path) {
   invisible(log_path)
 }
 
-figure7_prepare_scvelo_input_pair <- function(paths, preflight, script_dir, config, overwrite_intermediates = FALSE) {
+figure7_prepare_scvelo_input_pair <- function(
+  paths, preflight, script_dir, config, config_path, overwrite_intermediates = FALSE
+) {
   dir.create(paths$intermediate_dir, recursive = TRUE, showWarnings = FALSE)
   dir.create(paths$log_dir, recursive = TRUE, showWarnings = FALSE)
   executed <- character()
@@ -338,6 +353,8 @@ figure7_prepare_scvelo_input_pair <- function(paths, preflight, script_dir, conf
         loom_root = paths$loom_root,
         output = paths$scvelo_metrics,
         seurat_metadata_output = paths$seurat_metadata,
+        seurat_metadata_provenance_output = paths$seurat_metadata_provenance,
+        config = config_path,
         python = paths$python,
         work_dir = paths$scvelo_work_dir
       ),
@@ -347,14 +364,19 @@ figure7_prepare_scvelo_input_pair <- function(paths, preflight, script_dir, conf
   }
   figure7_require_workflow_file(paths$scvelo_metrics, "scvelo-metrics")
   figure7_require_workflow_file(paths$seurat_metadata, "seurat-metadata-output")
+  figure7_require_workflow_file(
+    paths$seurat_metadata_provenance, "seurat-metadata-provenance-output"
+  )
   list(
     initial_state = preflight$state,
     executed_stages = executed,
     raw_data_status = raw_data_status,
     scvelo_metrics = paths$scvelo_metrics,
     seurat_metadata = paths$seurat_metadata,
+    seurat_metadata_provenance = paths$seurat_metadata_provenance,
     scvelo_sha256 = figure7_sha256(paths$scvelo_metrics),
     seurat_metadata_sha256 = figure7_sha256(paths$seurat_metadata),
+    seurat_metadata_provenance_sha256 = figure7_sha256(paths$seurat_metadata_provenance),
     raw_data_dir = paths$raw_data_dir,
     loom_root = paths$loom_root,
     seurat_rds = paths$seurat_rds,
@@ -424,6 +446,8 @@ figure7_prepare_full_workflow <- function(
         loom_root = paths$loom_root,
         output = paths$scvelo_metrics,
         seurat_metadata_output = paths$seurat_metadata,
+        seurat_metadata_provenance_output = paths$seurat_metadata_provenance,
+        config = config_path,
         python = paths$python,
         work_dir = paths$scvelo_work_dir
       ),
@@ -432,6 +456,9 @@ figure7_prepare_full_workflow <- function(
     executed <- c(executed, "scvelo_metrics")
     figure7_require_workflow_file(paths$scvelo_metrics, "scvelo-metrics")
     figure7_require_workflow_file(paths$seurat_metadata, "seurat-metadata-output")
+    figure7_require_workflow_file(
+      paths$seurat_metadata_provenance, "seurat-metadata-provenance-output"
+    )
   }
 
   if (isTRUE(preflight$needs_cell_tables)) {
@@ -508,6 +535,11 @@ figure7_prepare_full_workflow <- function(
     noncellcycle = paths$noncellcycle,
     scvelo_metrics = paths$scvelo_metrics,
     seurat_metadata = if (file.exists(paths$seurat_metadata)) paths$seurat_metadata else "",
+    seurat_metadata_provenance = if (file.exists(paths$seurat_metadata_provenance)) {
+      paths$seurat_metadata_provenance
+    } else {
+      ""
+    },
     raw_data_dir = paths$raw_data_dir,
     raw_manifest = paths$raw_manifest,
     raw_data_status = raw_data_status,

@@ -52,6 +52,7 @@ figure7_reference_root="${figure7_canonical_reference_root}"
 figure7_data_root="${FIGURE7_DATA_ROOT:-Data/in-vivo}"
 si_figure4_seurat_metadata=""
 si_figure4_scvelo_metrics=""
+si_figure4_seurat_metadata_provenance=""
 si_figure4_input_source=""
 si_figure4_prep_run_dir=""
 skip_analysis_loop=false
@@ -392,8 +393,14 @@ input_paths_for_module() {
     in_vivo)
       printf "%s\n" Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv ;;
     si_figure4)
-      printf "%s\n" "${si_figure4_seurat_metadata}" "${si_figure4_scvelo_metrics}" ;;
+      printf "%s\n" \
+        Code/in-vivo/figure7/figure7_config.yaml \
+        Code/in-vivo/figure7/zenodo_upstream_analysis_documents.tsv \
+        "${si_figure4_seurat_metadata}" \
+        "${si_figure4_scvelo_metrics}" \
+        "${si_figure4_seurat_metadata_provenance}" ;;
     in_vivo_figure7)
+      printf "%s\n" Code/in-vivo/figure7/zenodo_upstream_analysis_documents.tsv
       if [[ "${figure7_refresh_inputs}" == true ]]; then
         printf "%s\n" \
           Code/in-vivo/figure7/figure7_config.yaml \
@@ -526,6 +533,8 @@ command_for_module() {
       quote_args Rscript Code/in-vivo/SI_figure4/generate_supplementary_figure4.R \
         --seurat-metadata "${si_figure4_seurat_metadata}" \
         --scvelo-metrics "${si_figure4_scvelo_metrics}" \
+        --seurat-metadata-provenance "${si_figure4_seurat_metadata_provenance}" \
+        --config Code/in-vivo/figure7/figure7_config.yaml \
         --output-dir "${run_dir}"
       ;;
     in_vivo_figure7)
@@ -539,6 +548,7 @@ command_for_module() {
           --config=Code/in-vivo/figure7/figure7_config.yaml
           "--intermediate-dir=${figure7_intermediate_dir}"
           "--seurat-metadata-output=${figure7_intermediate_dir}/seurat_metadata.csv"
+          "--seurat-metadata-provenance-output=${figure7_intermediate_dir}/seurat_metadata_provenance.tsv"
           "--cell-ploidy-input=${figure7_cell_ploidy_input}"
           "--sample-info-input=${figure7_sample_info_input}"
           "--growth-curve-input=${figure7_growth_curve_input}"
@@ -720,29 +730,36 @@ materialize_figure7_reference_to_data() {
 figure7_input_materialized_count=0
 figure7_input_source_scvelo=""
 figure7_input_source_seurat_metadata=""
+figure7_input_source_seurat_metadata_provenance=""
 figure7_input_source_cellcycle=""
 figure7_input_source_noncellcycle=""
 figure7_input_target_scvelo=""
 figure7_input_target_seurat_metadata=""
+figure7_input_target_seurat_metadata_provenance=""
 figure7_input_target_cellcycle=""
 figure7_input_target_noncellcycle=""
 figure7_input_sha_scvelo=""
 figure7_input_sha_seurat_metadata=""
+figure7_input_sha_seurat_metadata_provenance=""
 figure7_input_sha_cellcycle=""
 figure7_input_sha_noncellcycle=""
 
 si_figure4_validate_input_pair() {
   python3 Code/tools/validate_si_figure4_inputs.py \
     --seurat-metadata "$1" \
-    --scvelo-metrics "$2"
+    --scvelo-metrics "$2" \
+    --seurat-metadata-provenance "$3" \
+    --config Code/in-vivo/figure7/figure7_config.yaml
 }
 
 record_si_figure4_input_materialization() {
   local status="$1"
   local source_seurat="$2"
   local source_scvelo="$3"
-  local target_seurat="$4"
-  local target_scvelo="$5"
+  local source_provenance="$4"
+  local target_seurat="$5"
+  local target_scvelo="$6"
+  local target_provenance="$7"
   local metadata_path="${manager_run_dir}/metadata/si_figure4_input_materialization.tsv"
   {
     printf "key\tvalue\n"
@@ -750,10 +767,13 @@ record_si_figure4_input_materialization() {
     printf "input_source\t%s\n" "${si_figure4_input_source}"
     printf "source_seurat_metadata\t%s\n" "${source_seurat}"
     printf "source_scvelo_metrics\t%s\n" "${source_scvelo}"
+    printf "source_seurat_metadata_provenance\t%s\n" "${source_provenance}"
     printf "target_seurat_metadata\t%s\n" "${target_seurat}"
     printf "target_scvelo_metrics\t%s\n" "${target_scvelo}"
+    printf "target_seurat_metadata_provenance\t%s\n" "${target_provenance}"
     printf "seurat_metadata_sha256\t%s\n" "$(shasum -a 256 "${target_seurat}" | awk '{print $1}')"
     printf "scvelo_metrics_sha256\t%s\n" "$(shasum -a 256 "${target_scvelo}" | awk '{print $1}')"
+    printf "seurat_metadata_provenance_sha256\t%s\n" "$(shasum -a 256 "${target_provenance}" | awk '{print $1}')"
     printf "materialized_at\t%s\n" "$(date -Iseconds)"
   } > "${metadata_path}"
 }
@@ -761,31 +781,42 @@ record_si_figure4_input_materialization() {
 publish_si_figure4_input_pair() {
   local source_seurat="$1"
   local source_scvelo="$2"
-  local data_root_real target_seurat target_scvelo temp_seurat temp_scvelo
-  si_figure4_validate_input_pair "${source_seurat}" "${source_scvelo}"
+  local source_provenance="$3"
+  local data_root_real target_seurat target_scvelo target_provenance
+  local temp_seurat temp_scvelo temp_provenance
+  si_figure4_validate_input_pair "${source_seurat}" "${source_scvelo}" "${source_provenance}"
   data_root_real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_data_root}")"
   target_seurat="${data_root_real}/seurat_metadata.csv"
   target_scvelo="${data_root_real}/scvelo_cell_metrics.csv"
+  target_provenance="${data_root_real}/seurat_metadata_provenance.tsv"
   mkdir -p "${data_root_real}"
   temp_seurat="${data_root_real}/.seurat_metadata.csv.tmp.${run_id}"
   temp_scvelo="${data_root_real}/.scvelo_cell_metrics.csv.tmp.${run_id}"
+  temp_provenance="${data_root_real}/.seurat_metadata_provenance.tsv.tmp.${run_id}"
   cp "${source_seurat}" "${temp_seurat}"
   cp "${source_scvelo}" "${temp_scvelo}"
+  cp "${source_provenance}" "${temp_provenance}"
   cmp -s "${source_seurat}" "${temp_seurat}"
   cmp -s "${source_scvelo}" "${temp_scvelo}"
+  cmp -s "${source_provenance}" "${temp_provenance}"
   mv "${temp_seurat}" "${target_seurat}"
   mv "${temp_scvelo}" "${target_scvelo}"
+  mv "${temp_provenance}" "${target_provenance}"
   cmp -s "${source_seurat}" "${target_seurat}"
   cmp -s "${source_scvelo}" "${target_scvelo}"
+  cmp -s "${source_provenance}" "${target_provenance}"
   record_si_figure4_input_materialization \
-    "ok" "${source_seurat}" "${source_scvelo}" "${target_seurat}" "${target_scvelo}"
+    "ok" "${source_seurat}" "${source_scvelo}" "${source_provenance}" \
+    "${target_seurat}" "${target_scvelo}" "${target_provenance}"
   si_figure4_seurat_metadata="${target_seurat}"
   si_figure4_scvelo_metrics="${target_scvelo}"
+  si_figure4_seurat_metadata_provenance="${target_provenance}"
 }
 
 si_figure4_input_prep_command() {
   local intermediate_seurat="$1"
   local intermediate_scvelo="$2"
+  local intermediate_provenance="$3"
   local -a args=(
     Rscript Code/in-vivo/figure7/run_figure7.R
     --mode=prepare-scvelo-inputs
@@ -793,6 +824,7 @@ si_figure4_input_prep_command() {
     "--intermediate-dir=${figure7_intermediate_dir}"
     "--seurat-metadata-output=${intermediate_seurat}"
     "--scvelo-metrics=${intermediate_scvelo}"
+    "--seurat-metadata-provenance-output=${intermediate_provenance}"
     "--output-dir=${si_figure4_prep_run_dir}"
   )
   if [[ -n "${figure7_python}" ]]; then
@@ -805,34 +837,41 @@ si_figure4_input_prep_command() {
 }
 
 resolve_si_figure4_inputs() {
-  local data_root_real published_seurat published_scvelo intermediate_seurat intermediate_scvelo
+  local data_root_real published_seurat published_scvelo published_provenance
+  local intermediate_seurat intermediate_scvelo intermediate_provenance
   local published_count=0 intermediate_count=0 prep_command
   data_root_real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_data_root}")"
   published_seurat="${data_root_real}/seurat_metadata.csv"
   published_scvelo="${data_root_real}/scvelo_cell_metrics.csv"
+  published_provenance="${data_root_real}/seurat_metadata_provenance.tsv"
   intermediate_seurat="${figure7_intermediate_dir}/seurat_metadata.csv"
   intermediate_scvelo="${figure7_intermediate_dir}/scvelo_cell_metrics.csv"
+  intermediate_provenance="${figure7_intermediate_dir}/seurat_metadata_provenance.tsv"
   [[ -f "${published_seurat}" ]] && published_count=$((published_count + 1))
   [[ -f "${published_scvelo}" ]] && published_count=$((published_count + 1))
+  [[ -f "${published_provenance}" ]] && published_count=$((published_count + 1))
   [[ -f "${intermediate_seurat}" ]] && intermediate_count=$((intermediate_count + 1))
   [[ -f "${intermediate_scvelo}" ]] && intermediate_count=$((intermediate_count + 1))
+  [[ -f "${intermediate_provenance}" ]] && intermediate_count=$((intermediate_count + 1))
 
-  if [[ "${published_count}" -eq 2 ]]; then
-    si_figure4_validate_input_pair "${published_seurat}" "${published_scvelo}"
+  if [[ "${published_count}" -eq 3 ]]; then
+    si_figure4_validate_input_pair "${published_seurat}" "${published_scvelo}" "${published_provenance}"
     si_figure4_seurat_metadata="${published_seurat}"
     si_figure4_scvelo_metrics="${published_scvelo}"
+    si_figure4_seurat_metadata_provenance="${published_provenance}"
     si_figure4_input_source="published_data"
     return 0
   fi
-  if [[ "${intermediate_count}" -eq 2 ]]; then
+  if [[ "${intermediate_count}" -eq 3 ]]; then
     si_figure4_input_source="existing_figure7_intermediate"
     if [[ "${dry_run}" == true || "${mode}" == "check-only" ]]; then
-      si_figure4_validate_input_pair "${intermediate_seurat}" "${intermediate_scvelo}"
+      si_figure4_validate_input_pair "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}"
       si_figure4_seurat_metadata="${intermediate_seurat}"
       si_figure4_scvelo_metrics="${intermediate_scvelo}"
+      si_figure4_seurat_metadata_provenance="${intermediate_provenance}"
       printf "[si_figure4_input_publish] %s -> %s\n" "${figure7_intermediate_dir}" "${data_root_real}"
     else
-      publish_si_figure4_input_pair "${intermediate_seurat}" "${intermediate_scvelo}"
+      publish_si_figure4_input_pair "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}"
     fi
     return 0
   fi
@@ -841,10 +880,12 @@ resolve_si_figure4_inputs() {
   si_figure4_prep_run_dir="${output_root}/in-vivo/figure7/input-prep/runs/${run_id}_scvelo_inputs"
   si_figure4_seurat_metadata="${intermediate_seurat}"
   si_figure4_scvelo_metrics="${intermediate_scvelo}"
-  if [[ "${published_count}" -eq 1 || "${intermediate_count}" -eq 1 ]]; then
+  si_figure4_seurat_metadata_provenance="${intermediate_provenance}"
+  if [[ "${published_count}" -gt 0 || "${intermediate_count}" -gt 0 ]]; then
     figure7_overwrite_intermediates=true
   fi
-  prep_command="$(si_figure4_input_prep_command "${intermediate_seurat}" "${intermediate_scvelo}")"
+  prep_command="$(si_figure4_input_prep_command \
+    "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}")"
   if [[ "${dry_run}" == true || "${mode}" == "check-only" ]]; then
     printf "[si_figure4_input_prep] %s\n" "${prep_command}"
     return 0
@@ -857,9 +898,9 @@ resolve_si_figure4_inputs() {
     rm -rf "${si_figure4_prep_run_dir}"
   fi
   bash -c "${prep_command}"
-  si_figure4_validate_input_pair "${intermediate_seurat}" "${intermediate_scvelo}"
+  si_figure4_validate_input_pair "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}"
   si_figure4_input_source="generated_figure7_scvelo_intermediate"
-  publish_si_figure4_input_pair "${intermediate_seurat}" "${intermediate_scvelo}"
+  publish_si_figure4_input_pair "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}"
 }
 
 figure7_run_config_value() {
@@ -884,6 +925,13 @@ figure7_validate_publish_csv() {
   if [[ -z "${header}" ]]; then
     echo "Cannot publish empty Figure 7 CSV: ${path}" >&2
     return 1
+  fi
+  if [[ "${artifact}" == "seurat_metadata_provenance" ]]; then
+    if [[ "${header}" != $'key\tvalue' ]]; then
+      echo "Unexpected Seurat metadata provenance header; refusing publication: ${path}" >&2
+      return 1
+    fi
+    return 0
   fi
   if [[ "${artifact}" == "scvelo" ]]; then
     if [[ "${header}" != cell,velocity_cell,* ]]; then
@@ -931,6 +979,9 @@ record_figure7_input_materialization() {
     printf "source_seurat_metadata\t%s\n" "${figure7_input_source_seurat_metadata}"
     printf "target_seurat_metadata\t%s\n" "${figure7_input_target_seurat_metadata}"
     printf "seurat_metadata_sha256\t%s\n" "${figure7_input_sha_seurat_metadata}"
+    printf "source_seurat_metadata_provenance\t%s\n" "${figure7_input_source_seurat_metadata_provenance}"
+    printf "target_seurat_metadata_provenance\t%s\n" "${figure7_input_target_seurat_metadata_provenance}"
+    printf "seurat_metadata_provenance_sha256\t%s\n" "${figure7_input_sha_seurat_metadata_provenance}"
     printf "source_cellcycle\t%s\n" "${figure7_input_source_cellcycle}"
     printf "target_cellcycle\t%s\n" "${figure7_input_target_cellcycle}"
     printf "cellcycle_sha256\t%s\n" "${figure7_input_sha_cellcycle}"
@@ -972,15 +1023,21 @@ materialize_figure7_generated_inputs() {
   data_root_real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_data_root}")"
 
   if [[ ",${executed_stages}," == *",scvelo_metrics,"* ]]; then
-    artifacts+=("scvelo" "seurat_metadata")
+    artifacts+=("scvelo" "seurat_metadata" "seurat_metadata_provenance")
     sources+=(
       "$(figure7_run_config_value "${run_config}" workflow_scvelo_metrics)"
       "$(figure7_run_config_value "${run_config}" workflow_seurat_metadata)"
+      "$(figure7_run_config_value "${run_config}" workflow_seurat_metadata_provenance)"
     )
-    targets+=("${data_root_real}/scvelo_cell_metrics.csv" "${data_root_real}/seurat_metadata.csv")
+    targets+=(
+      "${data_root_real}/scvelo_cell_metrics.csv"
+      "${data_root_real}/seurat_metadata.csv"
+      "${data_root_real}/seurat_metadata_provenance.tsv"
+    )
     expected_hashes+=(
       "$(figure7_run_config_value "${run_config}" workflow_scvelo_sha256)"
       "$(figure7_run_config_value "${run_config}" workflow_seurat_metadata_sha256)"
+      "$(figure7_run_config_value "${run_config}" workflow_seurat_metadata_provenance_sha256)"
     )
   fi
   if [[ ",${executed_stages}," == *",celllevel_inputs,"* ]]; then
@@ -1000,7 +1057,7 @@ materialize_figure7_generated_inputs() {
   fi
 
   if [[ ",${executed_stages}," == *",scvelo_metrics,"* ]]; then
-    si_figure4_validate_input_pair "${sources[1]}" "${sources[0]}" || return 1
+    si_figure4_validate_input_pair "${sources[1]}" "${sources[0]}" "${sources[2]}" || return 1
   fi
 
   figure7_input_materialized_count=0
@@ -1061,6 +1118,11 @@ materialize_figure7_generated_inputs() {
         figure7_input_target_seurat_metadata="${target}"
         figure7_input_sha_seurat_metadata="${expected_hashes[$i]}"
         ;;
+      seurat_metadata_provenance)
+        figure7_input_source_seurat_metadata_provenance="${source}"
+        figure7_input_target_seurat_metadata_provenance="${target}"
+        figure7_input_sha_seurat_metadata_provenance="${expected_hashes[$i]}"
+        ;;
       cellcycle)
         figure7_input_source_cellcycle="${source}"
         figure7_input_target_cellcycle="${target}"
@@ -1073,8 +1135,13 @@ materialize_figure7_generated_inputs() {
         ;;
     esac
   done
-  if [[ -n "${figure7_input_target_scvelo}" && -n "${figure7_input_target_seurat_metadata}" ]]; then
-    si_figure4_validate_input_pair "${figure7_input_target_seurat_metadata}" "${figure7_input_target_scvelo}"
+  if [[ -n "${figure7_input_target_scvelo}" &&
+        -n "${figure7_input_target_seurat_metadata}" &&
+        -n "${figure7_input_target_seurat_metadata_provenance}" ]]; then
+    si_figure4_validate_input_pair \
+      "${figure7_input_target_seurat_metadata}" \
+      "${figure7_input_target_scvelo}" \
+      "${figure7_input_target_seurat_metadata_provenance}"
   fi
 }
 
@@ -1140,6 +1207,23 @@ run_module() {
     record_module_run "${module}" "failed" "${command_string}" "${run_dir}" "${stdout_log}" "${stderr_log}" "${failure_notes}" "${started_at}" "${finished_at}"
     echo "Module failed: ${module}; see ${stderr_log}" >&2
     return "${status}"
+  fi
+
+  if [[ "${module}" == "si_figure4" || "${module}" == "in_vivo_figure7" ]]; then
+    python3 Code/tools/publish_figure7_upstream_analysis.py \
+      --module "${module}" \
+      --source-manifest Code/in-vivo/figure7/zenodo_upstream_analysis_documents.tsv \
+      --output-dir "${run_dir}/metadata/upstream_analysis" \
+      >>"${stdout_log}" 2>>"${stderr_log}" || status=$?
+    finished_at="$(date -Iseconds)"
+    if [[ "${status}" -ne 0 ]]; then
+      record_module_run \
+        "${module}" "failed" "${command_string}" "${run_dir}" "${stdout_log}" "${stderr_log}" \
+        "upstream_analysis_documentation_publication_failed;exit_status=${status};${module_notes}" \
+        "${started_at}" "${finished_at}"
+      echo "Module failed while publishing upstream-analysis documentation: ${module}" >&2
+      return "${status}"
+    fi
   fi
 
   local input_args=()
