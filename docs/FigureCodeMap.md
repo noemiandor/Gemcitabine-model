@@ -118,6 +118,20 @@ The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one 
 
 ## Supplementary Figures
 
+### Supplementary Figure 4: In-vivo tumor-cell landscape and cluster composition
+
+The `si_figure4` module runs before `in_vivo_figure7` and writes an immutable source run under `Results/in-vivo/SI_figure4/runs/<run_id>_si_figure4/`. It consumes the paired published Figure 7 scVelo-stage files under `Data/in-vivo/`, falling back as a pair to the configured Figure 7 intermediate directory. If neither pair exists, Manager prepares, validates, and publishes both inputs before plotting. Panels A-F and the composite are emitted as PDF/PNG pairs, strictly validated, and materialized without renaming under `figures/Supplementary/` with `SuppFig4` panel IDs.
+
+| Panel | Content | Canonical source output |
+|---|---|---|
+| SuppFig4A | Tumor-cell UMAP by cluster | `figures/panel_SuppFig4A_umap_cluster.pdf` |
+| SuppFig4B | Shared UMAP faceted by mouse | `figures/panel_SuppFig4B_umap_mouse_facets.pdf` |
+| SuppFig4C | Tumor-cell UMAP by initial ploidy | `figures/panel_SuppFig4C_umap_initial_ploidy.pdf` |
+| SuppFig4D | Tumor-cell UMAP by treatment dose | `figures/panel_SuppFig4D_umap_treatment_dose.pdf` |
+| SuppFig4E | Cluster composition by mouse | `figures/panel_SuppFig4E_cluster_composition_by_mouse.pdf` |
+| SuppFig4F | Mouse-weighted cluster composition by ploidy and dose | `figures/panel_SuppFig4F_cluster_composition_by_ploidy_dose.pdf` |
+| SuppFig4 composite | Full Supplementary Figure 4 layout | `figures/panel_SuppFig4_composite.pdf` |
+
 ### Supplementary Figure: SI_GDSC_vs_ploidy_A
 
 Manuscript asset: `figures/SI_GDSC_vs_ploidy_A.png` at `GemcitabinePaper.tex:1085`. Exact PNG exists as `Figs/SI_GDSC_vs_ploidy_A.png`, but not at the manuscript `figures/` path.

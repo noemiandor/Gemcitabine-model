@@ -184,6 +184,132 @@ PANEL_SPECS = [
         "caption_role": "Paired gemcitabine delta AUC versus delta ploidy",
     },
     {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4A_umap_cluster.pdf",
+        "figure": "Supplementary",
+        "panel": "SuppFig4A",
+        "asset": "panel_SuppFig4A_umap_cluster.pdf",
+        "caption_role": "In-vivo tumor-cell UMAP by cluster",
+        "variant": "pdf",
+    },
+    {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4A_umap_cluster.png",
+        "figure": "Supplementary",
+        "panel": "SuppFig4A_png",
+        "asset": "panel_SuppFig4A_umap_cluster.png",
+        "caption_role": "PNG derivative of the in-vivo tumor-cell UMAP by cluster",
+        "variant": "png",
+    },
+    {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4B_umap_initial_ploidy.pdf",
+        "figure": "Supplementary",
+        "panel": "SuppFig4B",
+        "asset": "panel_SuppFig4B_umap_initial_ploidy.pdf",
+        "caption_role": "In-vivo tumor-cell UMAP by initial ploidy",
+        "variant": "pdf",
+    },
+    {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4B_umap_initial_ploidy.png",
+        "figure": "Supplementary",
+        "panel": "SuppFig4B_png",
+        "asset": "panel_SuppFig4B_umap_initial_ploidy.png",
+        "caption_role": "PNG derivative of the in-vivo tumor-cell UMAP by initial ploidy",
+        "variant": "png",
+    },
+    {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4C_umap_treatment_dose.pdf",
+        "figure": "Supplementary",
+        "panel": "SuppFig4C",
+        "asset": "panel_SuppFig4C_umap_treatment_dose.pdf",
+        "caption_role": "In-vivo tumor-cell UMAP by treatment dose",
+        "variant": "pdf",
+    },
+    {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4C_umap_treatment_dose.png",
+        "figure": "Supplementary",
+        "panel": "SuppFig4C_png",
+        "asset": "panel_SuppFig4C_umap_treatment_dose.png",
+        "caption_role": "PNG derivative of the in-vivo tumor-cell UMAP by treatment dose",
+        "variant": "png",
+    },
+    {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4D_umap_mouse_facets.pdf",
+        "figure": "Supplementary",
+        "panel": "SuppFig4D",
+        "asset": "panel_SuppFig4D_umap_mouse_facets.pdf",
+        "caption_role": "In-vivo tumor-cell UMAP faceted by mouse",
+        "variant": "pdf",
+    },
+    {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4D_umap_mouse_facets.png",
+        "figure": "Supplementary",
+        "panel": "SuppFig4D_png",
+        "asset": "panel_SuppFig4D_umap_mouse_facets.png",
+        "caption_role": "PNG derivative of the in-vivo tumor-cell UMAP faceted by mouse",
+        "variant": "png",
+    },
+    {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4E_cluster_composition_by_mouse.pdf",
+        "figure": "Supplementary",
+        "panel": "SuppFig4E",
+        "asset": "panel_SuppFig4E_cluster_composition_by_mouse.pdf",
+        "caption_role": "Tumor-cluster composition by mouse",
+        "variant": "pdf",
+    },
+    {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4E_cluster_composition_by_mouse.png",
+        "figure": "Supplementary",
+        "panel": "SuppFig4E_png",
+        "asset": "panel_SuppFig4E_cluster_composition_by_mouse.png",
+        "caption_role": "PNG derivative of tumor-cluster composition by mouse",
+        "variant": "png",
+    },
+    {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4F_cluster_composition_by_ploidy_dose.pdf",
+        "figure": "Supplementary",
+        "panel": "SuppFig4F",
+        "asset": "panel_SuppFig4F_cluster_composition_by_ploidy_dose.pdf",
+        "caption_role": "Mouse-weighted cluster composition by initial ploidy and dose",
+        "variant": "pdf",
+    },
+    {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4F_cluster_composition_by_ploidy_dose.png",
+        "figure": "Supplementary",
+        "panel": "SuppFig4F_png",
+        "asset": "panel_SuppFig4F_cluster_composition_by_ploidy_dose.png",
+        "caption_role": "PNG derivative of mouse-weighted cluster composition by initial ploidy and dose",
+        "variant": "png",
+    },
+    {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4_composite.pdf",
+        "figure": "Supplementary",
+        "panel": "SuppFig4_composite",
+        "asset": "panel_SuppFig4_composite.pdf",
+        "caption_role": "Supplementary Figure 4 composite",
+        "variant": "pdf",
+    },
+    {
+        "module": "si_figure4",
+        "source": "figures/panel_SuppFig4_composite.png",
+        "figure": "Supplementary",
+        "panel": "SuppFig4_composite_png",
+        "asset": "panel_SuppFig4_composite.png",
+        "caption_role": "PNG derivative of the Supplementary Figure 4 composite",
+        "variant": "png",
+    },
+    {
         "module": "in_vivo_figure7",
         "source": "figures/panel_7A_day17_tgi_calculation.pdf",
         "figure": "Figure7",
@@ -295,7 +421,7 @@ PANEL_SPECS = [
     },
 ]
 
-STRICT_FIGURE_MODULES = {"in_vivo_figure7"}
+STRICT_FIGURE_MODULES = {"in_vivo_figure7", "si_figure4"}
 FIGURE_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".svg", ".tif", ".tiff"}
 
 EXTERNAL_ROWS = [
@@ -444,7 +570,11 @@ def validate_strict_source_run(
 ) -> None:
     if module not in STRICT_FIGURE_MODULES:
         return
-    expected_name = f"{source_run_id}_figure7"
+    expected_name = (
+        f"{source_run_id}_figure7"
+        if module == "in_vivo_figure7"
+        else f"{source_run_id}_si_figure4"
+    )
     if run_root.name != expected_name:
         raise ValueError(f"{module} source run must be named {expected_name}, got {run_root.name}")
 
@@ -477,46 +607,55 @@ def validate_strict_source_run(
         if str(spec["module"]) == module
         and (not spec.get("optional") or (run_root / str(spec["source"])).is_file())
     }
-    panel_f_paths = {
-        (run_root / str(spec["source"])).resolve()
-        for spec in selected_specs
-        if str(spec["module"]) == module and str(spec["panel"]).startswith("7F")
-    }
-    present_panel_f_paths = {path for path in panel_f_paths if path.is_file()}
-    if present_panel_f_paths and present_panel_f_paths != panel_f_paths:
-        raise ValueError("Source Figure 7 run must contain both PDF and PNG panel-F assets or neither")
-    has_panel_f = present_panel_f_paths == panel_f_paths
-    expected_panel_set = "a-f" if has_panel_f else "a-e"
     run_config = run_root / "metadata" / "run_config.tsv"
     if not run_config.is_file():
-        raise FileNotFoundError(f"Missing source Figure 7 run config: {run_config}")
+        raise FileNotFoundError(f"Missing source run config: {run_config}")
     _, config_rows = read_tsv(run_config)
-    panel_set_rows = [row for row in config_rows if row.get("key") == "panel_set"]
-    if len(panel_set_rows) != 1 or panel_set_rows[0].get("value") != expected_panel_set:
-        raise ValueError(
-            f"Source Figure 7 run must explicitly record panel_set={expected_panel_set}"
-        )
-    tgi_day_rows = [row for row in config_rows if row.get("key") == "tgi_day"]
-    if len(tgi_day_rows) != 1 or tgi_day_rows[0].get("value") != str(figure7_tgi_day):
-        raise ValueError(
-            f"Source Figure 7 run must explicitly record tgi_day={figure7_tgi_day}"
-        )
-
     panel_contract = run_root / "metadata" / "panel_contract.tsv"
     if not panel_contract.is_file():
-        raise FileNotFoundError(f"Missing source Figure 7 panel contract: {panel_contract}")
+        raise FileNotFoundError(f"Missing source panel contract: {panel_contract}")
     _, contract_rows = read_tsv(panel_contract)
-    expected_contract = [
-        (str(spec["panel"]), Path(str(spec["source"])).name)
-        for spec in selected_specs
-        if str(spec["module"]) == module
-        and spec.get("variant", "pdf") == "pdf"
-        and (not spec.get("optional") or (run_root / str(spec["source"])).is_file())
-    ]
+    if module == "in_vivo_figure7":
+        panel_f_paths = {
+            (run_root / str(spec["source"])).resolve()
+            for spec in selected_specs
+            if str(spec["module"]) == module and str(spec["panel"]).startswith("7F")
+        }
+        present_panel_f_paths = {path for path in panel_f_paths if path.is_file()}
+        if present_panel_f_paths and present_panel_f_paths != panel_f_paths:
+            raise ValueError("Source Figure 7 run must contain both PDF and PNG panel-F assets or neither")
+        has_panel_f = present_panel_f_paths == panel_f_paths
+        expected_panel_set = "a-f" if has_panel_f else "a-e"
+        panel_set_rows = [row for row in config_rows if row.get("key") == "panel_set"]
+        if len(panel_set_rows) != 1 or panel_set_rows[0].get("value") != expected_panel_set:
+            raise ValueError(
+                f"Source Figure 7 run must explicitly record panel_set={expected_panel_set}"
+            )
+        tgi_day_rows = [row for row in config_rows if row.get("key") == "tgi_day"]
+        if len(tgi_day_rows) != 1 or tgi_day_rows[0].get("value") != str(figure7_tgi_day):
+            raise ValueError(
+                f"Source Figure 7 run must explicitly record tgi_day={figure7_tgi_day}"
+            )
+        expected_contract = [
+            (str(spec["panel"]), Path(str(spec["source"])).name)
+            for spec in selected_specs
+            if str(spec["module"]) == module
+            and spec.get("variant", "pdf") == "pdf"
+            and (not spec.get("optional") or (run_root / str(spec["source"])).is_file())
+        ]
+    else:
+        module_rows = [row for row in config_rows if row.get("key") == "module"]
+        if len(module_rows) != 1 or module_rows[0].get("value") != "si_figure4":
+            raise ValueError("Source SI Figure 4 run must explicitly record module=si_figure4")
+        expected_contract = [
+            (str(spec["panel"]), Path(str(spec["source"])).name)
+            for spec in selected_specs
+            if str(spec["module"]) == module
+        ]
     observed_contract = [(row.get("panel_id", ""), row.get("filename", "")) for row in contract_rows]
     if observed_contract != expected_contract:
         raise ValueError(
-            f"Source Figure 7 panel contract mismatch: expected={expected_contract}; "
+            f"Source panel contract mismatch: expected={expected_contract}; "
             f"observed={observed_contract}"
         )
     observed_figures = {

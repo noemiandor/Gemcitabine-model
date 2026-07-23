@@ -52,7 +52,7 @@ usage <- function() {
       "Usage:",
       "  Rscript Code/in-vivo/SI_figure4/generate_supplementary_figure4.R \\",
       "    --seurat-metadata Data/in-vivo/seurat_metadata.csv \\",
-      "    --scvelo-metrics Results/in-vivo/figure7/intermediates/scvelo_cell_metrics.csv \\",
+      "    --scvelo-metrics Data/in-vivo/scvelo_cell_metrics.csv \\",
       "    --output-dir Results/in-vivo/SI_figure4",
       "",
       "Options:",
@@ -237,6 +237,22 @@ write_csv <- function(df, path) {
   invisible(path)
 }
 
+write_tsv <- function(df, path) {
+  utils::write.table(
+    df,
+    path,
+    sep = "\t",
+    row.names = FALSE,
+    col.names = TRUE,
+    quote = FALSE,
+    na = ""
+  )
+  if (!file.exists(path) || file.info(path)$size <= 0) {
+    stop("Failed to write output table: ", path, call. = FALSE)
+  }
+  invisible(path)
+}
+
 figure_theme <- function(base_size = 10) {
   ggplot2::theme_classic(base_size = base_size) +
     ggplot2::theme(
@@ -255,8 +271,16 @@ umap_theme <- function(base_size = 10) {
     ggplot2::theme(
       axis.line = ggplot2::element_line(color = "grey35", linewidth = 0.35),
       axis.ticks = ggplot2::element_blank(),
-      axis.text = ggplot2::element_blank()
+      axis.text = ggplot2::element_blank(),
+      legend.title = ggplot2::element_text(face = "bold", size = base_size + 2),
+      legend.text = ggplot2::element_text(size = base_size + 1),
+      legend.key.height = grid::unit(0.85, "lines"),
+      legend.key.width = grid::unit(0.90, "lines")
     )
+}
+
+umap_color_guide <- function() {
+  ggplot2::guide_legend(override.aes = list(size = 3, alpha = 1, stroke = 0))
 }
 
 add_panel_tag <- function(plot, tag) {
@@ -299,8 +323,8 @@ seurat_metadata_path <- resolve_path(
 )
 
 default_scvelo <- first_existing(c(
-  file.path(repo_root, "Results", "in-vivo", "figure7", "intermediates", "scvelo_cell_metrics.csv"),
-  file.path(repo_root, "Data", "in-vivo", "scvelo_cell_metrics.csv")
+  file.path(repo_root, "Data", "in-vivo", "scvelo_cell_metrics.csv"),
+  file.path(repo_root, "Results", "in-vivo", "figure7", "intermediates", "scvelo_cell_metrics.csv")
 ))
 scvelo_metrics_path <- resolve_path(
   arg_value(args, "scvelo-metrics", default_scvelo),
@@ -317,7 +341,10 @@ overwrite <- arg_flag(args, "overwrite", FALSE)
 
 if (dir.exists(output_dir)) {
   existing <- list.files(output_dir, all.files = TRUE, no.. = TRUE)
-  if (length(existing) && !overwrite) {
+  manager_bootstrap <- c("logs", "metadata")
+  blocking <- setdiff(existing, manager_bootstrap)
+  metadata_existing <- list.files(file.path(output_dir, "metadata"), all.files = TRUE, no.. = TRUE)
+  if ((length(blocking) || length(metadata_existing)) && !overwrite) {
     stop("Output directory is not empty; pass --overwrite to replace known outputs: ", output_dir, call. = FALSE)
   }
 }
@@ -334,10 +361,16 @@ seurat <- read_csv_checked(seurat_metadata_path, "Seurat metadata")
 message("Reading scVelo cell metrics: ", scvelo_metrics_path)
 metrics <- read_csv_checked(scvelo_metrics_path, "scVelo cell metrics")
 
-for (column in c("cell", "UMAP_1", "UMAP_2", "cluster_final", "Dose")) {
+for (column in c("cell", "UMAP_1", "UMAP_2", "Dose")) {
   assert_single_column(seurat, column, "Seurat metadata")
 }
 assert_single_column(metrics, "cell", "scVelo cell metrics")
+
+canonical_cluster_col <- resolve_column(
+  seurat,
+  c("cluster_final", "clusters"),
+  "Seurat canonical cluster"
+)
 
 seurat$cell <- clean_character(seurat$cell)
 metrics$cell <- clean_character(metrics$cell)
@@ -374,11 +407,10 @@ if (any(!is.finite(seurat$UMAP_1)) || any(!is.finite(seurat$UMAP_2))) {
 }
 
 seurat$mouse <- clean_character(seurat[[sample_col]])
-seurat$cluster <- clean_character(seurat$cluster_final)
+seurat$cluster <- clean_character(seurat[[canonical_cluster_col]])
 seurat$dose <- standardize_dose(seurat$Dose, "Seurat Dose")
 if (anyNA(seurat$mouse)) stop("Seurat metadata contains missing mouse/sample identities", call. = FALSE)
-if (anyNA(seurat$cluster)) stop("Seurat metadata contains missing cluster_final labels", call. = FALSE)
-if (anyNA(seurat$dose)) stop("Seurat metadata contains missing Dose values", call. = FALSE)
+if (anyNA(seurat$cluster)) stop("Seurat metadata contains missing canonical cluster labels", call. = FALSE)
 
 metric_index <- match(seurat$cell, metrics$cell)
 seurat$in_scvelo <- !is.na(metric_index)
@@ -387,7 +419,9 @@ metrics_context <- standardize_context(metrics[[metric_context_col]])
 metrics_dose <- standardize_dose(metrics[[metric_dose_col]], "scVelo Dose")
 if (anyNA(metrics_ploidy)) stop("scVelo metrics contains unresolved Ploidy values", call. = FALSE)
 if (anyNA(metrics_context)) stop("scVelo metrics contains unresolved TN/context values", call. = FALSE)
-if (anyNA(metrics_dose)) stop("scVelo metrics contains missing Dose values", call. = FALSE)
+if (any(is.na(metrics_dose) & metrics_context == "Tumor")) {
+  stop("scVelo tumor cells contain missing Dose values", call. = FALSE)
+}
 
 matched_ploidy <- rep(NA_character_, nrow(seurat))
 matched_context <- rep(NA_character_, nrow(seurat))
@@ -397,12 +431,14 @@ matched_context[seurat$in_scvelo] <- metrics_context[metric_index[seurat$in_scve
 matched_dose[seurat$in_scvelo] <- metrics_dose[metric_index[seurat$in_scvelo]]
 assert_consistent(seurat$dose, matched_dose, "Seurat/scVelo Dose")
 
-metric_cluster_col <- resolve_column(metrics, c("cluster_final"), "scVelo canonical cluster", required = FALSE)
-if (!is.na(metric_cluster_col)) {
-  matched_cluster <- rep(NA_character_, nrow(seurat))
-  matched_cluster[seurat$in_scvelo] <- clean_character(metrics[[metric_cluster_col]])[metric_index[seurat$in_scvelo]]
-  assert_consistent(seurat$cluster, matched_cluster, "Seurat/scVelo cluster_final")
-}
+metric_cluster_col <- resolve_column(
+  metrics,
+  canonical_cluster_col,
+  "scVelo canonical cluster"
+)
+matched_cluster <- rep(NA_character_, nrow(seurat))
+matched_cluster[seurat$in_scvelo] <- clean_character(metrics[[metric_cluster_col]])[metric_index[seurat$in_scvelo]]
+assert_consistent(seurat$cluster, matched_cluster, "Seurat/scVelo canonical cluster")
 
 sample_ploidy <- mapping_by_group(seurat$mouse, matched_ploidy, "initial ploidy")
 sample_context <- mapping_by_group(seurat$mouse, matched_context, "tumor/cell-line context")
@@ -441,6 +477,7 @@ tumor <- seurat[seurat$context == "Tumor", , drop = FALSE]
 if (!nrow(tumor)) stop("No tumor cells remain after context filtering", call. = FALSE)
 if (anyNA(tumor$initial_ploidy)) stop("Tumor cells contain unresolved initial ploidy", call. = FALSE)
 if (any(!tumor$initial_ploidy %in% c("2N", "4N"))) stop("Unexpected tumor ploidy value", call. = FALSE)
+if (anyNA(tumor$dose)) stop("Tumor cells contain missing Dose values", call. = FALSE)
 
 mouse_dose <- mapping_by_group(tumor$mouse, tumor$dose, "dose")
 mouse_ploidy <- mapping_by_group(tumor$mouse, tumor$initial_ploidy, "initial ploidy")
@@ -492,6 +529,7 @@ if (!is.na(annotation_col)) {
 cluster_counts <- as.integer(table(factor(tumor$cluster, levels = cluster_levels)))
 color_key <- data.frame(
   cluster_final = cluster_levels,
+  source_field = canonical_cluster_col,
   color = unname(cluster_colors[cluster_levels]),
   annotation_primary = unname(annotation_map[cluster_levels]),
   n_tumor_cells = cluster_counts,
@@ -583,10 +621,11 @@ p_a <- ggplot2::ggplot(plot_data, ggplot2::aes(UMAP_1, UMAP_2, color = cluster))
     alpha = 0.86,
     label.padding = grid::unit(0.12, "lines")
   ) +
-  ggplot2::scale_color_manual(values = cluster_colors, drop = FALSE, name = "Canonical cluster") +
+  ggplot2::scale_color_manual(values = cluster_colors, drop = FALSE, name = "Cluster") +
+  ggplot2::guides(color = umap_color_guide()) +
   ggplot2::coord_equal() +
   ggplot2::labs(
-    title = "UMAP by canonical cluster",
+    title = "UMAP by cluster",
     subtitle = sprintf("Tumor cells; %s cells across %s clusters", format(n_tumor, big.mark = ","), n_clusters),
     x = "UMAP 1",
     y = "UMAP 2"
@@ -610,12 +649,12 @@ background_data <- tumor[, c("UMAP_1", "UMAP_2"), drop = FALSE]
 p_b <- ggplot2::ggplot(mouse_plot_data, ggplot2::aes(UMAP_1, UMAP_2)) +
   ggplot2::geom_point(
     data = background_data,
-    color = "grey91",
+    color = "grey88",
     size = max(point_size * 0.70, 0.06),
-    alpha = 0.38,
+    alpha = 0.30,
     stroke = 0
   ) +
-  ggplot2::geom_point(color = "#2B6CB0", size = max(point_size * 0.90, 0.08), alpha = 0.88, stroke = 0) +
+  ggplot2::geom_point(color = "#1565C0", size = max(point_size * 1.45, 0.14), alpha = 0.90, stroke = 0) +
   ggplot2::facet_wrap(~mouse_panel, ncol = 4, drop = FALSE) +
   ggplot2::coord_equal() +
   ggplot2::labs(
@@ -630,11 +669,12 @@ p_b <- ggplot2::ggplot(mouse_plot_data, ggplot2::aes(UMAP_1, UMAP_2)) +
     strip.text = ggplot2::element_text(size = 7.2),
     panel.spacing = grid::unit(0.10, "lines")
   )
-p_b <- add_panel_tag(p_b, "B")
+p_b <- add_panel_tag(p_b, "D")
 
 p_c <- ggplot2::ggplot(plot_data, ggplot2::aes(UMAP_1, UMAP_2, color = initial_ploidy)) +
   ggplot2::geom_point(size = point_size, alpha = 0.76, stroke = 0) +
   ggplot2::scale_color_manual(values = ploidy_colors, drop = FALSE, name = "Initial ploidy") +
+  ggplot2::guides(color = umap_color_guide()) +
   ggplot2::coord_equal() +
   ggplot2::labs(
     title = "UMAP by initial tumor ploidy",
@@ -643,7 +683,7 @@ p_c <- ggplot2::ggplot(plot_data, ggplot2::aes(UMAP_1, UMAP_2, color = initial_p
     y = "UMAP 2"
   ) +
   umap_theme(10)
-p_c <- add_panel_tag(p_c, "C")
+p_c <- add_panel_tag(p_c, "B")
 
 observed_dose_levels <- dose_levels[dose_levels %in% unique(as.character(tumor$dose))]
 dose_panel_informative <- identical(observed_dose_levels, dose_levels)
@@ -651,6 +691,7 @@ if (dose_panel_informative) {
   p_d <- ggplot2::ggplot(plot_data, ggplot2::aes(UMAP_1, UMAP_2, color = dose)) +
     ggplot2::geom_point(size = point_size, alpha = 0.76, stroke = 0) +
     ggplot2::scale_color_manual(values = dose_colors, drop = FALSE, name = "Gemcitabine dose") +
+    ggplot2::guides(color = umap_color_guide()) +
     ggplot2::coord_equal() +
     ggplot2::labs(
       title = "UMAP by treatment dose",
@@ -674,7 +715,7 @@ if (dose_panel_informative) {
     ggplot2::theme_void(base_size = 10) +
     ggplot2::theme(plot.title = ggplot2::element_text(face = "bold"))
 }
-p_d <- add_panel_tag(p_d, "D")
+p_d <- add_panel_tag(p_d, "C")
 
 composition_plot <- composition_table
 composition_plot$mouse <- factor(composition_plot$mouse, levels = mouse_levels)
@@ -693,7 +734,7 @@ p_e <- ggplot2::ggplot(
     space = "free_x",
     drop = FALSE
   ) +
-  ggplot2::scale_fill_manual(values = cluster_colors, drop = FALSE, name = "Canonical cluster") +
+  ggplot2::scale_fill_manual(values = cluster_colors, drop = FALSE, name = "Cluster") +
   ggplot2::scale_y_continuous(
     limits = c(0, 1),
     breaks = seq(0, 1, 0.25),
@@ -727,19 +768,19 @@ p_f <- ggplot2::ggplot(
   ggplot2::geom_col(width = 0.72, color = "white", linewidth = 0.12) +
   ggplot2::geom_text(
     data = group_n,
-    ggplot2::aes(dose, 1.025, label = paste0("n=", n_mice)),
+    ggplot2::aes(dose, 0.985, label = paste0("n=", n_mice)),
     inherit.aes = FALSE,
     size = 2.8,
-    vjust = 0
+    vjust = 1
   ) +
   ggplot2::facet_wrap(~initial_ploidy, nrow = 1, drop = FALSE) +
-  ggplot2::scale_fill_manual(values = cluster_colors, drop = FALSE, name = "Canonical cluster") +
+  ggplot2::scale_fill_manual(values = cluster_colors, drop = FALSE, name = "Cluster") +
   ggplot2::scale_y_continuous(
+    limits = c(0, 1),
     breaks = seq(0, 1, 0.25),
     labels = percent_labels,
-    expand = ggplot2::expansion(mult = c(0, 0.08))
+    expand = ggplot2::expansion(mult = c(0, 0))
   ) +
-  ggplot2::coord_cartesian(ylim = c(0, 1.08), clip = "off") +
   ggplot2::labs(
     title = "Mouse-weighted composition by ploidy and dose",
     subtitle = "Cluster proportions are calculated per mouse, then averaged with equal mouse weights",
@@ -754,25 +795,57 @@ p_f <- ggplot2::ggplot(
 p_f <- add_panel_tag(p_f, "F")
 
 message("Writing Supplementary Figure 4 panels.")
-save_pdf_png(p_a, file.path(figure_dir, "panel_A_umap_canonical_cluster"), 8.2, 6.5)
-save_pdf_png(p_b, file.path(figure_dir, "panel_B_umap_mouse_facets"), 13.5, 10.5)
-save_pdf_png(p_c, file.path(figure_dir, "panel_C_umap_initial_ploidy"), 7.2, 6.2)
-save_pdf_png(p_d, file.path(figure_dir, "panel_D_umap_treatment_dose"), 7.2, 6.2)
-save_pdf_png(p_e, file.path(figure_dir, "panel_E_cluster_composition_by_mouse"), 12.8, 6.5)
-save_pdf_png(p_f, file.path(figure_dir, "panel_F_cluster_composition_by_ploidy_dose"), 9.5, 6.5)
+save_pdf_png(p_a, file.path(figure_dir, "panel_SuppFig4A_umap_cluster"), 8.2, 6.5)
+save_pdf_png(p_c, file.path(figure_dir, "panel_SuppFig4B_umap_initial_ploidy"), 7.2, 6.2)
+save_pdf_png(p_d, file.path(figure_dir, "panel_SuppFig4C_umap_treatment_dose"), 7.2, 6.2)
+save_pdf_png(p_b, file.path(figure_dir, "panel_SuppFig4D_umap_mouse_facets"), 13.5, 10.5)
+save_pdf_png(p_e, file.path(figure_dir, "panel_SuppFig4E_cluster_composition_by_mouse"), 12.8, 6.5)
+save_pdf_png(p_f, file.path(figure_dir, "panel_SuppFig4F_cluster_composition_by_ploidy_dose"), 9.5, 6.5)
 
-top_row <- patchwork::wrap_plots(p_a, p_c, p_d, ncol = 3, widths = c(1.15, 1, 1))
+left_column <- patchwork::wrap_plots(p_a, p_c, p_d, ncol = 1, heights = c(1, 1, 1))
+upper_block <- patchwork::wrap_plots(left_column, p_b, ncol = 2, widths = c(1, 2.15))
 bottom_row <- patchwork::wrap_plots(p_e, p_f, ncol = 2, widths = c(1.35, 1))
 composite <- patchwork::wrap_plots(
-  top_row,
-  p_b,
+  upper_block,
   bottom_row,
   ncol = 1,
-  heights = c(1, 1.55, 1.05)
+  heights = c(1.75, 1)
 ) + patchwork::plot_annotation(
   title = "Supplementary Figure 4 | In-vivo tumor-cell landscape and cluster composition"
 )
-save_pdf_png(composite, file.path(figure_dir, "Supplementary_Figure_4"), 17, 20, dpi = 300)
+save_pdf_png(composite, file.path(figure_dir, "panel_SuppFig4_composite"), 17, 16, dpi = 300)
+
+panel_contract <- data.frame(
+  panel_id = c(
+    "SuppFig4A", "SuppFig4A_png", "SuppFig4B", "SuppFig4B_png",
+    "SuppFig4C", "SuppFig4C_png", "SuppFig4D", "SuppFig4D_png",
+    "SuppFig4E", "SuppFig4E_png", "SuppFig4F", "SuppFig4F_png",
+    "SuppFig4_composite", "SuppFig4_composite_png"
+  ),
+  filename = c(
+    "panel_SuppFig4A_umap_cluster.pdf", "panel_SuppFig4A_umap_cluster.png",
+    "panel_SuppFig4B_umap_initial_ploidy.pdf", "panel_SuppFig4B_umap_initial_ploidy.png",
+    "panel_SuppFig4C_umap_treatment_dose.pdf", "panel_SuppFig4C_umap_treatment_dose.png",
+    "panel_SuppFig4D_umap_mouse_facets.pdf", "panel_SuppFig4D_umap_mouse_facets.png",
+    "panel_SuppFig4E_cluster_composition_by_mouse.pdf", "panel_SuppFig4E_cluster_composition_by_mouse.png",
+    "panel_SuppFig4F_cluster_composition_by_ploidy_dose.pdf", "panel_SuppFig4F_cluster_composition_by_ploidy_dose.png",
+    "panel_SuppFig4_composite.pdf", "panel_SuppFig4_composite.png"
+  ),
+  variant = rep(c("pdf", "png"), 7L),
+  stringsAsFactors = FALSE
+)
+observed_figure_files <- sort(list.files(figure_dir, pattern = "[.](pdf|png)$"))
+expected_figure_files <- sort(panel_contract$filename)
+if (!identical(observed_figure_files, expected_figure_files)) {
+  stop(
+    "Supplementary Figure 4 exact figure inventory failed; missing: ",
+    paste(setdiff(expected_figure_files, observed_figure_files), collapse = ", "),
+    "; unexpected: ",
+    paste(setdiff(observed_figure_files, expected_figure_files), collapse = ", "),
+    call. = FALSE
+  )
+}
+write_tsv(panel_contract, file.path(metadata_dir, "panel_contract.tsv"))
 
 write_csv(color_key, file.path(table_dir, "cluster_color_key.csv"))
 write_csv(composition_table, file.path(table_dir, "cluster_composition_by_mouse.csv"))
@@ -791,6 +864,22 @@ input_manifest <- data.frame(
   stringsAsFactors = FALSE
 )
 write_csv(input_manifest, file.path(metadata_dir, "input_manifest.csv"))
+
+run_config <- data.frame(
+  key = c(
+    "module", "figure", "panel_count", "figure_file_count", "plot_shuffle_seed",
+    "seurat_metadata", "seurat_metadata_sha256", "scvelo_cell_metrics",
+    "scvelo_cell_metrics_sha256", "main_cell_universe", "cluster_field", "sample_field"
+  ),
+  value = c(
+    "si_figure4", "Supplementary", "7", as.character(nrow(panel_contract)), "5826",
+    seurat_metadata_path, input_manifest$sha256[input_manifest$role == "seurat_metadata"],
+    scvelo_metrics_path, input_manifest$sha256[input_manifest$role == "scvelo_cell_metrics"],
+    "all_tumor_cells_in_seurat_metadata", canonical_cluster_col, sample_col
+  ),
+  stringsAsFactors = FALSE
+)
+write_tsv(run_config, file.path(metadata_dir, "run_config.tsv"))
 
 qc <- data.frame(
   key = c(
@@ -813,7 +902,7 @@ qc <- data.frame(
     paste(observed_dose_levels, collapse = ","),
     tolower(as.character(dose_panel_informative)),
     "all_tumor_cells_in_seurat_metadata",
-    "cluster_final",
+    canonical_cluster_col,
     sample_col
   ),
   stringsAsFactors = FALSE
@@ -828,7 +917,8 @@ writeLines(
     paste0("scVelo metrics: ", scvelo_metrics_path),
     paste0("Main cell universe: all ", format(n_tumor, big.mark = ","), " tumor cells in Seurat metadata"),
     paste0("Tumor mice: ", n_mice),
-    paste0("Canonical clusters: ", paste(cluster_levels, collapse = ", ")),
+    paste0("Clusters: ", paste(cluster_levels, collapse = ", ")),
+    paste0("Cluster source field: ", canonical_cluster_col),
     paste0("Dose panel informative: ", dose_panel_informative),
     "Ploidy/dose group composition is the equal-weight mean of mouse-level proportions.",
     paste0("Output directory: ", output_dir)

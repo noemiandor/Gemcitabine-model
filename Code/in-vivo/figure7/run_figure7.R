@@ -9,14 +9,14 @@ for (file in c("common_io.R", "input_preflight.R", "tgi_data.R", "tgi_statistics
   sys.source(file.path(script_dir, "src", file), envir = .GlobalEnv)
 }
 
-if (!requireNamespace("ggplot2", quietly = TRUE) || !requireNamespace("ggrepel", quietly = TRUE)) {
-  figure7_stop("R packages 'ggplot2' and 'ggrepel' are required")
-}
-
 args <- figure7_parse_args(commandArgs(trailingOnly = TRUE))
 mode <- figure7_arg(args, "mode", "standard")
-allowed_modes <- c("standard", "full-analysis", "full-workflow", "render-only")
+allowed_modes <- c("standard", "full-analysis", "full-workflow", "render-only", "prepare-scvelo-inputs")
 if (!mode %in% allowed_modes) figure7_stop("Unknown Figure 7 mode: ", mode)
+if (!identical(mode, "prepare-scvelo-inputs") &&
+    (!requireNamespace("ggplot2", quietly = TRUE) || !requireNamespace("ggrepel", quietly = TRUE))) {
+  figure7_stop("R packages 'ggplot2' and 'ggrepel' are required")
+}
 panel_set <- figure7_arg(args, "panel-set", "a-f")
 if (!panel_set %in% c("a-f", "a-e")) figure7_stop("Unknown Figure 7 panel set: ", panel_set)
 include_panel_f <- identical(panel_set, "a-f")
@@ -220,6 +220,50 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
   }
   write_metadata(output_dir, mode, config, config_path, panel_ids, source_results_root)
   figure7_validate_figure_inventory(output_dir, config, panel_ids)
+}
+
+write_scvelo_input_prep_metadata <- function(output_dir, prep, config_path) {
+  dir.create(file.path(output_dir, "metadata"), recursive = TRUE, showWarnings = FALSE)
+  run_config <- data.frame(
+    key = c(
+      "module", "mode", "workflow_initial_state", "workflow_executed_stages",
+      "workflow_scvelo_metrics", "workflow_scvelo_sha256", "workflow_seurat_metadata",
+      "workflow_seurat_metadata_sha256", "raw_data_source", "raw_data_dir", "loom_root",
+      "seurat_rds", "workflow_log_dir", "config_sha256"
+    ),
+    value = c(
+      "in_vivo_figure7_input_prep", "prepare-scvelo-inputs", prep$initial_state,
+      if (length(prep$executed_stages)) paste(prep$executed_stages, collapse = ",") else "none",
+      prep$scvelo_metrics, prep$scvelo_sha256, prep$seurat_metadata,
+      prep$seurat_metadata_sha256, prep$raw_data_status, prep$raw_data_dir, prep$loom_root,
+      prep$seurat_rds, prep$log_dir, figure7_sha256(config_path)
+    ),
+    stringsAsFactors = FALSE
+  )
+  figure7_write_tsv(run_config, file.path(output_dir, "metadata", "run_config.tsv"))
+  writeLines(sub("[[:space:]]+$", "", utils::capture.output(sessionInfo())),
+             file.path(output_dir, "metadata", "session_info.txt"), useBytes = TRUE)
+}
+
+if (identical(mode, "prepare-scvelo-inputs")) {
+  overwrite_intermediates <- figure7_flag(args, "overwrite-intermediates", FALSE)
+  workflow_paths <- figure7_workflow_paths(args, repo_root, output_dir, config)
+  preflight <- figure7_preflight_scvelo_inputs(workflow_paths, overwrite_intermediates)
+  if (figure7_flag(args, "preflight-only", FALSE)) {
+    cat("workflow_state\t", preflight$state, "\n", sep = "")
+    cat("raw_data_status\t", preflight$raw_data_status, "\n", sep = "")
+    cat("scvelo_metrics\t", workflow_paths$scvelo_metrics, "\n", sep = "")
+    cat("seurat_metadata\t", workflow_paths$seurat_metadata, "\n", sep = "")
+    quit(save = "no", status = 0L)
+  }
+  figure7_assert_empty_output(output_dir)
+  prep <- figure7_prepare_scvelo_input_pair(
+    workflow_paths, preflight, script_dir, config,
+    overwrite_intermediates = overwrite_intermediates
+  )
+  write_scvelo_input_prep_metadata(output_dir, prep, config_path)
+  message("Prepared Figure 7 scVelo/Seurat input pair: ", output_dir)
+  quit(save = "no", status = 0L)
 }
 
 if (identical(mode, "render-only")) {

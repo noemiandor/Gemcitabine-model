@@ -20,7 +20,15 @@ an embedded report raster is not accepted as plotting data.
 
 ## Commands
 
-Routine manager execution:
+The default Manager mode is the full run. With no explicit `--mode`, Figure 7
+uses `full-workflow`, validates the complete run, and publishes newly generated
+CSV inputs:
+
+```bash
+bash Manager.sh --run-id <run_id>
+```
+
+To use the frozen processed inputs for routine figure regeneration instead:
 
 ```bash
 bash Manager.sh --mode standard --run-id <run_id>
@@ -121,6 +129,7 @@ output manifest, and verifies each generated CSV against the path and SHA-256
 recorded in `metadata/run_config.tsv`. It then stages and atomically replaces:
 
 - `Data/in-vivo/scvelo_cell_metrics.csv`
+- `Data/in-vivo/seurat_metadata.csv`
 - `Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv`
 - `Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv`
 
@@ -159,8 +168,10 @@ The run metadata records the actual scVelo (when present), CellCycle, and
 NonCellCycle SHA-256 values used by that invocation. When the scVelo stage reads
 the Seurat RDS, it also exports every `obj@meta.data` column, with cell barcodes
 in the first `cell` column and `UMAP_1`/`UMAP_2` from the Seurat `umap`
-reduction, to `Data/in-vivo/seurat_metadata.csv` by default.
-Use `--seurat-metadata-output` to select another persistent path.
+reduction. Standalone runs write `Data/in-vivo/seurat_metadata.csv` by default.
+Manager full-workflow runs stage it beside `scvelo_cell_metrics.csv` in the
+configured intermediate directory and publish both only after validation.
+Use `--seurat-metadata-output` to select another path.
 
 Automatic download from the pinned Zenodo record:
 

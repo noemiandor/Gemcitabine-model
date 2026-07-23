@@ -6,8 +6,8 @@ cd "${repo_root}"
 
 run_id="$(date +"%Y%m%dT%H%M%S_manuscript")"
 source_run_id=""
-mode="standard"
-modules="gdsc,ccle,drug_response,pkpd,metabolomics,in_vivo_figure7"
+mode="full-refit"
+modules="gdsc,ccle,drug_response,pkpd,metabolomics,si_figure4,in_vivo_figure7"
 output_root="Results"
 figure_root="figures"
 module_registry="docs/manuscript_figure_module_registry.tsv"
@@ -33,7 +33,7 @@ lci_panel_only=false
 include_in_vivo=false
 metabolomics_input="Code/Gemcitabine_Metabolomics_Heatmap/Metabolomics_2N_4N_Full.xlsm"
 figure7_full_analysis=false
-figure7_refresh_inputs=false
+figure7_refresh_inputs="auto"
 figure7_intermediate_dir=""
 figure7_python=""
 figure7_overwrite_intermediates=false
@@ -50,6 +50,10 @@ figure7_state_pathway_results_root=""
 figure7_canonical_reference_root="${FIGURE7_CANONICAL_REFERENCE_ROOT:-Data/in-vivo/figure7/saved_state_pathway/${figure7_reference_id}}"
 figure7_reference_root="${figure7_canonical_reference_root}"
 figure7_data_root="${FIGURE7_DATA_ROOT:-Data/in-vivo}"
+si_figure4_seurat_metadata=""
+si_figure4_scvelo_metrics=""
+si_figure4_input_source=""
+si_figure4_prep_run_dir=""
 skip_analysis_loop=false
 
 usage() {
@@ -60,6 +64,7 @@ Core options:
   --run-id ID
   --source-run-id ID              Required only for panels-only; immutable source manager run
   --mode check-only|saved-fit|standard|full-refit|panels-only
+                                  Default: full-refit
   --modules comma,separated,names
   --output-root DIR
   --figure-root DIR
@@ -83,6 +88,7 @@ Module options:
   --lci-panel-only
   --include-in-vivo
   --metabolomics-input PATH
+  Module name: si_figure4          Uses published Figure 7 scVelo/Seurat inputs, then run intermediates
   --figure7-full-analysis          Opt-in full pathway recomputation; requires both paths below
   --figure7-refresh-inputs         Run the end-to-end input workflow and publish validated CSVs to Data
   --figure7-intermediate-dir PATH  Isolated full-workflow intermediate directory
@@ -152,6 +158,14 @@ case "${mode}" in
   check-only|saved-fit|standard|full-refit|panels-only) ;;
   *) echo "Invalid --mode: ${mode}" >&2; exit 2 ;;
 esac
+
+if [[ "${figure7_refresh_inputs}" == "auto" ]]; then
+  if [[ "${mode}" == "full-refit" && "${figure7_full_analysis}" != true && ",${modules}," == *",in_vivo_figure7,"* ]]; then
+    figure7_refresh_inputs=true
+  else
+    figure7_refresh_inputs=false
+  fi
+fi
 
 if [[ ! "${run_id}" =~ ^[A-Za-z0-9._-]+$ ]]; then
   echo "Invalid --run-id; use only letters, numbers, dots, underscores, and hyphens" >&2
@@ -225,6 +239,21 @@ fi
 if [[ "${figure7_refresh_inputs}" == true && ",${modules}," != *",in_vivo_figure7,"* ]]; then
   echo "--figure7-refresh-inputs requires --modules to include in_vivo_figure7" >&2
   exit 2
+fi
+si_figure4_selected=false
+for module in "${module_list[@]}"; do
+  if [[ "${module}" == "si_figure4" ]]; then
+    si_figure4_selected=true
+    break
+  fi
+done
+if [[ "${si_figure4_selected}" == true ]]; then
+  if [[ -z "${figure7_intermediate_dir}" ]]; then
+    figure7_intermediate_dir="${output_root}/in-vivo/figure7/intermediates/${run_id}"
+  fi
+  figure7_intermediate_dir="$(
+    python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_intermediate_dir}"
+  )"
 fi
 if [[ -n "${figure7_state_pathway_results_root}" ]]; then
   if [[ "${mode}" == "panels-only" ]]; then
@@ -319,6 +348,7 @@ module_run_dir() {
     metabolomics_pathway) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics_pathway" "${output_root}" "${selected_run_id}" ;;
     metabolomics_zscore) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics_zscore" "${output_root}" "${selected_run_id}" ;;
     in_vivo) printf "%s/in-vivo/pseudotime_associations/runs/%s_in_vivo" "${output_root}" "${selected_run_id}" ;;
+    si_figure4) printf "%s/in-vivo/SI_figure4/runs/%s_si_figure4" "${output_root}" "${selected_run_id}" ;;
     in_vivo_figure7) printf "%s/in-vivo/figure7/runs/%s_figure7" "${output_root}" "${selected_run_id}" ;;
     *) echo "Unknown module: ${module}" >&2; return 1 ;;
   esac
@@ -361,6 +391,8 @@ input_paths_for_module() {
       printf "%s\n" "${lci_analysis_dir}" ;;
     in_vivo)
       printf "%s\n" Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv ;;
+    si_figure4)
+      printf "%s\n" "${si_figure4_seurat_metadata}" "${si_figure4_scvelo_metrics}" ;;
     in_vivo_figure7)
       if [[ "${figure7_refresh_inputs}" == true ]]; then
         printf "%s\n" \
@@ -396,6 +428,13 @@ input_paths_for_module() {
 check_module_inputs() {
   local module="$1"
   local path
+  if [[ "${module}" == "si_figure4" && "${si_figure4_input_source}" == "planned_figure7_scvelo_generation" ]]; then
+    require_file Code/in-vivo/SI_figure4/generate_supplementary_figure4.R
+    require_file Code/in-vivo/figure7/run_figure7.R
+    require_file Code/in-vivo/figure7/figure7_config.yaml
+    require_file Code/in-vivo/figure7/zenodo_required_files.tsv
+    return 0
+  fi
   if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
     require_dir "${figure7_state_pathway_results_root}"
     require_file Code/in-vivo/figure7/export_state_pathway_reference.R
@@ -483,6 +522,12 @@ command_for_module() {
         --input Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
         --output-dir "${run_dir}"
       ;;
+    si_figure4)
+      quote_args Rscript Code/in-vivo/SI_figure4/generate_supplementary_figure4.R \
+        --seurat-metadata "${si_figure4_seurat_metadata}" \
+        --scvelo-metrics "${si_figure4_scvelo_metrics}" \
+        --output-dir "${run_dir}"
+      ;;
     in_vivo_figure7)
       local figure7_mode="standard"
       local figure7_args=()
@@ -493,6 +538,7 @@ command_for_module() {
           "--mode=${figure7_mode}"
           --config=Code/in-vivo/figure7/figure7_config.yaml
           "--intermediate-dir=${figure7_intermediate_dir}"
+          "--seurat-metadata-output=${figure7_intermediate_dir}/seurat_metadata.csv"
           "--cell-ploidy-input=${figure7_cell_ploidy_input}"
           "--sample-info-input=${figure7_sample_info_input}"
           "--growth-curve-input=${figure7_growth_curve_input}"
@@ -673,14 +719,148 @@ materialize_figure7_reference_to_data() {
 
 figure7_input_materialized_count=0
 figure7_input_source_scvelo=""
+figure7_input_source_seurat_metadata=""
 figure7_input_source_cellcycle=""
 figure7_input_source_noncellcycle=""
 figure7_input_target_scvelo=""
+figure7_input_target_seurat_metadata=""
 figure7_input_target_cellcycle=""
 figure7_input_target_noncellcycle=""
 figure7_input_sha_scvelo=""
+figure7_input_sha_seurat_metadata=""
 figure7_input_sha_cellcycle=""
 figure7_input_sha_noncellcycle=""
+
+si_figure4_validate_input_pair() {
+  python3 Code/tools/validate_si_figure4_inputs.py \
+    --seurat-metadata "$1" \
+    --scvelo-metrics "$2"
+}
+
+record_si_figure4_input_materialization() {
+  local status="$1"
+  local source_seurat="$2"
+  local source_scvelo="$3"
+  local target_seurat="$4"
+  local target_scvelo="$5"
+  local metadata_path="${manager_run_dir}/metadata/si_figure4_input_materialization.tsv"
+  {
+    printf "key\tvalue\n"
+    printf "status\t%s\n" "${status}"
+    printf "input_source\t%s\n" "${si_figure4_input_source}"
+    printf "source_seurat_metadata\t%s\n" "${source_seurat}"
+    printf "source_scvelo_metrics\t%s\n" "${source_scvelo}"
+    printf "target_seurat_metadata\t%s\n" "${target_seurat}"
+    printf "target_scvelo_metrics\t%s\n" "${target_scvelo}"
+    printf "seurat_metadata_sha256\t%s\n" "$(shasum -a 256 "${target_seurat}" | awk '{print $1}')"
+    printf "scvelo_metrics_sha256\t%s\n" "$(shasum -a 256 "${target_scvelo}" | awk '{print $1}')"
+    printf "materialized_at\t%s\n" "$(date -Iseconds)"
+  } > "${metadata_path}"
+}
+
+publish_si_figure4_input_pair() {
+  local source_seurat="$1"
+  local source_scvelo="$2"
+  local data_root_real target_seurat target_scvelo temp_seurat temp_scvelo
+  si_figure4_validate_input_pair "${source_seurat}" "${source_scvelo}"
+  data_root_real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_data_root}")"
+  target_seurat="${data_root_real}/seurat_metadata.csv"
+  target_scvelo="${data_root_real}/scvelo_cell_metrics.csv"
+  mkdir -p "${data_root_real}"
+  temp_seurat="${data_root_real}/.seurat_metadata.csv.tmp.${run_id}"
+  temp_scvelo="${data_root_real}/.scvelo_cell_metrics.csv.tmp.${run_id}"
+  cp "${source_seurat}" "${temp_seurat}"
+  cp "${source_scvelo}" "${temp_scvelo}"
+  cmp -s "${source_seurat}" "${temp_seurat}"
+  cmp -s "${source_scvelo}" "${temp_scvelo}"
+  mv "${temp_seurat}" "${target_seurat}"
+  mv "${temp_scvelo}" "${target_scvelo}"
+  cmp -s "${source_seurat}" "${target_seurat}"
+  cmp -s "${source_scvelo}" "${target_scvelo}"
+  record_si_figure4_input_materialization \
+    "ok" "${source_seurat}" "${source_scvelo}" "${target_seurat}" "${target_scvelo}"
+  si_figure4_seurat_metadata="${target_seurat}"
+  si_figure4_scvelo_metrics="${target_scvelo}"
+}
+
+si_figure4_input_prep_command() {
+  local intermediate_seurat="$1"
+  local intermediate_scvelo="$2"
+  local -a args=(
+    Rscript Code/in-vivo/figure7/run_figure7.R
+    --mode=prepare-scvelo-inputs
+    --config=Code/in-vivo/figure7/figure7_config.yaml
+    "--intermediate-dir=${figure7_intermediate_dir}"
+    "--seurat-metadata-output=${intermediate_seurat}"
+    "--scvelo-metrics=${intermediate_scvelo}"
+    "--output-dir=${si_figure4_prep_run_dir}"
+  )
+  if [[ -n "${figure7_python}" ]]; then
+    args+=("--python=${figure7_python}")
+  fi
+  if [[ "${figure7_overwrite_intermediates}" == true ]]; then
+    args+=(--overwrite-intermediates=true)
+  fi
+  quote_args "${args[@]}"
+}
+
+resolve_si_figure4_inputs() {
+  local data_root_real published_seurat published_scvelo intermediate_seurat intermediate_scvelo
+  local published_count=0 intermediate_count=0 prep_command
+  data_root_real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_data_root}")"
+  published_seurat="${data_root_real}/seurat_metadata.csv"
+  published_scvelo="${data_root_real}/scvelo_cell_metrics.csv"
+  intermediate_seurat="${figure7_intermediate_dir}/seurat_metadata.csv"
+  intermediate_scvelo="${figure7_intermediate_dir}/scvelo_cell_metrics.csv"
+  [[ -f "${published_seurat}" ]] && published_count=$((published_count + 1))
+  [[ -f "${published_scvelo}" ]] && published_count=$((published_count + 1))
+  [[ -f "${intermediate_seurat}" ]] && intermediate_count=$((intermediate_count + 1))
+  [[ -f "${intermediate_scvelo}" ]] && intermediate_count=$((intermediate_count + 1))
+
+  if [[ "${published_count}" -eq 2 ]]; then
+    si_figure4_validate_input_pair "${published_seurat}" "${published_scvelo}"
+    si_figure4_seurat_metadata="${published_seurat}"
+    si_figure4_scvelo_metrics="${published_scvelo}"
+    si_figure4_input_source="published_data"
+    return 0
+  fi
+  if [[ "${intermediate_count}" -eq 2 ]]; then
+    si_figure4_input_source="existing_figure7_intermediate"
+    if [[ "${dry_run}" == true || "${mode}" == "check-only" ]]; then
+      si_figure4_validate_input_pair "${intermediate_seurat}" "${intermediate_scvelo}"
+      si_figure4_seurat_metadata="${intermediate_seurat}"
+      si_figure4_scvelo_metrics="${intermediate_scvelo}"
+      printf "[si_figure4_input_publish] %s -> %s\n" "${figure7_intermediate_dir}" "${data_root_real}"
+    else
+      publish_si_figure4_input_pair "${intermediate_seurat}" "${intermediate_scvelo}"
+    fi
+    return 0
+  fi
+
+  si_figure4_input_source="planned_figure7_scvelo_generation"
+  si_figure4_prep_run_dir="${output_root}/in-vivo/figure7/input-prep/runs/${run_id}_scvelo_inputs"
+  si_figure4_seurat_metadata="${intermediate_seurat}"
+  si_figure4_scvelo_metrics="${intermediate_scvelo}"
+  if [[ "${published_count}" -eq 1 || "${intermediate_count}" -eq 1 ]]; then
+    figure7_overwrite_intermediates=true
+  fi
+  prep_command="$(si_figure4_input_prep_command "${intermediate_seurat}" "${intermediate_scvelo}")"
+  if [[ "${dry_run}" == true || "${mode}" == "check-only" ]]; then
+    printf "[si_figure4_input_prep] %s\n" "${prep_command}"
+    return 0
+  fi
+  if [[ -e "${si_figure4_prep_run_dir}" && "${overwrite}" != true ]]; then
+    echo "SI Figure 4 input-prep run exists; use --overwrite: ${si_figure4_prep_run_dir}" >&2
+    return 1
+  fi
+  if [[ -e "${si_figure4_prep_run_dir}" && "${overwrite}" == true ]]; then
+    rm -rf "${si_figure4_prep_run_dir}"
+  fi
+  bash -c "${prep_command}"
+  si_figure4_validate_input_pair "${intermediate_seurat}" "${intermediate_scvelo}"
+  si_figure4_input_source="generated_figure7_scvelo_intermediate"
+  publish_si_figure4_input_pair "${intermediate_seurat}" "${intermediate_scvelo}"
+}
 
 figure7_run_config_value() {
   local run_config="$1"
@@ -712,6 +892,19 @@ figure7_validate_publish_csv() {
     fi
     return 0
   fi
+  if [[ "${artifact}" == "seurat_metadata" ]]; then
+    for required_column in cell UMAP_1 UMAP_2 Dose; do
+      if [[ ",${header}," != *",${required_column},"* ]]; then
+        echo "Seurat metadata CSV is missing ${required_column}; refusing publication: ${path}" >&2
+        return 1
+      fi
+    done
+    if [[ ",${header}," != *",cluster_final,"* && ",${header}," != *",clusters,"* ]]; then
+      echo "Seurat metadata CSV is missing cluster_final/clusters; refusing publication: ${path}" >&2
+      return 1
+    fi
+    return 0
+  fi
   for required_column in \
     cell_id sample_id initial_ploidy gemcitabine_dose gemcitabine_dose_mg_per_kg \
     pseudotime cell_ploidy; do
@@ -735,6 +928,9 @@ record_figure7_input_materialization() {
     printf "source_scvelo_metrics\t%s\n" "${figure7_input_source_scvelo}"
     printf "target_scvelo_metrics\t%s\n" "${figure7_input_target_scvelo}"
     printf "scvelo_sha256\t%s\n" "${figure7_input_sha_scvelo}"
+    printf "source_seurat_metadata\t%s\n" "${figure7_input_source_seurat_metadata}"
+    printf "target_seurat_metadata\t%s\n" "${figure7_input_target_seurat_metadata}"
+    printf "seurat_metadata_sha256\t%s\n" "${figure7_input_sha_seurat_metadata}"
     printf "source_cellcycle\t%s\n" "${figure7_input_source_cellcycle}"
     printf "target_cellcycle\t%s\n" "${figure7_input_target_cellcycle}"
     printf "cellcycle_sha256\t%s\n" "${figure7_input_sha_cellcycle}"
@@ -776,10 +972,16 @@ materialize_figure7_generated_inputs() {
   data_root_real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_data_root}")"
 
   if [[ ",${executed_stages}," == *",scvelo_metrics,"* ]]; then
-    artifacts+=("scvelo")
-    sources+=("$(figure7_run_config_value "${run_config}" workflow_scvelo_metrics)")
-    targets+=("${data_root_real}/scvelo_cell_metrics.csv")
-    expected_hashes+=("$(figure7_run_config_value "${run_config}" workflow_scvelo_sha256)")
+    artifacts+=("scvelo" "seurat_metadata")
+    sources+=(
+      "$(figure7_run_config_value "${run_config}" workflow_scvelo_metrics)"
+      "$(figure7_run_config_value "${run_config}" workflow_seurat_metadata)"
+    )
+    targets+=("${data_root_real}/scvelo_cell_metrics.csv" "${data_root_real}/seurat_metadata.csv")
+    expected_hashes+=(
+      "$(figure7_run_config_value "${run_config}" workflow_scvelo_sha256)"
+      "$(figure7_run_config_value "${run_config}" workflow_seurat_metadata_sha256)"
+    )
   fi
   if [[ ",${executed_stages}," == *",celllevel_inputs,"* ]]; then
     artifacts+=("cellcycle" "noncellcycle")
@@ -795,6 +997,10 @@ materialize_figure7_generated_inputs() {
       "$(figure7_run_config_value "${run_config}" workflow_cellcycle_sha256)"
       "$(figure7_run_config_value "${run_config}" workflow_noncellcycle_sha256)"
     )
+  fi
+
+  if [[ ",${executed_stages}," == *",scvelo_metrics,"* ]]; then
+    si_figure4_validate_input_pair "${sources[1]}" "${sources[0]}" || return 1
   fi
 
   figure7_input_materialized_count=0
@@ -850,6 +1056,11 @@ materialize_figure7_generated_inputs() {
         figure7_input_target_scvelo="${target}"
         figure7_input_sha_scvelo="${expected_hashes[$i]}"
         ;;
+      seurat_metadata)
+        figure7_input_source_seurat_metadata="${source}"
+        figure7_input_target_seurat_metadata="${target}"
+        figure7_input_sha_seurat_metadata="${expected_hashes[$i]}"
+        ;;
       cellcycle)
         figure7_input_source_cellcycle="${source}"
         figure7_input_target_cellcycle="${target}"
@@ -862,6 +1073,9 @@ materialize_figure7_generated_inputs() {
         ;;
     esac
   done
+  if [[ -n "${figure7_input_target_scvelo}" && -n "${figure7_input_target_seurat_metadata}" ]]; then
+    si_figure4_validate_input_pair "${figure7_input_target_seurat_metadata}" "${figure7_input_target_scvelo}"
+  fi
 }
 
 run_module() {
@@ -871,6 +1085,8 @@ run_module() {
   local module_notes=""
   if [[ "${module}" == "in_vivo_figure7" ]]; then
     module_notes="tgi_day=${figure7_tgi_day};figure_name=${figure7_figure_name}"
+  elif [[ "${module}" == "si_figure4" ]]; then
+    module_notes="input_source=${si_figure4_input_source}"
   fi
 
   check_module_inputs "${module}"
@@ -1038,7 +1254,7 @@ add_completed_run() {
 if [[ "${mode}" == "panels-only" ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
-      gdsc|ccle|drug_response|pkpd|in_vivo|in_vivo_figure7)
+      gdsc|ccle|drug_response|pkpd|in_vivo|si_figure4|in_vivo_figure7)
         run_dir="$(module_run_dir "${module}" "${source_run_id}")"
         [[ -d "${run_dir}" ]] || { echo "Missing panels-only source run: ${run_dir}" >&2; exit 1; }
         add_completed_run "${module}" "${run_dir}"
@@ -1072,7 +1288,7 @@ fi
 if [[ "${skip_analysis_loop}" != true ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
-      gdsc|ccle|drug_response|pkpd|metabolomics|lci_overlays|in_vivo|in_vivo_figure7) ;;
+      gdsc|ccle|drug_response|pkpd|metabolomics|lci_overlays|in_vivo|si_figure4|in_vivo_figure7) ;;
       *) echo "Unknown module in --modules: ${module}" >&2; exit 2 ;;
     esac
     if [[ "${module}" == "lci_overlays" && -z "${lci_analysis_dir}" ]]; then
@@ -1082,6 +1298,10 @@ if [[ "${skip_analysis_loop}" != true ]]; then
     if [[ "${module}" == "in_vivo" && "${include_in_vivo}" != true ]]; then
       echo "Skipping in_vivo: use --include-in-vivo to include pending in-vivo outputs."
       continue
+    fi
+
+    if [[ "${module}" == "si_figure4" ]]; then
+      resolve_si_figure4_inputs
     fi
 
     if [[ "${module}" == "pkpd" && ( "${mode}" == "full-refit" || "${pkpd_refit}" == true ) ]]; then

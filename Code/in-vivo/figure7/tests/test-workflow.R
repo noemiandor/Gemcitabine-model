@@ -30,6 +30,38 @@ workflow_paths_fixture <- function(root) {
   paths
 }
 
+testthat::test_that("scVelo input-pair preflight reuses a complete pair", {
+  root <- tempfile("figure7_scvelo_pair_"); dir.create(root)
+  paths <- workflow_paths_fixture(root)
+  writeLines("metrics", paths$scvelo_metrics)
+  writeLines("metadata", paths$seurat_metadata)
+  state <- figure7_preflight_scvelo_inputs(paths)
+  testthat::expect_identical(state$state, "scvelo_input_pair_ready")
+  testthat::expect_true(state$pair_ready)
+  testthat::expect_false(state$needs_generate)
+})
+
+testthat::test_that("scVelo input-pair preflight rejects a partial pair", {
+  root <- tempfile("figure7_scvelo_partial_"); dir.create(root)
+  paths <- workflow_paths_fixture(root)
+  writeLines("metrics", paths$scvelo_metrics)
+  testthat::expect_error(
+    figure7_preflight_scvelo_inputs(paths),
+    "Incomplete scVelo/Seurat metadata pair"
+  )
+})
+
+testthat::test_that("scVelo input-pair preflight schedules generation from explicit raw inputs", {
+  root <- tempfile("figure7_scvelo_generate_"); dir.create(root)
+  paths <- workflow_paths_fixture(root)
+  state <- figure7_preflight_scvelo_inputs(paths)
+  testthat::expect_identical(state$state, "scvelo_input_pair_generation_required")
+  testthat::expect_false(state$pair_ready)
+  testthat::expect_true(state$needs_generate)
+  testthat::expect_false(state$needs_raw_stage)
+  testthat::expect_identical(state$raw_data_status, "explicit_local_inputs")
+})
+
 testthat::test_that("full-workflow preflight starts from an existing cell-table pair", {
   root <- tempfile("figure7_workflow_pair_"); dir.create(root)
   paths <- workflow_paths_fixture(root)
@@ -131,6 +163,41 @@ testthat::test_that("run_figure7 exposes preflight-only without creating a run",
   testthat::expect_null(attr(status, "status"))
   testthat::expect_true(any(grepl("workflow_state\\tcell_tables_ready", status)))
   testthat::expect_false(dir.exists(output_dir))
+})
+
+testthat::test_that("prepare-scvelo-inputs reuses an existing pair and records provenance", {
+  root <- tempfile("figure7_prepare_scvelo_"); dir.create(root)
+  intermediate <- file.path(root, "intermediates"); dir.create(intermediate)
+  scvelo <- file.path(intermediate, "scvelo_cell_metrics.csv")
+  metadata <- file.path(intermediate, "seurat_metadata.csv")
+  output_dir <- file.path(root, "prep_run")
+  writeLines(c("cell,TN,clusters,Ploidy,Dose", "c1,Tumor,6,2N,0mg/kg"), scvelo)
+  writeLines(c("cell,UMAP_1,UMAP_2,Dose,clusters,sample", "c1,0,0,0mg/kg,6,s1"), metadata)
+  status <- system2(
+    file.path(R.home("bin"), "Rscript"),
+    c(
+      file.path(module_dir, "run_figure7.R"),
+      "--mode=prepare-scvelo-inputs",
+      paste0("--config=", file.path(module_dir, "figure7_config.yaml")),
+      paste0("--intermediate-dir=", intermediate),
+      paste0("--scvelo-metrics=", scvelo),
+      paste0("--seurat-metadata-output=", metadata),
+      paste0("--output-dir=", output_dir)
+    ),
+    stdout = TRUE,
+    stderr = TRUE
+  )
+  testthat::expect_null(attr(status, "status"), info = paste(status, collapse = "\n"))
+  run_config <- figure7_read_tsv(
+    file.path(output_dir, "metadata", "run_config.tsv"), c("key", "value")
+  )
+  values <- stats::setNames(run_config$value, run_config$key)
+  testthat::expect_identical(unname(values[["module"]]), "in_vivo_figure7_input_prep")
+  testthat::expect_identical(unname(values[["workflow_initial_state"]]), "scvelo_input_pair_ready")
+  testthat::expect_identical(unname(values[["workflow_executed_stages"]]), "none")
+  testthat::expect_identical(unname(values[["workflow_scvelo_metrics"]]), normalizePath(scvelo))
+  testthat::expect_identical(unname(values[["workflow_seurat_metadata"]]), normalizePath(metadata))
+  testthat::expect_false(dir.exists(file.path(output_dir, "figures")))
 })
 
 testthat::test_that("raw full-workflow dispatches scVelo before cell-level generation", {

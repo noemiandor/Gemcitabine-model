@@ -214,6 +214,67 @@ figure7_preflight_workflow <- function(paths, include_panel_f = TRUE, overwrite_
   )
 }
 
+figure7_preflight_scvelo_inputs <- function(paths, overwrite_intermediates = FALSE) {
+  has_metrics <- file.exists(paths$scvelo_metrics)
+  has_metadata <- file.exists(paths$seurat_metadata)
+  if (xor(has_metrics, has_metadata) && !isTRUE(overwrite_intermediates)) {
+    present <- if (has_metrics) paths$scvelo_metrics else paths$seurat_metadata
+    missing <- if (has_metrics) paths$seurat_metadata else paths$scvelo_metrics
+    figure7_stop(
+      "Incomplete scVelo/Seurat metadata pair. Present: ", present,
+      "; missing: ", missing,
+      ". Supply both files or rerun with --overwrite-intermediates=true."
+    )
+  }
+  pair_ready <- has_metrics && has_metadata && !isTRUE(overwrite_intermediates)
+  if (pair_ready) {
+    return(list(
+      state = "scvelo_input_pair_ready",
+      pair_ready = TRUE,
+      needs_raw_stage = FALSE,
+      raw_download_roles = character(),
+      raw_validation_roles = character(),
+      raw_data_status = "not_required_existing_scvelo_input_pair",
+      needs_generate = FALSE
+    ))
+  }
+
+  missing_loom <- !dir.exists(paths$loom_root)
+  missing_seurat <- !file.exists(paths$seurat_rds)
+  if (missing_loom && isTRUE(paths$loom_root_explicit)) {
+    figure7_stop("Explicit --loom-root does not exist: ", paths$loom_root)
+  }
+  if (missing_seurat && isTRUE(paths$seurat_rds_explicit)) {
+    figure7_stop("Explicit --seurat-rds does not exist: ", paths$seurat_rds)
+  }
+  raw_download_roles <- c(if (missing_loom) "loom", if (missing_seurat) "seurat_rds")
+  raw_validation_roles <- c(
+    if (!isTRUE(paths$loom_root_explicit)) "loom",
+    if (!isTRUE(paths$seurat_rds_explicit)) "seurat_rds"
+  )
+  if (length(raw_download_roles) && !isTRUE(paths$download_missing_raw)) {
+    figure7_stop(
+      "Required raw Figure 7 data are missing and automatic download is disabled: ",
+      paste(raw_download_roles, collapse = ", ")
+    )
+  }
+  if (length(raw_validation_roles)) {
+    figure7_require_workflow_file(paths$raw_manifest, "raw-data-manifest")
+  }
+  if (!nzchar(paths$python) || !file.exists(paths$python)) {
+    figure7_stop("Missing required scVelo Python executable: ", if (nzchar(paths$python)) paths$python else "not supplied")
+  }
+  list(
+    state = "scvelo_input_pair_generation_required",
+    pair_ready = FALSE,
+    needs_raw_stage = length(raw_validation_roles) > 0L,
+    raw_download_roles = raw_download_roles,
+    raw_validation_roles = raw_validation_roles,
+    raw_data_status = if (length(raw_download_roles)) "planned_zenodo_download" else if (length(raw_validation_roles)) "planned_zenodo_validation" else "explicit_local_inputs",
+    needs_generate = TRUE
+  )
+}
+
 figure7_stage_cli_args <- function(values) {
   keep <- !vapply(values, function(value) is.null(value) || length(value) == 0L || !nzchar(as.character(value)), logical(1L))
   values <- values[keep]
@@ -233,6 +294,72 @@ figure7_run_stage <- function(label, script, values, log_path) {
     figure7_stop(label, " failed; log: ", log_path, "\n", detail)
   }
   invisible(log_path)
+}
+
+figure7_prepare_scvelo_input_pair <- function(paths, preflight, script_dir, config, overwrite_intermediates = FALSE) {
+  dir.create(paths$intermediate_dir, recursive = TRUE, showWarnings = FALSE)
+  dir.create(paths$log_dir, recursive = TRUE, showWarnings = FALSE)
+  executed <- character()
+  raw_data_status <- preflight$raw_data_status
+
+  if (isTRUE(preflight$needs_raw_stage)) {
+    figure7_run_stage(
+      "Download and verify Figure 7 raw data from Zenodo",
+      file.path(script_dir, "download_figure7_raw_data.R"),
+      list(
+        raw_data_dir = paths$raw_data_dir,
+        manifest = paths$raw_manifest,
+        roles = paste(preflight$raw_validation_roles, collapse = ","),
+        "download-workers" = paths$download_workers,
+        "download-connections-per-file" = paths$download_connections_per_file,
+        allow_download = if (isTRUE(paths$download_missing_raw)) "TRUE" else "FALSE"
+      ),
+      file.path(paths$log_dir, "00_raw_data_download.log")
+    )
+    audit_path <- file.path(paths$raw_data_dir, "provenance", "downloaded_files_checksums.tsv")
+    figure7_require_workflow_file(audit_path, "raw-data-download-audit")
+    audit <- figure7_read_tsv(audit_path, c("role", "filename", "action", "md5", "sha256"))
+    current_audit <- audit[audit$role %in% preflight$raw_validation_roles, , drop = FALSE]
+    if (!nrow(current_audit)) figure7_stop("Raw-data download audit does not cover requested roles")
+    downloaded <- any(current_audit$action == "downloaded")
+    executed <- c(executed, if (downloaded) "raw_data_download" else "raw_data_validation")
+    raw_data_status <- if (downloaded) "downloaded_from_zenodo" else "reused_zenodo_cache"
+  }
+
+  if (isTRUE(preflight$needs_generate)) {
+    figure7_require_workflow_dir(paths$loom_root, "loom-root")
+    figure7_require_workflow_file(paths$seurat_rds, "seurat-rds")
+    figure7_verify_checksum(paths$seurat_rds, config$raw_data$seurat_rds_sha256, "Figure 7 Seurat RDS")
+    figure7_run_stage(
+      "Generate scVelo cell metrics and Seurat metadata",
+      file.path(script_dir, "generate_scvelo_cell_metrics.R"),
+      list(
+        seurat_rds = paths$seurat_rds,
+        loom_root = paths$loom_root,
+        output = paths$scvelo_metrics,
+        seurat_metadata_output = paths$seurat_metadata,
+        python = paths$python,
+        work_dir = paths$scvelo_work_dir
+      ),
+      file.path(paths$log_dir, "01_scvelo_metrics.log")
+    )
+    executed <- c(executed, "scvelo_metrics")
+  }
+  figure7_require_workflow_file(paths$scvelo_metrics, "scvelo-metrics")
+  figure7_require_workflow_file(paths$seurat_metadata, "seurat-metadata-output")
+  list(
+    initial_state = preflight$state,
+    executed_stages = executed,
+    raw_data_status = raw_data_status,
+    scvelo_metrics = paths$scvelo_metrics,
+    seurat_metadata = paths$seurat_metadata,
+    scvelo_sha256 = figure7_sha256(paths$scvelo_metrics),
+    seurat_metadata_sha256 = figure7_sha256(paths$seurat_metadata),
+    raw_data_dir = paths$raw_data_dir,
+    loom_root = paths$loom_root,
+    seurat_rds = paths$seurat_rds,
+    log_dir = paths$log_dir
+  )
 }
 
 figure7_prepare_full_workflow <- function(

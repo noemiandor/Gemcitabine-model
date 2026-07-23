@@ -32,6 +32,21 @@ class ManagerFigure7CliTest(unittest.TestCase):
         )
 
     @staticmethod
+    def _write_si_figure4_input_pair(root: Path) -> tuple[Path, Path]:
+        root.mkdir(parents=True, exist_ok=True)
+        seurat = root / "seurat_metadata.csv"
+        scvelo = root / "scvelo_cell_metrics.csv"
+        seurat.write_text(
+            "cell,UMAP_1,UMAP_2,Dose,clusters,sample\n"
+            "c1,0,0,0mg/kg,6,s1\n"
+        )
+        scvelo.write_text(
+            "cell,velocity_cell,velocity_pseudotime,TN,clusters,sample,Ploidy,Dose\n"
+            "c1,c1,0.1,Tumor,6,s1,2N,0mg/kg\n"
+        )
+        return seurat, scvelo
+
+    @staticmethod
     def _write_fake_full_workflow_rscript(path: Path) -> None:
         path.write_text(
             """#!/usr/bin/env bash
@@ -41,23 +56,28 @@ shift
 [[ "$entrypoint" == *run_figure7.R ]] || exit 99
 output_dir=""
 intermediate_dir=""
+seurat_metadata=""
 for arg in "$@"; do
   case "$arg" in
     --output-dir=*) output_dir="${arg#*=}" ;;
     --intermediate-dir=*) intermediate_dir="${arg#*=}" ;;
+    --seurat-metadata-output=*) seurat_metadata="${arg#*=}" ;;
   esac
 done
 mkdir -p "$output_dir/figures" "$output_dir/metadata" "$output_dir/tables" "$intermediate_dir"
 scvelo="$intermediate_dir/scvelo_cell_metrics.csv"
 cellcycle="$intermediate_dir/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
 noncellcycle="$intermediate_dir/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+[[ -n "$seurat_metadata" ]] || seurat_metadata="$intermediate_dir/seurat_metadata.csv"
 printf 'cell,velocity_cell,velocity_pseudotime,TN,clusters,sample,Ploidy,Dose\nc1,c1,0.1,Tumor,6,s1,2N,0mg/kg\n' > "$scvelo"
+printf 'cell,UMAP_1,UMAP_2,Dose,clusters,sample\nc1,0,0,0mg/kg,6,s1\n' > "$seurat_metadata"
 for table in "$cellcycle" "$noncellcycle"; do
   printf 'cell_id,sample_id,initial_ploidy,gemcitabine_dose,gemcitabine_dose_mg_per_kg,pseudotime,cell_ploidy\nc1,s1,2N,0mg/kg,0,0.1,2.0\n' > "$table"
 done
 scvelo_sha="$(shasum -a 256 "$scvelo" | awk '{print $1}')"
 cellcycle_sha="$(shasum -a 256 "$cellcycle" | awk '{print $1}')"
 noncellcycle_sha="$(shasum -a 256 "$noncellcycle" | awk '{print $1}')"
+seurat_metadata_sha="$(shasum -a 256 "$seurat_metadata" | awk '{print $1}')"
 if [[ "${BAD_FIGURE7_HASHES:-false}" == true ]]; then
   scvelo_sha="$(printf '0%.0s' {1..64})"
 fi
@@ -84,6 +104,8 @@ done
   printf 'workflow_cellcycle_sha256\t%s\n' "$cellcycle_sha"
   printf 'workflow_noncellcycle_input\t%s\n' "$noncellcycle"
   printf 'workflow_noncellcycle_sha256\t%s\n' "$noncellcycle_sha"
+  printf 'workflow_seurat_metadata\t%s\n' "$seurat_metadata"
+  printf 'workflow_seurat_metadata_sha256\t%s\n' "$seurat_metadata_sha"
 } > "$output_dir/metadata/run_config.tsv"
 {
   printf 'panel_id\tfilename\n'
@@ -111,6 +133,79 @@ done
             line for line in manager_text.splitlines() if line.startswith('modules="')
         )
         self.assertIn("in_vivo_figure7", default_line)
+        self.assertIn("si_figure4", default_line)
+        self.assertLess(default_line.index("si_figure4"), default_line.index("in_vivo_figure7"))
+
+    def test_si_figure4_dry_run_prefers_published_input_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data_root = tmp_path / "Data/in-vivo"
+            seurat, scvelo = self._write_si_figure4_input_pair(data_root)
+            env = os.environ.copy()
+            env["FIGURE7_DATA_ROOT"] = str(data_root)
+            result = self._run(
+                "--dry-run", "--modules", "si_figure4", "--run-id", "si_published",
+                "--output-root", str(tmp_path / "Results"), env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(f"--seurat-metadata {seurat.resolve()}", result.stdout)
+            self.assertIn(f"--scvelo-metrics {scvelo.resolve()}", result.stdout)
+            self.assertNotIn("[si_figure4_input_prep]", result.stdout)
+
+    def test_si_figure4_dry_run_falls_back_to_intermediate_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data_root = tmp_path / "Data/in-vivo"
+            intermediate = tmp_path / "intermediates"
+            seurat, scvelo = self._write_si_figure4_input_pair(intermediate)
+            env = os.environ.copy()
+            env["FIGURE7_DATA_ROOT"] = str(data_root)
+            result = self._run(
+                "--dry-run", "--modules", "si_figure4", "--run-id", "si_intermediate",
+                "--output-root", str(tmp_path / "Results"),
+                "--figure7-intermediate-dir", str(intermediate), env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("[si_figure4_input_publish]", result.stdout)
+            self.assertIn(f"--seurat-metadata {seurat.resolve()}", result.stdout)
+            self.assertIn(f"--scvelo-metrics {scvelo.resolve()}", result.stdout)
+            self.assertFalse(data_root.exists())
+
+    def test_si_figure4_dry_run_plans_scvelo_pair_generation_when_both_sources_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data_root = tmp_path / "Data/in-vivo"
+            intermediate = tmp_path / "intermediates"
+            env = os.environ.copy()
+            env["FIGURE7_DATA_ROOT"] = str(data_root)
+            result = self._run(
+                "--dry-run", "--modules", "si_figure4", "--run-id", "si_generate",
+                "--output-root", str(tmp_path / "Results"),
+                "--figure7-intermediate-dir", str(intermediate), env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("[si_figure4_input_prep]", result.stdout)
+            self.assertIn("--mode=prepare-scvelo-inputs", result.stdout)
+            self.assertIn(str(intermediate.resolve() / "seurat_metadata.csv"), result.stdout)
+            self.assertIn(str(intermediate.resolve() / "scvelo_cell_metrics.csv"), result.stdout)
+            self.assertFalse(data_root.exists())
+            self.assertFalse(intermediate.exists())
+
+    def test_default_mode_runs_figure7_full_workflow(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            inputs = [tmp_path / name for name in ("all_ploidy.tsv", "sample_info.xlsx", "growth.xlsx")]
+            for path in inputs:
+                path.write_text("fixture\n")
+            result = self._run(
+                "--dry-run", "--modules", "in_vivo_figure7", "--run-id", "default_full",
+                "--figure7-cell-ploidy-input", str(inputs[0]),
+                "--figure7-sample-info-input", str(inputs[1]),
+                "--figure7-growth-curve-input", str(inputs[2]),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("--mode=full-workflow", result.stdout)
+            self.assertIn("Manager full-refit", result.stdout)
 
     def test_source_run_id_is_rejected_outside_panels_only(self) -> None:
         result = self._run(
@@ -160,7 +255,7 @@ done
             self.assertIn(f"--intermediate-dir={intermediate.resolve()}", result.stdout)
             self.assertIn("--python=/opt/scvelo/bin/python", result.stdout)
 
-    def test_refresh_publishes_three_validated_csvs_after_success(self) -> None:
+    def test_refresh_publishes_four_validated_csvs_after_success(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             output_root = tmp_path / "Results"
@@ -192,6 +287,10 @@ done
             self.assertEqual(result.returncode, 0, result.stderr)
             expected_pairs = (
                 (
+                    intermediate / "seurat_metadata.csv",
+                    data_root / "seurat_metadata.csv",
+                ),
+                (
                     intermediate / "scvelo_cell_metrics.csv",
                     data_root / "scvelo_cell_metrics.csv",
                 ),
@@ -216,7 +315,7 @@ done
                     row["key"]: row["value"] for row in csv.DictReader(handle, delimiter="\t")
                 }
             self.assertEqual(metadata["status"], "ok")
-            self.assertEqual(metadata["materialized_file_count"], "3")
+            self.assertEqual(metadata["materialized_file_count"], "4")
 
     def test_refresh_hash_failure_does_not_publish_any_csv(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
