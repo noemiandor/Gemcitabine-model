@@ -46,21 +46,21 @@ selects this exact published image:
 
 ```text
 zafiro/gemcitabine-model:full
-zafiro/gemcitabine-model@sha256:ff1edc60b05ac1e0303a25799efe8c2df5eef22ed875109d12bf490b209668c8
+zafiro/gemcitabine-model@sha256:a9dd54da6bd9e3394f4f604306c6ce8e1904649c59d86353d43ceebcd163d14b
 ```
 
 Pull the exact image:
 
 ```bash
 docker pull --platform linux/amd64 \
-  zafiro/gemcitabine-model@sha256:ff1edc60b05ac1e0303a25799efe8c2df5eef22ed875109d12bf490b209668c8
+  zafiro/gemcitabine-model@sha256:a9dd54da6bd9e3394f4f604306c6ce8e1904649c59d86353d43ceebcd163d14b
 ```
 
 Verify the exact image:
 
 ```bash
 docker run --rm --platform linux/amd64 \
-  zafiro/gemcitabine-model@sha256:ff1edc60b05ac1e0303a25799efe8c2df5eef22ed875109d12bf490b209668c8 \
+  zafiro/gemcitabine-model@sha256:a9dd54da6bd9e3394f4f604306c6ce8e1904649c59d86353d43ceebcd163d14b \
   Rscript /opt/gemcitabine-container/environment.R verify full \
   /opt/gemcitabine-container/packages.tsv
 ```
@@ -74,7 +74,7 @@ docker run --rm --platform linux/amd64 \
   -v "$PWD:/work:ro" \
   -v "$PWD/docker-results:/results" \
   -w /work \
-  zafiro/gemcitabine-model@sha256:ff1edc60b05ac1e0303a25799efe8c2df5eef22ed875109d12bf490b209668c8 \
+  zafiro/gemcitabine-model@sha256:a9dd54da6bd9e3394f4f604306c6ce8e1904649c59d86353d43ceebcd163d14b \
   Rscript path/to/script.R
 ```
 
