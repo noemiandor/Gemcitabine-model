@@ -163,7 +163,7 @@ RUN set -eux; \
     chmod 0755 /usr/local/bin/samtools; \
     apt-get update; \
     apt-get install --yes --no-install-recommends \
-        aria2 ca-certificates curl gdal-bin gsfonts imagemagick-6-common \
+        aria2 ca-certificates curl gdal-bin git gsfonts imagemagick-6-common \
         libabsl20220623t64 libbz2-1.0 \
         libcairo-gobject2 libcairo2 libcurl4t64 libfftw3-double3 \
         libfftw3-long3 libfftw3-quad3 libfftw3-single3 libfontconfig1 \
@@ -187,6 +187,7 @@ RUN set -eux; \
         /opt/gemcitabine-container/packages.tsv; \
     aria2c --version; \
     curl --version; \
+    git --version; \
     ! ldd "$(command -v curl)" | grep -q /opt/samtools; \
     test -s /etc/ssl/certs/ca-certificates.crt
 
