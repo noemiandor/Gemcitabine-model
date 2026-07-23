@@ -125,9 +125,9 @@ The `si_figure4` module runs before `in_vivo_figure7` and writes an immutable so
 | Panel | Content | Canonical source output |
 |---|---|---|
 | SuppFig4A | Tumor-cell UMAP by cluster | `figures/panel_SuppFig4A_umap_cluster.pdf` |
-| SuppFig4B | Shared UMAP faceted by mouse | `figures/panel_SuppFig4B_umap_mouse_facets.pdf` |
-| SuppFig4C | Tumor-cell UMAP by initial ploidy | `figures/panel_SuppFig4C_umap_initial_ploidy.pdf` |
-| SuppFig4D | Tumor-cell UMAP by treatment dose | `figures/panel_SuppFig4D_umap_treatment_dose.pdf` |
+| SuppFig4B | Tumor-cell UMAP by initial ploidy | `figures/panel_SuppFig4B_umap_initial_ploidy.pdf` |
+| SuppFig4C | Tumor-cell UMAP by treatment dose | `figures/panel_SuppFig4C_umap_treatment_dose.pdf` |
+| SuppFig4D | Shared UMAP faceted by mouse | `figures/panel_SuppFig4D_umap_mouse_facets.pdf` |
 | SuppFig4E | Cluster composition by mouse | `figures/panel_SuppFig4E_cluster_composition_by_mouse.pdf` |
 | SuppFig4F | Mouse-weighted cluster composition by ploidy and dose | `figures/panel_SuppFig4F_cluster_composition_by_ploidy_dose.pdf` |
 | SuppFig4 composite | Full Supplementary Figure 4 layout | `figures/panel_SuppFig4_composite.pdf` |
