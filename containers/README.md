@@ -38,6 +38,46 @@ copied into the image. Its SHA-256 fingerprint is used only to invalidate networ
 layers when the certificate changes; the temporary trust entry is removed before
 the final image is created.
 
+## Published Docker Hub image
+
+The verified full image for Linux `amd64` is published on Docker Hub. The tag is
+convenient for following future updates, while the digest-pinned reference always
+selects this exact published image:
+
+```text
+zafiro/gemcitabine-model:full
+zafiro/gemcitabine-model@sha256:ff1edc60b05ac1e0303a25799efe8c2df5eef22ed875109d12bf490b209668c8
+```
+
+Pull the exact image:
+
+```bash
+docker pull --platform linux/amd64 \
+  zafiro/gemcitabine-model@sha256:ff1edc60b05ac1e0303a25799efe8c2df5eef22ed875109d12bf490b209668c8
+```
+
+Verify the exact image:
+
+```bash
+docker run --rm --platform linux/amd64 \
+  zafiro/gemcitabine-model@sha256:ff1edc60b05ac1e0303a25799efe8c2df5eef22ed875109d12bf490b209668c8 \
+  Rscript /opt/gemcitabine-container/environment.R verify full \
+  /opt/gemcitabine-container/packages.tsv
+```
+
+Run repository code with the exact image:
+
+```bash
+mkdir -p docker-results
+
+docker run --rm --platform linux/amd64 \
+  -v "$PWD:/work:ro" \
+  -v "$PWD/docker-results:/results" \
+  -w /work \
+  zafiro/gemcitabine-model@sha256:ff1edc60b05ac1e0303a25799efe8c2df5eef22ed875109d12bf490b209668c8 \
+  Rscript path/to/script.R
+```
+
 ## Verify an existing image
 
 ```bash
