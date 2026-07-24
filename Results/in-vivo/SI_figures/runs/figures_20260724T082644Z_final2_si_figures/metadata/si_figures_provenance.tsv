@@ -1,0 +1,21 @@
+key	value
+schema_version	2
+artifact	supplementary_figures_4_7
+script	/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures01/Results/in-vivo/test/si_figures_20260724T082644Z/code_staging/current/Code/in-vivo/SI_figures/generate_supplementary_figures.R
+script_sha256	10f8d9955ce65bc9db2d0c99d7f3332c0626a0d72156a693abec3c0abbc89860
+seurat_metadata	not_read_in_plot_only_mode
+seurat_metadata_sha256	not_read_in_plot_only_mode
+scvelo_metrics	not_read_in_plot_only_mode
+scvelo_metrics_sha256	not_read_in_plot_only_mode
+all_ploidy	not_read_in_plot_only_mode
+all_ploidy_sha256	not_read_in_plot_only_mode
+seurat_rds	not_run
+seurat_rds_sha256	not_run
+source_provenance_present	false
+figure7_config	/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures01/Results/in-vivo/test/si_figures_20260724T082644Z/code_staging/current/Code/in-vivo/figure7/figure7_config.yaml
+figure7_config_sha256	8419c18586dfd8a2cdb6fe2c02afdd879e0887b9e81dcd675ee667717b95129b
+si_figure7_traced_source	Code/in-vivo/03a_DEGs.R + Code/in-vivo/03b_cluster_annotation_and_GSEA.R
+si_figure7_deg_method	Seurat::FindMarkers cluster versus rest; RNA assay; default thresholds and test
+si_figure7_ora_method	top-100 up markers; Hallmark hypergeometric ORA; BH FDR < 0.05; equal expression/detection/overlap annotation weights
+si_figure7_gsea_method	fgseaMultilevel Hallmark preranked; minSize=15; maxSize=500; nPermSimple=cached; eps=0
+source_code_revision	782931259a603d73a0f6586897a2447d76bf7fe1

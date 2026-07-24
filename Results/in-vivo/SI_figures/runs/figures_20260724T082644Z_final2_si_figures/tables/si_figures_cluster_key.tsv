@@ -1,0 +1,10 @@
+cluster_id	cluster_annotation	cellcycle_classification	cluster_order	color	n_all_cells	n_included_tumor_cells
+0	not_cell_cycle_candidate	NonCellCycle	1	#E16A86	22670	4830
+2	not_cell_cycle_candidate	NonCellCycle	2	#CB7F2F	3644	976
+4c	not_cell_cycle_candidate	NonCellCycle	3	#9F9400	103	89
+5	not_cell_cycle_candidate	NonCellCycle	4	#50A315	1823	623
+6	cell_cycle_candidate	CellCycle	5	#00AC79	1685	686
+8	not_cell_cycle_candidate	NonCellCycle	6	#00AAB7	1579	13
+10	cell_cycle_candidate	CellCycle	7	#009ADE	3095	2106
+13	not_cell_cycle_candidate	NonCellCycle	8	#A87BE4	704	506
+14	not_cell_cycle_candidate	NonCellCycle	9	#DA65C3	210	3

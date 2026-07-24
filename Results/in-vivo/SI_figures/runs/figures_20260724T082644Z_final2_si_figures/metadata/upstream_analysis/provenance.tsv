@@ -1,0 +1,15 @@
+key	value
+schema_version	1
+artifact	figure7_upstream_analysis_documentation
+module	si_figures
+zenodo_doi	10.5281/zenodo.21463392
+zenodo_record_url	https://zenodo.org/records/21463392
+zenodo_record_title	Resource limitation rewires chromosome instability and ploidy evolution across in vitro and in vivo cancer models
+zenodo_publication_date	2026-07-21
+documentation_scope	upstream_seurat_and_loom_generation
+documentation_statement	The Seurat RDS and loom files consumed by this workflow are processed artifacts with upstream data-generation and analysis steps. The reviewed descriptions, parameters, software/runtime records, and checksums for those preceding steps are archived at Zenodo DOI 10.5281/zenodo.21463392.
+document_count	11
+source_manifest	Code/in-vivo/figure7/zenodo_upstream_analysis_documents.tsv
+source_manifest_sha256	37a428c97b859ea941b377fbc2135693c9eb3e84a725e504872c606865325041
+published_document_manifest_sha256	5966f2efa986fec431afcda1ae126e86ccb6a3061225b89eba0d33daf60b166e
+publication_mode	offline_index_of_authoritative_zenodo_documents

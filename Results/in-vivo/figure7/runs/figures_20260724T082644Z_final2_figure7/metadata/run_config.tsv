@@ -1,0 +1,16 @@
+key	value
+module	in_vivo_figure7
+mode	standard
+panel_set	a-f
+tgi_outcome	day
+tgi_day	17
+tgi_measure	TGI_percent_Day_17
+matched_control_summary	mean
+matched_control_group	initial_ploidy
+etp_method	reference_balanced
+etp_threshold	2.24
+state_pathway_reference_id	taoli_state_pathway_etp2_24_day17_v1
+state_interval_start	0.3
+state_interval_end	0.49
+state_pathway_source_results_root	not_recorded
+config_sha256	8419c18586dfd8a2cdb6fe2c02afdd879e0887b9e81dcd675ee667717b95129b
