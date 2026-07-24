@@ -34,7 +34,7 @@ figure7_read_config <- function(path, tgi_day = NULL) {
   if (!file.exists(path)) figure7_stop("Missing Figure 7 config: ", path)
   if (!requireNamespace("yaml", quietly = TRUE)) figure7_stop("R package 'yaml' is required")
   config <- yaml::read_yaml(path)
-  required <- c("schema_version", "module", "raw_data", "inputs", "si_figure4", "tgi", "statistics", "etp", "intervals", "state_pathways", "panels")
+  required <- c("schema_version", "module", "raw_data", "inputs", "si_figures", "tgi", "statistics", "etp", "intervals", "state_pathways", "panels")
   missing <- setdiff(required, names(config))
   if (length(missing)) figure7_stop("Config is missing section(s): ", paste(missing, collapse = ", "))
   if (!identical(as.character(config$module), "in_vivo_figure7")) figure7_stop("Unexpected config module")
@@ -64,7 +64,7 @@ figure7_read_config <- function(path, tgi_day = NULL) {
   if (!identical(as.integer(unlist(config$panels$selected_direct_comparison_ids)), c(1L, 8L, 9L))) {
     figure7_stop("Figure 7 panel 7B requires comparison IDs 1, 8, and 9")
   }
-  si <- config$si_figure4
+  si <- config$si_figures
   si_required <- c(
     "umap_reduction", "pca_reduction", "cluster_id_field", "base_cluster_field",
     "clustering_resolution", "cluster_annotation_field", "sample_field", "dose_field",

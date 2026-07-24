@@ -22,7 +22,7 @@ class PublishFigure7UpstreamAnalysisTest(unittest.TestCase):
     def test_publishes_uniform_offline_index(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "upstream_analysis"
-            publish("si_figure4", SOURCE_MANIFEST, output)
+            publish("si_figures", SOURCE_MANIFEST, output)
             self.assertEqual(
                 {path.name for path in output.iterdir()},
                 {"README.md", "zenodo_document_manifest.tsv", "provenance.tsv"},
@@ -40,7 +40,7 @@ class PublishFigure7UpstreamAnalysisTest(unittest.TestCase):
                     row["key"]: row["value"]
                     for row in csv.DictReader(handle, delimiter="\t")
                 }
-            self.assertEqual(provenance["module"], "si_figure4")
+            self.assertEqual(provenance["module"], "si_figures")
             self.assertEqual(provenance["document_count"], "11")
             self.assertIn("upstream", provenance["documentation_statement"])
 

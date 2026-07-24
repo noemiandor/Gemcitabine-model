@@ -89,6 +89,22 @@ atomic per-file replacement under
 records that publication in `metadata/figure7_state_pathway_materialization.tsv`.
 Failed Figure 7 runs do not refresh the tracked canonical Data reference.
 
+When the reviewed eight-table export already exists, Manager can import that
+exact directory without rerunning the exporter:
+
+```bash
+bash Manager.sh \
+  --mode standard \
+  --modules in_vivo_figure7 \
+  --run-id <run_id> \
+  --figure7-state-pathway-reference-dir /path/to/taoli_state_pathway_etp2_24_day17_v1
+```
+
+The two state-pathway source options are mutually exclusive. Existing-reference
+mode copies and byte-compares all eight files into the immutable Manager run,
+then the Figure 7 renderer validates their configured SHA-256 values before
+Manager publishes them to the canonical Data directory.
+
 To explicitly generate and materialize only 7A-7E:
 
 ```bash
@@ -156,7 +172,7 @@ Seurat QC/integration/refinement, final clustering/reduction, and velocyto loom
 generation steps. The Zenodo record also archives the reviewed description of
 those steps, structured Seurat provenance, per-sample loom parameters, runtime
 and package inventories, session information, and checksums. After each
-successful Manager `si_figure4` or `in_vivo_figure7` run, Manager publishes a
+successful Manager `si_figures` or `in_vivo_figure7` run, Manager publishes a
 uniform offline index under `metadata/upstream_analysis/` containing
 `README.md`, `zenodo_document_manifest.tsv`, and `provenance.tsv`. The index
 records authoritative Zenodo URLs, sizes, MD5 values, and the pinned local

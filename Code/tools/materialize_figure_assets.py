@@ -187,7 +187,7 @@ PANEL_SPECS = [
         "caption_role": "Paired gemcitabine delta AUC versus delta ploidy",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4A_umap_cluster.pdf",
         "figure": "Supplementary",
         "panel": "SuppFig4A",
@@ -196,7 +196,7 @@ PANEL_SPECS = [
         "variant": "pdf",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4A_umap_cluster.png",
         "figure": "Supplementary",
         "panel": "SuppFig4A_png",
@@ -205,7 +205,7 @@ PANEL_SPECS = [
         "variant": "png",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4B_umap_initial_ploidy.pdf",
         "figure": "Supplementary",
         "panel": "SuppFig4B",
@@ -214,7 +214,7 @@ PANEL_SPECS = [
         "variant": "pdf",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4B_umap_initial_ploidy.png",
         "figure": "Supplementary",
         "panel": "SuppFig4B_png",
@@ -223,7 +223,7 @@ PANEL_SPECS = [
         "variant": "png",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4C_umap_treatment_dose.pdf",
         "figure": "Supplementary",
         "panel": "SuppFig4C",
@@ -232,7 +232,7 @@ PANEL_SPECS = [
         "variant": "pdf",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4C_umap_treatment_dose.png",
         "figure": "Supplementary",
         "panel": "SuppFig4C_png",
@@ -241,7 +241,7 @@ PANEL_SPECS = [
         "variant": "png",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4D_umap_mouse_facets.pdf",
         "figure": "Supplementary",
         "panel": "SuppFig4D",
@@ -250,7 +250,7 @@ PANEL_SPECS = [
         "variant": "pdf",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4D_umap_mouse_facets.png",
         "figure": "Supplementary",
         "panel": "SuppFig4D_png",
@@ -259,7 +259,7 @@ PANEL_SPECS = [
         "variant": "png",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4E_cluster_composition_by_mouse.pdf",
         "figure": "Supplementary",
         "panel": "SuppFig4E",
@@ -268,7 +268,7 @@ PANEL_SPECS = [
         "variant": "pdf",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4E_cluster_composition_by_mouse.png",
         "figure": "Supplementary",
         "panel": "SuppFig4E_png",
@@ -277,7 +277,7 @@ PANEL_SPECS = [
         "variant": "png",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4F_cluster_composition_by_ploidy_dose.pdf",
         "figure": "Supplementary",
         "panel": "SuppFig4F",
@@ -286,7 +286,7 @@ PANEL_SPECS = [
         "variant": "pdf",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4F_cluster_composition_by_ploidy_dose.png",
         "figure": "Supplementary",
         "panel": "SuppFig4F_png",
@@ -295,21 +295,21 @@ PANEL_SPECS = [
         "variant": "png",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4_composite.pdf",
         "figure": "Supplementary",
         "panel": "SuppFig4_composite",
         "asset": "panel_SuppFig4_composite.pdf",
-        "caption_role": "Supplementary Figure 4 composite",
+        "caption_role": "Supplementary Figures 4-7 composite",
         "variant": "pdf",
     },
     {
-        "module": "si_figure4",
+        "module": "si_figures",
         "source": "figures/panel_SuppFig4_composite.png",
         "figure": "Supplementary",
         "panel": "SuppFig4_composite_png",
         "asset": "panel_SuppFig4_composite.png",
-        "caption_role": "PNG derivative of the Supplementary Figure 4 composite",
+        "caption_role": "PNG derivative of the Supplementary Figures 4-7 composite",
         "variant": "png",
     },
     {
@@ -424,7 +424,84 @@ PANEL_SPECS = [
     },
 ]
 
-STRICT_FIGURE_MODULES = {"in_vivo_figure7", "si_figure4"}
+PANEL_SPECS = [spec for spec in PANEL_SPECS if spec["module"] != "si_figures"]
+SI_FIGURE_PANEL_FILES = [
+    ("SuppFig4A", "panel_SuppFig4A_umap_cluster", "All-cell UMAP by cluster"),
+    ("SuppFig4B", "panel_SuppFig4B_umap_initial_ploidy", "All-cell UMAP by initial ploidy"),
+    ("SuppFig4C", "panel_SuppFig4C_umap_context", "All-cell UMAP by Tumor/CellLine context"),
+    ("SuppFig4D", "panel_SuppFig4D_umap_s_phase_score", "All-cell UMAP by S phase score"),
+    ("SuppFig4E", "panel_SuppFig4E_cluster_context_proportion", "Tumor and CellLine proportions by cluster"),
+    ("SuppFig4F", "panel_SuppFig4F_cluster_context_count", "Tumor and CellLine counts by cluster"),
+    ("SuppFig4G", "panel_SuppFig4G_cluster_initial_ploidy_proportion", "Initial-ploidy proportions by cluster"),
+    ("SuppFig4H", "panel_SuppFig4H_cluster_initial_ploidy_count", "Initial-ploidy counts by cluster"),
+    ("SuppFig4_composite", "panel_SuppFig4_composite", "Supplementary Figure 4 composite"),
+    ("SuppFig5A", "panel_SuppFig5A_umap_cluster", "Tumor UMAP by cluster"),
+    ("SuppFig5B", "panel_SuppFig5B_umap_initial_ploidy", "Tumor UMAP by initial ploidy"),
+    ("SuppFig5C", "panel_SuppFig5C_umap_treatment_dose", "Tumor UMAP by Gemcitabine dose"),
+    ("SuppFig5D", "panel_SuppFig5D_umap_s_phase_score", "Tumor UMAP by S phase score"),
+    ("SuppFig5E", "panel_SuppFig5E_umap_mouse_facets", "Mouse-faceted UMAP colored by initial ploidy"),
+    ("SuppFig5F", "panel_SuppFig5F_cluster_composition_by_mouse", "Per-mouse cluster composition"),
+    ("SuppFig5G", "panel_SuppFig5G_mouse_weighted_cluster_composition", "Mouse-weighted cluster composition"),
+    ("SuppFig5H", "panel_SuppFig5H_cluster_composition_by_dose", "Dose composition by cluster"),
+    ("SuppFig5I", "panel_SuppFig5I_cluster_composition_by_initial_ploidy", "Initial-ploidy composition by cluster"),
+    ("SuppFig5_composite", "panel_SuppFig5_composite", "Supplementary Figure 5 composite"),
+    ("SuppFig6A", "panel_SuppFig6A_umap_endpoint_ploidy_all_tumors", "All-tumor UMAP by endpoint ploidy"),
+    ("SuppFig6B", "panel_SuppFig6B_umap_endpoint_ploidy_initial_2N", "Initial-2N tumor UMAP by endpoint ploidy"),
+    ("SuppFig6C", "panel_SuppFig6C_umap_endpoint_ploidy_initial_4N", "Initial-4N tumor UMAP by endpoint ploidy"),
+    ("SuppFig6D", "panel_SuppFig6D_umap_endpoint_ploidy_mouse_facets", "Mouse-faceted UMAP by endpoint ploidy"),
+    ("SuppFig6_composite", "panel_SuppFig6_composite", "Supplementary Figure 6 composite"),
+    ("SuppFig7A", "panel_SuppFig7A_cluster_Hallmark_ORA_annotation_score_heatmap_top20", "Cluster Hallmark ORA annotation-score heatmap"),
+    ("SuppFig7B", "panel_SuppFig7B_cluster_Hallmark_GSEA_NES_heatmap_top20", "Cluster Hallmark GSEA NES heatmap"),
+    ("SuppFig7_composite", "panel_SuppFig7_composite", "Supplementary Figure 7 composite"),
+]
+SI_FIGURE_CLUSTERS = ("0", "2", "4c", "5", "6", "8", "10", "13", "14")
+SI_FIGURE_TABLE_CACHE_FILES = {
+    "si_figures_cell_metadata.csv",
+    "si_figures_cluster_key.tsv",
+    "si_figure4_cluster_context_composition.csv",
+    "si_figure4_cluster_initial_ploidy_composition.csv",
+    "si_figure5_cluster_composition_by_mouse.csv",
+    "si_figure5_cluster_dose_composition.csv",
+    "si_figure5_cluster_initial_ploidy_composition.csv",
+    "si_figure5_mouse_weighted_composition_by_initial_ploidy_dose.csv",
+    "si_figure6_endpoint_ploidy_join_audit.csv",
+    "si_figure7_cluster_Hallmark_GSEA_NES_heatmap_top20_matrix.tsv",
+    "si_figure7_cluster_Hallmark_GSEA_all.csv",
+    "si_figure7_cluster_Hallmark_ORA_all.csv",
+    "si_figure7_cluster_Hallmark_ORA_annotation_score_heatmap_top20_matrix.tsv",
+    "si_figure7_hallmark_ORA_universe.csv",
+}
+SI_FIGURE_TABLE_CACHE_FILES.update(
+    {
+        filename
+        for cluster in SI_FIGURE_CLUSTERS
+        for filename in (
+            f"si_figure7_cluster_{cluster}_top100_up_ORA_input.csv",
+            f"si_figure7_cluster_{cluster}_vs_rest_DEG.csv",
+        )
+    }
+)
+for panel_id, filename_stub, caption_role in SI_FIGURE_PANEL_FILES:
+    for extension in ("pdf", "png"):
+        panel = panel_id if extension == "pdf" else f"{panel_id}_png"
+        filename = f"{filename_stub}.{extension}"
+        PANEL_SPECS.append(
+            {
+                "module": "si_figures",
+                "source": f"figures/{filename}",
+                "figure": "Supplementary",
+                "panel": panel,
+                "asset": filename,
+                "caption_role": (
+                    caption_role
+                    if extension == "pdf"
+                    else f"PNG derivative of {caption_role.lower()}"
+                ),
+                "variant": extension,
+            }
+        )
+
+STRICT_FIGURE_MODULES = {"in_vivo_figure7", "si_figures"}
 FIGURE_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".svg", ".tif", ".tiff"}
 
 EXTERNAL_ROWS = [
@@ -476,28 +553,197 @@ EXTERNAL_ROWS = [
 
 def read_delimited_rows(path: Path, delimiter: str) -> tuple[list[str], list[dict[str, str]]]:
     if not path.is_file() or path.stat().st_size <= 0:
-        raise FileNotFoundError(f"Missing or empty SI Figure 4 contract file: {path}")
+        raise FileNotFoundError(f"Missing or empty SI Figures 4-7 contract file: {path}")
     with path.open(newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle, delimiter=delimiter)
         fields = reader.fieldnames or []
         rows = list(reader)
     if not fields or len(fields) != len(set(fields)) or not rows:
-        raise ValueError(f"Invalid SI Figure 4 contract table: {path}")
+        raise ValueError(f"Invalid SI Figures 4-7 contract table: {path}")
     return fields, rows
 
 
-def validate_si_figure4_data_contract(
+def validate_si_figures_data_contract(
     run_root: Path,
     repo_root: Path,
     source_run_id: str,
     input_rows: list[dict[str, str]],
     output_rows_by_path: dict[Path, list[dict[str, str]]],
 ) -> None:
-    canonical_path = run_root / "tables/si_figure4_cell_metadata.csv"
-    cluster_key_path = run_root / "tables/si_figure4_cluster_key.tsv"
+    required_artifacts = (
+        run_root / "tables/si_figures_cell_metadata.csv",
+        run_root / "tables/si_figures_cluster_key.tsv",
+        run_root / "tables/si_figure4_cluster_context_composition.csv",
+        run_root / "tables/si_figure4_cluster_initial_ploidy_composition.csv",
+        run_root / "tables/si_figure5_cluster_composition_by_mouse.csv",
+        run_root / "tables/si_figure5_mouse_weighted_composition_by_initial_ploidy_dose.csv",
+        run_root / "tables/si_figure5_cluster_dose_composition.csv",
+        run_root / "tables/si_figure5_cluster_initial_ploidy_composition.csv",
+        run_root / "tables/si_figure6_endpoint_ploidy_join_audit.csv",
+        run_root / "tables/si_figure7_cluster_Hallmark_ORA_all.csv",
+        run_root / "tables/si_figure7_cluster_Hallmark_GSEA_all.csv",
+        run_root / "tables/si_figure7_cluster_Hallmark_ORA_annotation_score_heatmap_top20_matrix.tsv",
+        run_root / "tables/si_figure7_cluster_Hallmark_GSEA_NES_heatmap_top20_matrix.tsv",
+        run_root / "metadata/si_figures_provenance.tsv",
+        run_root / "metadata/input_qc.tsv",
+    )
+    for path in required_artifacts:
+        if not path.is_file() or path.stat().st_size <= 0:
+            raise FileNotFoundError(f"Missing SI Figures contract artifact: {path}")
+        matches = output_rows_by_path.get(path.resolve(), [])
+        if len(matches) != 1:
+            raise ValueError(
+                f"Expected one output-manifest row for SI Figures artifact {path}; "
+                f"found {len(matches)}"
+            )
+        row = matches[0]
+        if (
+            row.get("module") != "si_figures"
+            or row.get("command_id") != source_run_id
+            or row.get("sha256", "").strip() != sha256_file(path)
+        ):
+            raise ValueError(f"SI Figures output provenance mismatch for {path}")
+
+    canonical_path = run_root / "tables/si_figures_cell_metadata.csv"
+    canonical_fields, canonical = read_delimited_rows(canonical_path, ",")
+    required_canonical_fields = {
+        "cell_id",
+        "UMAP_1",
+        "UMAP_2",
+        "sample_id",
+        "cluster_id",
+        "initial_ploidy",
+        "s_phase_score",
+        "endpoint_ploidy",
+        "endpoint_file",
+        "endpoint_cell_id",
+        "context",
+        "included_in_si_figures",
+    }
+    if not required_canonical_fields <= set(canonical_fields):
+        raise ValueError(
+            "SI Figures canonical cell schema is incomplete: "
+            f"{sorted(required_canonical_fields - set(canonical_fields))}"
+        )
+    cell_ids = [row["cell_id"].strip() for row in canonical]
+    if any(not cell_id for cell_id in cell_ids) or len(cell_ids) != len(set(cell_ids)):
+        raise ValueError("SI Figures canonical cell IDs must be nonempty and unique")
+    tumor = [row for row in canonical if row["context"] == "Tumor"]
+    cellline = [row for row in canonical if row["context"] == "CellLine"]
+    if len(tumor) + len(cellline) != len(canonical):
+        raise ValueError("SI Figures canonical context must be Tumor or CellLine")
+    if any(not row["endpoint_ploidy"].strip() for row in tumor):
+        raise ValueError("Every tumor cell must have endpoint ploidy")
+    if any(row["endpoint_ploidy"].strip() for row in cellline):
+        raise ValueError("CellLine cells must not have endpoint ploidy")
+
+    endpoint_path = run_root / "tables/si_figure6_endpoint_ploidy_join_audit.csv"
+    _, endpoint_rows = read_delimited_rows(endpoint_path, ",")
+    if len(endpoint_rows) != len(canonical):
+        raise ValueError("Endpoint-ploidy join audit row count differs from canonical cells")
+    endpoint_tumor = [row for row in endpoint_rows if row["context"] == "Tumor"]
+    if len(endpoint_tumor) != len(tumor) or any(
+        row["matched"].upper() != "TRUE" for row in endpoint_tumor
+    ):
+        raise ValueError("Endpoint-ploidy join audit does not match every tumor cell")
+
+    run_config_path = run_root / "metadata/run_config.tsv"
+    _, run_config_rows = read_tsv(run_config_path)
+    run_config = {row["key"]: row["value"] for row in run_config_rows}
+    table_mode = run_config.get("table_mode")
+    if table_mode not in {"full_reanalysis", "canonical_cache"}:
+        raise ValueError(f"Unsupported SI Figures table mode: {table_mode}")
+
+    input_names = {
+        Path(row.get("absolute_path") or row.get("path", "")).name for row in input_rows
+    }
+    required_inputs = {"figure7_config.yaml", "generate_supplementary_figures.R"}
+    if table_mode == "full_reanalysis":
+        required_inputs.update(
+            {
+                "seurat_metadata.csv",
+                "scvelo_cell_metrics.csv",
+                "all_ploidy.tsv",
+                "integrated_sct_cca_seurat_final_reclustered.rds",
+            }
+        )
+    else:
+        required_inputs.update(SI_FIGURE_TABLE_CACHE_FILES)
+    if not required_inputs <= input_names:
+        raise ValueError(
+            "SI Figures input manifest is incomplete: "
+            f"{sorted(required_inputs - input_names)}"
+        )
+
+    expected_config = {
+        "module": "si_figures",
+        "figures": "4,5,6,7",
+        "logical_panels": str(len(SI_FIGURE_PANEL_FILES)),
+        "figure_file_count": str(2 * len(SI_FIGURE_PANEL_FILES)),
+        "si_figure7_from_raw_rds": (
+            "true" if table_mode == "full_reanalysis" else "false"
+        ),
+        "raw_seurat_loaded": (
+            "true" if table_mode == "full_reanalysis" else "false"
+        ),
+    }
+    if table_mode == "canonical_cache":
+        expected_config["deg_analysis_executed"] = "false"
+    for key, expected in expected_config.items():
+        if run_config.get(key) != expected:
+            raise ValueError(
+                f"SI Figures run config mismatch for {key}: "
+                f"expected={expected}; observed={run_config.get(key)}"
+            )
+
+    _, qc_rows = read_tsv(run_root / "metadata/input_qc.tsv")
+    qc = {row["key"]: row["value"] for row in qc_rows}
+    if (
+        int(qc.get("seurat_cells", "-1")) != len(canonical)
+        or int(qc.get("tumor_cells", "-1")) != len(tumor)
+        or int(qc.get("cellline_cells", "-1")) != len(cellline)
+        or int(qc.get("tumor_cells_missing_endpoint_ploidy", "-1")) != 0
+        or int(qc.get("cellline_cells_with_endpoint_ploidy", "-1")) != 0
+        or int(qc.get("panel_files", "-1")) != 2 * len(SI_FIGURE_PANEL_FILES)
+    ):
+        raise ValueError("SI Figures QC counts do not reconcile to canonical cells/panels")
+
+    _, provenance_rows = read_tsv(run_root / "metadata/si_figures_provenance.tsv")
+    provenance = {row["key"]: row["value"] for row in provenance_rows}
+    sha_keys = ["script_sha256", "figure7_config_sha256"]
+    if table_mode == "full_reanalysis":
+        sha_keys.extend(
+            (
+                "seurat_metadata_sha256",
+                "scvelo_metrics_sha256",
+                "all_ploidy_sha256",
+                "seurat_rds_sha256",
+            )
+        )
+    else:
+        expected_not_read = {
+            "seurat_metadata_sha256": "not_read_in_plot_only_mode",
+            "scvelo_metrics_sha256": "not_read_in_plot_only_mode",
+            "all_ploidy_sha256": "not_read_in_plot_only_mode",
+            "seurat_rds_sha256": "not_run",
+        }
+        for key, expected in expected_not_read.items():
+            if provenance.get(key) != expected:
+                raise ValueError(
+                    f"SI Figures plot-only provenance mismatch for {key}: "
+                    f"expected={expected}; observed={provenance.get(key)}"
+                )
+    for key in sha_keys:
+        value = provenance.get(key, "")
+        if len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
+            raise ValueError(f"SI Figures provenance has an invalid SHA-256: {key}")
+    return
+
+    canonical_path = run_root / "tables/si_figures_cell_metadata.csv"
+    cluster_key_path = run_root / "tables/si_figures_cluster_key.tsv"
     composition_mouse_path = run_root / "tables/cluster_composition_by_mouse.csv"
     composition_group_path = run_root / "tables/cluster_composition_by_ploidy_dose.csv"
-    provenance_path = run_root / "metadata/si_figure4_provenance.tsv"
+    provenance_path = run_root / "metadata/si_figures_provenance.tsv"
     formal_paths = (
         canonical_path,
         cluster_key_path,
@@ -512,11 +758,11 @@ def validate_si_figure4_data_contract(
             raise ValueError(f"Expected one output-manifest row for {path}; found {len(matches)}")
         row = matches[0]
         if row.get("role") != "output_table" or row.get("source_kind") != "generated_table":
-            raise ValueError(f"SI Figure 4 contract artifact is not a generated table: {path}")
-        if row.get("module") != "si_figure4" or row.get("command_id") != source_run_id:
-            raise ValueError(f"SI Figure 4 contract provenance mismatch for {path}")
+            raise ValueError(f"SI Figures 4-7 contract artifact is not a generated table: {path}")
+        if row.get("module") != "si_figures" or row.get("command_id") != source_run_id:
+            raise ValueError(f"SI Figures 4-7 contract provenance mismatch for {path}")
         if row.get("sha256", "").strip() != sha256_file(path):
-            raise ValueError(f"SI Figure 4 contract checksum mismatch for {path}")
+            raise ValueError(f"SI Figures 4-7 contract checksum mismatch for {path}")
 
     input_names = {
         Path(row.get("absolute_path") or row.get("path", "")).name for row in input_rows
@@ -529,7 +775,7 @@ def validate_si_figure4_data_contract(
     }
     if not required_inputs <= input_names:
         raise ValueError(
-            "SI Figure 4 input manifest is missing its reviewed input bundle/config: "
+            "SI Figures 4-7 input manifest is missing its reviewed input bundle/config: "
             f"{sorted(required_inputs - input_names)}"
         )
 
@@ -549,17 +795,17 @@ def validate_si_figure4_data_contract(
         "dose_mg_per_kg",
         "cellcycle_classification",
         "context",
-        "included_in_si_figure4",
+        "included_in_si_figures",
         "exclusion_reason",
     ]
     if canonical_fields != expected_canonical_fields:
         raise ValueError(
-            "SI Figure 4 canonical cell schema mismatch: "
+            "SI Figures 4-7 canonical cell schema mismatch: "
             f"expected={expected_canonical_fields}; observed={canonical_fields}"
         )
     cell_ids = [row["cell_id"].strip() for row in canonical]
     if any(not value for value in cell_ids) or len(cell_ids) != len(set(cell_ids)):
-        raise ValueError("SI Figure 4 canonical cell IDs must be nonempty and unique")
+        raise ValueError("SI Figures 4-7 canonical cell IDs must be nonempty and unique")
 
     cluster_fields, cluster_rows = read_delimited_rows(cluster_key_path, "\t")
     expected_cluster_fields = [
@@ -572,24 +818,24 @@ def validate_si_figure4_data_contract(
         "n_included_tumor_cells",
     ]
     if cluster_fields != expected_cluster_fields:
-        raise ValueError("SI Figure 4 cluster-key schema mismatch")
+        raise ValueError("SI Figures 4-7 cluster-key schema mismatch")
     cluster_by_id = {row["cluster_id"]: row for row in cluster_rows}
     if len(cluster_by_id) != len(cluster_rows):
-        raise ValueError("SI Figure 4 cluster IDs are duplicated")
+        raise ValueError("SI Figures 4-7 cluster IDs are duplicated")
     orders = sorted(int(row["cluster_order"]) for row in cluster_rows)
     colors = [row["color"] for row in cluster_rows]
     if orders != list(range(1, len(cluster_rows) + 1)):
-        raise ValueError("SI Figure 4 cluster order must be unique and continuous from one")
+        raise ValueError("SI Figures 4-7 cluster order must be unique and continuous from one")
     if len(colors) != len(set(colors)) or any(
         len(color) != 7 or not color.startswith("#") for color in colors
     ):
-        raise ValueError("SI Figure 4 cluster colors must be unique six-digit hex values")
+        raise ValueError("SI Figures 4-7 cluster colors must be unique six-digit hex values")
     if any(
         not row["cluster_annotation"].strip()
         or row["cellcycle_classification"] not in {"CellCycle", "NonCellCycle"}
         for row in cluster_rows
     ):
-        raise ValueError("SI Figure 4 cluster annotation/classification is incomplete")
+        raise ValueError("SI Figures 4-7 cluster annotation/classification is incomplete")
 
     all_counts: Counter[str] = Counter()
     included_counts: Counter[tuple[str, str]] = Counter()
@@ -613,7 +859,7 @@ def validate_si_figure4_data_contract(
             raise ValueError("Canonical UMAP coordinate is nonnumeric") from exc
         if not all(math.isfinite(value) for value in coordinates):
             raise ValueError("Canonical UMAP coordinate is nonfinite")
-        included = row["included_in_si_figure4"].upper()
+        included = row["included_in_si_figures"].upper()
         if included not in {"TRUE", "FALSE"}:
             raise ValueError("Canonical inclusion flag must be TRUE or FALSE")
         if included == "TRUE" and row["exclusion_reason"].strip():
@@ -670,7 +916,7 @@ def validate_si_figure4_data_contract(
         "denominator_definition",
     ]
     if mouse_fields != expected_mouse_fields:
-        raise ValueError("SI Figure 4 mouse-composition schema mismatch")
+        raise ValueError("SI Figures 4-7 mouse-composition schema mismatch")
     proportion_sums: Counter[str] = Counter()
     mouse_rows_by_key: dict[tuple[str, str], dict[str, str]] = {}
     for row in mouse_rows:
@@ -703,9 +949,9 @@ def validate_si_figure4_data_contract(
         for cluster_id in cluster_by_id
     }
     if set(mouse_rows_by_key) != expected_mouse_keys:
-        raise ValueError("SI Figure 4 mouse composition is not a complete sample-by-cluster grid")
+        raise ValueError("SI Figures 4-7 mouse composition is not a complete sample-by-cluster grid")
     if any(not math.isclose(value, 1.0, rel_tol=0, abs_tol=1e-12) for value in proportion_sums.values()):
-        raise ValueError("SI Figure 4 mouse composition does not sum to one")
+        raise ValueError("SI Figures 4-7 mouse composition does not sum to one")
 
     group_fields, group_rows = read_delimited_rows(composition_group_path, ",")
     required_group_fields = {
@@ -723,7 +969,7 @@ def validate_si_figure4_data_contract(
         "max_proportion",
     }
     if set(group_fields) != required_group_fields or not group_rows:
-        raise ValueError("SI Figure 4 group-composition schema mismatch")
+        raise ValueError("SI Figures 4-7 group-composition schema mismatch")
     observed_group_rows: dict[tuple[str, str, str], dict[str, str]] = {}
     expected_group_pieces: dict[tuple[str, str, str], list[dict[str, str]]] = {}
     for row in mouse_rows:
@@ -735,7 +981,7 @@ def validate_si_figure4_data_contract(
             raise ValueError(f"Group composition row is duplicated for {key}")
         observed_group_rows[key] = row
     if set(observed_group_rows) != set(expected_group_pieces):
-        raise ValueError("SI Figure 4 group composition does not cover the mouse composition")
+        raise ValueError("SI Figures 4-7 group composition does not cover the mouse composition")
     for key, pieces in expected_group_pieces.items():
         row = observed_group_rows[key]
         proportions = [float(piece["proportion"]) for piece in pieces]
@@ -802,12 +1048,12 @@ def validate_si_figure4_data_contract(
     }
     missing = sorted(required_provenance - provenance.keys())
     if missing:
-        raise ValueError(f"SI Figure 4 provenance is missing keys: {missing}")
+        raise ValueError(f"SI Figures 4-7 provenance is missing keys: {missing}")
     if any(not provenance[key].strip() for key in required_provenance):
-        raise ValueError("SI Figure 4 provenance contains an empty required value")
+        raise ValueError("SI Figures 4-7 provenance contains an empty required value")
     source_hash = provenance["source_seurat_rds_sha256"]
     if len(source_hash) != 64 or any(char not in "0123456789abcdef" for char in source_hash):
-        raise ValueError("SI Figure 4 source Seurat RDS checksum is invalid")
+        raise ValueError("SI Figures 4-7 source Seurat RDS checksum is invalid")
     if (
         provenance["umap_reduction"] != "umap"
         or provenance["cluster_id_field"] != "clusters"
@@ -815,22 +1061,22 @@ def validate_si_figure4_data_contract(
         or provenance["clustering_resolution"] != "0.6"
         or provenance["cluster_annotation_field"] != "cluster_cell_cycle_annotation"
     ):
-        raise ValueError("SI Figure 4 provenance does not match the reviewed analysis contract")
+        raise ValueError("SI Figures 4-7 provenance does not match the reviewed analysis contract")
     if (
         provenance["upstream_analysis_documentation_doi"]
         != "10.5281/zenodo.21463392"
         or provenance["upstream_analysis_documentation_url"]
         != "https://zenodo.org/records/21463392"
     ):
-        raise ValueError("SI Figure 4 upstream-analysis documentation reference is invalid")
+        raise ValueError("SI Figures 4-7 upstream-analysis documentation reference is invalid")
     if int(provenance["canonical_cell_rows"]) != len(canonical):
-        raise ValueError("SI Figure 4 provenance canonical row count mismatch")
+        raise ValueError("SI Figures 4-7 provenance canonical row count mismatch")
     if int(provenance["included_cell_rows"]) != sum(included_sample_totals.values()):
-        raise ValueError("SI Figure 4 provenance included row count mismatch")
+        raise ValueError("SI Figures 4-7 provenance included row count mismatch")
     if int(provenance["excluded_cell_rows"]) != len(canonical) - sum(
         included_sample_totals.values()
     ):
-        raise ValueError("SI Figure 4 provenance excluded row count mismatch")
+        raise ValueError("SI Figures 4-7 provenance excluded row count mismatch")
     expected_hashes = {
         "canonical_cell_table_sha256": canonical_path,
         "cluster_key_sha256": cluster_key_path,
@@ -839,7 +1085,7 @@ def validate_si_figure4_data_contract(
     }
     for key, path in expected_hashes.items():
         if provenance[key] != sha256_file(path):
-            raise ValueError(f"SI Figure 4 provenance checksum mismatch: {key}")
+            raise ValueError(f"SI Figures 4-7 provenance checksum mismatch: {key}")
 
 
 def panel_specs_for_figure7_variant(
@@ -944,7 +1190,7 @@ def validate_strict_source_run(
     expected_name = (
         f"{source_run_id}_figure7"
         if module == "in_vivo_figure7"
-        else f"{source_run_id}_si_figure4"
+        else f"{source_run_id}_si_figures"
     )
     if run_root.name != expected_name:
         raise ValueError(f"{module} source run must be named {expected_name}, got {run_root.name}")
@@ -1016,8 +1262,8 @@ def validate_strict_source_run(
         ]
     else:
         module_rows = [row for row in config_rows if row.get("key") == "module"]
-        if len(module_rows) != 1 or module_rows[0].get("value") != "si_figure4":
-            raise ValueError("Source SI Figure 4 run must explicitly record module=si_figure4")
+        if len(module_rows) != 1 or module_rows[0].get("value") != "si_figures":
+            raise ValueError("Source SI Figures 4-7 run must explicitly record module=si_figures")
         expected_contract = [
             (str(spec["panel"]), Path(str(spec["source"])).name)
             for spec in selected_specs
@@ -1058,8 +1304,8 @@ def validate_strict_source_run(
             raise ValueError(f"Output-manifest provenance mismatch for {source}")
         if row.get("sha256", "").strip() != sha256_file(source):
             raise ValueError(f"Output-manifest checksum mismatch for {source}")
-    if module == "si_figure4":
-        validate_si_figure4_data_contract(
+    if module == "si_figures":
+        validate_si_figures_data_contract(
             run_root,
             repo_root,
             source_run_id,
@@ -1084,6 +1330,11 @@ def main() -> int:
     parser.add_argument("--figure7-figure-name", default="Figure7")
     parser.add_argument("--repo-root", type=Path)
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--touched-manifest-list",
+        type=Path,
+        help="Optional file receiving the absolute manifest paths updated by this invocation.",
+    )
     args = parser.parse_args()
     source_run_id = args.source_run_id or args.legacy_run_id
     if not source_run_id:
@@ -1123,6 +1374,23 @@ def main() -> int:
             args.figure7_tgi_day,
         )
 
+    if "si_figures" in module_runs and args.overwrite:
+        supplementary_dir = figure_root / "Supplementary"
+        selected_si_assets = {
+            str(spec["asset"])
+            for spec in selected_specs
+            if str(spec["module"]) == "si_figures"
+        }
+        if supplementary_dir.is_dir():
+            for pattern in ("panel_SuppFig4*", "panel_SuppFig5*", "panel_SuppFig6*", "panel_SuppFig7*"):
+                for existing in supplementary_dir.glob(pattern):
+                    if (
+                        existing.is_file()
+                        and existing.suffix.lower() in FIGURE_SUFFIXES
+                        and existing.name not in selected_si_assets
+                    ):
+                        existing.unlink()
+
     rows_by_figure: dict[str, list[dict[str, str]]] = {}
     expected_by_figure: dict[str, set[str]] = {}
     for spec in selected_specs:
@@ -1138,9 +1406,14 @@ def main() -> int:
         asset = out_dir / str(spec["asset"])
         if asset.exists() and not args.overwrite:
             raise FileExistsError(f"Asset exists; use --overwrite to replace: {asset}")
-        shutil.copy2(source, asset)
-        if sha256_file(asset) != sha256_file(source):
-            raise OSError(f"Copied asset checksum does not match source: {asset}")
+        staged_asset = out_dir / f".{asset.name}.tmp.{operation_id}"
+        if staged_asset.exists():
+            staged_asset.unlink()
+        shutil.copy2(source, staged_asset)
+        if sha256_file(staged_asset) != sha256_file(source):
+            staged_asset.unlink(missing_ok=True)
+            raise OSError(f"Staged asset checksum does not match source: {asset}")
+        staged_asset.replace(asset)
         rows_by_figure.setdefault(str(spec["figure"]), []).append(
             generated_row(
                 spec,
@@ -1166,9 +1439,35 @@ def main() -> int:
         )
         if panel_errors:
             raise ValueError("Invalid materialized panel set:\n" + "\n".join(panel_errors))
+        if manifest_path.is_file():
+            existing_fields, existing_rows = read_tsv(manifest_path)
+            if tuple(existing_fields) != tuple(FIGURE_MANIFEST_COLUMNS):
+                raise ValueError(f"Existing manifest schema mismatch: {manifest_path}")
+            replaced_panels = {row.get("panel", "") for row in rows}
+            preserved_rows = [
+                row for row in existing_rows if row.get("panel", "") not in replaced_panels
+            ]
+            rows = sorted(preserved_rows + rows, key=lambda row: row.get("panel", ""))
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        write_tsv(manifest_path, rows, FIGURE_MANIFEST_COLUMNS)
+        staged_manifest = manifest_path.with_name(
+            f".{manifest_path.name}.tmp.{operation_id}"
+        )
+        write_tsv(staged_manifest, rows, FIGURE_MANIFEST_COLUMNS)
+        staged_manifest.replace(manifest_path)
         print(f"Wrote {manifest_path}")
+
+    if args.touched_manifest_list:
+        touched_manifest_list = args.touched_manifest_list
+        if not touched_manifest_list.is_absolute():
+            touched_manifest_list = repo_root / touched_manifest_list
+        touched_manifest_list.parent.mkdir(parents=True, exist_ok=True)
+        touched_manifest_list.write_text(
+            "".join(
+                f"{figure_root / figure / 'manifest.tsv'}\n"
+                for figure in sorted(touched_figures)
+            ),
+            encoding="utf-8",
+        )
 
     return 0
 

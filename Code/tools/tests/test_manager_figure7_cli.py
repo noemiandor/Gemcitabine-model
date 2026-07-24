@@ -15,19 +15,26 @@ TOOLS_DIR = REPO_ROOT / "Code/tools"
 import sys
 
 sys.path.insert(0, str(TOOLS_DIR))
+sys.path.insert(0, str(TOOLS_DIR / "tests"))
 from figure_output_contract import MODULE_MANIFEST_COLUMNS, sha256_file, write_tsv  # noqa: E402
 from materialize_figure_assets import (  # noqa: E402
     PANEL_SPECS,
     panel_specs_for_figure7_variant,
 )
+from test_validate_si_figures_table_cache import create_valid_cache  # noqa: E402
 
 
 class ManagerFigure7CliTest(unittest.TestCase):
     def _run(self, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+        run_env = os.environ.copy() if env is None else env.copy()
+        run_env.setdefault(
+            "SI_FIGURES_CANONICAL_TABLE_ROOT",
+            str(Path(tempfile.gettempdir()) / f"manager-test-no-si-cache-{os.getpid()}"),
+        )
         return subprocess.run(
             ["bash", str(REPO_ROOT / "Manager.sh"), *args],
             cwd=REPO_ROOT,
-            env=env,
+            env=run_env,
             text=True,
             capture_output=True,
         )
@@ -37,29 +44,34 @@ class ManagerFigure7CliTest(unittest.TestCase):
         return hashlib.sha256(path.read_bytes()).hexdigest()
 
     @classmethod
-    def _write_si_figure4_input_bundle(
+    def _write_si_figures_input_bundle(
         cls,
         root: Path,
-    ) -> tuple[Path, Path, Path]:
+    ) -> tuple[Path, Path, Path, Path, Path]:
         root.mkdir(parents=True, exist_ok=True)
         seurat = root / "seurat_metadata.csv"
         scvelo = root / "scvelo_cell_metrics.csv"
         provenance = root / "seurat_metadata_provenance.tsv"
+        all_ploidy = root / "all_ploidy.tsv"
+        seurat_rds = root / "integrated_sct_cca_seurat_final_reclustered.rds"
         seurat.write_text(
-            "cell,UMAP_1,UMAP_2,Dose,clusters,sample,"
+            "cell,UMAP_1,UMAP_2,S.Score,Dose,clusters,sample,Ploidy,TN,"
+            "harvest,barcode_raw,"
             "cluster_cell_cycle_annotation,integrated_snn_res.0.6,"
             "nCount_RNA,nFeature_RNA,percent.mt,scDblFinder.class,scDblFinder.score\n"
-            "c1,0,0,0mg/kg,6,s1,cell_cycle_candidate,6,"
+            "c1,0,0,0.1,0mg/kg,6,s1,2N,Tumor,h1,b1,cell_cycle_candidate,6,"
             "1000,500,2.5,singlet,0.01\n"
         )
         scvelo.write_text(
             "cell,velocity_cell,velocity_pseudotime,TN,clusters,sample,Ploidy,Dose\n"
             "c1,c1,0.1,Tumor,6,s1,2N,0mg/kg\n"
         )
+        all_ploidy.write_text("file\tcell_id\tploidy\nh1.sps.cbs\tb1\t2.1\n")
+        seurat_rds.write_bytes(b"fixture rds")
         config = REPO_ROOT / "Code/in-vivo/figure7/figure7_config.yaml"
         values = {
             "source_seurat_rds": "/data/source.rds",
-            "source_seurat_rds_sha256": "a" * 64,
+            "source_seurat_rds_sha256": cls._sha256(seurat_rds),
             "source_object_cells": "1",
             "seurat_metadata_sha256": cls._sha256(seurat),
             "scvelo_metrics_sha256": cls._sha256(scvelo),
@@ -89,7 +101,7 @@ class ManagerFigure7CliTest(unittest.TestCase):
                 "scDblFinder.class,scDblFinder.score"
             ),
             "source_qc_policy": (
-                "Use the reviewed Seurat object as provided; SI Figure 4 "
+                "Use the reviewed Seurat object as provided; SI Figures 4-7 "
                 "applies no additional expression, mitochondrial, or doublet threshold."
             ),
             "figure7_config_sha256": cls._sha256(config),
@@ -100,7 +112,7 @@ class ManagerFigure7CliTest(unittest.TestCase):
             "key\tvalue\n"
             + "".join(f"{key}\t{value}\n" for key, value in values.items())
         )
-        return seurat, scvelo, provenance
+        return seurat, scvelo, provenance, all_ploidy, seurat_rds
 
     @staticmethod
     def _write_fake_full_workflow_rscript(path: Path) -> None:
@@ -162,7 +174,7 @@ config_sha="$(shasum -a 256 "$config" | awk '{print $1}')"
   printf 'inclusion_dose_levels\t0mg/kg,30mg/kg,120mg/kg\n'
   printf 'inclusion_required_nonmissing\tcell_id,UMAP_1,UMAP_2,sample_id,cluster_id,cluster_annotation,initial_ploidy,dose,cellcycle_classification\n'
   printf 'source_qc_fields\tnCount_RNA,nFeature_RNA,percent.mt,scDblFinder.class,scDblFinder.score\n'
-  printf 'source_qc_policy\tUse the reviewed Seurat object as provided; SI Figure 4 applies no additional expression, mitochondrial, or doublet threshold.\n'
+  printf 'source_qc_policy\tUse the reviewed Seurat object as provided; SI Figures 4-7 applies no additional expression, mitochondrial, or doublet threshold.\n'
   printf 'figure7_config_sha256\t%s\n' "$config_sha"
   printf 'export_script_sha256\t%s\n' "$(printf 'b%.0s' {1..64})"
   printf 'source_code_revision\t%s\n' "$(printf 'c%.0s' {1..40})"
@@ -219,25 +231,56 @@ done
         self.assertEqual(result.returncode, 2)
         self.assertIn("--source-run-id is required", result.stderr)
 
+    def test_figure7_state_pathway_sources_are_mutually_exclusive(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = self._run(
+                "--mode", "check-only",
+                "--modules", "in_vivo_figure7",
+                "--figure7-state-pathway-results-root", str(root),
+                "--figure7-state-pathway-reference-dir", str(root),
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("mutually exclusive", result.stderr)
+
+    def test_figure7_existing_reference_import_is_reported_in_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            reference = Path(tmp)
+            result = self._run(
+                "--dry-run",
+                "--mode", "standard",
+                "--modules", "in_vivo_figure7",
+                "--run-id", "reference_import",
+                "--figure7-state-pathway-reference-dir", str(reference),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("[in_vivo_figure7_reference_import]", result.stdout)
+            self.assertIn(str(reference.resolve()), result.stdout)
+
     def test_default_manuscript_modules_include_figure7(self) -> None:
         manager_text = (REPO_ROOT / "Manager.sh").read_text()
         default_line = next(
             line for line in manager_text.splitlines() if line.startswith('modules="')
         )
         self.assertIn("in_vivo_figure7", default_line)
-        self.assertIn("si_figure4", default_line)
-        self.assertLess(default_line.index("si_figure4"), default_line.index("in_vivo_figure7"))
+        self.assertIn("si_figures", default_line)
+        self.assertLess(default_line.index("in_vivo_figure7"), default_line.index("si_figures"))
 
-    def test_si_figure4_dry_run_prefers_published_input_bundle(self) -> None:
+    def test_si_figures_dry_run_prefers_published_input_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             data_root = tmp_path / "Data/in-vivo"
-            seurat, scvelo, provenance = self._write_si_figure4_input_bundle(data_root)
+            seurat, scvelo, provenance, all_ploidy, seurat_rds = (
+                self._write_si_figures_input_bundle(data_root)
+            )
             env = os.environ.copy()
             env["FIGURE7_DATA_ROOT"] = str(data_root)
             result = self._run(
-                "--dry-run", "--modules", "si_figure4", "--run-id", "si_published",
-                "--output-root", str(tmp_path / "Results"), env=env,
+                "--dry-run", "--modules", "si_figures", "--run-id", "si_published",
+                "--output-root", str(tmp_path / "Results"),
+                "--si-figures-all-ploidy", str(all_ploidy),
+                "--si-figures-seurat-rds", str(seurat_rds),
+                env=env,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn(f"--seurat-metadata {seurat.resolve()}", result.stdout)
@@ -246,23 +289,28 @@ done
                 f"--seurat-metadata-provenance {provenance.resolve()}",
                 result.stdout,
             )
-            self.assertNotIn("[si_figure4_input_prep]", result.stdout)
+            self.assertNotIn("[si_figures_input_prep]", result.stdout)
 
-    def test_si_figure4_dry_run_falls_back_to_intermediate_bundle(self) -> None:
+    def test_si_figures_dry_run_falls_back_to_intermediate_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             data_root = tmp_path / "Data/in-vivo"
             intermediate = tmp_path / "intermediates"
-            seurat, scvelo, provenance = self._write_si_figure4_input_bundle(intermediate)
+            seurat, scvelo, provenance, all_ploidy, seurat_rds = (
+                self._write_si_figures_input_bundle(intermediate)
+            )
             env = os.environ.copy()
             env["FIGURE7_DATA_ROOT"] = str(data_root)
             result = self._run(
-                "--dry-run", "--modules", "si_figure4", "--run-id", "si_intermediate",
+                "--dry-run", "--modules", "si_figures", "--run-id", "si_intermediate",
                 "--output-root", str(tmp_path / "Results"),
-                "--figure7-intermediate-dir", str(intermediate), env=env,
+                "--figure7-intermediate-dir", str(intermediate),
+                "--si-figures-all-ploidy", str(all_ploidy),
+                "--si-figures-seurat-rds", str(seurat_rds),
+                env=env,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("[si_figure4_input_publish]", result.stdout)
+            self.assertIn("[si_figures_input_publish]", result.stdout)
             self.assertIn(f"--seurat-metadata {seurat.resolve()}", result.stdout)
             self.assertIn(f"--scvelo-metrics {scvelo.resolve()}", result.stdout)
             self.assertIn(
@@ -271,20 +319,27 @@ done
             )
             self.assertFalse(data_root.exists())
 
-    def test_si_figure4_dry_run_plans_scvelo_bundle_generation_when_sources_absent(self) -> None:
+    def test_si_figures_dry_run_plans_scvelo_bundle_generation_when_sources_absent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             data_root = tmp_path / "Data/in-vivo"
             intermediate = tmp_path / "intermediates"
+            all_ploidy = tmp_path / "all_ploidy.tsv"
+            seurat_rds = tmp_path / "integrated_sct_cca_seurat_final_reclustered.rds"
+            all_ploidy.write_text("file\tcell_id\tploidy\nh1.sps.cbs\tb1\t2.1\n")
+            seurat_rds.write_bytes(b"fixture rds")
             env = os.environ.copy()
             env["FIGURE7_DATA_ROOT"] = str(data_root)
             result = self._run(
-                "--dry-run", "--modules", "si_figure4", "--run-id", "si_generate",
+                "--dry-run", "--modules", "si_figures", "--run-id", "si_generate",
                 "--output-root", str(tmp_path / "Results"),
-                "--figure7-intermediate-dir", str(intermediate), env=env,
+                "--figure7-intermediate-dir", str(intermediate),
+                "--si-figures-all-ploidy", str(all_ploidy),
+                "--si-figures-seurat-rds", str(seurat_rds),
+                env=env,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("[si_figure4_input_prep]", result.stdout)
+            self.assertIn("[si_figures_input_prep]", result.stdout)
             self.assertIn("--mode=prepare-scvelo-inputs", result.stdout)
             self.assertIn(str(intermediate.resolve() / "seurat_metadata.csv"), result.stdout)
             self.assertIn(str(intermediate.resolve() / "scvelo_cell_metrics.csv"), result.stdout)
@@ -294,6 +349,71 @@ done
             )
             self.assertFalse(data_root.exists())
             self.assertFalse(intermediate.exists())
+
+    def test_si_figures_dry_run_uses_explicit_complete_table_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            cache = tmp_path / "retry8_tables"
+            cache.mkdir()
+            create_valid_cache(cache)
+            env = os.environ.copy()
+            env["FIGURE7_DATA_ROOT"] = str(tmp_path / "Data/in-vivo")
+            env["SI_FIGURES_CANONICAL_TABLE_ROOT"] = str(
+                tmp_path / "Data/in-vivo/SIfigures"
+            )
+            result = self._run(
+                "--dry-run", "--modules", "si_figures", "--run-id", "si_cache",
+                "--output-root", str(tmp_path / "Results"),
+                "--si-figures-table-cache-dir", str(cache),
+                env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(f"--table-cache-dir {cache}", result.stdout)
+            self.assertNotIn("--mode=prepare-scvelo-inputs", result.stdout)
+
+    def test_si_figures_force_reanalysis_ignores_complete_table_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            cache = tmp_path / "retry8_tables"
+            cache.mkdir()
+            create_valid_cache(cache)
+            data_root = tmp_path / "Data/in-vivo"
+            seurat, scvelo, provenance, all_ploidy, seurat_rds = (
+                self._write_si_figures_input_bundle(data_root)
+            )
+            env = os.environ.copy()
+            env["FIGURE7_DATA_ROOT"] = str(data_root)
+            env["SI_FIGURES_CANONICAL_TABLE_ROOT"] = str(
+                tmp_path / "canonical/SIfigures"
+            )
+            result = self._run(
+                "--dry-run", "--modules", "si_figures", "--run-id", "si_force",
+                "--output-root", str(tmp_path / "Results"),
+                "--si-figures-table-cache-dir", str(cache),
+                "--si-figures-force-reanalysis",
+                "--si-figures-all-ploidy", str(all_ploidy),
+                "--si-figures-seurat-rds", str(seurat_rds),
+                env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("--force-reanalysis", result.stdout)
+            self.assertIn(f"--seurat-metadata {seurat.resolve()}", result.stdout)
+            self.assertIn(f"--scvelo-metrics {scvelo.resolve()}", result.stdout)
+            self.assertIn(
+                f"--seurat-metadata-provenance {provenance.resolve()}",
+                result.stdout,
+            )
+
+    def test_si_figures_force_reanalysis_rejects_deg_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._run(
+                "--dry-run",
+                "--modules", "si_figures",
+                "--si-figures-force-reanalysis",
+                "--si-figures-deg-cache-dir", tmp,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("mutually exclusive", result.stderr)
 
     def test_default_mode_runs_figure7_full_workflow(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -120,10 +120,13 @@ write_tsv_checked <- function(data, path) {
 }
 
 git_revision_local <- function(repo_root) {
-  result <- suppressWarnings(system2(
-    "git", c("-C", shQuote(repo_root), "rev-parse", "HEAD"),
-    stdout = TRUE, stderr = FALSE
-  ))
+  result <- tryCatch(
+    suppressWarnings(system2(
+      "git", c("-C", shQuote(repo_root), "rev-parse", "HEAD"),
+      stdout = TRUE, stderr = FALSE
+    )),
+    error = function(e) character(0)
+  )
   if (length(result) == 1L && grepl("^[0-9a-f]{40}$", result[[1L]])) result[[1L]] else "not_available"
 }
 
@@ -894,8 +897,8 @@ main <- function() {
   if (!file.exists(config_path)) stop("Missing Figure 7 config: ", config_path, call. = FALSE)
   require_package("yaml")
   config <- yaml::read_yaml(config_path)
-  si_config <- config$si_figure4
-  if (is.null(si_config)) stop("Figure 7 config is missing si_figure4", call. = FALSE)
+  si_config <- config$si_figures
+  if (is.null(si_config)) stop("Figure 7 config is missing si_figures", call. = FALSE)
 
   input_root_arg <- arg_value(args, "input_root", NULL)
   seurat_rds_arg <- arg_value(args, "seurat_rds", NULL)

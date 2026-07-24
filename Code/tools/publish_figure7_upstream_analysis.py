@@ -25,7 +25,7 @@ EXPECTED_COLUMNS = [
     "description",
 ]
 EXPECTED_DOCUMENTS = 11
-ALLOWED_MODULES = {"si_figure4", "in_vivo_figure7"}
+ALLOWED_MODULES = {"si_figures", "in_vivo_figure7"}
 
 
 def sha256_file(path: Path) -> str:

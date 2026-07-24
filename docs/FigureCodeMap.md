@@ -118,19 +118,16 @@ The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one 
 
 ## Supplementary Figures
 
-### Supplementary Figure 4: In-vivo tumor-cell landscape and cluster composition
+### Supplementary Figures 4-7: in-vivo landscape, ploidy, composition, and Hallmark programs
 
-The `si_figure4` module runs before `in_vivo_figure7` and writes an immutable source run under `Results/in-vivo/SI_figure4/runs/<run_id>_si_figure4/`. It consumes the published Figure 7 scVelo-stage three-file bundle (`seurat_metadata.csv`, `scvelo_cell_metrics.csv`, and `seurat_metadata_provenance.tsv`) under `Data/in-vivo/`, falling back only to a complete bundle in the configured Figure 7 intermediate directory. If neither bundle exists, Manager prepares, validates, and publishes all three inputs before plotting. The source run includes a canonical cell-level UMAP/metadata table, formal cluster annotation/order/color key, reconciled mouse/group composition tables, and source-object/reduction/clustering/QC provenance. The Seurat/loom upstream-analysis documents archived at Zenodo DOI `10.5281/zenodo.21463392` are published after each Manager run as a uniform offline index under `metadata/upstream_analysis/`. Panels A-F and the composite are emitted as PDF/PNG pairs; the strict materializer validates both their exact inventory and the full table/provenance contract before publishing them without renaming under `figures/Supplementary/` with `SuppFig4` panel IDs.
+The `si_figures` module runs after the Figure 7 prerequisites and writes one immutable source run under `Results/in-vivo/SI_figures/runs/<run_id>_si_figures/`. Its default plot-only path validates and consumes the exact 32-file cache under `Data/in-vivo/SIfigures/`, avoiding raw-Seurat loading and DEG/ORA/GSEA recomputation. If the cache is absent or `--si-figures-force-reanalysis` is supplied, it consumes the validated Figure 7 cell-level bundle (`seurat_metadata.csv`, `scvelo_cell_metrics.csv`, and optional provenance), `all_ploidy.tsv`, and the pinned raw Seurat RDS; Supplementary Figure 7 then independently performs cluster-versus-rest differential expression, Hallmark ORA, and Hallmark GSEA. The strict materializer requires the exact 27 logical panels as PDF/PNG pairs, validates the cell/ploidy joins, tables, hashes, and run configuration, and publishes the 54 assets without renaming under `figures/Supplementary/`. After a successful Manager run the 32 tables and a checksum manifest are also atomically published to `Data/in-vivo/SIfigures/`.
 
-| Panel | Content | Canonical source output |
+| Figure | Panels | Content |
 |---|---|---|
-| SuppFig4A | Tumor-cell UMAP by cluster | `figures/panel_SuppFig4A_umap_cluster.pdf` |
-| SuppFig4B | Tumor-cell UMAP by initial ploidy | `figures/panel_SuppFig4B_umap_initial_ploidy.pdf` |
-| SuppFig4C | Tumor-cell UMAP by treatment dose | `figures/panel_SuppFig4C_umap_treatment_dose.pdf` |
-| SuppFig4D | Shared UMAP faceted by mouse | `figures/panel_SuppFig4D_umap_mouse_facets.pdf` |
-| SuppFig4E | Cluster composition by mouse | `figures/panel_SuppFig4E_cluster_composition_by_mouse.pdf` |
-| SuppFig4F | Mouse-weighted cluster composition by ploidy and dose | `figures/panel_SuppFig4F_cluster_composition_by_ploidy_dose.pdf` |
-| SuppFig4 composite | Full Supplementary Figure 4 layout | `figures/panel_SuppFig4_composite.pdf` |
+| Supplementary Figure 4 | A-H plus composite | Tumor and CellLine UMAPs by cluster, initial ploidy, Tumor/CellLine context, and S-phase score; cluster-wise context and initial-ploidy proportions and counts |
+| Supplementary Figure 5 | A-I plus composite | Tumor UMAPs by cluster, initial ploidy, dose, S-phase score, and mouse; per-mouse, mouse-weighted, dose, and initial-ploidy composition |
+| Supplementary Figure 6 | A-D plus composite | Endpoint-ploidy UMAPs for all, initial-2N, and initial-4N tumors and mouse-faceted endpoint-ploidy UMAPs |
+| Supplementary Figure 7 | A-B plus composite | Top-20 Hallmark ORA annotation-score and Hallmark GSEA NES heatmaps reproduced from the raw Seurat RDS |
 
 ### Supplementary Figure: SI_GDSC_vs_ploidy_A
 

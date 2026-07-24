@@ -7,7 +7,7 @@ cd "${repo_root}"
 run_id="$(date +"%Y%m%dT%H%M%S_manuscript")"
 source_run_id=""
 mode="full-refit"
-modules="gdsc,ccle,drug_response,pkpd,metabolomics,si_figure4,in_vivo_figure7"
+modules="gdsc,ccle,drug_response,pkpd,metabolomics,in_vivo_figure7,si_figures"
 output_root="Results"
 figure_root="figures"
 module_registry="docs/manuscript_figure_module_registry.tsv"
@@ -47,14 +47,22 @@ figure7_seurat_rds=""
 figure7_gene_set_artifact=""
 figure7_reference_id="taoli_state_pathway_etp2_24_day17_v1"
 figure7_state_pathway_results_root=""
+figure7_state_pathway_reference_dir=""
 figure7_canonical_reference_root="${FIGURE7_CANONICAL_REFERENCE_ROOT:-Data/in-vivo/figure7/saved_state_pathway/${figure7_reference_id}}"
 figure7_reference_root="${figure7_canonical_reference_root}"
 figure7_data_root="${FIGURE7_DATA_ROOT:-Data/in-vivo}"
-si_figure4_seurat_metadata=""
-si_figure4_scvelo_metrics=""
-si_figure4_seurat_metadata_provenance=""
-si_figure4_input_source=""
-si_figure4_prep_run_dir=""
+si_figures_seurat_metadata=""
+si_figures_scvelo_metrics=""
+si_figures_seurat_metadata_provenance=""
+si_figures_all_ploidy="Data/in-vivo/all_ploidy.tsv"
+si_figures_seurat_rds="Data/in-vivo/figure7/raw/zenodo_21463392/integrated_sct_cca_seurat_final_reclustered.rds"
+si_figures_fgsea_nperm_simple="10000"
+si_figures_deg_cache_dir=""
+si_figures_force_reanalysis=false
+si_figures_canonical_table_root="${SI_FIGURES_CANONICAL_TABLE_ROOT:-Data/in-vivo/SIfigures}"
+si_figures_table_cache_dir="${SI_FIGURES_TABLE_CACHE_DIR:-${si_figures_canonical_table_root}}"
+si_figures_input_source=""
+si_figures_prep_run_dir=""
 skip_analysis_loop=false
 
 usage() {
@@ -89,7 +97,15 @@ Module options:
   --lci-panel-only
   --include-in-vivo
   --metabolomics-input PATH
-  Module name: si_figure4          Uses published Figure 7 scVelo/Seurat inputs, then run intermediates
+  Module name: si_figures          Generates Supplementary Figures 4-7 after Figure 7 prerequisites
+  --si-figures-all-ploidy PATH     Endpoint ploidy table (default: Data/in-vivo/all_ploidy.tsv)
+  --si-figures-seurat-rds PATH     Raw Seurat RDS used for standalone SI Figure 7
+  --si-figures-fgsea-nperm-simple N
+                                  fgseaMultilevel simple permutations (default: 10000)
+  --si-figures-deg-cache-dir PATH Reuse a complete validated SI Figure 7 per-cluster DEG cache
+  --si-figures-table-cache-dir PATH
+                                  Read a complete validated 32-table cache from PATH
+  --si-figures-force-reanalysis   Ignore the table cache and regenerate all 32 tables
   --figure7-full-analysis          Opt-in full pathway recomputation; requires both paths below
   --figure7-refresh-inputs         Run the end-to-end input workflow and publish validated CSVs to Data
   --figure7-intermediate-dir PATH  Isolated full-workflow intermediate directory
@@ -107,6 +123,8 @@ Module options:
   --figure7-gene-set-artifact PATH  Pinned, versioned local gene-set artifact
   --figure7-state-pathway-results-root PATH
                                   Export panel-7F reference from this completed state-pathway result tree
+  --figure7-state-pathway-reference-dir PATH
+                                  Import an existing validated eight-table panel-7F reference
 EOF
 }
 
@@ -136,6 +154,12 @@ while [[ $# -gt 0 ]]; do
     --lci-panel-only) lci_panel_only=true; shift ;;
     --include-in-vivo) include_in_vivo=true; shift ;;
     --metabolomics-input) metabolomics_input="$2"; shift 2 ;;
+    --si-figures-all-ploidy) si_figures_all_ploidy="$2"; shift 2 ;;
+    --si-figures-seurat-rds) si_figures_seurat_rds="$2"; shift 2 ;;
+    --si-figures-fgsea-nperm-simple) si_figures_fgsea_nperm_simple="$2"; shift 2 ;;
+    --si-figures-deg-cache-dir) si_figures_deg_cache_dir="$2"; shift 2 ;;
+    --si-figures-table-cache-dir) si_figures_table_cache_dir="$2"; shift 2 ;;
+    --si-figures-force-reanalysis) si_figures_force_reanalysis=true; shift ;;
     --figure7-full-analysis) figure7_full_analysis=true; shift ;;
     --figure7-refresh-inputs) figure7_refresh_inputs=true; shift ;;
     --figure7-intermediate-dir) figure7_intermediate_dir="$2"; shift 2 ;;
@@ -150,6 +174,7 @@ while [[ $# -gt 0 ]]; do
     --figure7-seurat-rds) figure7_seurat_rds="$2"; shift 2 ;;
     --figure7-gene-set-artifact) figure7_gene_set_artifact="$2"; shift 2 ;;
     --figure7-state-pathway-results-root) figure7_state_pathway_results_root="$2"; shift 2 ;;
+    --figure7-state-pathway-reference-dir) figure7_state_pathway_reference_dir="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -183,6 +208,10 @@ if [[ "${mode}" == "panels-only" && -z "${source_run_id}" ]]; then
 fi
 if [[ "${mode}" != "panels-only" && -n "${source_run_id}" ]]; then
   echo "--source-run-id is valid only with --mode panels-only" >&2
+  exit 2
+fi
+if [[ -n "${si_figures_deg_cache_dir}" && ! -d "${si_figures_deg_cache_dir}" ]]; then
+  echo "--si-figures-deg-cache-dir does not exist: ${si_figures_deg_cache_dir}" >&2
   exit 2
 fi
 if [[ "${figure7_full_analysis}" == true || -n "${figure7_seurat_rds}" || -n "${figure7_gene_set_artifact}" ]]; then
@@ -241,32 +270,47 @@ if [[ "${figure7_refresh_inputs}" == true && ",${modules}," != *",in_vivo_figure
   echo "--figure7-refresh-inputs requires --modules to include in_vivo_figure7" >&2
   exit 2
 fi
-si_figure4_selected=false
+si_figures_selected=false
 for module in "${module_list[@]}"; do
-  if [[ "${module}" == "si_figure4" ]]; then
-    si_figure4_selected=true
+  if [[ "${module}" == "si_figures" ]]; then
+    si_figures_selected=true
     break
   fi
 done
-if [[ "${si_figure4_selected}" == true ]]; then
+if [[ "${si_figures_selected}" == true ]]; then
   if [[ -z "${figure7_intermediate_dir}" ]]; then
     figure7_intermediate_dir="${output_root}/in-vivo/figure7/intermediates/${run_id}"
   fi
   figure7_intermediate_dir="$(
     python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_intermediate_dir}"
   )"
+  if [[ ! "${si_figures_fgsea_nperm_simple}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "--si-figures-fgsea-nperm-simple must be a positive integer" >&2
+    exit 2
+  fi
+  if [[ "${si_figures_force_reanalysis}" == true &&
+        -n "${si_figures_deg_cache_dir}" ]]; then
+    echo "--si-figures-force-reanalysis and --si-figures-deg-cache-dir are mutually exclusive" >&2
+    exit 2
+  fi
 fi
-if [[ -n "${figure7_state_pathway_results_root}" ]]; then
+if [[ -n "${figure7_state_pathway_results_root}" &&
+      -n "${figure7_state_pathway_reference_dir}" ]]; then
+  echo "--figure7-state-pathway-results-root and --figure7-state-pathway-reference-dir are mutually exclusive" >&2
+  exit 2
+fi
+if [[ -n "${figure7_state_pathway_results_root}" ||
+      -n "${figure7_state_pathway_reference_dir}" ]]; then
   if [[ "${mode}" == "panels-only" ]]; then
-    echo "--figure7-state-pathway-results-root cannot be used with --mode panels-only" >&2
+    echo "Figure 7 state-pathway source options cannot be used with --mode panels-only" >&2
     exit 2
   fi
   if [[ "${figure7_panels_ae_only}" == true ]]; then
-    echo "--figure7-state-pathway-results-root cannot be used with --figure7-panels-ae-only" >&2
+    echo "Figure 7 state-pathway source options cannot be used with --figure7-panels-ae-only" >&2
     exit 2
   fi
   if [[ "${figure7_refresh_inputs}" == true ]]; then
-    echo "--figure7-state-pathway-results-root cannot be used with --figure7-refresh-inputs" >&2
+    echo "Figure 7 state-pathway source options cannot be used with --figure7-refresh-inputs" >&2
     exit 2
   fi
   figure7_module_selected=false
@@ -277,15 +321,26 @@ if [[ -n "${figure7_state_pathway_results_root}" ]]; then
     fi
   done
   if [[ "${figure7_module_selected}" != true ]]; then
-    echo "--figure7-state-pathway-results-root requires --modules to include in_vivo_figure7" >&2
+    echo "Figure 7 state-pathway source options require --modules to include in_vivo_figure7" >&2
     exit 2
   fi
+fi
+if [[ -n "${figure7_state_pathway_results_root}" ]]; then
   if [[ ! -d "${figure7_state_pathway_results_root}" ]]; then
     echo "Missing Figure 7 state-pathway results directory: ${figure7_state_pathway_results_root}" >&2
     exit 1
   fi
   figure7_state_pathway_results_root="$(
     python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_state_pathway_results_root}"
+  )"
+fi
+if [[ -n "${figure7_state_pathway_reference_dir}" ]]; then
+  if [[ ! -d "${figure7_state_pathway_reference_dir}" ]]; then
+    echo "Missing Figure 7 state-pathway reference directory: ${figure7_state_pathway_reference_dir}" >&2
+    exit 1
+  fi
+  figure7_state_pathway_reference_dir="$(
+    python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_state_pathway_reference_dir}"
   )"
 fi
 
@@ -349,7 +404,7 @@ module_run_dir() {
     metabolomics_pathway) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics_pathway" "${output_root}" "${selected_run_id}" ;;
     metabolomics_zscore) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics_zscore" "${output_root}" "${selected_run_id}" ;;
     in_vivo) printf "%s/in-vivo/pseudotime_associations/runs/%s_in_vivo" "${output_root}" "${selected_run_id}" ;;
-    si_figure4) printf "%s/in-vivo/SI_figure4/runs/%s_si_figure4" "${output_root}" "${selected_run_id}" ;;
+    si_figures) printf "%s/in-vivo/SI_figures/runs/%s_si_figures" "${output_root}" "${selected_run_id}" ;;
     in_vivo_figure7) printf "%s/in-vivo/figure7/runs/%s_figure7" "${output_root}" "${selected_run_id}" ;;
     *) echo "Unknown module: ${module}" >&2; return 1 ;;
   esac
@@ -392,13 +447,27 @@ input_paths_for_module() {
       printf "%s\n" "${lci_analysis_dir}" ;;
     in_vivo)
       printf "%s\n" Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv ;;
-    si_figure4)
-      printf "%s\n" \
-        Code/in-vivo/figure7/figure7_config.yaml \
-        Code/in-vivo/figure7/zenodo_upstream_analysis_documents.tsv \
-        "${si_figure4_seurat_metadata}" \
-        "${si_figure4_scvelo_metrics}" \
-        "${si_figure4_seurat_metadata_provenance}" ;;
+    si_figures)
+      if [[ "${si_figures_input_source}" == "canonical_table_cache" ]]; then
+        printf "%s\n" \
+          Code/in-vivo/SI_figures/generate_supplementary_figures.R \
+          Code/in-vivo/figure7/figure7_config.yaml \
+          Code/in-vivo/figure7/zenodo_upstream_analysis_documents.tsv \
+          Code/tools/validate_si_figures_table_cache.py
+        find "${si_figures_table_cache_dir}" -maxdepth 1 -type f \
+          \( -name '*.csv' -o -name '*.tsv' \) ! -name manifest.tsv -print | sort
+      else
+        printf "%s\n" \
+          Code/in-vivo/SI_figures/generate_supplementary_figures.R \
+          Code/in-vivo/figure7/figure7_config.yaml \
+          Code/in-vivo/figure7/zenodo_upstream_analysis_documents.tsv \
+          Code/tools/validate_si_figures_table_cache.py \
+          "${si_figures_seurat_metadata}" \
+          "${si_figures_scvelo_metrics}" \
+          "${si_figures_seurat_metadata_provenance}" \
+          "${si_figures_all_ploidy}" \
+          "${si_figures_seurat_rds}"
+      fi ;;
     in_vivo_figure7)
       printf "%s\n" Code/in-vivo/figure7/zenodo_upstream_analysis_documents.tsv
       if [[ "${figure7_refresh_inputs}" == true ]]; then
@@ -413,7 +482,10 @@ input_paths_for_module() {
           Code/in-vivo/figure7/figure7_config.yaml \
           Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
           Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
-        if [[ "${figure7_panels_ae_only}" != true && ( -z "${figure7_state_pathway_results_root}" || -d "${figure7_reference_root}" ) ]]; then
+        if [[ "${figure7_panels_ae_only}" != true &&
+              ( ( -z "${figure7_state_pathway_results_root}" &&
+                  -z "${figure7_state_pathway_reference_dir}" ) ||
+                -d "${figure7_reference_root}" ) ]]; then
           printf "%s\n" \
             "${figure7_reference_root}/panel_7F_pathway_activity_plot_data.tsv" \
             "${figure7_reference_root}/panel_7F_selected_pathway_gsea.tsv" \
@@ -435,16 +507,24 @@ input_paths_for_module() {
 check_module_inputs() {
   local module="$1"
   local path
-  if [[ "${module}" == "si_figure4" && "${si_figure4_input_source}" == "planned_figure7_scvelo_generation" ]]; then
-    require_file Code/in-vivo/SI_figure4/generate_supplementary_figure4.R
+  if [[ "${module}" == "si_figures" && "${si_figures_input_source}" == "planned_figure7_scvelo_generation" ]]; then
+    require_file Code/in-vivo/SI_figures/generate_supplementary_figures.R
     require_file Code/in-vivo/figure7/run_figure7.R
     require_file Code/in-vivo/figure7/figure7_config.yaml
     require_file Code/in-vivo/figure7/zenodo_required_files.tsv
+    require_file "${si_figures_all_ploidy}"
+    require_file "${si_figures_seurat_rds}"
     return 0
   fi
-  if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
-    require_dir "${figure7_state_pathway_results_root}"
-    require_file Code/in-vivo/figure7/export_state_pathway_reference.R
+  if [[ "${module}" == "in_vivo_figure7" &&
+        ( -n "${figure7_state_pathway_results_root}" ||
+          -n "${figure7_state_pathway_reference_dir}" ) ]]; then
+    if [[ -n "${figure7_state_pathway_results_root}" ]]; then
+      require_dir "${figure7_state_pathway_results_root}"
+      require_file Code/in-vivo/figure7/export_state_pathway_reference.R
+    else
+      require_dir "${figure7_state_pathway_reference_dir}"
+    fi
   fi
   while IFS= read -r path; do
     [[ -z "${path}" ]] && continue
@@ -529,13 +609,26 @@ command_for_module() {
         --input Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
         --output-dir "${run_dir}"
       ;;
-    si_figure4)
-      quote_args Rscript Code/in-vivo/SI_figure4/generate_supplementary_figure4.R \
-        --seurat-metadata "${si_figure4_seurat_metadata}" \
-        --scvelo-metrics "${si_figure4_scvelo_metrics}" \
-        --seurat-metadata-provenance "${si_figure4_seurat_metadata_provenance}" \
-        --config Code/in-vivo/figure7/figure7_config.yaml \
+    si_figures)
+      local si_figures_args=(
+        Rscript Code/in-vivo/SI_figures/generate_supplementary_figures.R
+        --seurat-metadata "${si_figures_seurat_metadata}"
+        --scvelo-metrics "${si_figures_scvelo_metrics}"
+        --seurat-metadata-provenance "${si_figures_seurat_metadata_provenance}"
+        --all-ploidy "${si_figures_all_ploidy}"
+        --seurat-rds "${si_figures_seurat_rds}"
+        --fgsea-nperm-simple "${si_figures_fgsea_nperm_simple}"
+        --table-cache-dir "${si_figures_table_cache_dir}"
+        --config Code/in-vivo/figure7/figure7_config.yaml
         --output-dir "${run_dir}"
+      )
+      if [[ "${si_figures_force_reanalysis}" == true ]]; then
+        si_figures_args+=(--force-reanalysis)
+      fi
+      if [[ -n "${si_figures_deg_cache_dir}" ]]; then
+        si_figures_args+=(--deg-cache-dir "${si_figures_deg_cache_dir}")
+      fi
+      quote_args "${si_figures_args[@]}"
       ;;
     in_vivo_figure7)
       local figure7_mode="standard"
@@ -652,8 +745,61 @@ record_figure7_reference_export() {
   } > "${metadata_path}"
 }
 
+record_figure7_reference_import() {
+  local status="$1" started_at="$2" finished_at="$3"
+  local metadata_path="${manager_run_dir}/metadata/figure7_state_pathway_export.tsv"
+  mkdir -p "$(dirname "${metadata_path}")"
+  {
+    printf "key\tvalue\n"
+    printf "status\t%s\n" "${status}"
+    printf "source_mode\texisting_reference\n"
+    printf "source_reference_dir\t%s\n" "${figure7_state_pathway_reference_dir}"
+    printf "canonical_reference_id\t%s\n" "${figure7_reference_id}"
+    printf "exported_reference_dir\t%s\n" "${figure7_reference_root}"
+    printf "canonical_data_reference_dir\t%s\n" "${figure7_canonical_reference_root}"
+    printf "canonical_data_materialization_metadata\t%s\n" "${manager_run_dir}/metadata/figure7_state_pathway_materialization.tsv"
+    printf "materialized_file_count\t8\n"
+    printf "started_at\t%s\n" "${started_at}"
+    printf "finished_at\t%s\n" "${finished_at}"
+  } > "${metadata_path}"
+}
+
+import_figure7_existing_reference() {
+  local filename source_path target_path started_at finished_at
+  local imported_count=0
+  started_at="$(date -Iseconds)"
+  if [[ -e "${figure7_reference_root}" ]]; then
+    echo "Manager Figure 7 reference staging directory already exists: ${figure7_reference_root}" >&2
+    return 1
+  fi
+  mkdir -p "${figure7_reference_root}"
+  while IFS= read -r filename; do
+    [[ -z "${filename}" ]] && continue
+    source_path="${figure7_state_pathway_reference_dir}/${filename}"
+    target_path="${figure7_reference_root}/${filename}"
+    require_file "${source_path}" || return 1
+    cp "${source_path}" "${target_path}"
+    if ! cmp -s "${source_path}" "${target_path}"; then
+      echo "Imported Figure 7 reference does not match source: ${filename}" >&2
+      return 1
+    fi
+    imported_count=$((imported_count + 1))
+  done < <(figure7_reference_filenames)
+  finished_at="$(date -Iseconds)"
+  if [[ "${imported_count}" -ne 8 ]]; then
+    record_figure7_reference_import "failed" "${started_at}" "${finished_at}"
+    echo "Expected to import 8 Figure 7 reference files; found ${imported_count}" >&2
+    return 1
+  fi
+  record_figure7_reference_import "ok" "${started_at}" "${finished_at}"
+}
+
 prepare_figure7_reference() {
   local command_string stdout_log stderr_log started_at finished_at status
+  if [[ -n "${figure7_state_pathway_reference_dir}" ]]; then
+    import_figure7_existing_reference
+    return $?
+  fi
   command_string="$(figure7_reference_export_command)"
   stdout_log="${manager_run_dir}/logs/figure7_state_pathway_export.stdout.log"
   stderr_log="${manager_run_dir}/logs/figure7_state_pathway_export.stderr.log"
@@ -727,6 +873,79 @@ materialize_figure7_reference_to_data() {
   fi
 }
 
+record_si_figures_table_materialization() {
+  local status="$1"
+  local source_table_dir="$2"
+  local started_at="$3"
+  local finished_at="$4"
+  local metadata_path="${manager_run_dir}/metadata/si_figures_table_materialization.tsv"
+  {
+    printf "key\tvalue\n"
+    printf "status\t%s\n" "${status}"
+    printf "source_table_dir\t%s\n" "${source_table_dir}"
+    printf "target_table_dir\t%s\n" "${si_figures_canonical_table_root}"
+    printf "materialized_file_count\t32\n"
+    printf "manifest\t%s\n" "${si_figures_canonical_table_root}/manifest.tsv"
+    printf "force_reanalysis\t%s\n" "${si_figures_force_reanalysis}"
+    printf "started_at\t%s\n" "${started_at}"
+    printf "finished_at\t%s\n" "${finished_at}"
+  } > "${metadata_path}"
+}
+
+materialize_si_figures_tables_to_data() {
+  local source_run_dir="$1"
+  local source_table_dir="${source_run_dir}/tables"
+  local target_real parent_dir target_name stage_dir backup_dir path
+  local source_run_name
+  require_dir "${source_table_dir}" || return 1
+  python3 Code/tools/validate_si_figures_table_cache.py \
+    --cache-dir "${source_table_dir}" || return 1
+
+  target_real="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${si_figures_canonical_table_root}")"
+  parent_dir="$(dirname "${target_real}")"
+  target_name="$(basename "${target_real}")"
+  stage_dir="${parent_dir}/.${target_name}.tmp.${run_id}"
+  backup_dir="${manager_run_dir}/artifacts/preexisting_si_figures_table_cache"
+  source_run_name="$(basename "${source_run_dir}")"
+  if [[ -e "${stage_dir}" ]]; then
+    rm -rf "${stage_dir}"
+  fi
+  mkdir -p "${stage_dir}"
+  while IFS= read -r path; do
+    cp "${path}" "${stage_dir}/$(basename "${path}")"
+  done < <(
+    find "${source_table_dir}" -maxdepth 1 -type f \
+      \( -name '*.csv' -o -name '*.tsv' \) ! -name manifest.tsv -print | sort
+  )
+  python3 Code/tools/validate_si_figures_table_cache.py \
+    --cache-dir "${stage_dir}" \
+    --write-manifest "${stage_dir}/manifest.tsv" \
+    --source-run "${source_run_name}" || return 1
+
+  mkdir -p "${parent_dir}"
+  if [[ -e "${target_real}" ]]; then
+    if [[ -e "${backup_dir}" ]]; then
+      rm -rf "${backup_dir}"
+    fi
+    mkdir -p "$(dirname "${backup_dir}")"
+    mv "${target_real}" "${backup_dir}"
+  fi
+  if ! mv "${stage_dir}" "${target_real}"; then
+    if [[ -e "${backup_dir}" && ! -e "${target_real}" ]]; then
+      mv "${backup_dir}" "${target_real}"
+    fi
+    return 1
+  fi
+  if ! python3 Code/tools/validate_si_figures_table_cache.py \
+    --cache-dir "${target_real}"; then
+    rm -rf "${target_real}"
+    if [[ -e "${backup_dir}" ]]; then
+      mv "${backup_dir}" "${target_real}"
+    fi
+    return 1
+  fi
+}
+
 figure7_input_materialized_count=0
 figure7_input_source_scvelo=""
 figure7_input_source_seurat_metadata=""
@@ -744,15 +963,17 @@ figure7_input_sha_seurat_metadata_provenance=""
 figure7_input_sha_cellcycle=""
 figure7_input_sha_noncellcycle=""
 
-si_figure4_validate_input_pair() {
-  python3 Code/tools/validate_si_figure4_inputs.py \
+si_figures_validate_input_pair() {
+  python3 Code/tools/validate_si_figures_inputs.py \
     --seurat-metadata "$1" \
     --scvelo-metrics "$2" \
     --seurat-metadata-provenance "$3" \
+    --all-ploidy "${si_figures_all_ploidy}" \
+    --seurat-rds "${si_figures_seurat_rds}" \
     --config Code/in-vivo/figure7/figure7_config.yaml
 }
 
-record_si_figure4_input_materialization() {
+record_si_figures_input_materialization() {
   local status="$1"
   local source_seurat="$2"
   local source_scvelo="$3"
@@ -760,31 +981,35 @@ record_si_figure4_input_materialization() {
   local target_seurat="$5"
   local target_scvelo="$6"
   local target_provenance="$7"
-  local metadata_path="${manager_run_dir}/metadata/si_figure4_input_materialization.tsv"
+  local metadata_path="${manager_run_dir}/metadata/si_figures_input_materialization.tsv"
   {
     printf "key\tvalue\n"
     printf "status\t%s\n" "${status}"
-    printf "input_source\t%s\n" "${si_figure4_input_source}"
+    printf "input_source\t%s\n" "${si_figures_input_source}"
     printf "source_seurat_metadata\t%s\n" "${source_seurat}"
     printf "source_scvelo_metrics\t%s\n" "${source_scvelo}"
     printf "source_seurat_metadata_provenance\t%s\n" "${source_provenance}"
+    printf "source_all_ploidy\t%s\n" "${si_figures_all_ploidy}"
+    printf "source_seurat_rds\t%s\n" "${si_figures_seurat_rds}"
     printf "target_seurat_metadata\t%s\n" "${target_seurat}"
     printf "target_scvelo_metrics\t%s\n" "${target_scvelo}"
     printf "target_seurat_metadata_provenance\t%s\n" "${target_provenance}"
     printf "seurat_metadata_sha256\t%s\n" "$(shasum -a 256 "${target_seurat}" | awk '{print $1}')"
     printf "scvelo_metrics_sha256\t%s\n" "$(shasum -a 256 "${target_scvelo}" | awk '{print $1}')"
     printf "seurat_metadata_provenance_sha256\t%s\n" "$(shasum -a 256 "${target_provenance}" | awk '{print $1}')"
+    printf "all_ploidy_sha256\t%s\n" "$(shasum -a 256 "${si_figures_all_ploidy}" | awk '{print $1}')"
+    printf "seurat_rds_sha256\t%s\n" "$(shasum -a 256 "${si_figures_seurat_rds}" | awk '{print $1}')"
     printf "materialized_at\t%s\n" "$(date -Iseconds)"
   } > "${metadata_path}"
 }
 
-publish_si_figure4_input_pair() {
+publish_si_figures_input_pair() {
   local source_seurat="$1"
   local source_scvelo="$2"
   local source_provenance="$3"
   local data_root_real target_seurat target_scvelo target_provenance
   local temp_seurat temp_scvelo temp_provenance
-  si_figure4_validate_input_pair "${source_seurat}" "${source_scvelo}" "${source_provenance}"
+  si_figures_validate_input_pair "${source_seurat}" "${source_scvelo}" "${source_provenance}"
   data_root_real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_data_root}")"
   target_seurat="${data_root_real}/seurat_metadata.csv"
   target_scvelo="${data_root_real}/scvelo_cell_metrics.csv"
@@ -805,15 +1030,15 @@ publish_si_figure4_input_pair() {
   cmp -s "${source_seurat}" "${target_seurat}"
   cmp -s "${source_scvelo}" "${target_scvelo}"
   cmp -s "${source_provenance}" "${target_provenance}"
-  record_si_figure4_input_materialization \
+  record_si_figures_input_materialization \
     "ok" "${source_seurat}" "${source_scvelo}" "${source_provenance}" \
     "${target_seurat}" "${target_scvelo}" "${target_provenance}"
-  si_figure4_seurat_metadata="${target_seurat}"
-  si_figure4_scvelo_metrics="${target_scvelo}"
-  si_figure4_seurat_metadata_provenance="${target_provenance}"
+  si_figures_seurat_metadata="${target_seurat}"
+  si_figures_scvelo_metrics="${target_scvelo}"
+  si_figures_seurat_metadata_provenance="${target_provenance}"
 }
 
-si_figure4_input_prep_command() {
+si_figures_input_prep_command() {
   local intermediate_seurat="$1"
   local intermediate_scvelo="$2"
   local intermediate_provenance="$3"
@@ -825,7 +1050,7 @@ si_figure4_input_prep_command() {
     "--seurat-metadata-output=${intermediate_seurat}"
     "--scvelo-metrics=${intermediate_scvelo}"
     "--seurat-metadata-provenance-output=${intermediate_provenance}"
-    "--output-dir=${si_figure4_prep_run_dir}"
+    "--output-dir=${si_figures_prep_run_dir}"
   )
   if [[ -n "${figure7_python}" ]]; then
     args+=("--python=${figure7_python}")
@@ -836,10 +1061,20 @@ si_figure4_input_prep_command() {
   quote_args "${args[@]}"
 }
 
-resolve_si_figure4_inputs() {
+resolve_si_figures_inputs() {
   local data_root_real published_seurat published_scvelo published_provenance
   local intermediate_seurat intermediate_scvelo intermediate_provenance
   local published_count=0 intermediate_count=0 prep_command
+  if [[ "${si_figures_force_reanalysis}" != true &&
+        -d "${si_figures_table_cache_dir}" ]]; then
+    if python3 Code/tools/validate_si_figures_table_cache.py \
+      --cache-dir "${si_figures_table_cache_dir}"; then
+      si_figures_input_source="canonical_table_cache"
+      return 0
+    fi
+    printf "[si_figures_table_cache] Cache is incomplete or invalid; continuing with full reanalysis: %s\n" \
+      "${si_figures_table_cache_dir}" >&2
+  fi
   data_root_real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_data_root}")"
   published_seurat="${data_root_real}/seurat_metadata.csv"
   published_scvelo="${data_root_real}/scvelo_cell_metrics.csv"
@@ -855,52 +1090,55 @@ resolve_si_figure4_inputs() {
   [[ -f "${intermediate_provenance}" ]] && intermediate_count=$((intermediate_count + 1))
 
   if [[ "${published_count}" -eq 3 ]]; then
-    si_figure4_validate_input_pair "${published_seurat}" "${published_scvelo}" "${published_provenance}"
-    si_figure4_seurat_metadata="${published_seurat}"
-    si_figure4_scvelo_metrics="${published_scvelo}"
-    si_figure4_seurat_metadata_provenance="${published_provenance}"
-    si_figure4_input_source="published_data"
-    return 0
+    if si_figures_validate_input_pair \
+      "${published_seurat}" "${published_scvelo}" "${published_provenance}"; then
+      si_figures_seurat_metadata="${published_seurat}"
+      si_figures_scvelo_metrics="${published_scvelo}"
+      si_figures_seurat_metadata_provenance="${published_provenance}"
+      si_figures_input_source="published_data"
+      return 0
+    fi
+    printf "[si_figures_input_refresh] Published Figure 7 inputs failed current validation; regenerating them.\n" >&2
   fi
   if [[ "${intermediate_count}" -eq 3 ]]; then
-    si_figure4_input_source="existing_figure7_intermediate"
+    si_figures_input_source="existing_figure7_intermediate"
     if [[ "${dry_run}" == true || "${mode}" == "check-only" ]]; then
-      si_figure4_validate_input_pair "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}"
-      si_figure4_seurat_metadata="${intermediate_seurat}"
-      si_figure4_scvelo_metrics="${intermediate_scvelo}"
-      si_figure4_seurat_metadata_provenance="${intermediate_provenance}"
-      printf "[si_figure4_input_publish] %s -> %s\n" "${figure7_intermediate_dir}" "${data_root_real}"
+      si_figures_validate_input_pair "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}"
+      si_figures_seurat_metadata="${intermediate_seurat}"
+      si_figures_scvelo_metrics="${intermediate_scvelo}"
+      si_figures_seurat_metadata_provenance="${intermediate_provenance}"
+      printf "[si_figures_input_publish] %s -> %s\n" "${figure7_intermediate_dir}" "${data_root_real}"
     else
-      publish_si_figure4_input_pair "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}"
+      publish_si_figures_input_pair "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}"
     fi
     return 0
   fi
 
-  si_figure4_input_source="planned_figure7_scvelo_generation"
-  si_figure4_prep_run_dir="${output_root}/in-vivo/figure7/input-prep/runs/${run_id}_scvelo_inputs"
-  si_figure4_seurat_metadata="${intermediate_seurat}"
-  si_figure4_scvelo_metrics="${intermediate_scvelo}"
-  si_figure4_seurat_metadata_provenance="${intermediate_provenance}"
+  si_figures_input_source="planned_figure7_scvelo_generation"
+  si_figures_prep_run_dir="${output_root}/in-vivo/figure7/input-prep/runs/${run_id}_scvelo_inputs"
+  si_figures_seurat_metadata="${intermediate_seurat}"
+  si_figures_scvelo_metrics="${intermediate_scvelo}"
+  si_figures_seurat_metadata_provenance="${intermediate_provenance}"
   if [[ "${published_count}" -gt 0 || "${intermediate_count}" -gt 0 ]]; then
     figure7_overwrite_intermediates=true
   fi
-  prep_command="$(si_figure4_input_prep_command \
+  prep_command="$(si_figures_input_prep_command \
     "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}")"
   if [[ "${dry_run}" == true || "${mode}" == "check-only" ]]; then
-    printf "[si_figure4_input_prep] %s\n" "${prep_command}"
+    printf "[si_figures_input_prep] %s\n" "${prep_command}"
     return 0
   fi
-  if [[ -e "${si_figure4_prep_run_dir}" && "${overwrite}" != true ]]; then
-    echo "SI Figure 4 input-prep run exists; use --overwrite: ${si_figure4_prep_run_dir}" >&2
+  if [[ -e "${si_figures_prep_run_dir}" && "${overwrite}" != true ]]; then
+    echo "SI Figures 4-7 input-prep run exists; use --overwrite: ${si_figures_prep_run_dir}" >&2
     return 1
   fi
-  if [[ -e "${si_figure4_prep_run_dir}" && "${overwrite}" == true ]]; then
-    rm -rf "${si_figure4_prep_run_dir}"
+  if [[ -e "${si_figures_prep_run_dir}" && "${overwrite}" == true ]]; then
+    rm -rf "${si_figures_prep_run_dir}"
   fi
   bash -c "${prep_command}"
-  si_figure4_validate_input_pair "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}"
-  si_figure4_input_source="generated_figure7_scvelo_intermediate"
-  publish_si_figure4_input_pair "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}"
+  si_figures_validate_input_pair "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}"
+  si_figures_input_source="generated_figure7_scvelo_intermediate"
+  publish_si_figures_input_pair "${intermediate_seurat}" "${intermediate_scvelo}" "${intermediate_provenance}"
 }
 
 figure7_run_config_value() {
@@ -1056,8 +1294,9 @@ materialize_figure7_generated_inputs() {
     )
   fi
 
-  if [[ ",${executed_stages}," == *",scvelo_metrics,"* ]]; then
-    si_figure4_validate_input_pair "${sources[1]}" "${sources[0]}" "${sources[2]}" || return 1
+  if [[ "${si_figures_selected}" == true &&
+        ",${executed_stages}," == *",scvelo_metrics,"* ]]; then
+    si_figures_validate_input_pair "${sources[1]}" "${sources[0]}" "${sources[2]}" || return 1
   fi
 
   figure7_input_materialized_count=0
@@ -1135,10 +1374,11 @@ materialize_figure7_generated_inputs() {
         ;;
     esac
   done
-  if [[ -n "${figure7_input_target_scvelo}" &&
+  if [[ "${si_figures_selected}" == true &&
+        -n "${figure7_input_target_scvelo}" &&
         -n "${figure7_input_target_seurat_metadata}" &&
         -n "${figure7_input_target_seurat_metadata_provenance}" ]]; then
-    si_figure4_validate_input_pair \
+    si_figures_validate_input_pair \
       "${figure7_input_target_seurat_metadata}" \
       "${figure7_input_target_scvelo}" \
       "${figure7_input_target_seurat_metadata_provenance}"
@@ -1152,15 +1392,22 @@ run_module() {
   local module_notes=""
   if [[ "${module}" == "in_vivo_figure7" ]]; then
     module_notes="tgi_day=${figure7_tgi_day};figure_name=${figure7_figure_name}"
-  elif [[ "${module}" == "si_figure4" ]]; then
-    module_notes="input_source=${si_figure4_input_source}"
+  elif [[ "${module}" == "si_figures" ]]; then
+    module_notes="input_source=${si_figures_input_source}"
   fi
 
   check_module_inputs "${module}"
 
   if [[ "${dry_run}" == true || "${mode}" == "check-only" ]]; then
-    if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
-      printf "[in_vivo_figure7_export] %s\n" "$(figure7_reference_export_command)"
+    if [[ "${module}" == "in_vivo_figure7" &&
+          ( -n "${figure7_state_pathway_results_root}" ||
+            -n "${figure7_state_pathway_reference_dir}" ) ]]; then
+      if [[ -n "${figure7_state_pathway_results_root}" ]]; then
+        printf "[in_vivo_figure7_export] %s\n" "$(figure7_reference_export_command)"
+      else
+        printf "[in_vivo_figure7_reference_import] %s -> %s\n" \
+          "${figure7_state_pathway_reference_dir}" "${figure7_reference_root}"
+      fi
     fi
     printf "[%s] %s\n" "${module}" "${command_string}"
     return 0
@@ -1175,7 +1422,9 @@ run_module() {
   fi
   mkdir -p "${run_dir}/metadata" "${run_dir}/logs"
 
-  if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
+  if [[ "${module}" == "in_vivo_figure7" &&
+        ( -n "${figure7_state_pathway_results_root}" ||
+          -n "${figure7_state_pathway_reference_dir}" ) ]]; then
     if ! prepare_figure7_reference; then
       local export_finished_at
       export_finished_at="$(date -Iseconds)"
@@ -1183,13 +1432,13 @@ run_module() {
         "${module}" "failed" "${command_string}" "${run_dir}" \
         "${manager_run_dir}/logs/figure7_state_pathway_export.stdout.log" \
         "${manager_run_dir}/logs/figure7_state_pathway_export.stderr.log" \
-        "state_pathway_export_failed;state_pathway_source_results_root=${figure7_state_pathway_results_root}" \
+        "state_pathway_reference_preparation_failed;state_pathway_source_results_root=${figure7_state_pathway_results_root};state_pathway_source_reference_dir=${figure7_state_pathway_reference_dir}" \
         "${export_finished_at}" "${export_finished_at}"
-      echo "Figure 7 state-pathway export failed; see ${manager_run_dir}/logs/figure7_state_pathway_export.stderr.log" >&2
+      echo "Figure 7 state-pathway reference preparation failed" >&2
       return 1
     fi
     check_module_inputs "${module}"
-    module_notes="${module_notes};state_pathway_source_results_root=${figure7_state_pathway_results_root};state_pathway_reference_dir=${figure7_reference_root}"
+    module_notes="${module_notes};state_pathway_source_results_root=${figure7_state_pathway_results_root};state_pathway_source_reference_dir=${figure7_state_pathway_reference_dir};state_pathway_reference_dir=${figure7_reference_root}"
   fi
 
   local stdout_log="${run_dir}/logs/stdout.log"
@@ -1209,7 +1458,7 @@ run_module() {
     return "${status}"
   fi
 
-  if [[ "${module}" == "si_figure4" || "${module}" == "in_vivo_figure7" ]]; then
+  if [[ "${module}" == "si_figures" || "${module}" == "in_vivo_figure7" ]]; then
     python3 Code/tools/publish_figure7_upstream_analysis.py \
       --module "${module}" \
       --source-manifest Code/in-vivo/figure7/zenodo_upstream_analysis_documents.tsv \
@@ -1238,6 +1487,7 @@ run_module() {
     python3 Code/tools/write_file_manifest.py \
       --manifest-type input \
       --module "${module}" \
+      --repo-root "${repo_root}" \
       --output "${run_dir}/metadata/input_manifest.tsv" \
       --generated-by Manager.sh \
       --command-id "${run_id}" \
@@ -1247,6 +1497,7 @@ run_module() {
   python3 Code/tools/write_file_manifest.py \
     --manifest-type output \
     --module "${module}" \
+    --repo-root "${repo_root}" \
     --output "${run_dir}/metadata/output_manifest.tsv" \
     --generated-by Manager.sh \
     --command-id "${run_id}" \
@@ -1278,7 +1529,9 @@ run_module() {
     finished_at="${input_materialization_finished_at}"
   fi
 
-  if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
+  if [[ "${module}" == "in_vivo_figure7" &&
+        ( -n "${figure7_state_pathway_results_root}" ||
+          -n "${figure7_state_pathway_reference_dir}" ) ]]; then
     local materialization_started_at materialization_finished_at
     materialization_started_at="$(date -Iseconds)"
     if ! materialize_figure7_reference_to_data; then
@@ -1298,6 +1551,30 @@ run_module() {
     finished_at="${materialization_finished_at}"
   fi
 
+  if [[ "${module}" == "si_figures" ]]; then
+    local table_materialization_started_at table_materialization_finished_at
+    table_materialization_started_at="$(date -Iseconds)"
+    if ! materialize_si_figures_tables_to_data "${run_dir}"; then
+      table_materialization_finished_at="$(date -Iseconds)"
+      record_si_figures_table_materialization \
+        "failed" "${run_dir}/tables" \
+        "${table_materialization_started_at}" "${table_materialization_finished_at}"
+      finished_at="${table_materialization_finished_at}"
+      record_module_run \
+        "${module}" "failed" "${command_string}" "${run_dir}" "${stdout_log}" "${stderr_log}" \
+        "table_materialization_failed;${module_notes};si_figures_canonical_table_root=${si_figures_canonical_table_root}" \
+        "${started_at}" "${finished_at}"
+      echo "SI Figures canonical table materialization failed: ${si_figures_canonical_table_root}" >&2
+      return 1
+    fi
+    table_materialization_finished_at="$(date -Iseconds)"
+    record_si_figures_table_materialization \
+      "ok" "${run_dir}/tables" \
+      "${table_materialization_started_at}" "${table_materialization_finished_at}"
+    module_notes="${module_notes};si_figures_canonical_table_root=${si_figures_canonical_table_root};si_figures_table_files=32"
+    finished_at="${table_materialization_finished_at}"
+  fi
+
   if [[ "${no_update_latest}" != true ]]; then
     write_latest "${module}" "${run_dir}" "${command_string}"
   fi
@@ -1306,7 +1583,8 @@ run_module() {
 
 manager_run_dir="${output_root}/manager/runs/${run_id}"
 module_runs_file="${manager_run_dir}/metadata/module_runs.tsv"
-if [[ -n "${figure7_state_pathway_results_root}" ]]; then
+if [[ -n "${figure7_state_pathway_results_root}" ||
+      -n "${figure7_state_pathway_reference_dir}" ]]; then
   figure7_reference_root="${manager_run_dir}/artifacts/figure7_state_pathway_reference/${figure7_reference_id}"
 fi
 
@@ -1338,7 +1616,7 @@ add_completed_run() {
 if [[ "${mode}" == "panels-only" ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
-      gdsc|ccle|drug_response|pkpd|in_vivo|si_figure4|in_vivo_figure7)
+      gdsc|ccle|drug_response|pkpd|in_vivo|si_figures|in_vivo_figure7)
         run_dir="$(module_run_dir "${module}" "${source_run_id}")"
         [[ -d "${run_dir}" ]] || { echo "Missing panels-only source run: ${run_dir}" >&2; exit 1; }
         add_completed_run "${module}" "${run_dir}"
@@ -1372,7 +1650,7 @@ fi
 if [[ "${skip_analysis_loop}" != true ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
-      gdsc|ccle|drug_response|pkpd|metabolomics|lci_overlays|in_vivo|si_figure4|in_vivo_figure7) ;;
+      gdsc|ccle|drug_response|pkpd|metabolomics|lci_overlays|in_vivo|si_figures|in_vivo_figure7) ;;
       *) echo "Unknown module in --modules: ${module}" >&2; exit 2 ;;
     esac
     if [[ "${module}" == "lci_overlays" && -z "${lci_analysis_dir}" ]]; then
@@ -1384,8 +1662,8 @@ if [[ "${skip_analysis_loop}" != true ]]; then
       continue
     fi
 
-    if [[ "${module}" == "si_figure4" ]]; then
-      resolve_si_figure4_inputs
+    if [[ "${module}" == "si_figures" ]]; then
+      resolve_si_figures_inputs
     fi
 
     if [[ "${module}" == "pkpd" && ( "${mode}" == "full-refit" || "${pkpd_refit}" == true ) ]]; then
@@ -1401,6 +1679,7 @@ if [[ "${skip_analysis_loop}" != true ]]; then
         python3 Code/tools/write_file_manifest.py \
           --manifest-type output \
           --module pkpd \
+          --repo-root "${repo_root}" \
           --output "${fit_run_dir}/metadata/output_manifest.tsv" \
           --generated-by Manager.sh \
           --command-id "${run_id}" \
@@ -1437,21 +1716,42 @@ if [[ "${mode}" != "check-only" && "${dry_run}" != true ]]; then
   fi
   materialize_args=(
     python3 Code/tools/materialize_figure_assets.py
+    --repo-root "${repo_root}"
     --figure-root "${figure_root}"
     --figure7-tgi-day "${figure7_tgi_day}"
     --figure7-figure-name "${figure7_figure_name}"
     --source-run-id "${materialize_source_run_id}"
     --operation-id "${run_id}"
+    --touched-manifest-list "${manager_run_dir}/metadata/touched_figure_manifests.txt"
     --overwrite
   )
   for i in "${!completed_modules[@]}"; do
     materialize_args+=(--module-run "${completed_modules[$i]}=${completed_run_dirs[$i]}")
   done
   "${materialize_args[@]}"
-  for manifest in "${figure_root}"/Figure*/manifest.tsv "${figure_root}"/Supplementary/manifest.tsv; do
+  while IFS= read -r manifest; do
     [[ -f "${manifest}" ]] || continue
     python3 Code/tools/validate_figure_manifest.py "${manifest}" --repo-root "${repo_root}"
-  done
+  done < "${manager_run_dir}/metadata/touched_figure_manifests.txt"
+  if [[ "${mode}" == "panels-only" ]]; then
+    for i in "${!completed_modules[@]}"; do
+      if [[ "${completed_modules[$i]}" != "si_figures" ]]; then
+        continue
+      fi
+      table_materialization_started_at="$(date -Iseconds)"
+      if ! materialize_si_figures_tables_to_data "${completed_run_dirs[$i]}"; then
+        table_materialization_finished_at="$(date -Iseconds)"
+        record_si_figures_table_materialization \
+          "failed" "${completed_run_dirs[$i]}/tables" \
+          "${table_materialization_started_at}" "${table_materialization_finished_at}"
+        exit 1
+      fi
+      table_materialization_finished_at="$(date -Iseconds)"
+      record_si_figures_table_materialization \
+        "ok" "${completed_run_dirs[$i]}/tables" \
+        "${table_materialization_started_at}" "${table_materialization_finished_at}"
+    done
+  fi
 fi
 
 echo "Manager completed: ${run_id}"
