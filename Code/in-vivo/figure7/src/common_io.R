@@ -34,10 +34,16 @@ figure7_read_config <- function(path, tgi_day = NULL) {
   if (!file.exists(path)) figure7_stop("Missing Figure 7 config: ", path)
   if (!requireNamespace("yaml", quietly = TRUE)) figure7_stop("R package 'yaml' is required")
   config <- yaml::read_yaml(path)
-  required <- c("schema_version", "module", "inputs", "tgi", "statistics", "etp", "state_pathways", "panels")
+  required <- c("schema_version", "module", "raw_data", "inputs", "si_figures", "tgi", "statistics", "etp", "intervals", "state_pathways", "panels")
   missing <- setdiff(required, names(config))
   if (length(missing)) figure7_stop("Config is missing section(s): ", paste(missing, collapse = ", "))
   if (!identical(as.character(config$module), "in_vivo_figure7")) figure7_stop("Unexpected config module")
+  if (!identical(as.character(config$raw_data$doi), "10.5281/zenodo.21463392") ||
+      !identical(as.integer(config$raw_data$required_loom_files), 18L) ||
+      !identical(as.character(config$raw_data$seurat_rds_sha256),
+                 "727b8a5e5868da911c3b0873838fb1b0023377ed21ea5498dc6493acbbef6d98")) {
+    figure7_stop("Figure 7 raw-data Zenodo contract is not the reviewed record")
+  }
   configured_day <- suppressWarnings(as.integer(config$tgi$day))
   if (length(configured_day) != 1L || !is.finite(configured_day) || configured_day < 0L ||
       !identical(as.character(config$tgi$outcome), "day") ||
@@ -57,6 +63,29 @@ figure7_read_config <- function(path, tgi_day = NULL) {
   }
   if (!identical(as.integer(unlist(config$panels$selected_direct_comparison_ids)), c(1L, 8L, 9L))) {
     figure7_stop("Figure 7 panel 7B requires comparison IDs 1, 8, and 9")
+  }
+  si <- config$si_figures
+  si_required <- c(
+    "umap_reduction", "pca_reduction", "cluster_id_field", "base_cluster_field",
+    "clustering_resolution", "cluster_annotation_field", "sample_field", "dose_field",
+    "ploidy_field", "context_field", "cellcycle_mapping", "inclusion",
+    "source_qc_fields", "source_qc_policy"
+  )
+  si_missing <- setdiff(si_required, names(si))
+  if (length(si_missing)) {
+    figure7_stop("Figure 7 SI Figure 4 config is missing field(s): ", paste(si_missing, collapse = ", "))
+  }
+  mapping <- unlist(si$cellcycle_mapping, use.names = TRUE)
+  if (!identical(mapping[c("cell_cycle_candidate", "not_cell_cycle_candidate")],
+                 c(cell_cycle_candidate = "CellCycle", not_cell_cycle_candidate = "NonCellCycle"))) {
+    figure7_stop("SI Figure 4 CellCycle classification mapping is not the reviewed two-class contract")
+  }
+  if (!identical(as.character(si$umap_reduction), "umap") ||
+      !identical(as.character(si$cluster_id_field), "clusters") ||
+      !identical(as.character(si$base_cluster_field), "integrated_snn_res.0.6") ||
+      !isTRUE(all.equal(as.numeric(si$clustering_resolution), 0.6, tolerance = 0)) ||
+      !identical(as.character(si$cluster_annotation_field), "cluster_cell_cycle_annotation")) {
+    figure7_stop("SI Figure 4 embedding and clustering contract is not the reviewed configuration")
   }
   config
 }

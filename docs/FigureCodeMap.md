@@ -105,7 +105,7 @@ Manuscript asset: `figures/Figure6_v5_Overleaf.png` at `GemcitabinePaper.tex:397
 
 ### Figure 7: In-vivo TGI, CellCycle Pseudotime, And State Pathways
 
-The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one immutable run under `Results/in-vivo/figure7/runs/<run_id>_figure7/`. Routine mode recomputes panels 7A-7E from the tracked CellCycle and NonCellCycle cell-level tables and renders 7F from the immutable `taoli_04i_etp2_24_day17_v1` saved pathway analysis. It is included in the default manuscript module set. `--figure7-panels-ae-only` remains available when an explicit five-panel A-E contract is desired. Each included panel is emitted as a vector PDF and a 300-DPI PNG derivative. Optional full analysis additionally requires an explicit external Seurat RDS and pinned gene-set artifact. The manager materializes source assets but, consistently with Figures 1-6, does not assemble the final A-F composite.
+The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one immutable run under `Results/in-vivo/figure7/runs/<run_id>_figure7/`. Routine mode recomputes panels 7A-7E from the tracked CellCycle and NonCellCycle cell-level tables and renders 7F from the immutable `taoli_state_pathway_etp2_24_day17_v1` saved pathway analysis. It is included in the default manuscript module set. `--figure7-panels-ae-only` remains available when an explicit five-panel A-E contract is desired. Each included panel is emitted as a vector PDF and a 300-DPI PNG derivative. Optional full analysis additionally requires an explicit external Seurat RDS and pinned gene-set artifact. The manager materializes source assets but, consistently with Figures 1-6, does not assemble the final A-F composite.
 
 | Panel | Manuscript content | Canonical source output |
 |---|---|---|
@@ -117,6 +117,17 @@ The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one 
 | 7F | Pathway activity across the accumulated pseudotime interval 0.30-0.49 | `figures/panel_7F_pseudotime_state_pathway_activity.pdf` |
 
 ## Supplementary Figures
+
+### Supplementary Figures 4-7: in-vivo landscape, ploidy, composition, and Hallmark programs
+
+The `si_figures` module runs after the Figure 7 prerequisites and writes one immutable source run under `Results/in-vivo/SI_figures/runs/<run_id>_si_figures/`. Its default plot-only path validates and consumes the exact 32-file cache under `Data/in-vivo/SIfigures/`, avoiding raw-Seurat loading and DEG/ORA/GSEA recomputation. If the cache is absent or `--si-figures-force-reanalysis` is supplied, it consumes the validated Figure 7 cell-level bundle (`seurat_metadata.csv`, `scvelo_cell_metrics.csv`, and optional provenance), `all_ploidy.tsv`, and the pinned raw Seurat RDS; Supplementary Figure 7 then independently performs cluster-versus-rest differential expression, Hallmark ORA, and Hallmark GSEA. The strict materializer requires the exact 27 logical panels as PDF/PNG pairs, validates the cell/ploidy joins, tables, hashes, and run configuration, and publishes the 54 assets without renaming under `figures/Supplementary/`. After a successful Manager run the 32 tables and a checksum manifest are also atomically published to `Data/in-vivo/SIfigures/`.
+
+| Figure | Panels | Content |
+|---|---|---|
+| Supplementary Figure 4 | A-H plus composite | Tumor and CellLine UMAPs by cluster, initial ploidy, Tumor/CellLine context, and S-phase score; cluster-wise context and initial-ploidy proportions and counts |
+| Supplementary Figure 5 | A-I plus composite | Tumor UMAPs by cluster, initial ploidy, dose, S-phase score, and mouse; per-mouse, mouse-weighted, dose, and initial-ploidy composition |
+| Supplementary Figure 6 | A-D plus composite | Endpoint-ploidy UMAPs for all, initial-2N, and initial-4N tumors and mouse-faceted endpoint-ploidy UMAPs |
+| Supplementary Figure 7 | A-B plus composite | Top-20 Hallmark ORA annotation-score and Hallmark GSEA NES heatmaps reproduced from the raw Seurat RDS |
 
 ### Supplementary Figure: SI_GDSC_vs_ploidy_A
 

@@ -1,6 +1,6 @@
 module_dir <- normalizePath(Sys.getenv("FIGURE7_MODULE_DIR"), mustWork = TRUE)
 repo_root <- normalizePath(file.path(module_dir, "..", "..", ".."), mustWork = TRUE)
-for (file in c("common_io.R", "tgi_data.R", "tgi_statistics.R", "tgi_panels.R",
+for (file in c("common_io.R", "input_preflight.R", "tgi_data.R", "tgi_statistics.R", "tgi_panels.R",
                "state_pathway_panel.R", "state_pathway_analysis.R")) {
   source(file.path(module_dir, "src", file), local = FALSE)
 }
@@ -68,7 +68,7 @@ figure7_test_state_reference <- function() {
                     file.path(path, "state_pathway_design_qc.tsv"))
   activity_hash <- figure7_sha256(file.path(path, "panel_7F_pathway_activity_plot_data.tsv"))
   provenance_keys <- c(
-    "full_analysis_run_dir", "report_identifier", "code_revision_04i", "seurat_rds_sha256",
+    "full_analysis_run_dir", "report_identifier", "source_code_revision", "seurat_rds_sha256",
     "cellcycle_metadata_sha256", "noncellcycle_metadata_sha256", "interval_config_sha256",
     "assay", "counts_layer", "etp_method", "etp_threshold", "spline_df", "pseudotime_bins",
     "minimum_cells_per_sample_bin", "grid_size", "seed", "gene_set_source", "gene_set_release",
@@ -107,8 +107,8 @@ figure7_test_state_reference <- function() {
   values["left_neighbor_interval"] <- "[0.11,0.30)"
   values["right_neighbor_interval"] <- "(0.49,0.68]"
   values["report_html_sha256"] <- paste(rep("a", 64L), collapse = "")
-  values["report_html_relative_path"] <- "report/04i_pseudotime_state_pathways_report.html"
-  values["source_results_id"] <- "04i_pseudotime_state_pathways"
+  values["report_html_relative_path"] <- "report/pseudotime_state_pathways_report.html"
+  values["source_results_id"] <- "pseudotime_state_pathways"
   source_hash_keys <- grep("^source_.*_sha256$", provenance_keys, value = TRUE)
   values[source_hash_keys] <- paste(rep("b", 64L), collapse = "")
   figure7_write_tsv(data.frame(key = provenance_keys, value = values),

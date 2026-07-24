@@ -246,7 +246,7 @@ Keep this as an explicit input-refresh workflow, not a hidden side effect of the
 Results/in-vivo/figure7_input_refresh/runs/<run_id>/{tables,metadata,logs,qc}/
 ```
 
-It must compare schemas/checksums and sample-level values with the frozen tables and require review before promotion. Reviewed refresh outputs may be deliberately copied into `Data/in-vivo/figure7/processed/`; the refresh command must never overwrite reusable `Data/` inputs directly.
+Direct `run_figure7.R --mode=full-workflow` execution keeps outputs under its intermediate directory and validates the regenerated tables through the complete Figure 7 scientific contract. The explicit Manager `--figure7-refresh-inputs` path may promote files into `Data/` only after that complete Figure 7 run and its output manifest succeed, the recorded source paths and SHA-256 values match, and the CSV schemas pass. Manager uses staged atomic replacement and records the publication in `metadata/figure7_input_materialization.tsv`; failed or reused stages do not overwrite reusable `Data/` inputs.
 
 ### Optional full-analysis input for F
 

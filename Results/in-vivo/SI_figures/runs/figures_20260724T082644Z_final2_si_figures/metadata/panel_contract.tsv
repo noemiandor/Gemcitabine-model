@@ -1,0 +1,55 @@
+panel_id	filename	variant	caption_role
+SuppFig4A	panel_SuppFig4A_umap_cluster.pdf	pdf	All-cell UMAP by cluster
+SuppFig4A_png	panel_SuppFig4A_umap_cluster.png	png	All-cell UMAP by cluster
+SuppFig4B	panel_SuppFig4B_umap_initial_ploidy.pdf	pdf	All-cell UMAP by initial ploidy
+SuppFig4B_png	panel_SuppFig4B_umap_initial_ploidy.png	png	All-cell UMAP by initial ploidy
+SuppFig4C	panel_SuppFig4C_umap_context.pdf	pdf	All-cell UMAP by Tumor/CellLine context
+SuppFig4C_png	panel_SuppFig4C_umap_context.png	png	All-cell UMAP by Tumor/CellLine context
+SuppFig4D	panel_SuppFig4D_umap_s_phase_score.pdf	pdf	All-cell UMAP by S phase score
+SuppFig4D_png	panel_SuppFig4D_umap_s_phase_score.png	png	All-cell UMAP by S phase score
+SuppFig4E	panel_SuppFig4E_cluster_context_proportion.pdf	pdf	Tumor and CellLine proportions by cluster
+SuppFig4E_png	panel_SuppFig4E_cluster_context_proportion.png	png	Tumor and CellLine proportions by cluster
+SuppFig4F	panel_SuppFig4F_cluster_context_count.pdf	pdf	Tumor and CellLine counts by cluster
+SuppFig4F_png	panel_SuppFig4F_cluster_context_count.png	png	Tumor and CellLine counts by cluster
+SuppFig4G	panel_SuppFig4G_cluster_initial_ploidy_proportion.pdf	pdf	Initial ploidy proportions by cluster
+SuppFig4G_png	panel_SuppFig4G_cluster_initial_ploidy_proportion.png	png	Initial ploidy proportions by cluster
+SuppFig4H	panel_SuppFig4H_cluster_initial_ploidy_count.pdf	pdf	Initial ploidy counts by cluster
+SuppFig4H_png	panel_SuppFig4H_cluster_initial_ploidy_count.png	png	Initial ploidy counts by cluster
+SuppFig4_composite	panel_SuppFig4_composite.pdf	pdf	Supplementary Figure 4 composite
+SuppFig4_composite_png	panel_SuppFig4_composite.png	png	Supplementary Figure 4 composite
+SuppFig5A	panel_SuppFig5A_umap_cluster.pdf	pdf	Tumor UMAP by cluster
+SuppFig5A_png	panel_SuppFig5A_umap_cluster.png	png	Tumor UMAP by cluster
+SuppFig5B	panel_SuppFig5B_umap_initial_ploidy.pdf	pdf	Tumor UMAP by initial ploidy
+SuppFig5B_png	panel_SuppFig5B_umap_initial_ploidy.png	png	Tumor UMAP by initial ploidy
+SuppFig5C	panel_SuppFig5C_umap_treatment_dose.pdf	pdf	Tumor UMAP by Gemcitabine dose
+SuppFig5C_png	panel_SuppFig5C_umap_treatment_dose.png	png	Tumor UMAP by Gemcitabine dose
+SuppFig5D	panel_SuppFig5D_umap_s_phase_score.pdf	pdf	Tumor UMAP by S phase score
+SuppFig5D_png	panel_SuppFig5D_umap_s_phase_score.png	png	Tumor UMAP by S phase score
+SuppFig5E	panel_SuppFig5E_umap_mouse_facets.pdf	pdf	Mouse-faceted UMAP colored by initial ploidy
+SuppFig5E_png	panel_SuppFig5E_umap_mouse_facets.png	png	Mouse-faceted UMAP colored by initial ploidy
+SuppFig5F	panel_SuppFig5F_cluster_composition_by_mouse.pdf	pdf	Per-mouse cluster composition
+SuppFig5F_png	panel_SuppFig5F_cluster_composition_by_mouse.png	png	Per-mouse cluster composition
+SuppFig5G	panel_SuppFig5G_mouse_weighted_cluster_composition.pdf	pdf	Mouse-weighted composition by initial ploidy and dose
+SuppFig5G_png	panel_SuppFig5G_mouse_weighted_cluster_composition.png	png	Mouse-weighted composition by initial ploidy and dose
+SuppFig5H	panel_SuppFig5H_cluster_composition_by_dose.pdf	pdf	Dose composition by cluster
+SuppFig5H_png	panel_SuppFig5H_cluster_composition_by_dose.png	png	Dose composition by cluster
+SuppFig5I	panel_SuppFig5I_cluster_composition_by_initial_ploidy.pdf	pdf	Initial ploidy composition by cluster
+SuppFig5I_png	panel_SuppFig5I_cluster_composition_by_initial_ploidy.png	png	Initial ploidy composition by cluster
+SuppFig5_composite	panel_SuppFig5_composite.pdf	pdf	Supplementary Figure 5 composite
+SuppFig5_composite_png	panel_SuppFig5_composite.png	png	Supplementary Figure 5 composite
+SuppFig6A	panel_SuppFig6A_umap_endpoint_ploidy_all_tumors.pdf	pdf	All-tumor UMAP by endpoint ploidy
+SuppFig6A_png	panel_SuppFig6A_umap_endpoint_ploidy_all_tumors.png	png	All-tumor UMAP by endpoint ploidy
+SuppFig6B	panel_SuppFig6B_umap_endpoint_ploidy_initial_2N.pdf	pdf	Initial-2N tumor UMAP by endpoint ploidy
+SuppFig6B_png	panel_SuppFig6B_umap_endpoint_ploidy_initial_2N.png	png	Initial-2N tumor UMAP by endpoint ploidy
+SuppFig6C	panel_SuppFig6C_umap_endpoint_ploidy_initial_4N.pdf	pdf	Initial-4N tumor UMAP by endpoint ploidy
+SuppFig6C_png	panel_SuppFig6C_umap_endpoint_ploidy_initial_4N.png	png	Initial-4N tumor UMAP by endpoint ploidy
+SuppFig6D	panel_SuppFig6D_umap_endpoint_ploidy_mouse_facets.pdf	pdf	Mouse-faceted UMAP by endpoint ploidy
+SuppFig6D_png	panel_SuppFig6D_umap_endpoint_ploidy_mouse_facets.png	png	Mouse-faceted UMAP by endpoint ploidy
+SuppFig6_composite	panel_SuppFig6_composite.pdf	pdf	Supplementary Figure 6 composite
+SuppFig6_composite_png	panel_SuppFig6_composite.png	png	Supplementary Figure 6 composite
+SuppFig7A	panel_SuppFig7A_cluster_Hallmark_ORA_annotation_score_heatmap_top20.pdf	pdf	Cluster Hallmark ORA annotation-score heatmap
+SuppFig7A_png	panel_SuppFig7A_cluster_Hallmark_ORA_annotation_score_heatmap_top20.png	png	Cluster Hallmark ORA annotation-score heatmap
+SuppFig7B	panel_SuppFig7B_cluster_Hallmark_GSEA_NES_heatmap_top20.pdf	pdf	Cluster Hallmark GSEA NES heatmap
+SuppFig7B_png	panel_SuppFig7B_cluster_Hallmark_GSEA_NES_heatmap_top20.png	png	Cluster Hallmark GSEA NES heatmap
+SuppFig7_composite	panel_SuppFig7_composite.pdf	pdf	Supplementary Figure 7 composite
+SuppFig7_composite_png	panel_SuppFig7_composite.png	png	Supplementary Figure 7 composite

@@ -1,0 +1,31 @@
+key	value
+module	si_figures
+figures	4,5,6,7
+logical_panels	27
+figure_file_count	54
+plot_shuffle_seed	5826
+cluster_field	clusters
+sample_field	sample
+umap_reduction	umap
+endpoint_ploidy_join_key	paste0(harvest,'.sps.cbs')+barcode_raw -> file+cell_id
+endpoint_ploidy_color_scale	blue-red; shared range 1.72470447539109 to 2.66569632076908
+si_figure7_from_raw_rds	false
+fgsea_nperm_simple	cached
+si_figure7_detected_cpus	not_run
+si_figure7_reserved_cpus	not_run
+si_figure7_usable_cpus	not_run
+si_figure7_cluster_workers	not_run
+si_figure7_inner_workers	not_run
+si_figure7_future_global_limit_bytes	not_run
+si_figure7_memory_limit_bytes	not_run
+si_figure7_object_size_bytes	not_run
+si_figure7_memory_per_worker_bytes	not_run
+si_figure7_memory_worker_budget	not_run
+si_figure7_execution_worker_budget	not_run
+si_figure7_deg_cache_reused_clusters	9
+table_mode	canonical_cache
+canonical_table_root	/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures01/Results/in-vivo/test/si_figures_20260724T082644Z/Results/in-vivo/SI_figures/runs/si_figures_20260724T082644Z_retry8_si_figures/tables
+cache_file_count	32
+force_reanalysis	false
+raw_seurat_loaded	false
+deg_analysis_executed	false

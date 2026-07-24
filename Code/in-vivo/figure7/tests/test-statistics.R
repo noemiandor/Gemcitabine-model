@@ -59,7 +59,7 @@ testthat::test_that("Day-24 override recomputes TGI and emits an explicit Day-24
 })
 
 testthat::test_that("all module R files parse and A-E builders emit five PDF/PNG pairs", {
-  top_level <- c("run_figure7.R", "export_04i_state_pathway_reference.R")
+  top_level <- c("run_figure7.R", "download_figure7_raw_data.R", "export_state_pathway_reference.R")
   for (file in c(top_level, list.files(file.path(module_dir, "src"), pattern = "[.]R$", full.names = FALSE))) {
     path <- if (file %in% top_level) file.path(module_dir, file) else file.path(module_dir, "src", file)
     testthat::expect_silent(parse(file = path))
@@ -73,9 +73,9 @@ testthat::test_that("all module R files parse and A-E builders emit five PDF/PNG
 })
 
 testthat::test_that("state-pathway exporter requires an explicit results root", {
-  exporter <- file.path(module_dir, "export_04i_state_pathway_reference.R")
+  exporter <- file.path(module_dir, "export_state_pathway_reference.R")
   output_parent <- tempfile("figure7_export_requires_root_")
-  output_dir <- file.path(output_parent, "taoli_04i_etp2_24_day17_v1")
+  output_dir <- file.path(output_parent, "taoli_state_pathway_etp2_24_day17_v1")
   status <- suppressWarnings(system2(
     file.path(R.home("bin"), "Rscript"),
     c(exporter, paste0("--output-dir=", output_dir)),

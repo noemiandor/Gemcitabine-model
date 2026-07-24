@@ -9,7 +9,7 @@ testthat::test_that("panel-F compact reference contract validates and selector i
                          "metadata/order|top-four")
 })
 
-testthat::test_that("tracked canonical 04i reference validates exact report lineage", {
+testthat::test_that("tracked canonical state-pathway reference validates exact report lineage", {
   input <- figure7_test_inputs()
   reference_path <- file.path(
     repo_root,
@@ -21,7 +21,7 @@ testthat::test_that("tracked canonical 04i reference validates exact report line
 
   testthat::expect_equal(nrow(reference$activity), 24L * 501L)
   testthat::expect_equal(nrow(reference$selected), 24L)
-  testthat::expect_identical(provenance[["canonical_reference_id"]], "taoli_04i_etp2_24_day17_v1")
+  testthat::expect_identical(provenance[["canonical_reference_id"]], "taoli_state_pathway_etp2_24_day17_v1")
   testthat::expect_identical(provenance[["workflow_id"]], "binning")
   testthat::expect_identical(provenance[["model_id"]], "ETP_reference_balanced_threshold_2_24")
   testthat::expect_identical(provenance[["accumulated_interval"]], "[0.30,0.49]")
@@ -30,7 +30,7 @@ testthat::test_that("tracked canonical 04i reference validates exact report line
     "b9644b1da0399043a6aba28178a2b61375b661780c4fb08a148c7724da00bfa1"
   )
   testthat::expect_identical(
-    provenance[["code_revision_04i"]],
+    provenance[["source_code_revision"]],
     "dc751eab928bc40f3edb063baec447fe32a69d73"
   )
   testthat::expect_false(any(c("report_html_path", "export_source_results_root") %in% names(provenance)))
@@ -46,7 +46,7 @@ testthat::test_that("canonical provenance is location-independent and always che
   provenance <- figure7_read_tsv(provenance_path, c("key", "value"))
   provenance <- rbind(
     provenance,
-    data.frame(key = "export_source_results_root", value = "/runtime/04i/results", stringsAsFactors = FALSE)
+    data.frame(key = "export_source_results_root", value = "/runtime/state-pathway/results", stringsAsFactors = FALSE)
   )
   figure7_write_tsv(provenance, provenance_path)
 
@@ -57,6 +57,24 @@ testthat::test_that("canonical provenance is location-independent and always che
   testthat::expect_error(
     figure7_validate_state_reference(fixture$path, fixture$config, verify_checksums = FALSE),
     "runtime filesystem paths"
+  )
+})
+
+testthat::test_that("generated references report observed checksum differences without weakening standard mode", {
+  fixture <- figure7_test_state_reference()
+  changed_path <- file.path(fixture$path, "state_pathway_design_qc.tsv")
+  writeLines(c(readLines(changed_path, warn = FALSE), ""), changed_path, useBytes = TRUE)
+
+  testthat::expect_error(
+    figure7_validate_state_reference(fixture$path, fixture$config),
+    "SHA-256 mismatch"
+  )
+  reference <- figure7_validate_state_reference(fixture$path, fixture$config, verify_checksums = FALSE)
+  testthat::expect_false(reference$checksums_verified)
+  testthat::expect_false(reference$checksum_match[["state_pathway_design_qc.tsv"]])
+  testthat::expect_identical(
+    reference$observed_hashes[["state_pathway_design_qc.tsv"]],
+    figure7_sha256(changed_path)
   )
 })
 

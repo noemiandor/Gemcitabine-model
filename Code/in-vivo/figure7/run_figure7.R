@@ -4,19 +4,19 @@ file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
 script_path <- if (length(file_arg)) sub("^--file=", "", file_arg[[1L]]) else "Code/in-vivo/figure7/run_figure7.R"
 script_dir <- dirname(normalizePath(script_path, mustWork = FALSE))
 repo_root <- normalizePath(file.path(script_dir, "..", "..", ".."), mustWork = FALSE)
-for (file in c("common_io.R", "tgi_data.R", "tgi_statistics.R", "tgi_panels.R",
+for (file in c("common_io.R", "input_preflight.R", "tgi_data.R", "tgi_statistics.R", "tgi_panels.R",
                "state_pathway_panel.R", "state_pathway_analysis.R")) {
   sys.source(file.path(script_dir, "src", file), envir = .GlobalEnv)
 }
 
-if (!requireNamespace("ggplot2", quietly = TRUE) || !requireNamespace("ggrepel", quietly = TRUE)) {
-  figure7_stop("R packages 'ggplot2' and 'ggrepel' are required")
-}
-
 args <- figure7_parse_args(commandArgs(trailingOnly = TRUE))
 mode <- figure7_arg(args, "mode", "standard")
-allowed_modes <- c("standard", "full-analysis", "render-only")
+allowed_modes <- c("standard", "full-analysis", "full-workflow", "render-only", "prepare-scvelo-inputs")
 if (!mode %in% allowed_modes) figure7_stop("Unknown Figure 7 mode: ", mode)
+if (!identical(mode, "prepare-scvelo-inputs") &&
+    (!requireNamespace("ggplot2", quietly = TRUE) || !requireNamespace("ggrepel", quietly = TRUE))) {
+  figure7_stop("R packages 'ggplot2' and 'ggrepel' are required")
+}
 panel_set <- figure7_arg(args, "panel-set", "a-f")
 if (!panel_set %in% c("a-f", "a-e")) figure7_stop("Unknown Figure 7 panel set: ", panel_set)
 include_panel_f <- identical(panel_set, "a-f")
@@ -29,13 +29,21 @@ tgi_day_arg <- figure7_arg(args, "tgi-day", "")
 config <- figure7_read_config(config_path, if (nzchar(tgi_day_arg)) tgi_day_arg else NULL)
 output_dir <- normalizePath(figure7_arg(args, "output-dir", required = TRUE), mustWork = FALSE)
 state_pathway_results_root_arg <- figure7_arg(args, "state-pathway-results-root", "")
-state_pathway_results_root <- if (nzchar(state_pathway_results_root_arg)) {
+state_pathway_results_root <- if (nzchar(state_pathway_results_root_arg) && !identical(mode, "full-workflow")) {
   normalizePath(state_pathway_results_root_arg, mustWork = TRUE)
 } else {
   ""
 }
 
-write_metadata <- function(output_dir, mode, config, config_path, panel_ids, state_pathway_results_root = "") {
+write_metadata <- function(
+  output_dir,
+  mode,
+  config,
+  config_path,
+  panel_ids,
+  state_pathway_results_root = "",
+  workflow = NULL
+) {
   tgi_day <- figure7_tgi_day(config)
   tgi_measure <- figure7_tgi_measure(config)
   run_config <- data.frame(
@@ -51,6 +59,62 @@ write_metadata <- function(output_dir, mode, config, config_path, panel_ids, sta
               figure7_sha256(config_path)),
     stringsAsFactors = FALSE
   )
+  if (!is.null(workflow)) {
+    workflow_loom_files <- if (dir.exists(workflow$loom_root)) {
+      list.files(workflow$loom_root, pattern = "[.]loom$", recursive = TRUE, full.names = TRUE)
+    } else {
+      character()
+    }
+    workflow_loom_bytes <- if (length(workflow_loom_files)) sum(file.info(workflow_loom_files)$size) else 0
+    run_config <- rbind(
+      run_config,
+      data.frame(
+        key = c(
+          "workflow_initial_state", "workflow_executed_stages", "workflow_scvelo_metrics",
+          "workflow_scvelo_sha256", "workflow_cellcycle_input", "workflow_cellcycle_sha256",
+          "workflow_noncellcycle_input", "workflow_noncellcycle_sha256",
+          "workflow_seurat_metadata", "workflow_seurat_metadata_sha256",
+          "workflow_seurat_metadata_provenance", "workflow_seurat_metadata_provenance_sha256",
+          "raw_data_source", "raw_data_doi", "zenodo_record_id", "raw_data_dir",
+          "raw_data_download_roles", "raw_data_validation_roles", "raw_download_workers",
+          "raw_download_connections_per_file", "raw_data_manifest_sha256", "seurat_rds_sha256",
+          "loom_file_count", "loom_total_bytes", "workflow_log_dir"
+        ),
+        value = c(
+          workflow$initial_state,
+          if (length(workflow$executed_stages)) paste(workflow$executed_stages, collapse = ",") else "none",
+          workflow$scvelo_metrics,
+          if (file.exists(workflow$scvelo_metrics)) figure7_sha256(workflow$scvelo_metrics) else "not_available",
+          workflow$cellcycle,
+          figure7_sha256(workflow$cellcycle),
+          workflow$noncellcycle,
+          figure7_sha256(workflow$noncellcycle),
+          if (nzchar(workflow$seurat_metadata)) workflow$seurat_metadata else "not_available",
+          if (nzchar(workflow$seurat_metadata)) figure7_sha256(workflow$seurat_metadata) else "not_available",
+          if (nzchar(workflow$seurat_metadata_provenance)) workflow$seurat_metadata_provenance else "not_available",
+          if (nzchar(workflow$seurat_metadata_provenance)) {
+            figure7_sha256(workflow$seurat_metadata_provenance)
+          } else {
+            "not_available"
+          },
+          workflow$raw_data_status,
+          as.character(config$raw_data$doi),
+          as.character(config$raw_data$record_id),
+          workflow$raw_data_dir,
+          if (length(workflow$raw_download_roles)) paste(workflow$raw_download_roles, collapse = ",") else "none",
+          if (length(workflow$raw_validation_roles)) paste(workflow$raw_validation_roles, collapse = ",") else "none",
+          as.character(workflow$download_workers),
+          as.character(workflow$download_connections_per_file),
+          figure7_sha256(workflow$raw_manifest),
+          if (nzchar(workflow$seurat_rds_sha256)) workflow$seurat_rds_sha256 else "not_available",
+          as.character(length(workflow_loom_files)),
+          as.character(workflow_loom_bytes),
+          workflow$log_dir
+        ),
+        stringsAsFactors = FALSE
+      )
+    )
+  }
   contract <- data.frame(
     panel_id = panel_ids,
     filename = figure7_panel_filenames(config, panel_ids),
@@ -165,6 +229,53 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
   figure7_validate_figure_inventory(output_dir, config, panel_ids)
 }
 
+write_scvelo_input_prep_metadata <- function(output_dir, prep, config_path) {
+  dir.create(file.path(output_dir, "metadata"), recursive = TRUE, showWarnings = FALSE)
+  run_config <- data.frame(
+    key = c(
+      "module", "mode", "workflow_initial_state", "workflow_executed_stages",
+      "workflow_scvelo_metrics", "workflow_scvelo_sha256", "workflow_seurat_metadata",
+      "workflow_seurat_metadata_sha256", "workflow_seurat_metadata_provenance",
+      "workflow_seurat_metadata_provenance_sha256", "raw_data_source", "raw_data_dir", "loom_root",
+      "seurat_rds", "workflow_log_dir", "config_sha256"
+    ),
+    value = c(
+      "in_vivo_figure7_input_prep", "prepare-scvelo-inputs", prep$initial_state,
+      if (length(prep$executed_stages)) paste(prep$executed_stages, collapse = ",") else "none",
+      prep$scvelo_metrics, prep$scvelo_sha256, prep$seurat_metadata,
+      prep$seurat_metadata_sha256, prep$seurat_metadata_provenance,
+      prep$seurat_metadata_provenance_sha256, prep$raw_data_status, prep$raw_data_dir, prep$loom_root,
+      prep$seurat_rds, prep$log_dir, figure7_sha256(config_path)
+    ),
+    stringsAsFactors = FALSE
+  )
+  figure7_write_tsv(run_config, file.path(output_dir, "metadata", "run_config.tsv"))
+  writeLines(sub("[[:space:]]+$", "", utils::capture.output(sessionInfo())),
+             file.path(output_dir, "metadata", "session_info.txt"), useBytes = TRUE)
+}
+
+if (identical(mode, "prepare-scvelo-inputs")) {
+  overwrite_intermediates <- figure7_flag(args, "overwrite-intermediates", FALSE)
+  workflow_paths <- figure7_workflow_paths(args, repo_root, output_dir, config)
+  preflight <- figure7_preflight_scvelo_inputs(workflow_paths, overwrite_intermediates)
+  if (figure7_flag(args, "preflight-only", FALSE)) {
+    cat("workflow_state\t", preflight$state, "\n", sep = "")
+    cat("raw_data_status\t", preflight$raw_data_status, "\n", sep = "")
+    cat("scvelo_metrics\t", workflow_paths$scvelo_metrics, "\n", sep = "")
+    cat("seurat_metadata\t", workflow_paths$seurat_metadata, "\n", sep = "")
+    cat("seurat_metadata_provenance\t", workflow_paths$seurat_metadata_provenance, "\n", sep = "")
+    quit(save = "no", status = 0L)
+  }
+  figure7_assert_empty_output(output_dir)
+  prep <- figure7_prepare_scvelo_input_pair(
+    workflow_paths, preflight, script_dir, config, config_path,
+    overwrite_intermediates = overwrite_intermediates
+  )
+  write_scvelo_input_prep_metadata(output_dir, prep, config_path)
+  message("Prepared Figure 7 scVelo/Seurat input pair: ", output_dir)
+  quit(save = "no", status = 0L)
+}
+
 if (identical(mode, "render-only")) {
   render_from_run(figure7_arg(args, "source-run-dir", required = TRUE), output_dir, config, config_path,
                   panel_ids, include_panel_f)
@@ -172,18 +283,68 @@ if (identical(mode, "render-only")) {
   quit(save = "no", status = 0L)
 }
 
-cellcycle_path <- normalizePath(figure7_arg(args, "cellcycle-input", required = TRUE), mustWork = FALSE)
-noncellcycle_path <- normalizePath(figure7_arg(args, "non-cellcycle-input", required = TRUE), mustWork = FALSE)
-figure7_assert_empty_output(output_dir)
-figure7_verify_checksum(cellcycle_path, config$inputs$cellcycle_sha256, "CellCycle processed input")
-figure7_verify_checksum(noncellcycle_path, config$inputs$noncellcycle_sha256, "NonCellCycle processed input")
+workflow <- NULL
+if (identical(mode, "full-workflow")) {
+  overwrite_intermediates <- figure7_flag(args, "overwrite-intermediates", FALSE)
+  workflow_paths <- figure7_workflow_paths(args, repo_root, output_dir, config)
+  preflight <- figure7_preflight_workflow(
+    workflow_paths,
+    include_panel_f = include_panel_f,
+    overwrite_intermediates = overwrite_intermediates
+  )
+  if (figure7_flag(args, "preflight-only", FALSE)) {
+    cat("workflow_state\t", preflight$state, "\n", sep = "")
+    cat("raw_data_status\t", preflight$raw_data_status, "\n", sep = "")
+    cat("raw_download_roles\t", if (length(preflight$raw_download_roles)) paste(preflight$raw_download_roles, collapse = ",") else "none", "\n", sep = "")
+    cat("raw_validation_roles\t", if (length(preflight$raw_validation_roles)) paste(preflight$raw_validation_roles, collapse = ",") else "none", "\n", sep = "")
+    cat("raw_data_dir\t", workflow_paths$raw_data_dir, "\n", sep = "")
+    cat("download_workers\t", workflow_paths$download_workers, "\n", sep = "")
+    cat("download_connections_per_file\t", workflow_paths$download_connections_per_file, "\n", sep = "")
+    cat("loom_root\t", workflow_paths$loom_root, "\n", sep = "")
+    cat("seurat_rds\t", workflow_paths$seurat_rds, "\n", sep = "")
+    cat("scvelo_metrics\t", workflow_paths$scvelo_metrics, "\n", sep = "")
+    cat("seurat_metadata\t", workflow_paths$seurat_metadata, "\n", sep = "")
+    cat("cellcycle_input\t", workflow_paths$cellcycle, "\n", sep = "")
+    cat("noncellcycle_input\t", workflow_paths$noncellcycle, "\n", sep = "")
+    quit(save = "no", status = 0L)
+  }
+  figure7_assert_empty_output(output_dir)
+  workflow <- figure7_prepare_full_workflow(
+    args = args,
+    paths = workflow_paths,
+    preflight = preflight,
+    script_dir = script_dir,
+    config_path = config_path,
+    config = config,
+    include_panel_f = include_panel_f,
+    overwrite_intermediates = overwrite_intermediates
+  )
+  cellcycle_path <- workflow$cellcycle
+  noncellcycle_path <- workflow$noncellcycle
+  state_pathway_results_root <- workflow$state_pathway_root
+} else {
+  cellcycle_path <- normalizePath(figure7_arg(args, "cellcycle-input", required = TRUE), mustWork = FALSE)
+  noncellcycle_path <- normalizePath(figure7_arg(args, "non-cellcycle-input", required = TRUE), mustWork = FALSE)
+  figure7_assert_empty_output(output_dir)
+}
+if (identical(mode, "full-workflow")) {
+  figure7_require_workflow_file(cellcycle_path, "cellcycle-input")
+  figure7_require_workflow_file(noncellcycle_path, "non-cellcycle-input")
+} else {
+  figure7_verify_checksum(cellcycle_path, config$inputs$cellcycle_sha256, "CellCycle processed input")
+  figure7_verify_checksum(noncellcycle_path, config$inputs$noncellcycle_sha256, "NonCellCycle processed input")
+}
 reference <- NULL
 if (include_panel_f) {
-  saved_dir <- normalizePath(figure7_arg(args, "saved-state-pathway-dir", required = TRUE), mustWork = FALSE)
+  saved_dir <- if (identical(mode, "full-workflow")) {
+    workflow$saved_reference
+  } else {
+    normalizePath(figure7_arg(args, "saved-state-pathway-dir", required = TRUE), mustWork = FALSE)
+  }
   reference <- figure7_validate_state_reference(
     saved_dir,
     config,
-    verify_checksums = TRUE
+    verify_checksums = !identical(mode, "full-workflow")
   )
 }
 
@@ -202,6 +363,6 @@ data <- figure7_prepare_cellcycle(cellcycle, samples, config)
 figure7_prepare_output(output_dir)
 figure7_build_ae(cellcycle, data, samples, output_dir, config)
 if (include_panel_f) figure7_build_f(reference, output_dir, config)
-write_metadata(output_dir, mode, config, config_path, panel_ids, state_pathway_results_root)
+write_metadata(output_dir, mode, config, config_path, panel_ids, state_pathway_results_root, workflow)
 figure7_validate_figure_inventory(output_dir, config, panel_ids)
 message("Generated exactly ", length(panel_ids), " Figure 7 source panels: ", output_dir)

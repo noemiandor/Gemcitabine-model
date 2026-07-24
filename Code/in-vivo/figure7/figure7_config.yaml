@@ -1,8 +1,40 @@
 schema_version: 1
 module: in_vivo_figure7
+raw_data:
+  doi: 10.5281/zenodo.21463392
+  record_id: 21463392
+  record_url: https://zenodo.org/records/21463392
+  default_root: Data/in-vivo/figure7/raw/zenodo_21463392
+  required_manifest: Code/in-vivo/figure7/zenodo_required_files.tsv
+  loom_subdir: velocyto_loom
+  seurat_filename: integrated_sct_cca_seurat_final_reclustered.rds
+  required_loom_files: 18
+  required_total_bytes: "11395115098"
+  seurat_rds_sha256: 727b8a5e5868da911c3b0873838fb1b0023377ed21ea5498dc6493acbbef6d98
 inputs:
   cellcycle_sha256: bd0c6fcf3f6691114445a7c8a9fb8de7e55ef6580a9737284cd38f5bba216186
   noncellcycle_sha256: 1e44794fb2b2c402b49cf9d17abcc54cd7690dc5d1d611e38a6aa3b996093d3c
+si_figures:
+  umap_reduction: umap
+  pca_reduction: pca
+  cluster_id_field: clusters
+  base_cluster_field: integrated_snn_res.0.6
+  clustering_resolution: 0.6
+  cluster_annotation_field: cluster_cell_cycle_annotation
+  sample_field: sample
+  dose_field: Dose
+  ploidy_field: Ploidy
+  context_field: TN
+  cellcycle_mapping:
+    cell_cycle_candidate: CellCycle
+    not_cell_cycle_candidate: NonCellCycle
+  inclusion:
+    context: Tumor
+    ploidy_levels: [2N, 4N]
+    dose_levels: [0mg/kg, 30mg/kg, 120mg/kg]
+    required_nonmissing: [cell_id, UMAP_1, UMAP_2, sample_id, cluster_id, cluster_annotation, initial_ploidy, dose, cellcycle_classification]
+  source_qc_fields: [nCount_RNA, nFeature_RNA, percent.mt, scDblFinder.class, scDblFinder.score]
+  source_qc_policy: "Use the reviewed Seurat object as provided; Supplementary Figures 4-7 apply no additional expression, mitochondrial, or doublet threshold before plotting or cluster-vs-rest analysis."
 tgi:
   outcome: day
   day: 17
@@ -18,8 +50,57 @@ etp:
   method: reference_balanced
   threshold: 2.24
   group_levels: [ETP-lower, ETP-higher]
+intervals:
+  primary_accumulated_state:
+    role: "primary"
+    label: "Primary accumulated state"
+    start: 0.30
+    end: 0.49
+    include_start: true
+    include_end: true
+    source: "rounded from approximately 0.296-0.486 pointwise treated-cell excess"
+  left_neighbor:
+    role: "left_flank"
+    label: "Left neighboring state"
+    start: 0.11
+    end: 0.30
+    include_start: true
+    include_end: false
+    source: "equal-width state immediately before the primary interval"
+  right_neighbor:
+    role: "right_flank"
+    label: "Right neighboring state"
+    start: 0.49
+    end: 0.68
+    include_start: false
+    include_end: true
+    source: "equal-width state immediately after the primary interval"
+  broad_sensitivity:
+    role: "sensitivity"
+    label: "Broad treated-cell excess sensitivity"
+    start: 0.11
+    end: 0.61
+    include_start: true
+    include_end: true
+    source: "broader region of numerical treated-cell excess"
+  strict_support_sensitivity:
+    role: "sensitivity"
+    label: "Strict simultaneous-band support sensitivity"
+    start: 0.414
+    end: 0.426
+    include_start: true
+    include_end: true
+    source: "narrow region supported by the simultaneous density-difference band"
+  depleted_negative_control:
+    role: "negative_control"
+    label: "Depleted-region negative control"
+    start: 0.80
+    end: 0.98
+    include_start: true
+    include_end: true
+    source: "region in which treated cells were depleted rather than enriched"
 state_pathways:
-  reference_id: taoli_04i_etp2_24_day17_v1
+  reference_id: taoli_state_pathway_etp2_24_day17_v1
   reference_root: Data/in-vivo/figure7/saved_state_pathway
   model: ETP_reference_balanced_threshold_2_24
   accumulated_interval: {start: 0.30, end: 0.49, include_start: true, include_end: true}
@@ -51,9 +132,9 @@ state_pathways:
     panel_7F_leading_edge_genes.tsv: 270e352e506664d44f61ebea3af5d36270c33f9806baaf224580a8e5c8342a41
     state_pathway_gene_ranking_complete.tsv: fc8f1f8a24915e91c108e026b71d61ab1222dee2ce9469e48984d53a295e4738
     state_pathway_gsea_complete.tsv: 0439be2fc152e7a3f0a070410bfa0cfdc01a30624b09d453e9511b031c065e36
-    state_pathway_sample_bin_coverage.tsv: b42694cd910b5faf6a5b9e5add8a90b06f5207317df98f2969cf57887027e8d8
+    state_pathway_sample_bin_coverage.tsv: fcede611f98d4f21613b41e66895db917a5f1c0673e2c6bff5121c73151a4fd9
     state_pathway_design_qc.tsv: 156cc8b7aaeb56866c258c6d6433635b881040691ab816fc7c5edc7cd5048b4c
-    state_pathway_provenance.tsv: bb8f08f9afd0786216babcd5c38d577caa6fd41c4f1d52f28e54d8558c66b424
+    state_pathway_provenance.tsv: ffa3098e294cc9b4106a69f6d35a4a649c6a80278f0321b07c1b15419b239625
   comparison_tolerances:
     absolute: 1.0e-10
     relative: 1.0e-6

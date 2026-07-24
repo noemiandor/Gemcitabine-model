@@ -1,0 +1,9 @@
+key	value
+status	ok
+source_table_dir	/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures01/Results/in-vivo/SI_figures/runs/figures_20260724T082644Z_final2_si_figures/tables
+target_table_dir	/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures01/Data/in-vivo/SIfigures
+materialized_file_count	32
+manifest	/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures01/Data/in-vivo/SIfigures/manifest.tsv
+force_reanalysis	false
+started_at	2026-07-24T18:13:05+00:00
+finished_at	2026-07-24T18:13:07+00:00
