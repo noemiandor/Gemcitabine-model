@@ -6,7 +6,7 @@ cd "${repo_root}"
 
 run_id="$(date +"%Y%m%dT%H%M%S_manuscript")"
 source_run_id=""
-mode="full-refit"
+mode="standard"
 modules="gdsc,ccle,drug_response,pkpd,metabolomics,in_vivo_figure7,si_figures"
 output_root="Results"
 figure_root="figures"
@@ -33,7 +33,7 @@ lci_panel_only=false
 include_in_vivo=false
 metabolomics_input="Code/Gemcitabine_Metabolomics_Heatmap/Metabolomics_2N_4N_Full.xlsm"
 figure7_full_analysis=false
-figure7_refresh_inputs="auto"
+figure7_refresh_inputs=false
 figure7_intermediate_dir=""
 figure7_python=""
 figure7_overwrite_intermediates=false
@@ -73,7 +73,7 @@ Core options:
   --run-id ID
   --source-run-id ID              Required only for panels-only; immutable source manager run
   --mode check-only|saved-fit|standard|full-refit|panels-only
-                                  Default: full-refit
+                                  Default: standard
   --modules comma,separated,names
   --output-root DIR
   --figure-root DIR
@@ -107,7 +107,7 @@ Module options:
                                   Read a complete validated 32-table cache from PATH
   --si-figures-force-reanalysis   Ignore the table cache and regenerate all 32 tables
   --figure7-full-analysis          Opt-in full pathway recomputation; requires both paths below
-  --figure7-refresh-inputs         Run the end-to-end input workflow and publish validated CSVs to Data
+  --figure7-refresh-inputs         Explicitly run the end-to-end input workflow and publish validated CSVs to Data
   --figure7-intermediate-dir PATH  Isolated full-workflow intermediate directory
   --figure7-python PATH            Python executable containing scVelo dependencies
   --figure7-cell-ploidy-input PATH Cell-level ploidy input for the refresh workflow
@@ -184,14 +184,6 @@ case "${mode}" in
   check-only|saved-fit|standard|full-refit|panels-only) ;;
   *) echo "Invalid --mode: ${mode}" >&2; exit 2 ;;
 esac
-
-if [[ "${figure7_refresh_inputs}" == "auto" ]]; then
-  if [[ "${mode}" == "full-refit" && "${figure7_full_analysis}" != true && ",${modules}," == *",in_vivo_figure7,"* ]]; then
-    figure7_refresh_inputs=true
-  else
-    figure7_refresh_inputs=false
-  fi
-fi
 
 if [[ ! "${run_id}" =~ ^[A-Za-z0-9._-]+$ ]]; then
   echo "Invalid --run-id; use only letters, numbers, dots, underscores, and hyphens" >&2

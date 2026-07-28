@@ -74,12 +74,19 @@ def manifest_row(
     command_id: str,
 ) -> dict[str, object]:
     resolved = path.resolve()
-    repo_relative = str(resolved.relative_to(repo_root)) if path_within(resolved, repo_root) else ""
+    resolved_repo_root = repo_root.resolve()
+    repo_relative = (
+        str(resolved.relative_to(resolved_repo_root))
+        if path_within(resolved, resolved_repo_root)
+        else ""
+    )
     checksum = sha256_file(resolved) if resolved.is_file() else ""
     return {
         "path": repo_relative or str(resolved),
         "repo_relative_path": repo_relative,
-        "absolute_path": str(resolved),
+        # Repository-owned files must remain portable when the checkout moves.
+        # Keep an absolute fallback only for genuinely external inputs.
+        "absolute_path": "" if repo_relative else str(resolved),
         "role": role_for(resolved, manifest_type),
         "source_kind": source_kind_for(resolved, manifest_type),
         "module": module,

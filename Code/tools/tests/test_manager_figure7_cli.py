@@ -415,21 +415,27 @@ done
             self.assertEqual(result.returncode, 2)
             self.assertIn("mutually exclusive", result.stderr)
 
-    def test_default_mode_runs_figure7_full_workflow(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            inputs = [tmp_path / name for name in ("all_ploidy.tsv", "sample_info.xlsx", "growth.xlsx")]
-            for path in inputs:
-                path.write_text("fixture\n")
-            result = self._run(
-                "--dry-run", "--modules", "in_vivo_figure7", "--run-id", "default_full",
-                "--figure7-cell-ploidy-input", str(inputs[0]),
-                "--figure7-sample-info-input", str(inputs[1]),
-                "--figure7-growth-curve-input", str(inputs[2]),
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("--mode=full-workflow", result.stdout)
-            self.assertIn("Manager full-refit", result.stdout)
+    def test_default_mode_uses_frozen_figure7_inputs(self) -> None:
+        result = self._run(
+            "--dry-run", "--modules", "in_vivo_figure7", "--run-id", "default_standard",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--mode=standard", result.stdout)
+        self.assertIn("Manager standard", result.stdout)
+        self.assertNotIn("--mode=full-workflow", result.stdout)
+
+        help_result = self._run("--help")
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+        self.assertIn("Default: standard", help_result.stdout)
+
+    def test_full_refit_does_not_refresh_figure7_inputs_without_opt_in(self) -> None:
+        result = self._run(
+            "--dry-run", "--mode", "full-refit",
+            "--modules", "in_vivo_figure7", "--run-id", "full_without_refresh",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--mode=standard", result.stdout)
+        self.assertNotIn("--mode=full-workflow", result.stdout)
 
     def test_source_run_id_is_rejected_outside_panels_only(self) -> None:
         result = self._run(

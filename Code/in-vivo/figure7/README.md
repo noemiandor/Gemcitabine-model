@@ -20,18 +20,21 @@ an embedded report raster is not accepted as plotting data.
 
 ## Commands
 
-The default Manager mode is the full run. With no explicit `--mode`, Figure 7
-uses `full-workflow`, validates the complete run, and publishes newly generated
-CSV inputs:
+The default Manager mode is the routine `standard` run. With no explicit
+`--mode`, Figure 7 uses the frozen processed inputs and the reviewed compact
+panel-7F reference; it does not download raw data or replace canonical inputs:
 
 ```bash
 bash Manager.sh --run-id <run_id>
 ```
 
-To use the frozen processed inputs for routine figure regeneration instead:
+The end-to-end raw-input workflow and canonical input publication are explicit:
 
 ```bash
-bash Manager.sh --mode standard --run-id <run_id>
+bash Manager.sh \
+  --mode full-refit \
+  --figure7-refresh-inputs \
+  --run-id <run_id>
 ```
 
 Figure 7 is part of the default manuscript module set. To run only Figure 7,

@@ -15,6 +15,7 @@ sys.path.insert(0, str(TOOLS_DIR))
 
 from figure_output_contract import (  # noqa: E402
     MODULE_MANIFEST_COLUMNS,
+    read_tsv,
     sha256_file,
     validate_expected_panel_set,
     validate_figure_manifest,
@@ -22,6 +23,7 @@ from figure_output_contract import (  # noqa: E402
     write_tsv,
 )
 from materialize_figure_assets import PANEL_SPECS  # noqa: E402
+from write_file_manifest import manifest_row  # noqa: E402
 
 
 class Figure7MaterializationTest(unittest.TestCase):
@@ -262,6 +264,28 @@ class Figure7MaterializationTest(unittest.TestCase):
 
 
 class ManifestContractTest(unittest.TestCase):
+    def test_manifest_writer_uses_relative_paths_for_repository_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = root / "checkout"
+            local = repo / "Data/value.tsv"
+            local.parent.mkdir(parents=True)
+            local.write_text("value\n1\n")
+            local_row = manifest_row(
+                local, repo, "test", "input", "test", "run",
+            )
+            self.assertEqual(local_row["path"], "Data/value.tsv")
+            self.assertEqual(local_row["repo_relative_path"], "Data/value.tsv")
+            self.assertEqual(local_row["absolute_path"], "")
+
+            external = root / "external.tsv"
+            external.write_text("value\n2\n")
+            external_row = manifest_row(
+                external, repo, "test", "input", "test", "run",
+            )
+            self.assertEqual(external_row["repo_relative_path"], "")
+            self.assertEqual(external_row["absolute_path"], str(external.resolve()))
+
     def test_expected_set_and_duplicate_checks(self) -> None:
         rows = [
             {"panel": "7A", "source_kind": "generated_panel"},
@@ -397,7 +421,7 @@ class ManifestContractTest(unittest.TestCase):
             self.assertNotIn("3I", panels)
 
     def test_existing_manifests_validate_in_a_moved_checkout(self) -> None:
-        manifest_paths = sorted((REPO_ROOT / "figures").glob("Figure[1-6]/manifest.tsv"))
+        manifest_paths = sorted((REPO_ROOT / "figures").glob("Figure[1-7]/manifest.tsv"))
         manifest_paths.append(REPO_ROOT / "figures/Supplementary/manifest.tsv")
         with tempfile.TemporaryDirectory() as tmp:
             moved_repo = Path(tmp) / "moved-checkout"
@@ -423,6 +447,30 @@ class ManifestContractTest(unittest.TestCase):
                     validate_figure_manifest(moved_manifest, moved_repo),
                     [],
                     f"failed after checkout move: {manifest}",
+                )
+
+    def test_published_strict_module_manifests_are_portable(self) -> None:
+        run_roots = (
+            REPO_ROOT
+            / "Results/in-vivo/figure7/runs"
+            / "figures_20260724T082644Z_final2_figure7",
+            REPO_ROOT
+            / "Results/in-vivo/SI_figures/runs"
+            / "figures_20260724T082644Z_final2_si_figures",
+        )
+        for run_root in run_roots:
+            for manifest_name in ("input_manifest.tsv", "output_manifest.tsv"):
+                manifest = run_root / "metadata" / manifest_name
+                _, rows = read_tsv(manifest)
+                for row in rows:
+                    self.assertTrue(row["repo_relative_path"], manifest)
+                    self.assertFalse(Path(row["path"]).is_absolute(), manifest)
+                    self.assertEqual(row["absolute_path"], "", manifest)
+                output_root = run_root if manifest_name == "output_manifest.tsv" else None
+                self.assertEqual(
+                    validate_module_manifest(manifest, REPO_ROOT, output_root),
+                    [],
+                    manifest,
                 )
 
 
