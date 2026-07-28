@@ -7,7 +7,7 @@ cd "${repo_root}"
 run_id="$(date +"%Y%m%dT%H%M%S_manuscript")"
 source_run_id=""
 mode="standard"
-modules="gdsc,ccle,drug_response,pkpd,metabolomics,in_vivo_figure7"
+modules="gdsc,ccle,drug_response,pkpd,metabolomics,in_vivo_figure7,si_figures"
 output_root="Results"
 figure_root="figures"
 module_registry="docs/manuscript_figure_module_registry.tsv"
@@ -272,6 +272,7 @@ module_run_dir() {
     metabolomics_zscore) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics_zscore" "${output_root}" "${selected_run_id}" ;;
     in_vivo) printf "%s/in-vivo/pseudotime_associations/runs/%s_in_vivo" "${output_root}" "${selected_run_id}" ;;
     in_vivo_figure7) printf "%s/in-vivo/figure7/runs/%s_figure7" "${output_root}" "${selected_run_id}" ;;
+    si_figures) printf "%s/in-vivo/SI_figures/runs/%s_si_figures" "${output_root}" "${selected_run_id}" ;;
     *) echo "Unknown module: ${module}" >&2; return 1 ;;
   esac
 }
@@ -332,6 +333,16 @@ input_paths_for_module() {
       if [[ "${figure7_full_analysis}" == true ]]; then
         printf "%s\n" "${figure7_seurat_rds}" "${figure7_gene_set_artifact}"
       fi
+      ;;
+    si_figures)
+      printf "%s\n" \
+        Code/in-vivo/figure7/figure7_config.yaml \
+        Code/tools/validate_si_figures_table_cache.py \
+        Data/in-vivo/SIfigures/manifest.tsv
+      printf "%s\n" \
+        Data/in-vivo/SIfigures/*.csv \
+        Data/in-vivo/SIfigures/si_figures_cluster_key.tsv \
+        Data/in-vivo/SIfigures/si_figure7_cluster_Hallmark_*.tsv
       ;;
   esac
 }
@@ -453,6 +464,12 @@ command_for_module() {
         )
       fi
       quote_args "${figure7_args[@]}"
+      ;;
+    si_figures)
+      quote_args Rscript Code/in-vivo/SI_figures/generate_supplementary_figures.R \
+        --table-cache-dir=Data/in-vivo/SIfigures \
+        --config=Code/in-vivo/figure7/figure7_config.yaml \
+        "--output-dir=${run_dir}"
       ;;
   esac
 }
@@ -742,7 +759,7 @@ add_completed_run() {
 if [[ "${mode}" == "panels-only" ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
-      gdsc|ccle|drug_response|pkpd|in_vivo|in_vivo_figure7)
+      gdsc|ccle|drug_response|pkpd|in_vivo|in_vivo_figure7|si_figures)
         run_dir="$(module_run_dir "${module}" "${source_run_id}")"
         [[ -d "${run_dir}" ]] || { echo "Missing panels-only source run: ${run_dir}" >&2; exit 1; }
         add_completed_run "${module}" "${run_dir}"
@@ -776,7 +793,7 @@ fi
 if [[ "${skip_analysis_loop}" != true ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
-      gdsc|ccle|drug_response|pkpd|metabolomics|lci_overlays|in_vivo|in_vivo_figure7) ;;
+      gdsc|ccle|drug_response|pkpd|metabolomics|lci_overlays|in_vivo|in_vivo_figure7|si_figures) ;;
       *) echo "Unknown module in --modules: ${module}" >&2; exit 2 ;;
     esac
     if [[ "${module}" == "lci_overlays" && -z "${lci_analysis_dir}" ]]; then

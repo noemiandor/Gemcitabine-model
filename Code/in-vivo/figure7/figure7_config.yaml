@@ -3,6 +3,17 @@ module: in_vivo_figure7
 inputs:
   cellcycle_sha256: bd0c6fcf3f6691114445a7c8a9fb8de7e55ef6580a9737284cd38f5bba216186
   noncellcycle_sha256: 1e44794fb2b2c402b49cf9d17abcc54cd7690dc5d1d611e38a6aa3b996093d3c
+si_figures:
+  cache_schema_version: 1
+  cache_root: Data/in-vivo/SIfigures
+  cache_file_count: 11
+  figures: [4, 5, 6, 7]
+  cluster_order: ["0", "2", "4c", "5", "6", "8", "10", "13", "14"]
+  ploidy_levels: [2N, 4N]
+  dose_levels: [0mg/kg, 30mg/kg, 120mg/kg]
+  plot_shuffle_seed: 5826
+  si7_feature_species_policy: "Human tumor/cell-line analysis: retain GRCh features; exclude GRCm39 features before symbol cleanup, deduplication, ORA, and GSEA."
+  si7_gene_set_database: "MSigDB 2026.1.Hs Hallmark (Homo sapiens symbols)"
 tgi:
   outcome: day
   day: 17
