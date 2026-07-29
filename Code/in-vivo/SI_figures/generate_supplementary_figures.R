@@ -4,7 +4,10 @@
 #
 # The 11 committed tables under Data/in-vivo/SIfigures are the reviewed,
 # plot-facing contract. This script intentionally cannot load raw Seurat data,
-# run differential expression, or recompute enrichment.
+# run differential expression, or recompute enrichment. The canonical default
+# accepts only the corrected human-only SI7 cache. A separately labelled legacy
+# raw rebuild can be rendered only with an explicit opt-in and is never suitable
+# for publication over Data/in-vivo/SIfigures.
 
 parse_args <- function(tokens) {
   result <- list()
@@ -53,6 +56,10 @@ usage <- function() {
       "",
       "Options:",
       "  --overwrite  Replace this generator's known outputs.",
+      paste(
+        "  --allow-legacy-mixed-si7",
+        "Render a run-scoped raw cache carrying Tao's legacy mixed-species policy."
+      ),
       "  --help       Show this help.",
       "",
       "This entrypoint is deliberately plot-only and emits four composite",
@@ -79,7 +86,7 @@ repo_relative <- function(path, root) {
   normalized <- normalizePath(path, mustWork = TRUE)
   prefix <- paste0(normalizePath(root, mustWork = TRUE), .Platform$file.sep)
   if (!startsWith(normalized, prefix)) {
-    stop("Published provenance path is outside the repository: ", normalized, call. = FALSE)
+    return(paste0("external:", basename(normalized)))
   }
   substring(normalized, nchar(prefix) + 1L)
 }
@@ -391,11 +398,32 @@ output_dir <- resolve_path(
   must_work = FALSE
 )
 overwrite <- arg_flag(args, "overwrite")
+allow_legacy_mixed_si7 <- arg_flag(args, "allow-legacy-mixed-si7")
+upstream_manifest_arg <- arg_value(args, "upstream-input-manifest", NULL)
+upstream_manifest_path <- if (is.null(upstream_manifest_arg)) {
+  NA_character_
+} else {
+  resolve_path(upstream_manifest_arg, root, must_work = TRUE)
+}
+if (!is.na(upstream_manifest_path) && !allow_legacy_mixed_si7) {
+  stop(
+    "--upstream-input-manifest is valid only for a legacy raw-table render",
+    call. = FALSE
+  )
+}
 
 validator <- file.path(root, "Code", "tools", "validate_si_figures_table_cache.py")
+validator_args <- c(
+  shQuote(validator),
+  "--cache-dir",
+  shQuote(cache_dir)
+)
+if (allow_legacy_mixed_si7) {
+  validator_args <- c(validator_args, "--si7-policy", "legacy-mixed")
+}
 validation_status <- system2(
   "python3",
-  c(shQuote(validator), "--cache-dir", shQuote(cache_dir))
+  validator_args
 )
 if (!identical(validation_status, 0L)) {
   stop("The frozen SI Figures table cache failed validation", call. = FALSE)
@@ -482,7 +510,12 @@ manifest_copied <- file.copy(
 if (!manifest_copied) stop("Failed to copy the SI Figures cache manifest", call. = FALSE)
 copied_validation <- system2(
   "python3",
-  c(shQuote(validator), "--cache-dir", shQuote(table_dir))
+  c(
+    shQuote(validator),
+    "--cache-dir",
+    shQuote(table_dir),
+    if (allow_legacy_mixed_si7) c("--si7-policy", "legacy-mixed")
+  )
 )
 if (!identical(copied_validation, 0L)) {
   stop("Copied SI Figures tables failed validation", call. = FALSE)
@@ -1111,6 +1144,41 @@ input_manifest <- data.frame(
   bytes = as.numeric(file.info(input_paths)$size),
   stringsAsFactors = FALSE
 )
+if (!is.na(upstream_manifest_path)) {
+  upstream <- read_tsv(
+    upstream_manifest_path,
+    "raw SI build input manifest"
+  )
+  required_upstream_columns <- c("role", "locator", "sha256", "bytes")
+  if (!identical(names(upstream), required_upstream_columns) ||
+      anyNA(upstream$role) ||
+      any(!nzchar(upstream$role)) ||
+      anyDuplicated(upstream$role) ||
+      any(!grepl("^[0-9a-f]{64}$", upstream$sha256)) ||
+      any(!is.finite(as.numeric(upstream$bytes))) ||
+      any(grepl("^/", upstream$locator))) {
+    stop("Raw SI build input manifest is malformed or nonportable", call. = FALSE)
+  }
+  upstream_rows <- data.frame(
+    role = paste0("raw_build_", upstream$role),
+    repo_relative_path = as.character(upstream$locator),
+    sha256 = as.character(upstream$sha256),
+    bytes = as.numeric(upstream$bytes),
+    stringsAsFactors = FALSE
+  )
+  upstream_manifest_row <- data.frame(
+    role = "raw_build_input_manifest",
+    repo_relative_path = repo_relative(upstream_manifest_path, root),
+    sha256 = file_sha256(upstream_manifest_path),
+    bytes = as.numeric(file.info(upstream_manifest_path)$size),
+    stringsAsFactors = FALSE
+  )
+  input_manifest <- rbind(
+    input_manifest,
+    upstream_manifest_row,
+    upstream_rows
+  )
+}
 write_tsv(input_manifest, file.path(metadata_dir, "input_manifest.tsv"))
 
 source_revision <- paste(unique(cache_manifest$source_revision), collapse = ";")
@@ -1126,6 +1194,7 @@ run_config <- data.frame(
     "cluster_order",
     "si7_feature_species_policy",
     "si7_gene_set_database",
+    "si7_canonical_publication_allowed",
     "frozen_table_source_revision"
   ),
   value = c(
@@ -1133,12 +1202,29 @@ run_config <- data.frame(
     "si_figures",
     "4,5,6,7",
     as.character(nrow(panel_contract)),
-    "frozen_plot_tables_only",
+    if (allow_legacy_mixed_si7) {
+      "run_scoped_legacy_mixed_plot_tables"
+    } else {
+      "frozen_plot_tables_only"
+    },
     as.character(length(cache_files)),
     as.character(plot_seed),
     paste(cluster_levels, collapse = ","),
-    as.character(si_config$si7_feature_species_policy),
-    as.character(si_config$si7_gene_set_database),
+    as.character(
+      if (allow_legacy_mixed_si7) {
+        si_config$raw_rebuild_species_policy
+      } else {
+        si_config$si7_feature_species_policy
+      }
+    ),
+    as.character(
+      if (allow_legacy_mixed_si7) {
+        si_config$raw_rebuild_gene_set_database
+      } else {
+        si_config$si7_gene_set_database
+      }
+    ),
+    tolower(as.character(!allow_legacy_mixed_si7)),
     source_revision
   ),
   stringsAsFactors = FALSE
@@ -1193,6 +1279,7 @@ provenance <- data.frame(
     "analysis_mode",
     "si7_feature_species_policy",
     "si7_gene_set_database",
+    "si7_canonical_publication_allowed",
     "si7_frozen_matrix_note"
   ),
   value = c(
@@ -1203,13 +1290,40 @@ provenance <- data.frame(
     git_revision,
     repo_relative(cache_dir, root),
     file_sha256(file.path(cache_dir, "manifest.tsv")),
-    "plot-only; raw Seurat and enrichment dependencies are intentionally absent",
-    as.character(si_config$si7_feature_species_policy),
-    as.character(si_config$si7_gene_set_database),
-    paste(
-      "Frozen matrices were recalculated from Tao's cluster DEG cache after",
-      "explicitly retaining GRCh features and excluding GRCm39 features."
-    )
+    if (allow_legacy_mixed_si7) {
+      paste(
+        "plot-only rendering of a run-scoped raw rebuild;",
+        "canonical publication is prohibited"
+      )
+    } else {
+      "plot-only; raw Seurat and enrichment dependencies are intentionally absent"
+    },
+    as.character(
+      if (allow_legacy_mixed_si7) {
+        si_config$raw_rebuild_species_policy
+      } else {
+        si_config$si7_feature_species_policy
+      }
+    ),
+    as.character(
+      if (allow_legacy_mixed_si7) {
+        si_config$raw_rebuild_gene_set_database
+      } else {
+        si_config$si7_gene_set_database
+      }
+    ),
+    tolower(as.character(!allow_legacy_mixed_si7)),
+    if (allow_legacy_mixed_si7) {
+      paste(
+        "Legacy raw matrices strip GRCh/GRCm prefixes, preserve symbol case,",
+        "and match human Hallmark symbols; they are not canonical outputs."
+      )
+    } else {
+      paste(
+        "Frozen matrices were recalculated from Tao's cluster DEG cache after",
+        "explicitly retaining GRCh features and excluding GRCm39 features."
+      )
+    }
   ),
   stringsAsFactors = FALSE
 )
@@ -1231,7 +1345,13 @@ writeLines(
     paste0("Tumor mice: ", n_mice),
     paste0(
       "SI7 feature policy: ",
-      as.character(si_config$si7_feature_species_policy)
+      as.character(
+        if (allow_legacy_mixed_si7) {
+          si_config$raw_rebuild_species_policy
+        } else {
+          si_config$si7_feature_species_policy
+        }
+      )
     )
   ),
   file.path(metadata_dir, "run_summary.txt")

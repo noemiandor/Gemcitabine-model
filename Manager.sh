@@ -38,6 +38,18 @@ figure7_tgi_day="17"
 figure7_figure_name="Figure7"
 figure7_seurat_rds=""
 figure7_gene_set_artifact=""
+figure7_raw_seurat_rds=""
+figure7_loom_root=""
+figure7_cellranger_root=""
+figure7_seurat_upstream_dir=""
+figure7_python="${FIGURE7_PYTHON:-$(command -v python3 || true)}"
+figure7_intermediate_dir=""
+figure7_raw_data_dir=""
+figure7_cell_ploidy_input="Data/in-vivo/all_ploidy.tsv"
+figure7_sample_info_input="Data/in-vivo/sample_info.xlsx"
+figure7_growth_curve_input="Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx"
+figure7_download_missing_raw=true
+si_figures_intermediate_dir=""
 figure7_reference_id="taoli_04i_etp2_24_day17_v1"
 figure7_state_pathway_results_root=""
 figure7_canonical_reference_root="${FIGURE7_CANONICAL_REFERENCE_ROOT:-Data/in-vivo/figure7/saved_state_pathway/${figure7_reference_id}}"
@@ -75,14 +87,26 @@ Module options:
   --lci-panel-only
   --include-in-vivo
   --metabolomics-input PATH
-  --figure7-full-analysis          Opt-in full pathway recomputation; requires both paths below
+  --figure7-full-analysis          Opt-in legacy pinned-artifact pathway recomputation
   --figure7-panels-ae-only         Generate/materialize 7A-7E while canonical panel 7F is unavailable
   --figure7-tgi-day DAY            TGI endpoint day (default: 17)
   --figure7-figure-name NAME       Materialization folder under --figure-root (default: Figure7)
+  --figure7-intermediate-dir DIR    Reusable Figure 7 raw-analysis intermediates
+  --figure7-raw-data-dir DIR        Verified Zenodo download/cache directory
+  --figure7-loom-root DIR           Explicit local loom directory instead of Zenodo cache
+  --figure7-cellranger-root DIR     Cell Ranger filtered-feature H5 root for earliest-source reconstruction
+  --figure7-seurat-upstream-dir DIR Shared reusable Seurat reconstruction cache for Figure 7 and SI4-7
   --figure7-seurat-rds ABSOLUTE_PATH
-  --figure7-gene-set-artifact PATH  Pinned, versioned local gene-set artifact
+  --figure7-gene-set-artifact PATH  Pinned, versioned local gene-set artifact for --figure7-full-analysis
+  --figure7-raw-seurat-rds PATH     Explicit deposited Seurat RDS instead of Zenodo cache
+  --figure7-python PATH             Python with scVelo dependencies
+  --figure7-cell-ploidy-input PATH  Endpoint-ploidy input
+  --figure7-sample-info-input PATH  Sample metadata workbook
+  --figure7-growth-curve-input PATH Tumor-volume workbook
+  --figure7-no-download-missing-raw Do not download missing deposited raw files
+  --si-figures-intermediate-dir DIR Reusable SI4-7 raw-analysis intermediates
   --figure7-state-pathway-results-root PATH
-                                  Export panel-7F reference from this completed 04i result tree
+                                  Export panel-7F reference from this completed reviewed 04i result tree
 EOF
 }
 
@@ -118,6 +142,18 @@ while [[ $# -gt 0 ]]; do
     --figure7-figure-name) figure7_figure_name="$2"; shift 2 ;;
     --figure7-seurat-rds) figure7_seurat_rds="$2"; shift 2 ;;
     --figure7-gene-set-artifact) figure7_gene_set_artifact="$2"; shift 2 ;;
+    --figure7-raw-seurat-rds) figure7_raw_seurat_rds="$2"; shift 2 ;;
+    --figure7-loom-root) figure7_loom_root="$2"; shift 2 ;;
+    --figure7-cellranger-root) figure7_cellranger_root="$2"; shift 2 ;;
+    --figure7-seurat-upstream-dir) figure7_seurat_upstream_dir="$2"; shift 2 ;;
+    --figure7-python) figure7_python="$2"; shift 2 ;;
+    --figure7-intermediate-dir) figure7_intermediate_dir="$2"; shift 2 ;;
+    --figure7-raw-data-dir) figure7_raw_data_dir="$2"; shift 2 ;;
+    --figure7-cell-ploidy-input) figure7_cell_ploidy_input="$2"; shift 2 ;;
+    --figure7-sample-info-input) figure7_sample_info_input="$2"; shift 2 ;;
+    --figure7-growth-curve-input) figure7_growth_curve_input="$2"; shift 2 ;;
+    --figure7-no-download-missing-raw) figure7_download_missing_raw=false; shift ;;
+    --si-figures-intermediate-dir) si_figures_intermediate_dir="$2"; shift 2 ;;
     --figure7-state-pathway-results-root) figure7_state_pathway_results_root="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -163,6 +199,19 @@ fi
 if [[ ! "${figure7_tgi_day}" =~ ^[0-9]+$ ]]; then
   echo "--figure7-tgi-day must be a non-negative integer" >&2
   exit 2
+fi
+
+if [[ -z "${figure7_intermediate_dir}" ]]; then
+  figure7_intermediate_dir="${output_root}/in-vivo/figure7/intermediates"
+fi
+if [[ -z "${figure7_seurat_upstream_dir}" ]]; then
+  figure7_seurat_upstream_dir="${figure7_intermediate_dir}/seurat_upstream"
+fi
+if [[ -z "${figure7_raw_data_dir}" ]]; then
+  figure7_raw_data_dir="${output_root}/in-vivo/figure7/raw/zenodo_21463392"
+fi
+if [[ -z "${si_figures_intermediate_dir}" ]]; then
+  si_figures_intermediate_dir="${output_root}/in-vivo/SI_figures/intermediates"
 fi
 if [[ ! "${figure7_figure_name}" =~ ^Figure7([._-][A-Za-z0-9._-]+)?$ ]]; then
   echo "--figure7-figure-name must be Figure7 or a Figure7-prefixed folder name" >&2
@@ -277,8 +326,28 @@ module_run_dir() {
   esac
 }
 
+figure7_runtime_source_paths() {
+  printf "%s\n" \
+    Code/in-vivo/figure7/src/common_io.R \
+    Code/in-vivo/figure7/src/input_preflight.R \
+    Code/in-vivo/figure7/src/seurat_upstream_selection.R \
+    Code/in-vivo/figure7/src/tgi_data.R \
+    Code/in-vivo/figure7/src/tgi_statistics.R \
+    Code/in-vivo/figure7/src/tgi_panels.R \
+    Code/in-vivo/figure7/src/state_pathway_panel.R \
+    Code/in-vivo/figure7/src/generated_state_pathway_reference.R \
+    Code/in-vivo/figure7/src/state_pathway_analysis.R
+}
+
+figure7_stage_was_executed() {
+  local executed_stages="$1"
+  local expected_stage="$2"
+  [[ ",${executed_stages}," == *",${expected_stage},"* ]]
+}
+
 input_paths_for_module() {
   local module="$1"
+  local run_dir="${2:-}"
   case "${module}" in
     gdsc)
       printf "%s\n" \
@@ -316,41 +385,381 @@ input_paths_for_module() {
       printf "%s\n" Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv ;;
     in_vivo_figure7)
       printf "%s\n" \
-        Code/in-vivo/figure7/figure7_config.yaml \
-        Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
-        Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
-      if [[ "${figure7_panels_ae_only}" != true && ( -z "${figure7_state_pathway_results_root}" || -d "${figure7_reference_root}" ) ]]; then
+        Code/in-vivo/figure7/run_figure7.R \
+        Code/in-vivo/figure7/figure7_config.yaml
+      figure7_runtime_source_paths
+      local selected_reference=""
+      local executed_stages=""
+      local selected_cellcycle=""
+      local selected_noncellcycle=""
+      local selected_scvelo=""
+      local selected_state_root=""
+      if [[ -n "${run_dir}" && -f "${run_dir}/metadata/run_config.tsv" ]]; then
+        executed_stages="$(metadata_value "${run_dir}/metadata/run_config.tsv" workflow_executed_stages || true)"
+        selected_cellcycle="$(metadata_value "${run_dir}/metadata/run_config.tsv" workflow_cellcycle_input || true)"
+        selected_noncellcycle="$(metadata_value "${run_dir}/metadata/run_config.tsv" workflow_noncellcycle_input || true)"
+        selected_scvelo="$(metadata_value "${run_dir}/metadata/run_config.tsv" workflow_scvelo_metrics || true)"
+        selected_state_root="$(metadata_value "${run_dir}/metadata/run_config.tsv" workflow_state_pathway_results || true)"
         printf "%s\n" \
-          "${figure7_reference_root}/panel_7F_pathway_activity_plot_data.tsv" \
-          "${figure7_reference_root}/panel_7F_selected_pathway_gsea.tsv" \
-          "${figure7_reference_root}/panel_7F_leading_edge_genes.tsv" \
-          "${figure7_reference_root}/state_pathway_gene_ranking_complete.tsv" \
-          "${figure7_reference_root}/state_pathway_gsea_complete.tsv" \
-          "${figure7_reference_root}/state_pathway_sample_bin_coverage.tsv" \
-          "${figure7_reference_root}/state_pathway_design_qc.tsv" \
-          "${figure7_reference_root}/state_pathway_provenance.tsv"
+          "${selected_cellcycle}" \
+          "${selected_noncellcycle}"
+        if [[ -n "${selected_cellcycle}" ]]; then
+          printf "%s\n" "$(dirname "${selected_cellcycle}")/cell_table_provenance.tsv"
+        fi
+        if figure7_stage_was_executed "${executed_stages}" celllevel_inputs &&
+            [[ -n "${selected_scvelo}" ]]; then
+          printf "%s\n" "${selected_scvelo}"
+          printf "%s\n" "$(dirname "${selected_scvelo}")/scvelo_stage_manifest.tsv"
+        fi
+        selected_reference="$(
+          metadata_value \
+            "${run_dir}/metadata/run_config.tsv" \
+            workflow_state_pathway_reference ||
+            true
+        )"
+        if [[ -z "${selected_reference}" ]]; then
+          selected_reference="${figure7_reference_root}"
+        fi
+      else
+        printf "%s\n" \
+          Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
+          Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
+        selected_reference="${figure7_reference_root}"
+      fi
+      if [[ "${figure7_panels_ae_only}" != true &&
+            "${selected_reference}" != "not_applicable" &&
+            -d "${selected_reference}" ]]; then
+        while IFS= read -r filename; do
+          printf "%s\n" "${selected_reference}/${filename}"
+        done < <(figure7_reference_filenames)
+        printf "%s\n" \
+          "$(dirname "${selected_reference}")/$(basename "${selected_reference}").stage_manifest.tsv"
       fi
       if [[ "${figure7_full_analysis}" == true ]]; then
         printf "%s\n" "${figure7_seurat_rds}" "${figure7_gene_set_artifact}"
+      fi
+      if [[ -n "${figure7_state_pathway_results_root}" ]]; then
+        printf "%s\n" \
+          Code/in-vivo/figure7/export_04i_state_pathway_reference.R
+      fi
+
+      local recorded_upstream_manifest_hash=""
+      local recorded_upstream_manifest=""
+      local recorded_final_stage_manifest=""
+      if [[ -n "${run_dir}" && -f "${run_dir}/metadata/run_config.tsv" ]]; then
+        recorded_upstream_manifest_hash="$(
+          metadata_value \
+            "${run_dir}/metadata/run_config.tsv" \
+            workflow_seurat_reconstruction_manifest_sha256 ||
+            true
+        )"
+        recorded_upstream_manifest="$(
+          metadata_value \
+            "${run_dir}/metadata/run_config.tsv" \
+            workflow_seurat_reconstruction_manifest ||
+            true
+        )"
+        recorded_final_stage_manifest="$(
+          metadata_value \
+            "${run_dir}/metadata/run_config.tsv" \
+            workflow_seurat_final_stage_manifest ||
+            true
+        )"
+      fi
+      if figure7_stage_was_executed "${executed_stages}" seurat_upstream ||
+          [[ -n "${recorded_upstream_manifest_hash}" &&
+            "${recorded_upstream_manifest_hash}" != "not_available" ]]; then
+        printf "%s\n" \
+          Code/in-vivo/figure7/generate_final_seurat_from_cellranger.R \
+          Code/in-vivo/figure7/src/seurat_upstream.R \
+          Code/in-vivo/figure7/environment_lock.tsv
+        if [[ -n "${recorded_upstream_manifest}" &&
+              "${recorded_upstream_manifest}" != "not_applicable" &&
+              -f "${recorded_upstream_manifest}" ]]; then
+          printf "%s\n" "${recorded_upstream_manifest}"
+        fi
+        if [[ -n "${recorded_final_stage_manifest}" &&
+              "${recorded_final_stage_manifest}" != "not_applicable" &&
+              -f "${recorded_final_stage_manifest}" ]]; then
+          printf "%s\n" "${recorded_final_stage_manifest}"
+        fi
+      fi
+      if figure7_stage_was_executed "${executed_stages}" raw_data_download ||
+          figure7_stage_was_executed "${executed_stages}" raw_data_validation; then
+        printf "%s\n" \
+          Code/in-vivo/figure7/download_figure7_raw_data.R \
+          Code/in-vivo/figure7/zenodo_required_files.tsv
+      fi
+      if figure7_stage_was_executed "${executed_stages}" scvelo_metrics; then
+        printf "%s\n" \
+          Code/in-vivo/figure7/generate_scvelo_cell_metrics.R \
+          Code/in-vivo/figure7/zenodo_required_files.tsv \
+          Code/in-vivo/figure7/environment_lock.tsv
+      fi
+      if figure7_stage_was_executed "${executed_stages}" celllevel_inputs; then
+        printf "%s\n" \
+          Code/in-vivo/figure7/generate_pseudotime_distribution_with_ploidy_dose_tgi.R \
+          "${figure7_cell_ploidy_input}" \
+          "${figure7_sample_info_input}" \
+          "${figure7_growth_curve_input}"
+      fi
+      if figure7_stage_was_executed "${executed_stages}" state_pathway_support; then
+        printf "%s\n" \
+          Code/in-vivo/figure7/generate_pseudotime_state_pathways_support.R \
+          Code/in-vivo/figure7/environment_lock.tsv
+      fi
+      if figure7_stage_was_executed "${executed_stages}" state_pathway_export; then
+        printf "%s\n" \
+          Code/in-vivo/figure7/export_state_pathway_reference.R \
+          Code/in-vivo/figure7/environment_lock.tsv
+      fi
+      if [[ -n "${selected_state_root}" &&
+            "${selected_state_root}" != "not_applicable" ]]; then
+        local selected_state_manifest="${selected_state_root}/00_manifest/figure7_stage_manifest.tsv"
+        printf "%s\n" "${selected_state_manifest}"
+        if figure7_stage_was_executed "${executed_stages}" state_pathway_export &&
+            [[ -f "${selected_state_manifest}" ]]; then
+          awk -F '\t' -v root="${selected_state_root}" '
+            $1 ~ /^output_sha256:/ {
+              sub(/^output_sha256:/, "", $1)
+              print root "/" $1
+            }
+          ' "${selected_state_manifest}"
+        fi
+      fi
+
+      local recorded_raw_root="${figure7_raw_data_dir}"
+      local recorded_seurat_rds=""
+      local recorded_rds_hash=""
+      local recorded_loom_count="0"
+      if [[ -n "${run_dir}" && -f "${run_dir}/metadata/run_config.tsv" ]]; then
+        recorded_raw_root="$(
+          awk -F '\t' '$1 == "raw_data_dir" { print $2 }' \
+            "${run_dir}/metadata/run_config.tsv"
+        )"
+        recorded_seurat_rds="$(
+          metadata_value \
+            "${run_dir}/metadata/run_config.tsv" \
+            workflow_seurat_rds ||
+            true
+        )"
+        recorded_rds_hash="$(
+          awk -F '\t' '$1 == "seurat_rds_sha256" { print $2 }' \
+            "${run_dir}/metadata/run_config.tsv"
+        )"
+        recorded_loom_count="$(
+          awk -F '\t' '$1 == "loom_file_count" { print $2 }' \
+            "${run_dir}/metadata/run_config.tsv"
+        )"
+      fi
+      if [[ -z "${recorded_seurat_rds}" ]]; then
+        recorded_seurat_rds="${recorded_raw_root}/integrated_sct_cca_seurat_final_reclustered.rds"
+      fi
+      if { figure7_stage_was_executed "${executed_stages}" scvelo_metrics ||
+           figure7_stage_was_executed "${executed_stages}" state_pathway_support; } &&
+          [[ "${recorded_rds_hash}" != "" &&
+            "${recorded_rds_hash}" != "not_available" &&
+            -f "${recorded_seurat_rds}" ]]; then
+        printf "%s\n" "${recorded_seurat_rds}"
+      fi
+      local recorded_loom_root="${figure7_loom_root:-${recorded_raw_root}/velocyto_loom}"
+      if figure7_stage_was_executed "${executed_stages}" scvelo_metrics &&
+          [[ "${recorded_loom_count}" != "0" && -d "${recorded_loom_root}" ]]; then
+        find "${recorded_loom_root}" -type f -name '*.loom' -print
+      fi
+      if { figure7_stage_was_executed "${executed_stages}" raw_data_download ||
+           figure7_stage_was_executed "${executed_stages}" raw_data_validation; } &&
+          [[ -f "${recorded_raw_root}/provenance/downloaded_files_checksums.tsv" ]]; then
+        printf "%s\n" "${recorded_raw_root}/provenance/downloaded_files_checksums.tsv"
+      fi
+      ;;
+    si_figures)
+      printf "%s\n" \
+        Code/in-vivo/SI_figures/run_supplementary_figures.R \
+        Code/in-vivo/SI_figures/generate_supplementary_figures.R \
+        Code/tools/validate_si_figures_table_cache.py
+      local rendered_input_manifest="${run_dir}/metadata/analysis_input_manifest.tsv"
+      if [[ -n "${run_dir}" && -f "${rendered_input_manifest}" ]]; then
+        printf "%s\n" "${rendered_input_manifest}"
+        local si_allowed=""
+        if [[ -f "${run_dir}/metadata/run_config.tsv" ]]; then
+          si_allowed="$(
+            metadata_value \
+              "${run_dir}/metadata/run_config.tsv" \
+              si7_canonical_publication_allowed ||
+              true
+          )"
+        fi
+        if [[ "${si_allowed}" == "true" ]]; then
+          local canonical_si_paths=""
+          if ! canonical_si_paths="$(
+            awk -F '\t' '
+            NR == 1 {
+              if (NF != 4 ||
+                  $1 != "role" ||
+                  $2 != "repo_relative_path" ||
+                  $3 != "sha256" ||
+                  $4 != "bytes") {
+                invalid = 1
+              }
+              next
+            }
+            {
+              role = $1
+              locator = $2
+              if (role == "figure7_config" ||
+                role == "si_figures_cache_manifest" ||
+                role == "si_figures_frozen_table") {
+                if (locator == "" ||
+                  locator ~ /^external:/ ||
+                  locator ~ /^contract:/ ||
+                  locator ~ /^\// ||
+                  locator ~ /^[A-Za-z]:/ ||
+                  locator ~ /(^|\/)\.\.(\/|$)/ ||
+                  seen[locator]++) {
+                  invalid = 1
+                } else {
+                  paths[++path_count] = locator
+                  role_count[role]++
+                }
+              }
+            }
+            END {
+              if (invalid ||
+                role_count["figure7_config"] != 1 ||
+                role_count["si_figures_cache_manifest"] != 1 ||
+                role_count["si_figures_frozen_table"] != 11 ||
+                path_count != 13) {
+                exit 1
+              }
+              for (i = 1; i <= path_count; i++) {
+                print paths[i]
+              }
+            }
+          ' "${rendered_input_manifest}"
+          )"; then
+            echo "Canonical SI analysis manifest has an invalid reviewed-cache binding" >&2
+            return 1
+          fi
+          local canonical_si_path
+          while IFS= read -r canonical_si_path; do
+            [[ -z "${canonical_si_path}" ]] && continue
+            if [[ ! -f "${canonical_si_path}" ]]; then
+              echo "Canonical SI cache input is missing: ${canonical_si_path}" >&2
+              return 1
+            fi
+            printf "%s\n" "${canonical_si_path}"
+          done <<< "${canonical_si_paths}"
+        fi
+      elif [[ -n "${run_dir}" ]]; then
+        echo "Missing retained SI analysis input manifest: ${rendered_input_manifest}" >&2
+        return 1
+      else
+        printf "%s\n" \
+          Code/in-vivo/figure7/figure7_config.yaml \
+          Data/in-vivo/SIfigures/manifest.tsv
+        awk -F '\t' 'NR > 1 && $1 != "" { print $1 }' \
+          Data/in-vivo/SIfigures/manifest.tsv |
+          while IFS= read -r filename; do
+            printf "%s\n" "Data/in-vivo/SIfigures/${filename}"
+          done
+      fi
+      ;;
+  esac
+}
+
+retain_module_analysis_manifest() {
+  local module="$1"
+  local run_dir="$2"
+  [[ "${module}" == "si_figures" ]] || return 0
+  local authored_manifest="${run_dir}/metadata/input_manifest.tsv"
+  local retained_manifest="${run_dir}/metadata/analysis_input_manifest.tsv"
+  if [[ ! -f "${authored_manifest}" ]]; then
+    echo "Missing authored SI analysis input manifest: ${authored_manifest}" >&2
+    return 1
+  fi
+  if [[ -e "${retained_manifest}" ]]; then
+    echo "Refusing to overwrite retained SI analysis input manifest: ${retained_manifest}" >&2
+    return 1
+  fi
+  mv "${authored_manifest}" "${retained_manifest}"
+}
+
+required_input_paths_for_module() {
+  local module="$1"
+  local phase="${2:-final}"
+  case "${module}" in
+    in_vivo_figure7)
+      printf "%s\n" Code/in-vivo/figure7/run_figure7.R Code/in-vivo/figure7/figure7_config.yaml
+      figure7_runtime_source_paths
+      if [[ "${figure7_full_analysis}" == true ]]; then
+        printf "%s\n" \
+          Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
+          Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
+          "${figure7_seurat_rds}" \
+          "${figure7_gene_set_artifact}"
+        if [[ "${figure7_panels_ae_only}" != true &&
+              "${phase}" != "pre-export" ]]; then
+          while IFS= read -r filename; do
+            printf "%s\n" "${figure7_reference_root}/${filename}"
+          done < <(figure7_reference_filenames)
+        fi
+      elif [[ "${mode}" == "full-refit" ]]; then
+        if [[ -n "${figure7_state_pathway_results_root}" &&
+              "${phase}" != "pre-export" ]]; then
+          while IFS= read -r filename; do
+            printf "%s\n" "${figure7_reference_root}/${filename}"
+          done < <(figure7_reference_filenames)
+        fi
+      else
+        printf "%s\n" \
+          Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
+          Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
+        if [[ "${figure7_panels_ae_only}" != true &&
+              "${phase}" != "pre-export" ]]; then
+          while IFS= read -r filename; do
+            printf "%s\n" "${figure7_reference_root}/${filename}"
+          done < <(figure7_reference_filenames)
+        fi
       fi
       ;;
     si_figures)
       printf "%s\n" \
         Code/in-vivo/figure7/figure7_config.yaml \
         Code/tools/validate_si_figures_table_cache.py \
-        Data/in-vivo/SIfigures/manifest.tsv
-      printf "%s\n" \
-        Data/in-vivo/SIfigures/*.csv \
-        Data/in-vivo/SIfigures/si_figures_cluster_key.tsv \
-        Data/in-vivo/SIfigures/si_figure7_cluster_Hallmark_*.tsv
+        Code/in-vivo/SI_figures/run_supplementary_figures.R \
+        Code/in-vivo/SI_figures/generate_supplementary_figures.R
+      if [[ "${mode}" == "full-refit" ]]; then
+        printf "%s\n" \
+          Code/in-vivo/figure7/environment_lock.tsv \
+          Code/in-vivo/figure7/src/common_io.R \
+          Code/in-vivo/figure7/src/seurat_upstream.R \
+          Code/in-vivo/figure7/src/seurat_upstream_selection.R \
+          Code/in-vivo/figure7/generate_final_seurat_from_cellranger.R \
+          Code/in-vivo/figure7/download_figure7_raw_data.R \
+          Code/in-vivo/figure7/zenodo_required_files.tsv \
+          Code/in-vivo/SI_figures/build_raw_supplementary_tables.R \
+          "${figure7_cell_ploidy_input}" \
+          "${figure7_sample_info_input}"
+        [[ -n "${figure7_raw_seurat_rds}" ]] && printf "%s\n" "${figure7_raw_seurat_rds}"
+      else
+        printf "%s\n" Data/in-vivo/SIfigures/manifest.tsv
+        awk -F '\t' 'NR > 1 && $1 != "" { print "Data/in-vivo/SIfigures/" $1 }' \
+          Data/in-vivo/SIfigures/manifest.tsv
+      fi
+      ;;
+    *)
+      input_paths_for_module "${module}"
       ;;
   esac
 }
 
 check_module_inputs() {
   local module="$1"
+  local phase="${2:-final}"
   local path
-  if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
+  if [[ "${module}" == "in_vivo_figure7" &&
+        -n "${figure7_state_pathway_results_root}" ]]; then
     require_dir "${figure7_state_pathway_results_root}"
     require_file Code/in-vivo/figure7/export_04i_state_pathway_reference.R
   fi
@@ -361,7 +770,7 @@ check_module_inputs() {
     else
       require_file "${path}"
     fi
-  done < <(input_paths_for_module "${module}")
+  done < <(required_input_paths_for_module "${module}" "${phase}")
 }
 
 command_for_module() {
@@ -438,38 +847,101 @@ command_for_module() {
         --output-dir "${run_dir}"
       ;;
     in_vivo_figure7)
-      local figure7_mode="standard"
-      local figure7_args=(
-        Rscript Code/in-vivo/figure7/run_figure7.R
-        "--mode=${figure7_mode}"
-        --config=Code/in-vivo/figure7/figure7_config.yaml
-        --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
-        --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
-        "--tgi-day=${figure7_tgi_day}"
-        "--output-dir=${run_dir}"
-      )
-      if [[ "${figure7_panels_ae_only}" == true ]]; then
-        figure7_args+=(--panel-set=a-e)
-      else
-        figure7_args+=("--saved-state-pathway-dir=${figure7_reference_root}")
-        if [[ -n "${figure7_state_pathway_results_root}" ]]; then
-          figure7_args+=("--state-pathway-results-root=${figure7_state_pathway_results_root}")
-        fi
-      fi
+      local figure7_args
       if [[ "${figure7_full_analysis}" == true ]]; then
-        figure7_args[2]="--mode=full-analysis"
-        figure7_args+=(
+        figure7_args=(
+          Rscript Code/in-vivo/figure7/run_figure7.R
+          --mode=full-analysis
+          --config=Code/in-vivo/figure7/figure7_config.yaml
+          --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
+          --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
+          "--saved-state-pathway-dir=${figure7_reference_root}"
           "--seurat-rds=${figure7_seurat_rds}"
           "--gene-set-artifact=${figure7_gene_set_artifact}"
+          "--tgi-day=${figure7_tgi_day}"
+          "--output-dir=${run_dir}"
         )
+      elif [[ "${mode}" == "full-refit" ]]; then
+        figure7_args=(
+          Rscript Code/in-vivo/figure7/run_figure7.R
+          --mode=full-workflow
+          --config=Code/in-vivo/figure7/figure7_config.yaml
+          "--intermediate-dir=${figure7_intermediate_dir}"
+          "--seurat-upstream-dir=${figure7_seurat_upstream_dir}"
+          "--raw-data-dir=${figure7_raw_data_dir}"
+          "--cell-ploidy-input=${figure7_cell_ploidy_input}"
+          "--sample-info-input=${figure7_sample_info_input}"
+          "--growth-curve-input=${figure7_growth_curve_input}"
+          "--python=${figure7_python}"
+          "--jobs=${jobs}"
+          "--download-missing-raw=${figure7_download_missing_raw}"
+          "--tgi-day=${figure7_tgi_day}"
+          "--output-dir=${run_dir}"
+        )
+        if [[ -n "${figure7_loom_root}" ]]; then
+          figure7_args+=("--loom-root=${figure7_loom_root}")
+        fi
+        if [[ -n "${figure7_cellranger_root}" ]]; then
+          figure7_args+=("--cellranger-root=${figure7_cellranger_root}")
+        fi
+        if [[ -n "${figure7_raw_seurat_rds}" ]]; then
+          figure7_args+=("--seurat-rds=${figure7_raw_seurat_rds}")
+        fi
+        if [[ -n "${figure7_state_pathway_results_root}" ]]; then
+          figure7_args+=(
+            "--frozen-state-pathway-dir=${figure7_reference_root}"
+          )
+        fi
+      else
+        figure7_args=(
+          Rscript Code/in-vivo/figure7/run_figure7.R
+          --mode=standard
+          --config=Code/in-vivo/figure7/figure7_config.yaml
+          --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
+          --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
+          "--tgi-day=${figure7_tgi_day}"
+          "--output-dir=${run_dir}"
+        )
+        if [[ "${figure7_panels_ae_only}" != true ]]; then
+          figure7_args+=("--saved-state-pathway-dir=${figure7_reference_root}")
+        fi
+        if [[ -n "${figure7_state_pathway_results_root}" ]]; then
+          figure7_args+=(
+            "--state-pathway-results-root=${figure7_state_pathway_results_root}"
+          )
+        fi
+      fi
+      if [[ "${figure7_panels_ae_only}" == true ]]; then
+        figure7_args+=(--panel-set=a-e)
       fi
       quote_args "${figure7_args[@]}"
       ;;
     si_figures)
-      quote_args Rscript Code/in-vivo/SI_figures/generate_supplementary_figures.R \
-        --table-cache-dir=Data/in-vivo/SIfigures \
-        --config=Code/in-vivo/figure7/figure7_config.yaml \
+      local si_mode="plot-only"
+      if [[ "${mode}" == "full-refit" ]]; then
+        si_mode="full-workflow"
+      fi
+      local si_args=(
+        Rscript Code/in-vivo/SI_figures/run_supplementary_figures.R
+        "--mode=${si_mode}"
+        --table-cache-dir=Data/in-vivo/SIfigures
+        --config=Code/in-vivo/figure7/figure7_config.yaml
+        "--all-ploidy=${figure7_cell_ploidy_input}"
+        "--sample-info=${figure7_sample_info_input}"
+        "--intermediate-dir=${si_figures_intermediate_dir}"
+        "--seurat-upstream-dir=${figure7_seurat_upstream_dir}"
+        "--raw-data-dir=${figure7_raw_data_dir}"
+        "--download-missing-raw=${figure7_download_missing_raw}"
+        "--workers=${jobs}"
         "--output-dir=${run_dir}"
+      )
+      if [[ -n "${figure7_raw_seurat_rds}" ]]; then
+        si_args+=("--seurat-rds=${figure7_raw_seurat_rds}")
+      fi
+      if [[ -n "${figure7_cellranger_root}" ]]; then
+        si_args+=("--cellranger-root=${figure7_cellranger_root}")
+      fi
+      quote_args "${si_args[@]}"
       ;;
   esac
 }
@@ -504,6 +976,67 @@ record_module_run() {
   printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
     "${module}" "${status}" "${mode}" "${command_string}" "${run_dir}" "" "${started_at}" "${finished_at}" \
     "${stdout_log}" "${stderr_log}" "${notes}" >> "${module_runs_file}"
+}
+
+metadata_value() {
+  local path="$1" key="$2"
+  [[ -f "${path}" ]] || return 1
+  awk -F '\t' -v expected="${key}" '
+    $1 == expected {
+      count += 1
+      value = $2
+    }
+    END {
+      if (count != 1 || value == "") exit 1
+      print value
+    }
+  ' "${path}"
+}
+
+module_publication_reason=""
+module_is_publishable_run() {
+  local module="$1" run_dir="$2"
+  local run_config="${run_dir}/metadata/run_config.tsv"
+  module_publication_reason=""
+  case "${module}" in
+    in_vivo_figure7)
+      local panel_set
+      panel_set="$(metadata_value "${run_config}" panel_set)" || {
+        module_publication_reason="missing_or_ambiguous_panel_set"
+        return 1
+      }
+      if [[ "${panel_set}" == "a-e" ]]; then
+        return 0
+      fi
+      if [[ "${panel_set}" != "a-f" ]]; then
+        module_publication_reason="invalid_panel_set=${panel_set}"
+        return 1
+      fi
+      local allowed reference_id reference_kind
+      allowed="$(metadata_value "${run_config}" canonical_publication_allowed)" || true
+      reference_id="$(metadata_value "${run_config}" state_pathway_reference_id)" || true
+      reference_kind="$(metadata_value "${run_config}" state_pathway_reference_kind)" || true
+      if [[ "${allowed}" == "true" &&
+            "${reference_id}" == "${figure7_reference_id}" &&
+            "${reference_kind}" == "reviewed_frozen" ]]; then
+        return 0
+      fi
+      module_publication_reason="noncanonical_panel_7F_reference"
+      return 1
+      ;;
+    si_figures)
+      local allowed
+      allowed="$(metadata_value "${run_config}" si7_canonical_publication_allowed)" || true
+      if [[ "${allowed}" == "true" ]]; then
+        return 0
+      fi
+      module_publication_reason="noncanonical_legacy_mixed_SI7"
+      return 1
+      ;;
+    *)
+      return 0
+      ;;
+  esac
 }
 
 figure7_reference_export_command() {
@@ -614,15 +1147,23 @@ run_module() {
   local run_dir="$2"
   local command_string="$3"
   local module_notes=""
+  last_module_publishable=true
   if [[ "${module}" == "in_vivo_figure7" ]]; then
     module_notes="tgi_day=${figure7_tgi_day};figure_name=${figure7_figure_name}"
   fi
 
-  check_module_inputs "${module}"
+  local input_check_phase="final"
+  if [[ "${module}" == "in_vivo_figure7" &&
+        -n "${figure7_state_pathway_results_root}" ]]; then
+    input_check_phase="pre-export"
+  fi
+  check_module_inputs "${module}" "${input_check_phase}"
 
   if [[ "${dry_run}" == true || "${mode}" == "check-only" ]]; then
-    if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
-      printf "[in_vivo_figure7_export] %s\n" "$(figure7_reference_export_command)"
+    if [[ "${module}" == "in_vivo_figure7" &&
+          -n "${figure7_state_pathway_results_root}" ]]; then
+      printf "[in_vivo_figure7_export] %s\n" \
+        "$(figure7_reference_export_command)"
     fi
     printf "[%s] %s\n" "${module}" "${command_string}"
     return 0
@@ -637,8 +1178,11 @@ run_module() {
   fi
   mkdir -p "${run_dir}/metadata" "${run_dir}/logs"
 
-  if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
-    if ! prepare_figure7_reference; then
+  if [[ "${module}" == "in_vivo_figure7" &&
+        -n "${figure7_state_pathway_results_root}" ]]; then
+    local export_status=0
+    prepare_figure7_reference || export_status=$?
+    if [[ "${export_status}" -ne 0 ]]; then
       local export_finished_at
       export_finished_at="$(date -Iseconds)"
       record_module_run \
@@ -648,9 +1192,9 @@ run_module() {
         "state_pathway_export_failed;state_pathway_source_results_root=${figure7_state_pathway_results_root}" \
         "${export_finished_at}" "${export_finished_at}"
       echo "Figure 7 state-pathway export failed; see ${manager_run_dir}/logs/figure7_state_pathway_export.stderr.log" >&2
-      return 1
+      return "${export_status}"
     fi
-    check_module_inputs "${module}"
+    check_module_inputs "${module}" "post-export"
     module_notes="${module_notes};state_pathway_source_results_root=${figure7_state_pathway_results_root};state_pathway_reference_dir=${figure7_reference_root}"
   fi
 
@@ -671,6 +1215,8 @@ run_module() {
     return "${status}"
   fi
 
+  retain_module_analysis_manifest "${module}" "${run_dir}"
+
   local input_args=()
   local input_path
   while IFS= read -r input_path; do
@@ -678,7 +1224,7 @@ run_module() {
     if [[ -f "${input_path}" ]]; then
       input_args+=(--path "${input_path}")
     fi
-  done < <(input_paths_for_module "${module}")
+  done < <(input_paths_for_module "${module}" "${run_dir}")
   if [[ "${#input_args[@]}" -gt 0 ]]; then
     python3 Code/tools/write_file_manifest.py \
       --manifest-type input \
@@ -686,6 +1232,7 @@ run_module() {
       --output "${run_dir}/metadata/input_manifest.tsv" \
       --generated-by Manager.sh \
       --command-id "${run_id}" \
+      --portable \
       "${input_args[@]}"
     python3 Code/tools/validate_manifest.py "${run_dir}/metadata/input_manifest.tsv" --repo-root "${repo_root}"
   fi
@@ -695,34 +1242,49 @@ run_module() {
     --output "${run_dir}/metadata/output_manifest.tsv" \
     --generated-by Manager.sh \
     --command-id "${run_id}" \
+    --locator-root "${run_dir}" \
     --scan-dir "${run_dir}"
   python3 Code/tools/validate_manifest.py "${run_dir}/metadata/output_manifest.tsv" \
     --output-root "${run_dir}" --repo-root "${repo_root}"
 
-  if [[ "${module}" == "in_vivo_figure7" && -n "${figure7_state_pathway_results_root}" ]]; then
+  if [[ "${module}" == "in_vivo_figure7" &&
+        -n "${figure7_state_pathway_results_root}" ]]; then
     local materialization_started_at materialization_finished_at
     materialization_started_at="$(date -Iseconds)"
     if ! materialize_figure7_reference_to_data; then
       materialization_finished_at="$(date -Iseconds)"
-      record_figure7_reference_materialization "failed" "${materialization_started_at}" "${materialization_finished_at}"
+      record_figure7_reference_materialization "failed" \
+        "${materialization_started_at}" "${materialization_finished_at}"
       finished_at="${materialization_finished_at}"
       record_module_run \
-        "${module}" "failed" "${command_string}" "${run_dir}" "${stdout_log}" "${stderr_log}" \
+        "${module}" "failed" "${command_string}" "${run_dir}" \
+        "${stdout_log}" "${stderr_log}" \
         "state_pathway_materialization_failed;${module_notes};state_pathway_canonical_data_dir=${figure7_canonical_reference_root}" \
         "${started_at}" "${finished_at}"
       echo "Figure 7 canonical Data reference materialization failed: ${figure7_canonical_reference_root}" >&2
       return 1
     fi
     materialization_finished_at="$(date -Iseconds)"
-    record_figure7_reference_materialization "ok" "${materialization_started_at}" "${materialization_finished_at}"
+    record_figure7_reference_materialization "ok" \
+      "${materialization_started_at}" "${materialization_finished_at}"
     module_notes="${module_notes};state_pathway_canonical_data_dir=${figure7_canonical_reference_root}"
     finished_at="${materialization_finished_at}"
   fi
 
-  if [[ "${no_update_latest}" != true ]]; then
+  local recorded_status="ok"
+  if ! module_is_publishable_run "${module}" "${run_dir}"; then
+    last_module_publishable=false
+    recorded_status="ok_noncanonical"
+    if [[ -n "${module_notes}" ]]; then
+      module_notes="${module_notes};"
+    fi
+    module_notes="${module_notes}canonical_publication_allowed=false;publication_skip_reason=${module_publication_reason}"
+  fi
+
+  if [[ "${no_update_latest}" != true && "${last_module_publishable}" == true ]]; then
     write_latest "${module}" "${run_dir}" "${command_string}"
   fi
-  record_module_run "${module}" "ok" "${command_string}" "${run_dir}" "${stdout_log}" "${stderr_log}" "${module_notes}" "${started_at}" "${finished_at}"
+  record_module_run "${module}" "${recorded_status}" "${command_string}" "${run_dir}" "${stdout_log}" "${stderr_log}" "${module_notes}" "${started_at}" "${finished_at}"
 }
 
 manager_run_dir="${output_root}/manager/runs/${run_id}"
@@ -762,7 +1324,11 @@ if [[ "${mode}" == "panels-only" ]]; then
       gdsc|ccle|drug_response|pkpd|in_vivo|in_vivo_figure7|si_figures)
         run_dir="$(module_run_dir "${module}" "${source_run_id}")"
         [[ -d "${run_dir}" ]] || { echo "Missing panels-only source run: ${run_dir}" >&2; exit 1; }
-        add_completed_run "${module}" "${run_dir}"
+        if module_is_publishable_run "${module}" "${run_dir}"; then
+          add_completed_run "${module}" "${run_dir}"
+        else
+          echo "Skipping manuscript materialization for ${module}: ${module_publication_reason}"
+        fi
         ;;
       metabolomics)
         for submodule in metabolomics metabolomics_pathway metabolomics_zscore; do
@@ -843,11 +1409,20 @@ if [[ "${skip_analysis_loop}" != true ]]; then
 
     run_dir="$(module_run_dir "${module}")"
     run_module "${module}" "${run_dir}" "$(command_for_module "${module}" "${run_dir}")"
-    add_completed_run "${module}" "${run_dir}"
+    if [[ "${last_module_publishable}" == true ]]; then
+      add_completed_run "${module}" "${run_dir}"
+    else
+      echo "Completed ${module} analytically but skipped manuscript materialization: ${module_publication_reason}"
+    fi
   done
 fi
 
 if [[ "${mode}" != "check-only" && "${dry_run}" != true ]]; then
+  if [[ "${#completed_modules[@]}" -eq 0 ]]; then
+    echo "No canonical module outputs are eligible for manuscript materialization."
+    echo "Manager completed: ${run_id}"
+    exit 0
+  fi
   materialize_source_run_id="${run_id}"
   if [[ "${mode}" == "panels-only" ]]; then
     materialize_source_run_id="${source_run_id}"

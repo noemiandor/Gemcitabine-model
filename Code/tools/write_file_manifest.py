@@ -72,16 +72,36 @@ def manifest_row(
     manifest_type: str,
     generated_by: str,
     command_id: str,
+    portable: bool,
+    locator_root: Path | None,
 ) -> dict[str, object]:
     resolved = path.resolve()
     repo_relative = str(resolved.relative_to(repo_root)) if path_within(resolved, repo_root) else ""
     checksum = sha256_file(resolved) if resolved.is_file() else ""
+    locator_relative = (
+        str(resolved.relative_to(locator_root))
+        if locator_root is not None and path_within(resolved, locator_root)
+        else ""
+    )
+    external_portable = portable and not repo_relative and not locator_relative
     return {
-        "path": repo_relative or str(resolved),
+        "path": (
+            locator_relative
+            or repo_relative
+            or (f"external:{resolved.name}" if external_portable else str(resolved))
+        ),
         "repo_relative_path": repo_relative,
-        "absolute_path": str(resolved),
+        "absolute_path": (
+            ""
+            if portable or locator_relative or repo_relative
+            else str(resolved)
+        ),
         "role": role_for(resolved, manifest_type),
-        "source_kind": source_kind_for(resolved, manifest_type),
+        "source_kind": (
+            "external"
+            if external_portable
+            else source_kind_for(resolved, manifest_type)
+        ),
         "module": module,
         "generated_by": generated_by,
         "command_id": command_id,
@@ -107,9 +127,31 @@ def main() -> int:
     parser.add_argument("--repo-root", type=Path)
     parser.add_argument("--scan-dir", type=Path, help="Directory to scan for output files.")
     parser.add_argument("--path", action="append", default=[], help="Input or output file path. May be repeated.")
+    parser.add_argument(
+        "--portable",
+        action="store_true",
+        help=(
+            "Omit absolute paths. Repository files use checkout-relative paths; "
+            "external files use redacted external:<basename> locators."
+        ),
+    )
+    parser.add_argument(
+        "--locator-root",
+        type=Path,
+        help=(
+            "Record files below this directory with paths relative to that "
+            "directory. Intended for portable output manifests."
+        ),
+    )
     args = parser.parse_args()
 
     repo_root = args.repo_root.resolve() if args.repo_root else repo_root_from(Path.cwd())
+    locator_root = None
+    if args.locator_root is not None:
+        locator_root = args.locator_root
+        if not locator_root.is_absolute():
+            locator_root = repo_root / locator_root
+        locator_root = locator_root.resolve()
     paths: list[Path] = []
     if args.scan_dir is not None:
         scan_dir = args.scan_dir
@@ -134,6 +176,8 @@ def main() -> int:
             manifest_type=args.manifest_type,
             generated_by=args.generated_by,
             command_id=args.command_id,
+            portable=args.portable,
+            locator_root=locator_root,
         )
         for path in sorted(set(paths))
     ]

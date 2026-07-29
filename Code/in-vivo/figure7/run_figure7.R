@@ -4,19 +4,23 @@ file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
 script_path <- if (length(file_arg)) sub("^--file=", "", file_arg[[1L]]) else "Code/in-vivo/figure7/run_figure7.R"
 script_dir <- dirname(normalizePath(script_path, mustWork = FALSE))
 repo_root <- normalizePath(file.path(script_dir, "..", "..", ".."), mustWork = FALSE)
-for (file in c("common_io.R", "tgi_data.R", "tgi_statistics.R", "tgi_panels.R",
-               "state_pathway_panel.R", "state_pathway_analysis.R")) {
+for (file in c(
+  "common_io.R", "input_preflight.R", "seurat_upstream_selection.R",
+  "tgi_data.R", "tgi_statistics.R",
+  "tgi_panels.R", "state_pathway_panel.R",
+  "generated_state_pathway_reference.R", "state_pathway_analysis.R"
+)) {
   sys.source(file.path(script_dir, "src", file), envir = .GlobalEnv)
-}
-
-if (!requireNamespace("ggplot2", quietly = TRUE) || !requireNamespace("ggrepel", quietly = TRUE)) {
-  figure7_stop("R packages 'ggplot2' and 'ggrepel' are required")
 }
 
 args <- figure7_parse_args(commandArgs(trailingOnly = TRUE))
 mode <- figure7_arg(args, "mode", "standard")
-allowed_modes <- c("standard", "full-analysis", "render-only")
+allowed_modes <- c("standard", "full-analysis", "full-workflow", "render-only")
 if (!mode %in% allowed_modes) figure7_stop("Unknown Figure 7 mode: ", mode)
+if (!requireNamespace("ggplot2", quietly = TRUE) ||
+    !requireNamespace("ggrepel", quietly = TRUE)) {
+  figure7_stop("R packages 'ggplot2' and 'ggrepel' are required")
+}
 panel_set <- figure7_arg(args, "panel-set", "a-f")
 if (!panel_set %in% c("a-f", "a-e")) figure7_stop("Unknown Figure 7 panel set: ", panel_set)
 include_panel_f <- identical(panel_set, "a-f")
@@ -29,28 +33,218 @@ tgi_day_arg <- figure7_arg(args, "tgi-day", "")
 config <- figure7_read_config(config_path, if (nzchar(tgi_day_arg)) tgi_day_arg else NULL)
 output_dir <- normalizePath(figure7_arg(args, "output-dir", required = TRUE), mustWork = FALSE)
 state_pathway_results_root_arg <- figure7_arg(args, "state-pathway-results-root", "")
-state_pathway_results_root <- if (nzchar(state_pathway_results_root_arg)) {
+state_pathway_results_root <- if (nzchar(state_pathway_results_root_arg) && !identical(mode, "full-workflow")) {
   normalizePath(state_pathway_results_root_arg, mustWork = TRUE)
 } else {
   ""
 }
 
-write_metadata <- function(output_dir, mode, config, config_path, panel_ids, state_pathway_results_root = "") {
+write_metadata <- function(
+  output_dir,
+  mode,
+  config,
+  config_path,
+  panel_ids,
+  state_pathway_results_root = "",
+  workflow = NULL,
+  reference_identity = NULL
+) {
   tgi_day <- figure7_tgi_day(config)
   tgi_measure <- figure7_tgi_measure(config)
+  if (is.null(reference_identity)) {
+    reference_identity <- if (!is.null(workflow)) {
+      list(
+        id = workflow$state_pathway_reference_id,
+        kind = workflow$state_pathway_reference_kind,
+        canonical_publication_allowed =
+          workflow$canonical_publication_allowed
+      )
+    } else if (include_panel_f) {
+      list(
+        id = as.character(config$state_pathways$reference_id),
+        kind = "reviewed_frozen",
+        canonical_publication_allowed = TRUE
+      )
+    } else {
+      list(
+        id = "not_applicable",
+        kind = "not_applicable",
+        canonical_publication_allowed = FALSE
+      )
+    }
+  }
   run_config <- data.frame(
     key = c("module", "mode", "panel_set", "tgi_outcome", "tgi_day", "tgi_measure",
             "matched_control_summary", "matched_control_group", "etp_method", "etp_threshold",
-            "state_pathway_reference_id", "state_interval_start", "state_interval_end",
+            "state_pathway_reference_id", "state_pathway_reference_kind",
+            "canonical_publication_allowed",
+            "state_interval_start", "state_interval_end",
             "state_pathway_source_results_root", "config_sha256"),
     value = c("in_vivo_figure7", mode, panel_set, "day", as.character(tgi_day), tgi_measure, "mean", "initial_ploidy",
-              config$etp$method, as.character(config$etp$threshold), config$state_pathways$reference_id,
+              config$etp$method, as.character(config$etp$threshold),
+              reference_identity$id,
+              reference_identity$kind,
+              tolower(as.character(
+                reference_identity$canonical_publication_allowed
+              )),
               as.character(config$state_pathways$accumulated_interval$start),
               as.character(config$state_pathways$accumulated_interval$end),
               if (nzchar(state_pathway_results_root)) state_pathway_results_root else "not_recorded",
               figure7_sha256(config_path)),
     stringsAsFactors = FALSE
   )
+  if (!is.null(workflow)) {
+    workflow_loom_files <- if (dir.exists(workflow$loom_root)) {
+      list.files(workflow$loom_root, pattern = "[.]loom$", recursive = TRUE, full.names = TRUE)
+    } else {
+      character()
+    }
+    workflow_loom_bytes <- if (length(workflow_loom_files)) sum(file.info(workflow_loom_files)$size) else 0
+    run_config <- rbind(
+      run_config,
+      data.frame(
+        key = c(
+          "workflow_initial_state", "workflow_executed_stages", "workflow_scvelo_metrics",
+          "workflow_scvelo_sha256", "workflow_cellcycle_input", "workflow_cellcycle_sha256",
+          "workflow_noncellcycle_input", "workflow_noncellcycle_sha256",
+          "raw_data_source", "raw_data_doi", "zenodo_record_id", "raw_data_dir",
+          "raw_data_download_roles", "raw_data_validation_roles", "raw_download_workers",
+          "raw_download_connections_per_file", "analysis_jobs",
+          "raw_data_manifest_sha256", "seurat_rds_sha256",
+          "workflow_seurat_rds", "loom_file_count", "loom_total_bytes",
+          "workflow_loom_root",
+          "workflow_state_pathway_results", "workflow_state_pathway_reference",
+          "workflow_log_dir"
+        ),
+        value = c(
+          workflow$initial_state,
+          if (length(workflow$executed_stages)) paste(workflow$executed_stages, collapse = ",") else "none",
+          workflow$scvelo_metrics,
+          if (file.exists(workflow$scvelo_metrics)) figure7_sha256(workflow$scvelo_metrics) else "not_available",
+          workflow$cellcycle,
+          figure7_sha256(workflow$cellcycle),
+          workflow$noncellcycle,
+          figure7_sha256(workflow$noncellcycle),
+          workflow$raw_data_status,
+          as.character(config$raw_data$doi),
+          as.character(config$raw_data$record_id),
+          workflow$raw_data_dir,
+          if (length(workflow$raw_download_roles)) paste(workflow$raw_download_roles, collapse = ",") else "none",
+          if (length(workflow$raw_validation_roles)) paste(workflow$raw_validation_roles, collapse = ",") else "none",
+          as.character(workflow$download_workers),
+          as.character(workflow$download_connections_per_file),
+          as.character(workflow$analysis_jobs),
+          figure7_sha256(workflow$raw_manifest),
+          if (nzchar(workflow$seurat_rds_sha256)) workflow$seurat_rds_sha256 else "not_available",
+          workflow$seurat_rds,
+          as.character(length(workflow_loom_files)),
+          as.character(workflow_loom_bytes),
+          workflow$loom_root,
+          if (nzchar(workflow$state_pathway_root)) {
+            workflow$state_pathway_root
+          } else {
+            "not_applicable"
+          },
+          if (nzchar(workflow$saved_reference)) {
+            workflow$saved_reference
+          } else {
+            "not_applicable"
+          },
+          workflow$log_dir
+        ),
+        stringsAsFactors = FALSE
+      )
+    )
+    reconstruction_manifest <- figure7_workflow_scalar(
+      workflow,
+      "seurat_reconstruction_manifest"
+    )
+    final_stage_manifest <- figure7_workflow_scalar(
+      workflow,
+      "seurat_final_stage_manifest"
+    )
+    lineage_config <- data.frame(
+      key = c(
+        "workflow_seurat_source",
+        "workflow_seurat_upstream_dir",
+        "workflow_seurat_reconstruction_manifest",
+        "workflow_seurat_reconstruction_manifest_sha256",
+        "workflow_seurat_final_stage_manifest",
+        "workflow_seurat_final_stage_manifest_sha256"
+      ),
+      value = c(
+        figure7_workflow_scalar(
+          workflow,
+          "seurat_source",
+          "not_recorded"
+        ),
+        if (nzchar(reconstruction_manifest)) {
+          dirname(reconstruction_manifest)
+        } else {
+          "not_applicable"
+        },
+        if (nzchar(reconstruction_manifest)) {
+          reconstruction_manifest
+        } else {
+          "not_applicable"
+        },
+        figure7_workflow_scalar(
+          workflow,
+          "seurat_reconstruction_manifest_sha256",
+          "not_available"
+        ),
+        if (nzchar(final_stage_manifest)) {
+          final_stage_manifest
+        } else {
+          "not_applicable"
+        },
+        figure7_workflow_scalar(
+          workflow,
+          "seurat_final_stage_manifest_sha256",
+          "not_available"
+        )
+      ),
+      stringsAsFactors = FALSE
+    )
+    named_lineage_rows <- function(values, prefix) {
+      if (is.null(values) || !length(values)) {
+        return(data.frame(
+          key = character(),
+          value = character(),
+          stringsAsFactors = FALSE
+        ))
+      }
+      if (is.null(names(values)) ||
+          anyNA(names(values)) ||
+          any(!nzchar(names(values))) ||
+          anyDuplicated(names(values))) {
+        figure7_stop(
+          "Workflow Seurat lineage has invalid dependency role names"
+        )
+      }
+      data.frame(
+        key = paste0(prefix, names(values)),
+        value = as.character(values),
+        stringsAsFactors = FALSE
+      )
+    }
+    lineage_config <- rbind(
+      lineage_config,
+      named_lineage_rows(
+        workflow$seurat_transitive_dependencies,
+        "workflow_seurat_transitive_dependency:"
+      ),
+      named_lineage_rows(
+        workflow$seurat_scientific_code_contracts,
+        "workflow_seurat_"
+      ),
+      named_lineage_rows(
+        workflow$seurat_upstream_common_contract,
+        "workflow_seurat_upstream_common_contract:"
+      )
+    )
+    run_config <- rbind(run_config, lineage_config)
+  }
   contract <- data.frame(
     panel_id = panel_ids,
     filename = figure7_panel_filenames(config, panel_ids),
@@ -72,10 +266,17 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
     figure7_stop("render-only output must differ from the immutable source run")
   }
   source_run_config <- figure7_read_tsv(file.path(source_dir, "metadata", "run_config.tsv"), c("key", "value"))
+  if (anyDuplicated(source_run_config$key)) {
+    figure7_stop("render-only source run_config.tsv contains duplicate keys")
+  }
+  source_value <- stats::setNames(
+    as.character(source_run_config$value),
+    source_run_config$key
+  )
   source_contract <- figure7_read_tsv(file.path(source_dir, "metadata", "panel_contract.tsv"),
                                       c("panel_id", "filename", "tgi_outcome", "tgi_day", "tgi_measure",
                                         "matched_control_summary", "matched_control_group"))
-  config_hash <- source_run_config$value[match("config_sha256", source_run_config$key)]
+  config_hash <- source_value[["config_sha256"]]
   if (is.na(config_hash) || !identical(config_hash, figure7_sha256(config_path))) {
     figure7_stop("render-only source run was produced with a different Figure 7 config")
   }
@@ -118,6 +319,11 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
   }
   f <- NULL
   provenance <- NULL
+  reference_identity <- list(
+    id = "not_applicable",
+    kind = "not_applicable",
+    canonical_publication_allowed = FALSE
+  )
   if (include_panel_f) {
     f <- figure7_read_tsv(table_path("panel_7F_pathway_activity_plot_data.tsv"),
       c("collection_id", "collection_label", "collection_display_order", "pathway_id", "pathway_label",
@@ -135,6 +341,102 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
     }
     provenance <- file.path(source_dir, "metadata", "state_pathway_provenance.tsv")
     if (!file.exists(provenance)) figure7_stop("render-only source is missing state_pathway_provenance.tsv")
+    identity_keys <- c(
+      "state_pathway_reference_id",
+      "state_pathway_reference_kind",
+      "canonical_publication_allowed"
+    )
+    if (!all(identity_keys %in% names(source_value))) {
+      figure7_stop(
+        "render-only source lacks the panel-7F publication identity contract"
+      )
+    }
+    reference_identity <- list(
+      id = source_value[["state_pathway_reference_id"]],
+      kind = source_value[["state_pathway_reference_kind"]],
+      canonical_publication_allowed = identical(
+        tolower(source_value[["canonical_publication_allowed"]]),
+        "true"
+      )
+    )
+    reviewed_identity <- identical(
+      unname(unlist(reference_identity)),
+      unname(unlist(list(
+        id = as.character(config$state_pathways$reference_id),
+        kind = "reviewed_frozen",
+        canonical_publication_allowed = TRUE
+      )))
+    )
+    generated_identity <- identical(
+      unname(unlist(reference_identity)),
+      unname(unlist(list(
+        id = as.character(config$state_pathways$generated_reference_id),
+        kind = as.character(
+          config$state_pathways$generated_reference_kind
+        ),
+        canonical_publication_allowed = FALSE
+      )))
+    )
+    if (!reviewed_identity && !generated_identity) {
+      figure7_stop(
+        "render-only source has an invalid panel-7F publication identity"
+      )
+    }
+    provenance_table <- figure7_read_tsv(
+      provenance,
+      c("key", "value")
+    )
+    if (anyDuplicated(provenance_table$key)) {
+      figure7_stop(
+        "render-only source state-pathway provenance contains duplicate keys"
+      )
+    }
+    provenance_value <- stats::setNames(
+      as.character(provenance_table$value),
+      provenance_table$key
+    )
+    provenance_matches <- if (reviewed_identity) {
+      reviewed_provenance_matches <- identical(
+        provenance_value[["canonical_reference_id"]],
+        as.character(config$state_pathways$reference_id)
+      )
+      if (reviewed_provenance_matches) {
+        for (reference_file in figure7_state_required_files()) {
+          source_path <- if (identical(
+            reference_file,
+            "state_pathway_provenance.tsv"
+          )) {
+            provenance
+          } else {
+            table_path(reference_file)
+          }
+          figure7_verify_checksum(
+            source_path,
+            config$state_pathways$expected_files[[reference_file]],
+            paste("render-only reviewed panel-7F", reference_file)
+          )
+        }
+      }
+      reviewed_provenance_matches
+    } else {
+      identical(
+        provenance_value[["generated_reference_id"]],
+        as.character(config$state_pathways$generated_reference_id)
+      ) &&
+        identical(
+          provenance_value[["reference_kind"]],
+          as.character(config$state_pathways$generated_reference_kind)
+        ) &&
+        identical(
+          provenance_value[["canonical_publication_allowed"]],
+          "false"
+        )
+    }
+    if (!isTRUE(provenance_matches)) {
+      figure7_stop(
+        "render-only panel-7F provenance contradicts run metadata"
+      )
+    }
   }
   figure7_prepare_output(output_dir)
   for (file in list.files(file.path(source_dir, "tables"), full.names = TRUE)) {
@@ -161,7 +463,15 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
   if (length(source_results_root) != 1L || is.na(source_results_root) || identical(source_results_root, "not_recorded")) {
     source_results_root <- ""
   }
-  write_metadata(output_dir, mode, config, config_path, panel_ids, source_results_root)
+  write_metadata(
+    output_dir,
+    mode,
+    config,
+    config_path,
+    panel_ids,
+    source_results_root,
+    reference_identity = reference_identity
+  )
   figure7_validate_figure_inventory(output_dir, config, panel_ids)
 }
 
@@ -172,19 +482,105 @@ if (identical(mode, "render-only")) {
   quit(save = "no", status = 0L)
 }
 
-cellcycle_path <- normalizePath(figure7_arg(args, "cellcycle-input", required = TRUE), mustWork = FALSE)
-noncellcycle_path <- normalizePath(figure7_arg(args, "non-cellcycle-input", required = TRUE), mustWork = FALSE)
-figure7_assert_empty_output(output_dir)
-figure7_verify_checksum(cellcycle_path, config$inputs$cellcycle_sha256, "CellCycle processed input")
-figure7_verify_checksum(noncellcycle_path, config$inputs$noncellcycle_sha256, "NonCellCycle processed input")
+workflow <- NULL
+if (identical(mode, "full-workflow")) {
+  overwrite_intermediates <- figure7_flag(args, "overwrite-intermediates", FALSE)
+  workflow_paths <- figure7_workflow_paths(args, repo_root, output_dir, config)
+  preflight <- figure7_preflight_workflow(
+    workflow_paths,
+    config_path,
+    config,
+    include_panel_f = include_panel_f,
+    overwrite_intermediates = overwrite_intermediates
+  )
+  if (figure7_flag(args, "preflight-only", FALSE)) {
+    cat("workflow_state\t", preflight$state, "\n", sep = "")
+    cat("raw_data_status\t", preflight$raw_data_status, "\n", sep = "")
+    cat("raw_download_roles\t", if (length(preflight$raw_download_roles)) paste(preflight$raw_download_roles, collapse = ",") else "none", "\n", sep = "")
+    cat("raw_validation_roles\t", if (length(preflight$raw_validation_roles)) paste(preflight$raw_validation_roles, collapse = ",") else "none", "\n", sep = "")
+    cat("raw_data_dir\t", workflow_paths$raw_data_dir, "\n", sep = "")
+    cat("download_workers\t", workflow_paths$download_workers, "\n", sep = "")
+    cat("download_connections_per_file\t", workflow_paths$download_connections_per_file, "\n", sep = "")
+    cat("loom_root\t", workflow_paths$loom_root, "\n", sep = "")
+    cat("seurat_rds\t", workflow_paths$seurat_rds, "\n", sep = "")
+    cat("scvelo_metrics\t", workflow_paths$scvelo_metrics, "\n", sep = "")
+    cat("cell_pair_source\t", preflight$cell_pair_source, "\n", sep = "")
+    cat("cellcycle_input\t", preflight$paths$cellcycle, "\n", sep = "")
+    cat("noncellcycle_input\t", preflight$paths$noncellcycle, "\n", sep = "")
+    cat(
+      "state_pathway_reference\t",
+      if (preflight$frozen_reference_ready) {
+        preflight$paths$frozen_reference
+      } else {
+        preflight$paths$saved_reference
+      },
+      "\n",
+      sep = ""
+    )
+    quit(save = "no", status = 0L)
+  }
+  figure7_assert_empty_output(output_dir)
+  workflow <- figure7_prepare_full_workflow(
+    args = args,
+    paths = workflow_paths,
+    preflight = preflight,
+    script_dir = script_dir,
+    config_path = config_path,
+    config = config,
+    include_panel_f = include_panel_f,
+    overwrite_intermediates = overwrite_intermediates
+  )
+  cellcycle_path <- workflow$cellcycle
+  noncellcycle_path <- workflow$noncellcycle
+  state_pathway_results_root <- workflow$state_pathway_root
+} else {
+  cellcycle_path <- normalizePath(figure7_arg(args, "cellcycle-input", required = TRUE), mustWork = FALSE)
+  noncellcycle_path <- normalizePath(figure7_arg(args, "non-cellcycle-input", required = TRUE), mustWork = FALSE)
+  figure7_assert_empty_output(output_dir)
+}
+if (identical(mode, "full-workflow")) {
+  figure7_require_workflow_file(cellcycle_path, "cellcycle-input")
+  figure7_require_workflow_file(noncellcycle_path, "non-cellcycle-input")
+} else {
+  figure7_verify_checksum(cellcycle_path, config$inputs$cellcycle_sha256, "CellCycle processed input")
+  figure7_verify_checksum(noncellcycle_path, config$inputs$noncellcycle_sha256, "NonCellCycle processed input")
+}
 reference <- NULL
 if (include_panel_f) {
-  saved_dir <- normalizePath(figure7_arg(args, "saved-state-pathway-dir", required = TRUE), mustWork = FALSE)
-  reference <- figure7_validate_state_reference(
-    saved_dir,
-    config,
-    verify_checksums = TRUE
-  )
+  saved_dir <- if (identical(mode, "full-workflow")) {
+    workflow$saved_reference
+  } else {
+    normalizePath(figure7_arg(args, "saved-state-pathway-dir", required = TRUE), mustWork = FALSE)
+  }
+  reference <- if (identical(mode, "full-workflow")) {
+    if (identical(
+      workflow$state_pathway_reference_kind,
+      "reviewed_frozen"
+    )) {
+      figure7_validate_state_reference(
+        saved_dir,
+        config,
+        verify_checksums = TRUE
+      )
+    } else {
+      figure7_validate_generated_state_reference(
+        saved_dir,
+        config,
+        expected_inputs = list(
+          cellcycle = cellcycle_path,
+          noncellcycle = noncellcycle_path,
+          seurat_rds = workflow$seurat_rds
+        ),
+        config_path = config_path
+      )
+    }
+  } else {
+    figure7_validate_state_reference(
+      saved_dir,
+      config,
+      verify_checksums = TRUE
+    )
+  }
 }
 
 if (identical(mode, "full-analysis")) {
@@ -201,7 +597,17 @@ samples <- figure7_sample_table(cellcycle, noncellcycle, config)
 data <- figure7_prepare_cellcycle(cellcycle, samples, config)
 figure7_prepare_output(output_dir)
 figure7_build_ae(cellcycle, data, samples, output_dir, config)
-if (include_panel_f) figure7_build_f(reference, output_dir, config)
-write_metadata(output_dir, mode, config, config_path, panel_ids, state_pathway_results_root)
+if (include_panel_f) {
+  if (identical(mode, "full-workflow") &&
+      !identical(
+        workflow$state_pathway_reference_kind,
+        "reviewed_frozen"
+      )) {
+    figure7_build_generated_f(reference, output_dir, config)
+  } else {
+    figure7_build_f(reference, output_dir, config)
+  }
+}
+write_metadata(output_dir, mode, config, config_path, panel_ids, state_pathway_results_root, workflow)
 figure7_validate_figure_inventory(output_dir, config, panel_ids)
 message("Generated exactly ", length(panel_ids), " Figure 7 source panels: ", output_dir)

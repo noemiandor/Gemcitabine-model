@@ -1,19 +1,67 @@
 schema_version: 1
 module: in_vivo_figure7
+raw_data:
+  doi: 10.5281/zenodo.21463392
+  record_id: 21463392
+  record_url: https://zenodo.org/records/21463392
+  default_root: Results/in-vivo/figure7/raw/zenodo_21463392
+  required_manifest: Code/in-vivo/figure7/zenodo_required_files.tsv
+  environment_lock: Code/in-vivo/figure7/environment_lock.tsv
+  loom_subdir: velocyto_loom
+  seurat_filename: integrated_sct_cca_seurat_final_reclustered.rds
+  required_loom_files: 18
+  required_total_bytes: "11395115098"
+  seurat_rds_sha256: 727b8a5e5868da911c3b0873838fb1b0023377ed21ea5498dc6493acbbef6d98
+versioned_source_artifacts:
+  source_revision: 9d7e994554dc16f48dd1ca8f6001b7011589381d
+  endpoint_ploidy:
+    default_path: Data/in-vivo/all_ploidy.tsv
+    sha256: 6db48ee5f196b37b58aa71d0472dd3deb06aaacb4b637070af1b27d9425db2b3
+  sample_info:
+    default_path: Data/in-vivo/sample_info.xlsx
+    sha256: 3e8a86b189a4ec61a7cbd3bbf1d0cb7cb30dd2ab3a326d91a67f83aaca63b784
+  growth_curve:
+    default_path: Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx
+    sha256: b0132aa24427805a500f354b45e812c1424a77deddd09489f92710c0b7353a58
 inputs:
   cellcycle_sha256: bd0c6fcf3f6691114445a7c8a9fb8de7e55ef6580a9737284cd38f5bba216186
   noncellcycle_sha256: 1e44794fb2b2c402b49cf9d17abcc54cd7690dc5d1d611e38a6aa3b996093d3c
 si_figures:
   cache_schema_version: 1
   cache_root: Data/in-vivo/SIfigures
+  reviewed_manifest_sha256: 5713379814b457d470753ec92a4e9155ecf776fe8f22eed8c8d66eb56881167d
   cache_file_count: 11
   figures: [4, 5, 6, 7]
   cluster_order: ["0", "2", "4c", "5", "6", "8", "10", "13", "14"]
   ploidy_levels: [2N, 4N]
   dose_levels: [0mg/kg, 30mg/kg, 120mg/kg]
   plot_shuffle_seed: 5826
+  raw_rebuild_analysis_seed: 5826
+  raw_rebuild_fgsea_nperm_simple: 10000
   si7_feature_species_policy: "Human tumor/cell-line analysis: retain GRCh features; exclude GRCm39 features before symbol cleanup, deduplication, ORA, and GSEA."
   si7_gene_set_database: "MSigDB 2026.1.Hs Hallmark (Homo sapiens symbols)"
+  raw_rebuild_species_policy: "Legacy Tao behavior retained pending the planned species-policy correction: strip GRCh/GRCm prefixes, preserve symbol case, and match Homo sapiens Hallmark symbols. Raw-rebuilt SI7 tables are not canonical publication inputs."
+  raw_rebuild_gene_set_database: "Live msigdbr Homo sapiens Hallmark query under pinned msigdbr 26.1.0; exact release is recorded at runtime; not approved for canonical publication."
+  umap_reduction: umap
+  pca_reduction: pca
+  cluster_id_field: clusters
+  base_cluster_field: integrated_snn_res.0.6
+  clustering_resolution: 0.6
+  cluster_annotation_field: cluster_cell_cycle_annotation
+  sample_field: sample
+  dose_field: Dose
+  ploidy_field: Ploidy
+  context_field: TN
+  cellcycle_mapping:
+    cell_cycle_candidate: CellCycle
+    not_cell_cycle_candidate: NonCellCycle
+  inclusion:
+    context: Tumor
+    ploidy_levels: [2N, 4N]
+    dose_levels: [0mg/kg, 30mg/kg, 120mg/kg]
+    required_nonmissing: [cell_id, UMAP_1, UMAP_2, sample_id, cluster_id, cluster_annotation, initial_ploidy, dose, cellcycle_classification]
+  source_qc_fields: [nCount_RNA, nFeature_RNA, percent.mt, scDblFinder.class, scDblFinder.score]
+  source_qc_policy: "Use the reviewed Seurat object as provided; Supplementary Figures 4-7 apply no additional expression, mitochondrial, or doublet threshold before plotting or cluster-vs-rest analysis."
 tgi:
   outcome: day
   day: 17
@@ -25,12 +73,46 @@ statistics:
   seed: 1
   permutations: 10000
   exact_enumeration_when_feasible: true
+gene_sets:
+  provider: msigdbr
+  package_version: 26.1.0
+  database_release: 2026.1.Hs
+  species: Homo sapiens
 etp:
   method: reference_balanced
   threshold: 2.24
   group_levels: [ETP-lower, ETP-higher]
+intervals:
+  primary_accumulated_state:
+    role: primary
+    label: Primary accumulated state
+    start: 0.30
+    end: 0.49
+    include_start: true
+    include_end: true
+    source: "rounded from approximately 0.296-0.486 pointwise treated-cell excess"
+  left_neighbor:
+    role: left_flank
+    label: Left neighboring state
+    start: 0.11
+    end: 0.30
+    include_start: true
+    include_end: false
+    source: "equal-width state immediately before the primary interval"
+  right_neighbor:
+    role: right_flank
+    label: Right neighboring state
+    start: 0.49
+    end: 0.68
+    include_start: false
+    include_end: true
+    source: "equal-width state immediately after the primary interval"
 state_pathways:
   reference_id: taoli_04i_etp2_24_day17_v1
+  generated_reference_id: runtime_state_pathway_legacy_mixed_v1
+  generated_reference_kind: generated_legacy_mixed
+  generated_canonical_publication_allowed: false
+  generated_feature_species_policy: "Legacy Tao behavior retained pending correction: GRCh/GRCm features remain together after prefix cleanup and are matched to human gene sets."
   reference_root: Data/in-vivo/figure7/saved_state_pathway
   model: ETP_reference_balanced_threshold_2_24
   accumulated_interval: {start: 0.30, end: 0.49, include_start: true, include_end: true}

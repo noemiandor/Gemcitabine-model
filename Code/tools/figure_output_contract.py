@@ -138,6 +138,49 @@ def first_local_path(row: Mapping[str, str], repo_root: Path, keys: Iterable[str
     return first_resolved
 
 
+def module_manifest_local_path(
+    row: Mapping[str, str],
+    repo_root: Path,
+    output_root: Path | None = None,
+) -> Path | None:
+    """Resolve a module-manifest row, including output-root-relative locators."""
+    for key in ("repo_relative_path", "absolute_path"):
+        value = (row.get(key, "") or "").strip()
+        if not value:
+            continue
+        path = Path(value)
+        candidate = path if path.is_absolute() else repo_root / path
+        if candidate.exists():
+            return candidate.resolve()
+
+    value = (row.get("path", "") or "").strip()
+    if not value or value.startswith("external:"):
+        return None
+    path = Path(value)
+    if path.is_absolute():
+        return path.resolve()
+    if output_root is not None and row.get("role", "").startswith("output"):
+        return (output_root / path).resolve()
+    return (repo_root / path).resolve()
+
+
+def resolve_figure_locator(
+    value: str,
+    repo_root: Path,
+    manifest_parent: Path,
+) -> Path | None:
+    value = (value or "").strip()
+    if not value or value.startswith("external:"):
+        return None
+    prefix = "manifest:"
+    if value.startswith(prefix):
+        relative = value[len(prefix) :]
+        if not relative or Path(relative).is_absolute():
+            return None
+        return (manifest_parent / relative).resolve()
+    return resolve_repo_path(value, repo_root)
+
+
 def validate_expected_panel_set(
     rows: Sequence[Mapping[str, str]],
     expected_generated_panels: Iterable[str] | None,
@@ -188,7 +231,11 @@ def validate_module_manifest(path: Path, repo_root: Path, output_root: Path | No
 
         # Prefer the portable checkout-relative location. The recorded absolute
         # path is only a fallback for genuinely external inputs.
-        local_path = first_local_path(row, repo_root, ("repo_relative_path", "absolute_path", "path"))
+        local_path = module_manifest_local_path(
+            row,
+            repo_root,
+            output_root=output_root,
+        )
         source_kind = row.get("source_kind", "").strip()
         if local_path is not None and source_kind not in NONLOCAL_SOURCE_KINDS:
             if not local_path.exists():
@@ -235,19 +282,52 @@ def validate_figure_manifest(path: Path, repo_root: Path) -> list[str]:
             if not row.get(required, "").strip():
                 errors.append(f"{path}:{idx}: {required} is required")
 
-        asset_path = resolve_repo_path(row.get("asset_path", ""), repo_root)
+        asset_path = resolve_figure_locator(
+            row.get("asset_path", ""),
+            repo_root,
+            path.parent,
+        )
         if source_kind in GENERATED_SOURCE_KINDS:
             for required in ("asset_path", "source_file", "generated_by", "command", "input_data", "result_run_dir", "run_id"):
                 if not row.get(required, "").strip():
                     errors.append(f"{path}:{idx}: {required} is required for {source_kind}")
             if asset_path is None or not asset_path.exists():
                 errors.append(f"{path}:{idx}: generated asset is missing: {row.get('asset_path', '')}")
-            source_path = resolve_repo_path(row.get("source_file", ""), repo_root)
+            elif not path_within(asset_path, path.parent):
+                errors.append(
+                    f"{path}:{idx}: generated asset escapes its figure directory: {asset_path}"
+                )
+            source_path = resolve_figure_locator(
+                row.get("source_file", ""),
+                repo_root,
+                path.parent,
+            )
             if source_path is None or not source_path.exists():
                 errors.append(f"{path}:{idx}: generated source_file is missing: {row.get('source_file', '')}")
-            result_dir = resolve_repo_path(row.get("result_run_dir", ""), repo_root)
+            result_dir = resolve_figure_locator(
+                row.get("result_run_dir", ""),
+                repo_root,
+                path.parent,
+            )
             if result_dir is None or not result_dir.exists():
                 errors.append(f"{path}:{idx}: result_run_dir is missing: {row.get('result_run_dir', '')}")
+            elif source_path is not None and not path_within(source_path, result_dir):
+                errors.append(
+                    f"{path}:{idx}: generated source_file is outside result_run_dir: {source_path}"
+                )
+            input_path = resolve_figure_locator(
+                row.get("input_data", ""),
+                repo_root,
+                path.parent,
+            )
+            if (
+                input_path is None
+                or source_path is None
+                or input_path != source_path
+            ):
+                errors.append(
+                    f"{path}:{idx}: input_data must resolve to source_file"
+                )
         elif source_kind in MANUAL_SOURCE_KINDS:
             if not row.get("not_regenerated_reason", "").strip():
                 errors.append(f"{path}:{idx}: not_regenerated_reason is required for {source_kind}")

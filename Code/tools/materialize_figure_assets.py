@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 from collections import Counter
 from pathlib import Path
@@ -11,6 +12,7 @@ from pathlib import Path
 from figure_output_contract import (
     FIGURE_MANIFEST_COLUMNS,
     first_local_path,
+    module_manifest_local_path,
     read_tsv,
     repo_root_from,
     sha256_file,
@@ -367,8 +369,30 @@ PANEL_SPECS = [
     },
 ]
 
-STRICT_FIGURE_MODULES = {"in_vivo_figure7"}
+STRICT_FIGURE_MODULES = {"in_vivo_figure7", "si_figures"}
 FIGURE_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".svg", ".tif", ".tiff"}
+FIGURE7_REVIEWED_REFERENCE_ID = "taoli_04i_etp2_24_day17_v1"
+FIGURE7_REVIEWED_REFERENCE_KIND = "reviewed_frozen"
+FIGURE7_REVIEWED_FILES = {
+    "panel_7F_pathway_activity_plot_data.tsv": "0ab4631d00126b7ad3c8e8f653102c0ed69f03d6db0a6db605198bc0b993ee3c",
+    "panel_7F_selected_pathway_gsea.tsv": "eed1418505ff120f2212b59d337833bb42e5cdeaadeff053b7fb94e66ea062e0",
+    "panel_7F_leading_edge_genes.tsv": "270e352e506664d44f61ebea3af5d36270c33f9806baaf224580a8e5c8342a41",
+    "state_pathway_gene_ranking_complete.tsv": "fc8f1f8a24915e91c108e026b71d61ab1222dee2ce9469e48984d53a295e4738",
+    "state_pathway_gsea_complete.tsv": "0439be2fc152e7a3f0a070410bfa0cfdc01a30624b09d453e9511b031c065e36",
+    "state_pathway_sample_bin_coverage.tsv": "b42694cd910b5faf6a5b9e5add8a90b06f5207317df98f2969cf57887027e8d8",
+    "state_pathway_design_qc.tsv": "156cc8b7aaeb56866c258c6d6433635b881040691ab816fc7c5edc7cd5048b4c",
+    "state_pathway_provenance.tsv": "bb8f08f9afd0786216babcd5c38d577caa6fd41c4f1d52f28e54d8558c66b424",
+}
+SI7_REVIEWED_FEATURE_POLICY = (
+    "Human tumor/cell-line analysis: retain GRCh features; exclude GRCm39 "
+    "features before symbol cleanup, deduplication, ORA, and GSEA."
+)
+SI7_REVIEWED_GENE_SET_DATABASE = (
+    "MSigDB 2026.1.Hs Hallmark (Homo sapiens symbols)"
+)
+SI_REVIEWED_MANIFEST_SHA256 = (
+    "5713379814b457d470753ec92a4e9155ecf776fe8f22eed8c8d66eb56881167d"
+)
 
 EXTERNAL_ROWS = [
     {
@@ -463,11 +487,9 @@ def parse_module_run(values: list[str], repo_root: Path) -> dict[str, Path]:
     return out
 
 
-def rel(path: Path, repo_root: Path) -> str:
-    try:
-        return str(path.resolve().relative_to(repo_root.resolve()))
-    except ValueError:
-        return str(path.resolve())
+def manifest_relative(path: Path, manifest_parent: Path) -> str:
+    relative = Path(os.path.relpath(path.resolve(), manifest_parent.resolve()))
+    return f"manifest:{relative.as_posix()}"
 
 
 def generated_row(
@@ -479,16 +501,17 @@ def generated_row(
     source_run_id: str,
     operation_id: str,
 ) -> dict[str, str]:
+    manifest_parent = asset.parent
     return {
         "figure": str(spec["figure"]),
         "panel": str(spec["panel"]),
-        "asset_path": rel(asset, repo_root),
-        "source_file": rel(source, repo_root),
+        "asset_path": manifest_relative(asset, manifest_parent),
+        "source_file": manifest_relative(source, manifest_parent),
         "source_kind": "generated_panel",
         "generated_by": "Manager.sh",
         "command": "materialize_figure_assets.py",
-        "input_data": rel(source, repo_root),
-        "result_run_dir": rel(result_run_root, repo_root),
+        "input_data": manifest_relative(source, manifest_parent),
+        "result_run_dir": manifest_relative(result_run_root, manifest_parent),
         "run_id": source_run_id,
         "caption_role": str(spec["caption_role"]),
         "asset_status": "generated",
@@ -506,6 +529,76 @@ def external_row(row: dict[str, str]) -> dict[str, str]:
     return out
 
 
+def read_unique_key_values(path: Path, label: str) -> dict[str, str]:
+    if not path.is_file():
+        raise FileNotFoundError(f"Missing {label}: {path}")
+    _, rows = read_tsv(path)
+    keys = [row.get("key", "") for row in rows]
+    values = [row.get("value", "") for row in rows]
+    if (
+        not rows
+        or any(not key or not value for key, value in zip(keys, values))
+        or len(set(keys)) != len(keys)
+    ):
+        raise ValueError(f"{label} is malformed")
+    return dict(zip(keys, values))
+
+
+def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
+    provenance = read_unique_key_values(
+        run_root / "metadata" / "si_figures_provenance.tsv",
+        "source SI Figures provenance",
+    )
+    run_config = read_unique_key_values(
+        run_root / "metadata" / "run_config.tsv",
+        "source SI Figures run config",
+    )
+    canonical_manifest = repo_root / "Data" / "in-vivo" / "SIfigures" / "manifest.tsv"
+    if not canonical_manifest.is_file():
+        raise FileNotFoundError(
+            f"Missing reviewed SI Figures table manifest: {canonical_manifest}"
+        )
+    if sha256_file(canonical_manifest) != SI_REVIEWED_MANIFEST_SHA256:
+        raise ValueError(
+            "Canonical SI Figures materialization is prohibited: the repository "
+            "does not contain the exact reviewed 11-table manifest"
+        )
+    expected = {
+        "si7_canonical_publication_allowed": "true",
+        "si7_feature_species_policy": SI7_REVIEWED_FEATURE_POLICY,
+        "si7_gene_set_database": SI7_REVIEWED_GENE_SET_DATABASE,
+    }
+    renderer = (
+        repo_root
+        / "Code"
+        / "in-vivo"
+        / "SI_figures"
+        / "generate_supplementary_figures.R"
+    )
+    if not renderer.is_file():
+        raise FileNotFoundError(f"Missing SI Figures renderer: {renderer}")
+    if (
+        any(provenance.get(key) != value for key, value in expected.items())
+        or any(run_config.get(key) != value for key, value in expected.items())
+        or run_config.get("module") != "si_figures"
+        or run_config.get("figures") != "4,5,6,7"
+        or run_config.get("figure_file_count") != "8"
+        or run_config.get("cache_file_count") != "11"
+        or run_config.get("table_mode") != "frozen_plot_tables_only"
+        or provenance.get("artifact") != "supplementary_figures_4_7"
+        or provenance.get("entrypoint") != (
+            "Code/in-vivo/SI_figures/generate_supplementary_figures.R"
+        )
+        or provenance.get("entrypoint_sha256") != sha256_file(renderer)
+        or provenance.get("table_cache_manifest_sha256")
+        != sha256_file(canonical_manifest)
+    ):
+        raise ValueError(
+            "Canonical SI Figures materialization is prohibited: the run "
+            "does not carry the reviewed frozen-table publication contract"
+        )
+
+
 def validate_strict_source_run(
     module: str,
     run_root: Path,
@@ -516,7 +609,13 @@ def validate_strict_source_run(
 ) -> None:
     if module not in STRICT_FIGURE_MODULES:
         return
-    expected_name = f"{source_run_id}_figure7"
+    if module == "si_figures":
+        validate_si_publication_contract(run_root, repo_root)
+    expected_name = (
+        f"{source_run_id}_figure7"
+        if module == "in_vivo_figure7"
+        else f"{source_run_id}_si_figures"
+    )
     if run_root.name != expected_name:
         raise ValueError(f"{module} source run must be named {expected_name}, got {run_root.name}")
 
@@ -535,6 +634,74 @@ def validate_strict_source_run(
             f"Source input-manifest provenance must use module={module} "
             f"and command_id={source_run_id}"
         )
+    if module == "si_figures":
+        cache_root = repo_root / "Data" / "in-vivo" / "SIfigures"
+        cache_manifest = cache_root / "manifest.tsv"
+        cache_headers, cache_rows = read_tsv(cache_manifest)
+        cache_names = [row.get("filename", "") for row in cache_rows]
+        if (
+            cache_headers
+            != ["filename", "bytes", "sha256", "source_revision", "notes"]
+            or sha256_file(cache_manifest) != SI_REVIEWED_MANIFEST_SHA256
+            or
+            len(cache_names) != 11
+            or len(set(cache_names)) != 11
+            or any(
+                not name
+                or Path(name).name != name
+                or name == "manifest.tsv"
+                for name in cache_names
+            )
+        ):
+            raise ValueError(
+                "Reviewed SI Figures cache manifest must list exactly 11 "
+                "safe plot-facing tables"
+            )
+        for row in cache_rows:
+            table = cache_root / row["filename"]
+            if not table.is_file():
+                raise FileNotFoundError(
+                    f"Missing reviewed SI Figures cache table: {table}"
+                )
+            if (
+                row.get("bytes") != str(table.stat().st_size)
+                or row.get("sha256") != sha256_file(table)
+            ):
+                raise ValueError(
+                    "Reviewed SI Figures cache manifest does not match table "
+                    f"bytes: {row['filename']}"
+                )
+        required_inputs = {
+            (
+                repo_root
+                / "Code"
+                / "in-vivo"
+                / "figure7"
+                / "figure7_config.yaml"
+            ).resolve(),
+            cache_manifest.resolve(),
+            *{(cache_root / name).resolve() for name in cache_names},
+        }
+        observed_inputs = {
+            path.resolve()
+            for row in input_rows
+            if (
+                path := first_local_path(
+                    row,
+                    repo_root,
+                    ("repo_relative_path", "absolute_path", "path"),
+                )
+            )
+            is not None
+        }
+        missing_inputs = sorted(
+            str(path) for path in required_inputs - observed_inputs
+        )
+        if missing_inputs:
+            raise ValueError(
+                "SI Figures input manifest does not bind the reviewed "
+                f"11-table cache: missing={missing_inputs}"
+            )
 
     output_manifest = run_root / "metadata" / "output_manifest.tsv"
     if not output_manifest.is_file():
@@ -549,46 +716,99 @@ def validate_strict_source_run(
         if str(spec["module"]) == module
         and (not spec.get("optional") or (run_root / str(spec["source"])).is_file())
     }
-    panel_f_paths = {
-        (run_root / str(spec["source"])).resolve()
-        for spec in selected_specs
-        if str(spec["module"]) == module and str(spec["panel"]).startswith("7F")
-    }
-    present_panel_f_paths = {path for path in panel_f_paths if path.is_file()}
-    if present_panel_f_paths and present_panel_f_paths != panel_f_paths:
-        raise ValueError("Source Figure 7 run must contain both PDF and PNG panel-F assets or neither")
-    has_panel_f = present_panel_f_paths == panel_f_paths
-    expected_panel_set = "a-f" if has_panel_f else "a-e"
-    run_config = run_root / "metadata" / "run_config.tsv"
-    if not run_config.is_file():
-        raise FileNotFoundError(f"Missing source Figure 7 run config: {run_config}")
-    _, config_rows = read_tsv(run_config)
-    panel_set_rows = [row for row in config_rows if row.get("key") == "panel_set"]
-    if len(panel_set_rows) != 1 or panel_set_rows[0].get("value") != expected_panel_set:
-        raise ValueError(
-            f"Source Figure 7 run must explicitly record panel_set={expected_panel_set}"
+    if module == "in_vivo_figure7":
+        panel_f_paths = {
+            (run_root / str(spec["source"])).resolve()
+            for spec in selected_specs
+            if str(spec["module"]) == module
+            and str(spec["panel"]).startswith("7F")
+        }
+        present_panel_f_paths = {path for path in panel_f_paths if path.is_file()}
+        if present_panel_f_paths and present_panel_f_paths != panel_f_paths:
+            raise ValueError(
+                "Source Figure 7 run must contain both PDF and PNG panel-F "
+                "assets or neither"
+            )
+        has_panel_f = present_panel_f_paths == panel_f_paths
+        expected_panel_set = "a-f" if has_panel_f else "a-e"
+        run_config = read_unique_key_values(
+            run_root / "metadata" / "run_config.tsv",
+            "source Figure 7 run config",
         )
-    tgi_day_rows = [row for row in config_rows if row.get("key") == "tgi_day"]
-    if len(tgi_day_rows) != 1 or tgi_day_rows[0].get("value") != str(figure7_tgi_day):
-        raise ValueError(
-            f"Source Figure 7 run must explicitly record tgi_day={figure7_tgi_day}"
-        )
+        if run_config.get("panel_set") != expected_panel_set:
+            raise ValueError(
+                "Source Figure 7 run must explicitly record "
+                f"panel_set={expected_panel_set}"
+            )
+        if run_config.get("tgi_day") != str(figure7_tgi_day):
+            raise ValueError(
+                "Source Figure 7 run must explicitly record "
+                f"tgi_day={figure7_tgi_day}"
+            )
+        if has_panel_f:
+            reviewed_identity = {
+                "state_pathway_reference_id": FIGURE7_REVIEWED_REFERENCE_ID,
+                "state_pathway_reference_kind": FIGURE7_REVIEWED_REFERENCE_KIND,
+                "canonical_publication_allowed": "true",
+            }
+            if any(
+                run_config.get(key) != value
+                for key, value in reviewed_identity.items()
+            ):
+                raise ValueError(
+                    "Canonical Figure 7 materialization is prohibited: "
+                    "run metadata does not carry the exact reviewed panel-7F "
+                    "publication identity"
+                )
+            for filename, expected_hash in FIGURE7_REVIEWED_FILES.items():
+                source_file = (
+                    run_root / "metadata" / filename
+                    if filename == "state_pathway_provenance.tsv"
+                    else run_root / "tables" / filename
+                )
+                if not source_file.is_file():
+                    raise FileNotFoundError(
+                        f"Missing reviewed panel-7F contract file: {source_file}"
+                    )
+                if sha256_file(source_file) != expected_hash:
+                    raise ValueError(
+                        "Canonical Figure 7 materialization is prohibited: "
+                        f"{filename} is not the reviewed "
+                        f"{FIGURE7_REVIEWED_REFERENCE_ID} artifact"
+                    )
+            provenance = read_unique_key_values(
+                run_root / "metadata" / "state_pathway_provenance.tsv",
+                "source Figure 7 state-pathway provenance",
+            )
+            if (
+                provenance.get("canonical_reference_id")
+                != FIGURE7_REVIEWED_REFERENCE_ID
+                or provenance.get("code_revision_04i")
+                != "dc751eab928bc40f3edb063baec447fe32a69d73"
+            ):
+                raise ValueError(
+                    "Canonical Figure 7 materialization is prohibited: "
+                    "reviewed provenance lineage is invalid"
+                )
 
     panel_contract = run_root / "metadata" / "panel_contract.tsv"
     if not panel_contract.is_file():
-        raise FileNotFoundError(f"Missing source Figure 7 panel contract: {panel_contract}")
+        raise FileNotFoundError(f"Missing source panel contract: {panel_contract}")
     _, contract_rows = read_tsv(panel_contract)
     expected_contract = [
         (str(spec["panel"]), Path(str(spec["source"])).name)
         for spec in selected_specs
         if str(spec["module"]) == module
-        and spec.get("variant", "pdf") == "pdf"
+        and (
+            module == "si_figures"
+            or spec.get("variant", "pdf") == "pdf"
+        )
         and (not spec.get("optional") or (run_root / str(spec["source"])).is_file())
     ]
     observed_contract = [(row.get("panel_id", ""), row.get("filename", "")) for row in contract_rows]
     if observed_contract != expected_contract:
         raise ValueError(
-            f"Source Figure 7 panel contract mismatch: expected={expected_contract}; "
+            f"Source panel contract mismatch: expected={expected_contract}; "
             f"observed={observed_contract}"
         )
     observed_figures = {
@@ -606,7 +826,11 @@ def validate_strict_source_run(
     _, rows = read_tsv(output_manifest)
     rows_by_path: dict[Path, list[dict[str, str]]] = {}
     for row in rows:
-        path = first_local_path(row, repo_root, ("repo_relative_path", "absolute_path", "path"))
+        path = module_manifest_local_path(
+            row,
+            repo_root,
+            output_root=run_root,
+        )
         if path is not None:
             rows_by_path.setdefault(path.resolve(), []).append(row)
     for source in sorted(expected_sources):

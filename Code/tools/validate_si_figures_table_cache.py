@@ -25,6 +25,9 @@ EXPECTED_FILES = (
     "si_figures_cluster_key.tsv",
 )
 MANIFEST_COLUMNS = ("filename", "bytes", "sha256", "source_revision", "notes")
+REVIEWED_MANIFEST_SHA256 = (
+    "5713379814b457d470753ec92a4e9155ecf776fe8f22eed8c8d66eb56881167d"
+)
 
 
 def sha256(path: Path) -> str:
@@ -78,7 +81,10 @@ def validate_proportions(
         errors.append(f"{filename}: {value_column} must be finite and within [0,1]")
 
 
-def validate_cache(cache_dir: Path) -> list[str]:
+def validate_cache(
+    cache_dir: Path,
+    si7_policy: str = "corrected-human-only",
+) -> list[str]:
     errors: list[str] = []
     if not cache_dir.is_dir():
         return [f"cache directory does not exist: {cache_dir}"]
@@ -284,6 +290,13 @@ def validate_cache(cache_dir: Path) -> list[str]:
     if not manifest_path.is_file():
         errors.append("manifest.tsv: missing")
     else:
+        if (
+            si7_policy == "corrected-human-only"
+            and sha256(manifest_path) != REVIEWED_MANIFEST_SHA256
+        ):
+            errors.append(
+                "manifest.tsv: canonical cache is not the exact reviewed manifest"
+            )
         manifest_headers, manifest_rows = read_rows(manifest_path)
         if tuple(manifest_headers) != MANIFEST_COLUMNS:
             errors.append(
@@ -312,10 +325,24 @@ def validate_cache(cache_dir: Path) -> list[str]:
             for row in manifest_rows
             if row.get("filename", "").startswith("si_figure7_cluster_Hallmark")
         ]
-        if len(matrix_rows) == 2 and any(
-            "human-only GRCh" not in row.get("notes", "") for row in matrix_rows
-        ):
-            errors.append("manifest.tsv: SI7 matrices must record human-only GRCh policy")
+        if len(matrix_rows) == 2:
+            if si7_policy == "corrected-human-only" and any(
+                "human-only GRCh" not in row.get("notes", "")
+                for row in matrix_rows
+            ):
+                errors.append(
+                    "manifest.tsv: SI7 matrices must record human-only GRCh policy"
+                )
+            if si7_policy == "legacy-mixed" and any(
+                "legacy mixed-species policy" not in row.get("notes", "")
+                or "not approved for canonical publication"
+                not in row.get("notes", "")
+                for row in matrix_rows
+            ):
+                errors.append(
+                    "manifest.tsv: legacy SI7 matrices must record mixed-species "
+                    "policy and the canonical-publication prohibition"
+                )
 
     return errors
 
@@ -358,6 +385,15 @@ def write_manifest(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cache-dir", type=Path, required=True)
+    parser.add_argument(
+        "--si7-policy",
+        choices=("corrected-human-only", "legacy-mixed"),
+        default="corrected-human-only",
+        help=(
+            "Expected SI7 feature policy. Only corrected-human-only is "
+            "approved for the canonical Data cache."
+        ),
+    )
     parser.add_argument("--write-manifest", type=Path)
     parser.add_argument("--source-revision", default="")
     args = parser.parse_args()
@@ -369,7 +405,7 @@ def main() -> int:
             args.write_manifest.resolve(),
             args.source_revision,
         )
-    errors = validate_cache(cache_dir)
+    errors = validate_cache(cache_dir, args.si7_policy)
     if errors:
         for error in errors:
             print(error)

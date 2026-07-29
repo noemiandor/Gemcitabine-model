@@ -18,6 +18,74 @@ The eight canonical panel-7F tables are a read-only export from the exact
 0.30-0.49. Their reviewed SHA-256 values are pinned in `figure7_config.yaml`;
 an embedded report raster is not accepted as plotting data.
 
+## Raw-data fallback and intermediate reuse
+
+`full-refit` is the end-to-end fallback. It is intentionally separate from the
+lightweight routine mode:
+
+```bash
+bash Manager.sh \
+  --mode full-refit \
+  --modules in_vivo_figure7,si_figures \
+  --run-id <run_id>
+```
+
+With those two modules selected, Manager does not run Figures 1-6. It first
+validates the downstream frozen/generated caches. A complete valid cache avoids
+all raw-data access. When a missing downstream stage needs the final Seurat
+object, there are two supported source boundaries:
+
+- pass `--figure7-cellranger-root /path/to/cellranger` to reconstruct the final
+  object from the 18 `filtered_feature_bc_matrix.h5` inputs and reuse the five
+  fingerprinted Seurat stages under the shared
+  `--figure7-seurat-upstream-dir`; or
+- omit that option to reuse or download the deposited final Seurat RDS pinned
+  by `zenodo_required_files.tsv`.
+
+Figure 7A-7E additionally reuse or download the 18 deposited loom files. The
+complete Zenodo fallback is about 10.61 GiB. Manager then runs only the missing
+figure-facing stages:
+
+1. reconstruct or validate the shared final Seurat object when required;
+2. calculate scVelo pseudotime and derive the CellCycle and NonCellCycle
+   Day-17 TGI tables used by 7A-7E;
+3. fit the state-pathway model and export a compact generated reference for 7F;
+4. build the 11 plot-facing Supplementary Figure tables and render the four
+   composites.
+
+The upstream Seurat reconstruction is the exact narrow sequence needed from
+Tao's `01_data.R`, `01a_cell_cycle.R`, `02b_cluster_refine.R`,
+`02d_manual_cluster_merge.R`, and `03_final_cluster.R`: sample QC/integration,
+cell-cycle annotation, reviewed UMAP cluster refinement, fixed manual merges,
+and final cluster filtering/reduction. Marker surveys, exploratory plots, and
+other downstream analyses are not ported. `--jobs` is recorded and forwarded,
+but these reviewed Seurat stages always use one scientific worker.
+
+No FASTQ-to-Cell-Ranger invocation or FASTQ collection was available in the
+source work, so the 18 H5 matrices are the earliest executable expression-data
+boundary. Likewise, no complete Numbat/karyotyping workflow producing
+`all_ploidy.tsv` was available; that checksum-pinned table is therefore a
+versioned source artifact rather than a generated cache. The deposited final
+RDS remains the verified fallback when the external H5 boundary is unavailable.
+
+The endpoint-ploidy table, sample workbook, and growth-curve workbook are
+versioned source artifacts. Their revision and SHA-256 values are pinned in
+`figure7_config.yaml`. Raw downloads and generated intermediates stay below
+`Results/`; they are not publication inputs and are not committed.
+
+Every reusable stage has a dependency and output fingerprint. A subsequent run
+reuses a stage only when its source hashes, relevant configuration, code,
+runtime package contract, and output hashes validate. Stale automatically
+managed caches are preserved with a `.stale.<timestamp>` suffix before
+regeneration; explicit external paths are never modified. To require an
+already-populated raw cache, add `--figure7-no-download-missing-raw`.
+
+The raw-generated 7F reference deliberately remains separate from the reviewed
+canonical v1 reference. Until the deferred GRCh/GRCm correction is implemented,
+the fallback preserves Tao's mixed-species behavior and records
+`canonical_publication_allowed=false`. Routine `standard` runs continue to use
+the reviewed frozen 7F input.
+
 ## Commands
 
 Routine manager execution:
@@ -58,8 +126,14 @@ calculation, plot labels, statistical tables, run metadata, panel contract, and
 day-bearing filenames. Panel 7B and panel 7F are scientifically independent of
 the TGI endpoint and are regenerated unchanged into the selected destination.
 
-To export the canonical panel-7F reference from a completed 04i result tree and
-then generate and publish Figure 7 in one Manager run:
+Routine and raw-fallback runs do not refresh the tracked reviewed v1 panel-7F
+reference. Full-workflow instead writes a separately identified
+`runtime_state_pathway_legacy_mixed_v1` generated reference below the run
+intermediates and marks it noncanonical.
+
+To strictly re-export the reviewed canonical panel-7F reference from the
+completed 04i result tree, then generate and publish Figure 7 in one Manager
+run:
 
 ```bash
 bash Manager.sh \
@@ -69,17 +143,20 @@ bash Manager.sh \
   --figure7-state-pathway-results-root /path/to/04i_pseudotime_state_pathways
 ```
 
-The supplied results root is normalized and recorded in the Manager export
-metadata, module-run notes, and Figure 7 `run_config.tsv`. Canonical panel-7F
-provenance is deliberately location-independent: it records stable report/source
-identifiers and checksums, never the runtime filesystem location. The eight
-exported TSVs are retained under that Manager run's
-`artifacts/figure7_state_pathway_reference/` directory. After Figure 7 and its
-manifests complete successfully, Manager refreshes the same eight TSVs using
-atomic per-file replacement under
+This explicit option runs
+`Code/in-vivo/figure7/export_04i_state_pathway_reference.R`. The exporter
+requires the reviewed report hash, source revision, source input/config
+checksums, and exact hashes of all eight scientific source tables. It records
+the normalized runtime source root only in run metadata; canonical provenance
+uses stable identifiers and checksums and therefore remains portable.
+
+The verified export is retained under the Manager run's
+`artifacts/figure7_state_pathway_reference/` directory. Only after Figure 7 and
+its manifests finish successfully does Manager atomically materialize the eight
+TSVs under
 `Data/in-vivo/figure7/saved_state_pathway/taoli_04i_etp2_24_day17_v1/` and
-records that publication in `metadata/figure7_state_pathway_materialization.tsv`.
-Failed Figure 7 runs do not refresh the tracked canonical Data reference.
+write `metadata/figure7_state_pathway_materialization.tsv`. A failed Figure 7
+run cannot refresh the tracked reference.
 
 To explicitly generate and materialize only 7A-7E:
 
@@ -109,7 +186,6 @@ Rscript Code/in-vivo/figure7/run_figure7.R \
   --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
   --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
   --saved-state-pathway-dir=Data/in-vivo/figure7/saved_state_pathway/taoli_04i_etp2_24_day17_v1 \
-  --state-pathway-results-root=/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways \
   --output-dir="${figure7_output_dir}"
 
 echo "Figure 7 results: ${figure7_output_dir}"
@@ -132,44 +208,10 @@ Rscript Code/in-vivo/figure7/run_figure7.R \
 
 The manager's `panels-only` mode does not invoke this R script; it materializes six existing PDFs from an explicit `--source-run-id`.
 
-The frozen reference can be regenerated from the unchanged completed 04i result
-tree with:
-
-```bash
-Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R \
-  --results-root=/path/to/04i_pseudotime_state_pathways \
-  --output-dir=Results/in-vivo/figure7/reference_exports/<run_id>/taoli_04i_etp2_24_day17_v1
-```
-
-On the HPC, run the exporter from the repository root with explicit source and
-output paths:
-
-```bash
-cd /share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures
-
-Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R \
-  --results-root=/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways \
-  --report-html=/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/04i_pseudotime_state_pathways/report/04i_pseudotime_state_pathways_report.html \
-  --output-dir=/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures/Results/in-vivo/figure7/hpc_export_recheck_20260717/taoli_04i_etp2_24_day17_v1
-```
-
-Run this command in the HPC shell rather than from an interactive R prompt. The
-final output-directory basename must remain `taoli_04i_etp2_24_day17_v1`, and
-the parent directory must be new because the exporter refuses to overwrite an
-existing canonical export.
-
-The exporter verifies the report hash, the source input/config checksum records,
-and the exact SHA-256 values of all eight consumed scientific source tables
-before parsing those tables, then writes the eight TSVs atomically. It does not
-refit the model or query gene sets. Runtime source paths remain in Manager/run
-metadata and are excluded from the immutable canonical provenance. The source
-analysis did not record a separate MSigDB release identifier, so provenance retains
-`gene_set_release=not_recorded_in_04i_manifest` and the recorded `msigdbr`
-package version instead.
-
-Full panel-F recomputation remains a separate guarded path: it requires both an
-explicit Seurat RDS and a pinned local gene-set artifact, and it never queries
-live `msigdbr`. This prevents a recomputation from silently changing panel 7F.
+The older `full-analysis` entrypoint remains available for comparison against a
+separately supplied gene-set artifact. Manager's `full-refit` path instead uses
+the raw-data fallback above, pins `msigdbr` and the MSigDB release, and keeps its
+generated legacy-mixed reference noncanonical.
 
 ## Output contract
 
@@ -197,5 +239,7 @@ Rscript Code/in-vivo/figure7/tests/testthat.R
 
 The tests parse all module files, reproduce the frozen A-E numerical results,
 enforce treated-only outcomes and selected ECDF IDs 1/8/9, validate the tracked
-canonical 04i reference and its lineage, exercise the strict panel-F contract
-with generated non-scientific fixtures, and verify fail-fast output behavior.
+canonical 04i reference and its lineage, exercise the strict panel-F contract,
+verify cached-stage fingerprints and tamper rejection, validate the complete
+Zenodo manifest, and confirm that missing raw inputs fail before output is
+created when downloading is disabled.

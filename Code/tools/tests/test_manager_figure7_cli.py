@@ -31,6 +31,70 @@ class ManagerFigure7CliTest(unittest.TestCase):
             capture_output=True,
         )
 
+    def _figure7_input_lineage_paths(self, run_dir: Path) -> list[str]:
+        manager_text = (REPO_ROOT / "Manager.sh").read_text()
+        start = manager_text.index("figure7_runtime_source_paths()")
+        end = manager_text.index("\nrequired_input_paths_for_module()", start)
+        function_block = manager_text[start:end]
+        script = f"""
+set -euo pipefail
+{function_block}
+metadata_value() {{
+  local path="$1" key="$2"
+  awk -F '\\t' -v expected="${{key}}" '
+    $1 == expected {{ count += 1; value = $2 }}
+    END {{ if (count != 1 || value == "") exit 1; print value }}
+  ' "${{path}}"
+}}
+mode=full-refit
+figure7_full_analysis=false
+figure7_panels_ae_only=true
+figure7_state_pathway_results_root=""
+figure7_reference_root=unused
+figure7_seurat_rds=""
+figure7_gene_set_artifact=""
+figure7_raw_seurat_rds=""
+figure7_raw_data_dir="$2"
+figure7_loom_root=""
+figure7_cell_ploidy_input=cell_ploidy.tsv
+figure7_sample_info_input=sample_info.xlsx
+figure7_growth_curve_input=growth_curve.xlsx
+input_paths_for_module in_vivo_figure7 "$1"
+"""
+        result = subprocess.run(
+            ["bash", "-c", script, "fixture", str(run_dir), str(run_dir / "raw")],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return [line for line in result.stdout.splitlines() if line]
+
+    @staticmethod
+    def _write_run_config(run_dir: Path, rows: dict[str, str]) -> None:
+        metadata = run_dir / "metadata"
+        metadata.mkdir(parents=True)
+        with (metadata / "run_config.tsv").open("w", newline="") as handle:
+            writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
+            writer.writerow(["key", "value"])
+            writer.writerows(rows.items())
+
+    @staticmethod
+    def _copy_reviewed_reference(run_dir: Path) -> None:
+        reference_root = (
+            REPO_ROOT
+            / "Data/in-vivo/figure7/saved_state_pathway"
+            / "taoli_04i_etp2_24_day17_v1"
+        )
+        (run_dir / "tables").mkdir(exist_ok=True)
+        for source in reference_root.glob("*.tsv"):
+            destination = (
+                run_dir / "metadata" / source.name
+                if source.name == "state_pathway_provenance.tsv"
+                else run_dir / "tables" / source.name
+            )
+            destination.write_bytes(source.read_bytes())
+
     def test_panels_only_requires_source_run_id(self) -> None:
         result = self._run(
             "--mode", "panels-only", "--modules", "in_vivo_figure7", "--run-id", "operation"
@@ -120,6 +184,114 @@ class ManagerFigure7CliTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("cannot be used with --figure7-panels-ae-only", result.stderr)
 
+    def test_input_lineage_omits_unconsumed_stale_scvelo_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            stale_scvelo = run_dir / "stale_scvelo.csv"
+            stale_manifest = run_dir / "scvelo_stage_manifest.tsv"
+            stale_scvelo.write_text("stale\n")
+            stale_manifest.write_text("key\tvalue\n")
+            self._write_run_config(
+                run_dir,
+                {
+                    "workflow_executed_stages": "none",
+                    "workflow_cellcycle_input": str(run_dir / "cellcycle.csv"),
+                    "workflow_noncellcycle_input": str(run_dir / "noncellcycle.csv"),
+                    "workflow_scvelo_metrics": str(stale_scvelo),
+                    "workflow_state_pathway_results": "not_applicable",
+                    "workflow_state_pathway_reference": "not_applicable",
+                    "raw_data_dir": str(run_dir / "raw"),
+                    "seurat_rds_sha256": "not_available",
+                    "loom_file_count": "0",
+                },
+            )
+            paths = self._figure7_input_lineage_paths(run_dir)
+            self.assertNotIn(str(stale_scvelo), paths)
+            self.assertNotIn(str(stale_manifest), paths)
+
+    def test_input_lineage_uses_exact_explicit_workflow_seurat_rds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            explicit_rds = run_dir / "external inputs" / "selected_object.rds"
+            explicit_rds.parent.mkdir()
+            explicit_rds.write_text("fixture rds\n")
+            self._write_run_config(
+                run_dir,
+                {
+                    "workflow_executed_stages": "state_pathway_support",
+                    "workflow_cellcycle_input": str(run_dir / "cellcycle.csv"),
+                    "workflow_noncellcycle_input": str(run_dir / "noncellcycle.csv"),
+                    "workflow_scvelo_metrics": str(run_dir / "unused_scvelo.csv"),
+                    "workflow_seurat_rds": str(explicit_rds),
+                    "workflow_state_pathway_results": "not_applicable",
+                    "workflow_state_pathway_reference": "not_applicable",
+                    "raw_data_dir": str(run_dir / "raw"),
+                    "seurat_rds_sha256": "a" * 64,
+                    "loom_file_count": "0",
+                },
+            )
+            paths = self._figure7_input_lineage_paths(run_dir)
+            self.assertIn(str(explicit_rds), paths)
+            self.assertNotIn(
+                str(run_dir / "raw/integrated_sct_cca_seurat_final_reclustered.rds"),
+                paths,
+            )
+
+    def test_input_lineage_records_present_reconstruction_manifests(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            upstream = run_dir / "seurat_upstream"
+            final_stage = upstream / "03_final_cluster/stage_manifest.tsv"
+            reconstruction = upstream / "reconstruction_manifest.tsv"
+            final_stage.parent.mkdir(parents=True)
+            final_stage.write_text("key\tvalue\nstage\tfinal\n")
+            reconstruction.write_text("key\tvalue\nschema_version\t1\n")
+            self._write_run_config(
+                run_dir,
+                {
+                    "workflow_executed_stages": "none",
+                    "workflow_cellcycle_input": str(run_dir / "cellcycle.csv"),
+                    "workflow_noncellcycle_input": str(run_dir / "noncellcycle.csv"),
+                    "workflow_scvelo_metrics": str(run_dir / "unused_scvelo.csv"),
+                    "workflow_state_pathway_results": "not_applicable",
+                    "workflow_state_pathway_reference": "not_applicable",
+                    "workflow_seurat_reconstruction_manifest": str(reconstruction),
+                    "workflow_seurat_reconstruction_manifest_sha256": "a" * 64,
+                    "workflow_seurat_final_stage_manifest": str(final_stage),
+                    "workflow_seurat_final_stage_manifest_sha256": "b" * 64,
+                    "raw_data_dir": str(run_dir / "raw"),
+                    "seurat_rds_sha256": "not_available",
+                    "loom_file_count": "0",
+                },
+            )
+            paths = self._figure7_input_lineage_paths(run_dir)
+            self.assertIn(str(reconstruction), paths)
+            self.assertIn(str(final_stage), paths)
+            self.assertIn(
+                "Code/in-vivo/figure7/"
+                "generate_final_seurat_from_cellranger.R",
+                paths,
+            )
+            self.assertIn(
+                "Code/in-vivo/figure7/src/seurat_upstream.R",
+                paths,
+            )
+            self.assertIn(
+                "Code/in-vivo/figure7/src/seurat_upstream_selection.R",
+                paths,
+            )
+
+            reconstruction.unlink()
+            final_stage.unlink()
+            archived_paths = self._figure7_input_lineage_paths(run_dir)
+            self.assertNotIn(str(reconstruction), archived_paths)
+            self.assertNotIn(str(final_stage), archived_paths)
+            self.assertIn(
+                "Code/in-vivo/figure7/"
+                "generate_final_seurat_from_cellranger.R",
+                archived_paths,
+            )
+
     def test_state_pathway_results_root_runs_exporter_and_is_recorded(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -127,7 +299,11 @@ class ManagerFigure7CliTest(unittest.TestCase):
             figure_root = tmp_path / "figures"
             source_results_root = tmp_path / "04i results"
             source_results_root.mkdir()
-            canonical_reference_root = tmp_path / "canonical Data" / "taoli_04i_etp2_24_day17_v1"
+            canonical_reference_root = (
+                tmp_path
+                / "canonical Data"
+                / "taoli_04i_etp2_24_day17_v1"
+            )
             run_id = "integrated_state_export"
 
             fake_bin = tmp_path / "bin"
@@ -150,18 +326,7 @@ for arg in "$@"; do
 done
 if [[ "$entrypoint" == *export_04i_state_pathway_reference.R ]]; then
   mkdir -p "$output_dir"
-  for name in \
-    panel_7F_pathway_activity_plot_data.tsv \
-    panel_7F_selected_pathway_gsea.tsv \
-    panel_7F_leading_edge_genes.tsv \
-    state_pathway_gene_ranking_complete.tsv \
-    state_pathway_gsea_complete.tsv \
-    state_pathway_sample_bin_coverage.tsv \
-    state_pathway_design_qc.tsv; do
-    printf 'value\\nfixture\\n' > "$output_dir/$name"
-  done
-  printf 'key\\tvalue\\nsource_results_id\\t04i_pseudotime_state_pathways\\n' \
-    > "$output_dir/state_pathway_provenance.tsv"
+  cp "$FIGURE7_TEST_REFERENCE_ROOT"/*.tsv "$output_dir/"
   exit 0
 fi
 if [[ "$entrypoint" == *run_figure7.R ]]; then
@@ -176,7 +341,7 @@ if [[ "$entrypoint" == *run_figure7.R ]]; then
     printf 'fake pdf\\n' > "$output_dir/figures/$name.pdf"
     printf 'fake png\\n' > "$output_dir/figures/$name.png"
   done
-  printf 'key\\tvalue\\npanel_set\\ta-f\\ntgi_day\\t17\\nstate_pathway_source_results_root\\t%s\\n' \
+  printf 'key\\tvalue\\npanel_set\\ta-f\\ntgi_day\\t17\\nstate_pathway_reference_id\\ttaoli_04i_etp2_24_day17_v1\\nstate_pathway_reference_kind\\treviewed_frozen\\ncanonical_publication_allowed\\ttrue\\nstate_pathway_source_results_root\\t%s\\n' \
     "$source_results_root" > "$output_dir/metadata/run_config.tsv"
   printf 'panel_id\\tfilename\\n' > "$output_dir/metadata/panel_contract.tsv"
   printf '7A\\tpanel_7A_day17_tgi_calculation.pdf\\n' >> "$output_dir/metadata/panel_contract.tsv"
@@ -185,7 +350,14 @@ if [[ "$entrypoint" == *run_figure7.R ]]; then
   printf '7D\\tpanel_7D_day17_tgi_vs_centered_ecdf_shift.pdf\\n' >> "$output_dir/metadata/panel_contract.tsv"
   printf '7E\\tpanel_7E_day17_tgi_vs_mean_etp.pdf\\n' >> "$output_dir/metadata/panel_contract.tsv"
   printf '7F\\tpanel_7F_pseudotime_state_pathway_activity.pdf\\n' >> "$output_dir/metadata/panel_contract.tsv"
-  cp "$saved_state_dir/state_pathway_provenance.tsv" "$output_dir/metadata/state_pathway_provenance.tsv"
+  for source in "$saved_state_dir"/*.tsv; do
+    name="${source##*/}"
+    if [[ "$name" == "state_pathway_provenance.tsv" ]]; then
+      cp "$source" "$output_dir/metadata/$name"
+    else
+      cp "$source" "$output_dir/tables/$name"
+    fi
+  done
   exit 0
 fi
 exit 99
@@ -194,74 +366,137 @@ exit 99
             fake_rscript.chmod(0o755)
             env = os.environ.copy()
             env["PATH"] = f"{fake_bin}:{env['PATH']}"
-            env["FIGURE7_CANONICAL_REFERENCE_ROOT"] = str(canonical_reference_root)
+            env["FIGURE7_CANONICAL_REFERENCE_ROOT"] = str(
+                canonical_reference_root
+            )
+            env["FIGURE7_TEST_REFERENCE_ROOT"] = str(
+                REPO_ROOT
+                / "Data/in-vivo/figure7/saved_state_pathway"
+                / "taoli_04i_etp2_24_day17_v1"
+            )
 
             result = self._run(
                 "--mode", "standard", "--modules", "in_vivo_figure7",
                 "--run-id", run_id,
                 "--output-root", str(output_root),
                 "--figure-root", str(figure_root),
-                "--figure7-state-pathway-results-root", str(source_results_root),
+                "--figure7-state-pathway-results-root",
+                str(source_results_root),
                 env=env,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
 
             manager_root = output_root / "manager/runs" / run_id
-            export_metadata_path = manager_root / "metadata/figure7_state_pathway_export.tsv"
+            export_metadata_path = (
+                manager_root
+                / "metadata/figure7_state_pathway_export.tsv"
+            )
             with export_metadata_path.open(newline="") as handle:
                 export_metadata = {
-                    row["key"]: row["value"] for row in csv.DictReader(handle, delimiter="\t")
+                    row["key"]: row["value"]
+                    for row in csv.DictReader(handle, delimiter="\t")
                 }
             self.assertEqual(export_metadata["status"], "ok")
-            self.assertEqual(export_metadata["source_results_root"], str(source_results_root.resolve()))
+            self.assertEqual(
+                export_metadata["source_results_root"],
+                str(source_results_root.resolve()),
+            )
             reference_root = Path(export_metadata["exported_reference_dir"])
-            self.assertEqual(reference_root.name, "taoli_04i_etp2_24_day17_v1")
+            self.assertEqual(
+                reference_root.name,
+                "taoli_04i_etp2_24_day17_v1",
+            )
             self.assertEqual(len(list(reference_root.glob("*.tsv"))), 8)
             self.assertEqual(
-                export_metadata["canonical_data_reference_dir"], str(canonical_reference_root)
+                export_metadata["canonical_data_reference_dir"],
+                str(canonical_reference_root),
             )
-            self.assertEqual(len(list(canonical_reference_root.glob("*.tsv"))), 8)
+            self.assertEqual(
+                len(list(canonical_reference_root.glob("*.tsv"))),
+                8,
+            )
             canonical_provenance = (
                 canonical_reference_root / "state_pathway_provenance.tsv"
             ).read_text()
-            self.assertNotIn(str(source_results_root.resolve()), canonical_provenance)
+            self.assertNotIn(
+                str(source_results_root.resolve()),
+                canonical_provenance,
+            )
             for exported_path in reference_root.glob("*.tsv"):
                 self.assertEqual(
                     exported_path.read_bytes(),
-                    (canonical_reference_root / exported_path.name).read_bytes(),
+                    (
+                        canonical_reference_root / exported_path.name
+                    ).read_bytes(),
                 )
 
-            with (manager_root / "metadata/figure7_state_pathway_materialization.tsv").open(
-                newline=""
-            ) as handle:
+            materialization_path = (
+                manager_root
+                / "metadata/figure7_state_pathway_materialization.tsv"
+            )
+            with materialization_path.open(newline="") as handle:
                 materialization_metadata = {
-                    row["key"]: row["value"] for row in csv.DictReader(handle, delimiter="\t")
+                    row["key"]: row["value"]
+                    for row in csv.DictReader(handle, delimiter="\t")
                 }
             self.assertEqual(materialization_metadata["status"], "ok")
             self.assertEqual(
-                materialization_metadata["target_data_reference_dir"],
+                materialization_metadata[
+                    "target_data_reference_dir"
+                ],
                 str(canonical_reference_root),
             )
-            self.assertEqual(materialization_metadata["materialized_file_count"], "8")
-
-            run_root = output_root / "in-vivo/figure7/runs" / f"{run_id}_figure7"
-            with (run_root / "metadata/run_config.tsv").open(newline="") as handle:
-                run_config = {row["key"]: row["value"] for row in csv.DictReader(handle, delimiter="\t")}
             self.assertEqual(
-                run_config["state_pathway_source_results_root"], str(source_results_root.resolve())
+                materialization_metadata["materialized_file_count"],
+                "8",
             )
-            module_runs = (manager_root / "metadata/module_runs.tsv").read_text()
-            self.assertIn(f"state_pathway_source_results_root={source_results_root.resolve()}", module_runs)
-            self.assertIn(f"state_pathway_canonical_data_dir={canonical_reference_root}", module_runs)
-            self.assertTrue((figure_root / "Figure7/manifest.tsv").is_file())
 
-    def test_failed_figure7_run_does_not_materialize_canonical_reference(self) -> None:
+            run_root = (
+                output_root
+                / "in-vivo/figure7/runs"
+                / f"{run_id}_figure7"
+            )
+            with (
+                run_root / "metadata/run_config.tsv"
+            ).open(newline="") as handle:
+                run_config = {
+                    row["key"]: row["value"]
+                    for row in csv.DictReader(handle, delimiter="\t")
+                }
+            self.assertEqual(
+                run_config["state_pathway_source_results_root"],
+                str(source_results_root.resolve()),
+            )
+            module_runs = (
+                manager_root / "metadata/module_runs.tsv"
+            ).read_text()
+            self.assertIn(
+                "state_pathway_source_results_root="
+                f"{source_results_root.resolve()}",
+                module_runs,
+            )
+            self.assertIn(
+                "state_pathway_canonical_data_dir="
+                f"{canonical_reference_root}",
+                module_runs,
+            )
+            self.assertTrue(
+                (figure_root / "Figure7/manifest.tsv").is_file()
+            )
+
+    def test_failed_figure7_run_does_not_materialize_canonical_reference(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             output_root = tmp_path / "Results"
             figure_root = tmp_path / "figures"
             source_results_root = tmp_path / "04i_results"
-            canonical_reference_root = tmp_path / "canonical" / "taoli_04i_etp2_24_day17_v1"
+            canonical_reference_root = (
+                tmp_path
+                / "canonical"
+                / "taoli_04i_etp2_24_day17_v1"
+            )
             source_results_root.mkdir()
 
             fake_bin = tmp_path / "bin"
@@ -299,14 +534,17 @@ exit 7
             fake_rscript.chmod(0o755)
             env = os.environ.copy()
             env["PATH"] = f"{fake_bin}:{env['PATH']}"
-            env["FIGURE7_CANONICAL_REFERENCE_ROOT"] = str(canonical_reference_root)
+            env["FIGURE7_CANONICAL_REFERENCE_ROOT"] = str(
+                canonical_reference_root
+            )
 
             result = self._run(
                 "--mode", "standard", "--modules", "in_vivo_figure7",
                 "--run-id", "failed_before_materialization",
                 "--output-root", str(output_root),
                 "--figure-root", str(figure_root),
-                "--figure7-state-pathway-results-root", str(source_results_root),
+                "--figure7-state-pathway-results-root",
+                str(source_results_root),
                 env=env,
             )
 
@@ -330,6 +568,7 @@ exit 7
             run_root = output_root / "in-vivo/figure7/runs" / f"{source_id}_figure7"
             (run_root / "figures").mkdir(parents=True)
             (run_root / "metadata").mkdir()
+            self._copy_reviewed_reference(run_root)
 
             rows = []
             for spec in PANEL_SPECS:
@@ -362,6 +601,18 @@ exit 7
                 [
                     {"key": "panel_set", "value": "a-f"},
                     {"key": "tgi_day", "value": "17"},
+                    {
+                        "key": "state_pathway_reference_id",
+                        "value": "taoli_04i_etp2_24_day17_v1",
+                    },
+                    {
+                        "key": "state_pathway_reference_kind",
+                        "value": "reviewed_frozen",
+                    },
+                    {
+                        "key": "canonical_publication_allowed",
+                        "value": "true",
+                    },
                 ],
                 ["key", "value"],
             )

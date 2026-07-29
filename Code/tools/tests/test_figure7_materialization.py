@@ -38,9 +38,15 @@ class Figure7MaterializationTest(unittest.TestCase):
         )
         (self.run_root / "figures").mkdir(parents=True)
         (self.run_root / "metadata").mkdir()
+        (self.run_root / "tables").mkdir()
         self.input_path = self.repo / "Data/in-vivo/figure7/fixture.tsv"
         self.input_path.parent.mkdir(parents=True)
         self.input_path.write_text("value\n1\n")
+        self.reviewed_reference_root = (
+            REPO_ROOT
+            / "Data/in-vivo/figure7/saved_state_pathway"
+            / "taoli_04i_etp2_24_day17_v1"
+        )
         self.figure7_specs = [
             spec for spec in PANEL_SPECS if spec["module"] == "in_vivo_figure7"
         ]
@@ -48,6 +54,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             source = self.run_root / str(spec["source"])
             source.write_bytes(f"fake PDF for {spec['panel']}\n".encode())
         self._write_run_metadata(include_f=True)
+        self._write_state_provenance(canonical_publication_allowed="true")
         self._write_input_manifest()
         self._write_output_manifest()
 
@@ -60,12 +67,30 @@ class Figure7MaterializationTest(unittest.TestCase):
             if spec.get("variant", "pdf") == "pdf"
             and (include_f or not str(spec["panel"]).startswith("7F"))
         ]
+        run_config = [
+            {"key": "panel_set", "value": "a-f" if include_f else "a-e"},
+            {"key": "tgi_day", "value": "17"},
+        ]
+        if include_f:
+            run_config.extend(
+                [
+                    {
+                        "key": "state_pathway_reference_id",
+                        "value": "taoli_04i_etp2_24_day17_v1",
+                    },
+                    {
+                        "key": "state_pathway_reference_kind",
+                        "value": "reviewed_frozen",
+                    },
+                    {
+                        "key": "canonical_publication_allowed",
+                        "value": "true",
+                    },
+                ]
+            )
         write_tsv(
             self.run_root / "metadata/run_config.tsv",
-            [
-                {"key": "panel_set", "value": "a-f" if include_f else "a-e"},
-                {"key": "tgi_day", "value": "17"},
-            ],
+            run_config,
             ["key", "value"],
         )
         write_tsv(
@@ -101,6 +126,33 @@ class Figure7MaterializationTest(unittest.TestCase):
                 }
             ],
             MODULE_MANIFEST_COLUMNS,
+        )
+
+    def _write_state_provenance(
+        self, canonical_publication_allowed: str
+    ) -> None:
+        if canonical_publication_allowed == "true":
+            for source in self.reviewed_reference_root.glob("*.tsv"):
+                destination = (
+                    self.run_root / "metadata" / source.name
+                    if source.name == "state_pathway_provenance.tsv"
+                    else self.run_root / "tables" / source.name
+                )
+                shutil.copy2(source, destination)
+            return
+        write_tsv(
+            self.run_root / "metadata/state_pathway_provenance.tsv",
+            [
+                {
+                    "key": "reference_kind",
+                    "value": "test_fixture",
+                },
+                {
+                    "key": "canonical_publication_allowed",
+                    "value": canonical_publication_allowed,
+                },
+            ],
+            ["key", "value"],
         )
 
     def _write_output_manifest(self) -> None:
@@ -165,7 +217,10 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.assertEqual({row["run_id"] for row in rows}, {self.source_id})
         self.assertEqual(
             {row["result_run_dir"] for row in rows},
-            {str(self.run_root.relative_to(self.repo))},
+            {
+                "manifest:../../"
+                + str(self.run_root.relative_to(self.repo))
+            },
         )
         self.assertTrue(
             all(f"materialization_operation_id={self.operation_id}" in row["notes"] for row in rows)
@@ -214,7 +269,7 @@ class Figure7MaterializationTest(unittest.TestCase):
 
         (self.run_root / str(self.figure7_specs[0]["source"])).write_bytes(b"restored")
         self._write_output_manifest()
-        (self.run_root / "tables").mkdir()
+        (self.run_root / "tables").mkdir(exist_ok=True)
         (self.run_root / "tables/unexpected.png").write_bytes(b"unexpected")
         unexpected = self._run_materializer()
         self.assertNotEqual(unexpected.returncode, 0)
@@ -226,6 +281,41 @@ class Figure7MaterializationTest(unittest.TestCase):
         result = self._run_materializer()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("sha256 does not match", result.stderr)
+
+    def test_rejects_noncanonical_generated_panel_f(self) -> None:
+        self._write_state_provenance(
+            canonical_publication_allowed="false"
+        )
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Canonical Figure 7 materialization is prohibited",
+            result.stderr,
+        )
+        self.assertFalse((self.repo / "figures").exists())
+
+    def test_rejects_spoofed_legacy_canonical_identity(self) -> None:
+        write_tsv(
+            self.run_root / "metadata/state_pathway_provenance.tsv",
+            [
+                {
+                    "key": "canonical_reference_id",
+                    "value": "taoli_04i_etp2_24_day17_v1",
+                },
+                {
+                    "key": "code_revision_04i",
+                    "value": "spoof",
+                },
+            ],
+            ["key", "value"],
+        )
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Canonical Figure 7 materialization is prohibited",
+            result.stderr,
+        )
+        self.assertFalse((self.repo / "figures").exists())
 
     def test_rejects_duplicate_source_manifest_row(self) -> None:
         manifest = self.run_root / "metadata/output_manifest.tsv"

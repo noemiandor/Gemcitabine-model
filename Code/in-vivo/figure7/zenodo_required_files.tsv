@@ -1,0 +1,20 @@
+role	filename	size_bytes	md5	sha256	url
+loom	2N-A1-0-Count-HM.loom	242428672	ffec499a6906cf5e5b302cf07116f28b		https://zenodo.org/api/records/21463392/files/2N-A1-0-Count-HM.loom/content
+loom	2N-A1-LR-Count-HM.loom	213985708	6bd83a5286fb81d2a01167e6dc1b4fd2		https://zenodo.org/api/records/21463392/files/2N-A1-LR-Count-HM.loom/content
+loom	2N-A1-R-Count-HM.loom	198676399	594eb5f65c56cfbb3a7a47c1914694ca		https://zenodo.org/api/records/21463392/files/2N-A1-R-Count-HM.loom/content
+loom	2N-A1-RR-Count-HM.loom	244723972	ef16fce8d81886ab6b5f1cc4a0ec7bda		https://zenodo.org/api/records/21463392/files/2N-A1-RR-Count-HM.loom/content
+loom	2N-A2-0-Count-HM.loom	269180298	f568ec4ddd59c93d915e2fdf262e9020		https://zenodo.org/api/records/21463392/files/2N-A2-0-Count-HM.loom/content
+loom	2N-A2-L-Count-HM.loom	234996309	68c8eee98614c5241a65945c8cc50666		https://zenodo.org/api/records/21463392/files/2N-A2-L-Count-HM.loom/content
+loom	2N-A4-R-Count-HM.loom	242431309	ec08b3f19db519a461aa6cd538267299		https://zenodo.org/api/records/21463392/files/2N-A4-R-Count-HM.loom/content
+loom	2N-A4-RL-Count-HM.loom	270915700	5d1a87b9f4848897c2fff9b49ab4522e		https://zenodo.org/api/records/21463392/files/2N-A4-RL-Count-HM.loom/content
+loom	2N-Cell-Culture-Count-HM.loom	734022842	6f1c0f1433c3aed34ff111bf478ba543		https://zenodo.org/api/records/21463392/files/2N-Cell-Culture-Count-HM.loom/content
+loom	4N-A5-0-Count-HM.loom	220223524	a6192d31f8bf75bca194f9c174b62d00		https://zenodo.org/api/records/21463392/files/4N-A5-0-Count-HM.loom/content
+loom	4N-A5-RR-Count-HM.loom	270107864	31d5c3c4dca26e71dc79e970fc790d9f		https://zenodo.org/api/records/21463392/files/4N-A5-RR-Count-HM.loom/content
+loom	4N-A8-RL-Count-HM.loom	443133614	9cd6241fd962ba5f24b6509dda8c11b2		https://zenodo.org/api/records/21463392/files/4N-A8-RL-Count-HM.loom/content
+loom	4N-A8-RR-Count-HM.loom	240092849	28ee0892124ac16c7608d73718bdd5fe		https://zenodo.org/api/records/21463392/files/4N-A8-RR-Count-HM.loom/content
+loom	4N-Cell-Culture-Count-HM.loom	911756304	ad1b2387939bfea88db85f9395894c2e		https://zenodo.org/api/records/21463392/files/4N-Cell-Culture-Count-HM.loom/content
+loom	A5-4N-L-Count-HM.loom	230460801	d1f5c1464482a0659a163d7c40dea20a		https://zenodo.org/api/records/21463392/files/A5-4N-L-Count-HM.loom/content
+loom	A5-4N-R-Count-HM.loom	251770680	3f48912bfd06f1693b7176e13559343b		https://zenodo.org/api/records/21463392/files/A5-4N-R-Count-HM.loom/content
+loom	A6-4N-O-Count-HM.loom	254726869	2b8612bf5038ddce044f9e11d7f522f8		https://zenodo.org/api/records/21463392/files/A6-4N-O-Count-HM.loom/content
+loom	A6-4N-RR-Count-HM.loom	344438519	3b7aa88e235c7cb878ad4d963f288faf		https://zenodo.org/api/records/21463392/files/A6-4N-RR-Count-HM.loom/content
+seurat_rds	integrated_sct_cca_seurat_final_reclustered.rds	5577042865	91b3d1b388f1d2af2ff8b4d10be702fc	727b8a5e5868da911c3b0873838fb1b0023377ed21ea5498dc6493acbbef6d98	https://zenodo.org/api/records/21463392/files/integrated_sct_cca_seurat_final_reclustered.rds/content

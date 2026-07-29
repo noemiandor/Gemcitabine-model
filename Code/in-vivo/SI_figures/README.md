@@ -1,14 +1,15 @@
 # Supplementary Figures 4-7
 
-This directory contains the plot-only generator for Supplementary Figures 4-7.
-It uses the 11 reviewed, plot-facing tables under
-`Data/in-vivo/SIfigures/` and writes four final composite figures as PDF/PNG
-pairs.
+This directory contains the Supplementary Figures 4-7 orchestrator, a
+plot-only renderer, and the narrowly scoped raw-table builder. Routine mode
+uses the 11 reviewed plot-facing tables under `Data/in-vivo/SIfigures/` and
+writes four final composite figures as PDF/PNG pairs.
 
 Run it directly with:
 
 ```bash
-Rscript Code/in-vivo/SI_figures/generate_supplementary_figures.R \
+Rscript Code/in-vivo/SI_figures/run_supplementary_figures.R \
+  --mode=plot-only \
   --output-dir Results/in-vivo/SI_figures/runs/example_si_figures
 ```
 
@@ -20,9 +21,43 @@ bash Manager.sh \
   --run-id example
 ```
 
-The generator intentionally cannot download raw data, load the Seurat RDS,
+The renderer intentionally cannot download raw data, load the Seurat RDS,
 perform differential expression, or rerun ORA/GSEA. Its only analysis
 dependencies are `ggplot2`, `patchwork`, `pheatmap`, and `yaml`.
+
+To rebuild Supplementary Figures 4-7 from the shared Seurat source boundary
+without running Figures 1-6:
+
+```bash
+bash Manager.sh \
+  --mode full-refit \
+  --modules si_figures \
+  --run-id example_raw_si
+```
+
+`run_supplementary_figures.R --mode=full-workflow` validates the 11-table cache
+final Seurat object plus the versioned endpoint-ploidy table. The Seurat object
+can be reused/reconstructed from the same five-stage Cell Ranger H5 cache as
+Figure 7 by passing `--figure7-cellranger-root` through Manager; both modules
+use `--figure7-seurat-upstream-dir`. If that boundary is unavailable, the
+checksum-pinned deposited final RDS is the fallback. SI Figures 4-7 do not
+require scVelo; an explicitly supplied scVelo table is audit-only.
+
+A previously generated 11-table cache is reused before selecting or opening a
+Seurat source. Its manifest binds the exact source RDS, transitive upstream
+dependencies, cumulative scientific code contracts, scoped SI configuration,
+and stage-specific runtime contract. Missing archived ancestors are
+manifest-attested; any still-present final, partial-stage, or H5 source must
+match. If more than one cache is lineage-compatible, the run stops unless one
+is selected explicitly with `--generated-cache-dir`.
+
+The builder writes exactly the same 11 plot-facing table names to a run-scoped
+cache. Cluster differential-expression work is separately resumable: each
+completed cluster has a table and dependency sidecar under the cache's stable
+`work/` directory, and is reused only after schema, hash, and fingerprint
+validation. ORA and GSEA working data remain below that directory. Only the
+four composite PDF/PNG pairs are materialized under
+`figures/Supplementary/`.
 
 The cache contains:
 
@@ -50,6 +85,11 @@ to compete for marker selection. In GSEA, case-distinct mouse rows generally
 could not match the human Hallmark symbols but still occupied positions in the
 ranked vector and changed the enrichment statistic.
 
-Only the final composite files are materialized under
-`figures/Supplementary/`. Individual subpanels are constructed in memory as
-part of each composite and are not published as duplicate derivatives.
+The raw fallback currently preserves that previous Tao behavior because the
+requested GRCh/GRCm repair has been explicitly deferred until the entire raw
+pipeline is in place. Raw-rebuilt SI7 matrices and composites are therefore
+marked `canonical_publication_allowed=false`; they cannot overwrite or validate
+as the canonical human-only cache.
+
+Individual subpanels are constructed in memory as part of each composite and
+are not published as duplicate derivatives.

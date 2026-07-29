@@ -105,7 +105,7 @@ Manuscript asset: `figures/Figure6_v5_Overleaf.png` at `GemcitabinePaper.tex:397
 
 ### Figure 7: In-vivo TGI, CellCycle Pseudotime, And State Pathways
 
-The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one immutable run under `Results/in-vivo/figure7/runs/<run_id>_figure7/`. Routine mode recomputes panels 7A-7E from the tracked CellCycle and NonCellCycle cell-level tables and renders 7F from the immutable `taoli_04i_etp2_24_day17_v1` saved pathway analysis. It is included in the default manuscript module set. `--figure7-panels-ae-only` remains available when an explicit five-panel A-E contract is desired. Each included panel is emitted as a vector PDF and a 300-DPI PNG derivative. Optional full analysis additionally requires an explicit external Seurat RDS and pinned gene-set artifact. The manager materializes source assets but, consistently with Figures 1-6, does not assemble the final A-F composite.
+The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one immutable run under `Results/in-vivo/figure7/runs/<run_id>_figure7/`. Routine mode recomputes panels 7A-7E from the tracked CellCycle and NonCellCycle cell-level tables and renders 7F from the immutable `taoli_04i_etp2_24_day17_v1` saved pathway analysis. It is included in the default manuscript module set. `--figure7-panels-ae-only` remains available when an explicit five-panel A-E contract is desired. Each included panel is emitted as a vector PDF and a 300-DPI PNG derivative. The cache-first `full-refit` path can reconstruct the shared final Seurat object from 18 external Cell Ranger H5 matrices using only the figure-relevant portions of Tao's five upstream Seurat stages, or use the checksum-pinned deposited final RDS when those H5 inputs are unavailable. It then runs only missing scVelo, TGI-table, and pathway-support stages. The external H5 matrices are the earliest available expression-data boundary; `all_ploidy.tsv` is a versioned source boundary because neither FASTQ/Cell Ranger execution nor the complete karyotyping workflow was available to port. The manager materializes source assets but, consistently with Figures 1-6, does not assemble the final A-F composite.
 
 | Panel | Manuscript content | Canonical source output |
 |---|---|---|
@@ -121,11 +121,14 @@ The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one 
 ### Supplementary Figures 4-7: In-vivo cellular landscape and Hallmark programs
 
 The `si_figures` module runs
-`Code/in-vivo/SI_figures/generate_supplementary_figures.R` against the exact
-11-table cache under `Data/in-vivo/SIfigures/`. It constructs all constituent
+`Code/in-vivo/SI_figures/run_supplementary_figures.R`. Routine mode renders the
+exact 11-table cache under `Data/in-vivo/SIfigures/`; it does not load raw
+Seurat data or rerun differential expression, ORA, or GSEA. Cache-first
+`full-refit` can instead share Figure 7's validated final Seurat reconstruction
+or use the deposited final RDS, then rebuild all 11 plot-facing tables with
+resumable per-cluster differential expression. It constructs all constituent
 panels for Supplementary Figures 4-7 in memory and publishes only the four
-final composite PDF/PNG pairs. The module does not load raw Seurat data or
-rerun differential expression, ORA, or GSEA.
+final composite PDF/PNG pairs.
 
 | Figure | Content | Published composite |
 |---|---|---|
