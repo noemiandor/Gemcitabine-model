@@ -36,12 +36,14 @@ bash Manager.sh \
 ```
 
 `run_supplementary_figures.R --mode=full-workflow` validates the 11-table cache
-final Seurat object plus the versioned endpoint-ploidy table. The Seurat object
-can be reused/reconstructed from the same five-stage Cell Ranger H5 cache as
-Figure 7 by passing `--figure7-cellranger-root` through Manager; both modules
-use `--figure7-seurat-upstream-dir`. If that boundary is unavailable, the
-checksum-pinned deposited final RDS is the fallback. SI Figures 4-7 do not
-require scVelo; an explicitly supplied scVelo table is audit-only.
+before touching raw inputs. If that cache is missing or invalid, it rebuilds
+the tables from the final Seurat object plus the versioned endpoint-ploidy
+table. The Seurat object can be reused/reconstructed from the same five-stage
+Cell Ranger H5 cache as Figure 7 by passing `--figure7-cellranger-root` through
+Manager; both modules use `--figure7-seurat-upstream-dir`. If that boundary is
+unavailable, the checksum-pinned deposited final RDS is the fallback. SI
+Figures 4-7 do not require scVelo; an explicitly supplied scVelo table is
+audit-only.
 
 A previously generated 11-table cache is reused before selecting or opening a
 Seurat source. Its manifest binds the exact source RDS, transitive upstream

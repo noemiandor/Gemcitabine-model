@@ -345,6 +345,23 @@ figure7_stage_was_executed() {
   [[ ",${executed_stages}," == *",${expected_stage},"* ]]
 }
 
+si_figures_frozen_cache_paths() {
+  local cache_manifest="Data/in-vivo/SIfigures/manifest.tsv"
+  printf "%s\n" "${cache_manifest}"
+  if [[ -f "${cache_manifest}" ]]; then
+    awk -F '\t' 'NR > 1 && $1 != "" { print "Data/in-vivo/SIfigures/" $1 }' \
+      "${cache_manifest}"
+  fi
+}
+
+si_figures_reviewed_cache_is_valid() {
+  local validator="Code/tools/validate_si_figures_table_cache.py"
+  [[ -f "${validator}" ]] &&
+    python3 "${validator}" \
+      --cache-dir Data/in-vivo/SIfigures \
+      >/dev/null 2>&1
+}
+
 input_paths_for_module() {
   local module="$1"
   local run_dir="${2:-}"
@@ -655,14 +672,8 @@ input_paths_for_module() {
         echo "Missing retained SI analysis input manifest: ${rendered_input_manifest}" >&2
         return 1
       else
-        printf "%s\n" \
-          Code/in-vivo/figure7/figure7_config.yaml \
-          Data/in-vivo/SIfigures/manifest.tsv
-        awk -F '\t' 'NR > 1 && $1 != "" { print $1 }' \
-          Data/in-vivo/SIfigures/manifest.tsv |
-          while IFS= read -r filename; do
-            printf "%s\n" "Data/in-vivo/SIfigures/${filename}"
-          done
+        printf "%s\n" Code/in-vivo/figure7/figure7_config.yaml
+        si_figures_frozen_cache_paths
       fi
       ;;
   esac
@@ -729,7 +740,8 @@ required_input_paths_for_module() {
         Code/tools/validate_si_figures_table_cache.py \
         Code/in-vivo/SI_figures/run_supplementary_figures.R \
         Code/in-vivo/SI_figures/generate_supplementary_figures.R
-      if [[ "${mode}" == "full-refit" ]]; then
+      if [[ "${mode}" == "full-refit" ]] &&
+          ! si_figures_reviewed_cache_is_valid; then
         printf "%s\n" \
           Code/in-vivo/figure7/environment_lock.tsv \
           Code/in-vivo/figure7/src/common_io.R \
@@ -743,9 +755,7 @@ required_input_paths_for_module() {
           "${figure7_sample_info_input}"
         [[ -n "${figure7_raw_seurat_rds}" ]] && printf "%s\n" "${figure7_raw_seurat_rds}"
       else
-        printf "%s\n" Data/in-vivo/SIfigures/manifest.tsv
-        awk -F '\t' 'NR > 1 && $1 != "" { print "Data/in-vivo/SIfigures/" $1 }' \
-          Data/in-vivo/SIfigures/manifest.tsv
+        si_figures_frozen_cache_paths
       fi
       ;;
     *)
@@ -1219,12 +1229,19 @@ run_module() {
 
   local input_args=()
   local input_path
+  local module_input_paths=""
+  if ! module_input_paths="$(
+    input_paths_for_module "${module}" "${run_dir}"
+  )"; then
+    echo "Failed to resolve input manifest paths for module: ${module}" >&2
+    return 1
+  fi
   while IFS= read -r input_path; do
     [[ -z "${input_path}" ]] && continue
     if [[ -f "${input_path}" ]]; then
       input_args+=(--path "${input_path}")
     fi
-  done < <(input_paths_for_module "${module}" "${run_dir}")
+  done <<< "${module_input_paths}"
   if [[ "${#input_args[@]}" -gt 0 ]]; then
     python3 Code/tools/write_file_manifest.py \
       --manifest-type input \

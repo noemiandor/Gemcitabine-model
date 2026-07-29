@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import os
 import shlex
 import shutil
 import subprocess
@@ -140,6 +141,46 @@ class SiFiguresManagerTest(unittest.TestCase):
             result.stdout.index("[in_vivo_figure7]"),
             result.stdout.index("[si_figures]"),
         )
+
+    def test_full_refit_with_reviewed_cache_skips_raw_source_precheck(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            missing_ploidy = tmp_path / "absent-all-ploidy.tsv"
+            missing_sample_info = tmp_path / "absent-sample-info.xlsx"
+            missing_seurat = tmp_path / "absent-deposited-seurat.rds"
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(REPO_ROOT / "Manager.sh"),
+                    "--mode",
+                    "full-refit",
+                    "--modules",
+                    "si_figures",
+                    "--run-id",
+                    "cache_first_si_precheck",
+                    "--output-root",
+                    str(tmp_path / "Results"),
+                    "--figure-root",
+                    str(tmp_path / "figures"),
+                    "--figure7-cell-ploidy-input",
+                    str(missing_ploidy),
+                    "--figure7-sample-info-input",
+                    str(missing_sample_info),
+                    "--figure7-raw-seurat-rds",
+                    str(missing_seurat),
+                    "--no-update-latest",
+                    "--dry-run",
+                ],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        command = self._dry_run_commands(result.stdout)["si_figures"]
+        self.assertIn("--mode=full-workflow", command)
+        self.assertIn(f"--all-ploidy={missing_ploidy}", command)
+        self.assertIn(f"--sample-info={missing_sample_info}", command)
+        self.assertIn(f"--seurat-rds={missing_seurat}", command)
 
     def test_explicit_shared_upstream_and_cellranger_are_forwarded_to_both(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -505,6 +546,83 @@ input_paths_for_module si_figures "$1"
             "Missing retained SI analysis input manifest",
             result.stderr,
         )
+
+    def test_manager_stops_when_si_input_path_enumeration_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            fake_bin = tmp_path / "bin"
+            fake_bin.mkdir()
+            fake_rscript = fake_bin / "Rscript"
+            fake_rscript.write_text(
+                """#!/usr/bin/env bash
+set -euo pipefail
+output_dir=""
+for argument in "$@"; do
+  case "${argument}" in
+    --output-dir=*) output_dir="${argument#*=}" ;;
+  esac
+done
+if [[ -z "${output_dir}" ]]; then
+  echo "Fake Rscript did not receive --output-dir" >&2
+  exit 2
+fi
+mkdir -p "${output_dir}/metadata"
+printf 'role\\trepo_relative_path\\tsha256\\tbytes\\n' \\
+  > "${output_dir}/metadata/input_manifest.tsv"
+printf 'figure7_config\\tCode/in-vivo/figure7/figure7_config.yaml\\t%s\\t1\\n' \\
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \\
+  >> "${output_dir}/metadata/input_manifest.tsv"
+printf 'key\\tvalue\\nsi7_canonical_publication_allowed\\ttrue\\n' \\
+  > "${output_dir}/metadata/run_config.tsv"
+"""
+            )
+            fake_rscript.chmod(0o755)
+            output_root = tmp_path / "Results"
+            run_id = "bad_si_manifest_enumeration"
+            env = os.environ.copy()
+            env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(REPO_ROOT / "Manager.sh"),
+                    "--mode",
+                    "standard",
+                    "--modules",
+                    "si_figures",
+                    "--run-id",
+                    run_id,
+                    "--output-root",
+                    str(output_root),
+                    "--figure-root",
+                    str(tmp_path / "figures"),
+                    "--no-update-latest",
+                ],
+                cwd=REPO_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+            )
+            metadata = (
+                output_root
+                / "in-vivo/SI_figures/runs"
+                / f"{run_id}_si_figures/metadata"
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "Canonical SI analysis manifest has an invalid "
+                "reviewed-cache binding",
+                result.stderr,
+            )
+            self.assertIn(
+                "Failed to resolve input manifest paths for module: "
+                "si_figures",
+                result.stderr,
+            )
+            self.assertTrue(
+                (metadata / "analysis_input_manifest.tsv").is_file()
+            )
+            self.assertFalse((metadata / "input_manifest.tsv").exists())
+            self.assertFalse((metadata / "output_manifest.tsv").exists())
 
     def test_manager_expands_only_reviewed_cache_rows_for_canonical_si(self) -> None:
         manager_text = (REPO_ROOT / "Manager.sh").read_text()
