@@ -49,19 +49,60 @@ figure7_test_state_reference <- function() {
           collection_id = collection, pathway_id = pathway, leading_edge_gene_id = paste0("GENE", display))
         activity_rows[[length(activity_rows) + 1L]] <- cbind(meta[, setdiff(names(meta), c("NES", "padj"))],
           pseudotime = grid, standardized_activity = sin(2 * pi * grid) + display / 100)
-        complete_rows[[length(complete_rows) + 1L]] <- meta[, c("collection_id", "pathway_id", "NES", "padj")]
+        complete_rows[[length(complete_rows) + 1L]] <- data.frame(
+          meta[, c("collection_id", "pathway_id", "NES", "padj")],
+          pval = padj / 2,
+          ES = nes / 2,
+          size = 50L,
+          nPermSimple =
+            as.integer(config$state_pathways$gsea_nperm_simple),
+          retry_round = 0L,
+          stringsAsFactors = FALSE
+        )
       }
     }
     complete_rows[[length(complete_rows) + 1L]] <- data.frame(
-      collection_id = collection, pathway_id = paste0(collection, "_extra"), NES = 0.1, padj = 0.9)
+      collection_id = collection,
+      pathway_id = paste0(collection, "_extra"),
+      NES = 0.1,
+      padj = 0.9,
+      pval = 0.8,
+      ES = 0.05,
+      size = 50L,
+      nPermSimple =
+        as.integer(config$state_pathways$gsea_nperm_simple),
+      retry_round = 0L,
+      stringsAsFactors = FALSE
+    )
   }
-  selected <- do.call(rbind, selected_rows); activity <- do.call(rbind, activity_rows)
+  selected <- do.call(rbind, selected_rows)
+  activity <- do.call(rbind, activity_rows)
+  complete <- do.call(rbind, complete_rows)
+  complete$padj <- ave(
+    complete$pval,
+    complete$collection_id,
+    FUN = function(pvalue) stats::p.adjust(pvalue, method = "BH")
+  )
+  complete_keys <- paste(
+    complete$collection_id,
+    complete$pathway_id,
+    sep = "\r"
+  )
+  selected_keys <- paste(
+    selected$collection_id,
+    selected$pathway_id,
+    sep = "\r"
+  )
+  selected$padj <- complete$padj[match(selected_keys, complete_keys)]
   figure7_write_tsv(activity, file.path(path, "panel_7F_pathway_activity_plot_data.tsv"))
   figure7_write_tsv(selected, file.path(path, "panel_7F_selected_pathway_gsea.tsv"))
   figure7_write_tsv(do.call(rbind, leading_rows), file.path(path, "panel_7F_leading_edge_genes.tsv"))
   figure7_write_tsv(data.frame(gene_id = c("G1", "G2"), moderated_t = c(2, -2)),
                     file.path(path, "state_pathway_gene_ranking_complete.tsv"))
-  figure7_write_tsv(do.call(rbind, complete_rows), file.path(path, "state_pathway_gsea_complete.tsv"))
+  figure7_write_tsv(
+    complete,
+    file.path(path, "state_pathway_gsea_complete.tsv")
+  )
   figure7_write_tsv(data.frame(sample_id = "mouse1", pseudotime_bin = 1, n_cells = 20),
                     file.path(path, "state_pathway_sample_bin_coverage.tsv"))
   figure7_write_tsv(data.frame(metric = "design_rank", value = 8),

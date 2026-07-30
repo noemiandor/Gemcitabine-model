@@ -957,59 +957,315 @@ gene_set_membership_table <- function(gene_sets) {
   out
 }
 
-run_fgsea_collection <- function(stats, collection_obj, ranking_id, min_size, max_size, nperm_simple, seed) {
+run_fgsea_once <- function(
+  pathways,
+  stats,
+  min_size,
+  max_size,
+  nperm_simple,
+  seed
+) {
   set.seed(seed)
-  stats <- sort(stats[is.finite(stats)], decreasing = TRUE)
-  if (length(stats) == 0L) return(data.frame())
-  res <- tryCatch(
-    {
-      if ("fgseaMultilevel" %in% getNamespaceExports("fgsea")) {
-        fgsea::fgseaMultilevel(
-          pathways = collection_obj$sets,
-          stats = stats,
-          minSize = min_size,
-          maxSize = max_size,
-          nPermSimple = nperm_simple,
-          nproc = 1L,
-          eps = 0
-        )
-      } else {
-        fgsea::fgsea(
-          pathways = collection_obj$sets,
-          stats = stats,
-          minSize = min_size,
-          maxSize = max_size,
-          nperm = nperm_simple,
-          nproc = 1L
-        )
-      }
-    },
-    error = function(e) {
-      warning("fgsea failed for ", collection_obj$collection, ": ", conditionMessage(e), call. = FALSE)
-      NULL
-    }
-  )
-  if (is.null(res) || nrow(res) == 0L) return(data.frame())
-  out <- as.data.frame(res, stringsAsFactors = FALSE)
-  if ("leadingEdge" %in% names(out)) {
-    out$leading_edge <- vapply(out$leadingEdge, function(x) paste(as.character(x), collapse = ";"), character(1L))
-    out$leadingEdge <- NULL
-  } else {
-    out$leading_edge <- ""
+  if (!requireNamespace("fgsea", quietly = TRUE) ||
+      !"fgseaMultilevel" %in% getNamespaceExports("fgsea")) {
+    stop(
+      "Figure 7 GSEA requires fgsea::fgseaMultilevel",
+      call. = FALSE
+    )
   }
-  out$collection <- collection_obj$collection
-  out$collection_label <- collection_obj$label
-  out$ranking_id <- ranking_id
-  out$pathway_label <- format_pathway_label(out$pathway, collection_obj$collection)
-  out$direction <- ifelse(out$NES >= 0, "positive", "negative")
-  out <- out[order(out$padj, -abs(out$NES), out$pathway), , drop = FALSE]
-  rownames(out) <- NULL
+  fgsea::fgseaMultilevel(
+    pathways = pathways,
+    stats = stats,
+    minSize = min_size,
+    maxSize = max_size,
+    nPermSimple = nperm_simple,
+    nproc = 1L,
+    eps = 0
+  )
+}
+
+fgsea_retry_budgets <- function(initial, maximum, multiplier) {
+  values <- suppressWarnings(as.numeric(c(initial, maximum, multiplier)))
+  if (length(values) != 3L || any(!is.finite(values)) ||
+      any(values != floor(values)) || values[[1L]] < 1L ||
+      values[[2L]] < values[[1L]] || values[[3L]] < 2L) {
+    stop(
+      "Adaptive GSEA requires positive integer initial/max nPermSimple ",
+      "values with max >= initial and multiplier >= 2",
+      call. = FALSE
+    )
+  }
+  budgets <- as.integer(values[[1L]])
+  maximum <- as.integer(values[[2L]])
+  multiplier <- as.integer(values[[3L]])
+  while (tail(budgets, 1L) < maximum) {
+    next_budget <- min(
+      as.double(tail(budgets, 1L)) * multiplier,
+      maximum
+    )
+    if (!is.finite(next_budget) ||
+        next_budget <= tail(budgets, 1L)) {
+      stop("Adaptive GSEA retry schedule cannot advance", call. = FALSE)
+    }
+    budgets <- c(budgets, as.integer(next_budget))
+  }
+  budgets
+}
+
+fgsea_eligible_pathways <- function(pathways, stats, min_size, max_size) {
+  stats_genes <- names(stats)
+  if (is.null(stats_genes) || anyNA(stats_genes) ||
+      any(!nzchar(stats_genes)) || anyDuplicated(stats_genes)) {
+    stop("GSEA ranking requires unique nonempty gene names", call. = FALSE)
+  }
+  sizes <- vapply(
+    pathways,
+    function(genes) {
+      length(intersect(unique(as.character(genes)), stats_genes))
+    },
+    integer(1L)
+  )
+  pathways[sizes >= min_size & sizes <= max_size]
+}
+
+fgsea_core_finite <- function(result) {
+  core <- c("pval", "padj", "ES", "NES", "size")
+  missing <- setdiff(core, names(result))
+  if (length(missing)) {
+    stop(
+      "fgsea result is missing core field(s): ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  Reduce(
+    `&`,
+    lapply(
+      result[core],
+      function(column) is.finite(suppressWarnings(as.numeric(column)))
+    )
+  )
+}
+
+fgsea_retry_resolved <- function(result) {
+  required <- c("pval", "ES", "NES")
+  missing <- setdiff(required, names(result))
+  if (length(missing)) {
+    stop(
+      "fgsea result is missing retry field(s): ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  Reduce(
+    `&`,
+    lapply(
+      result[required],
+      function(column) is.finite(suppressWarnings(as.numeric(column)))
+    )
+  )
+}
+
+validate_fgsea_attempt <- function(result, requested_pathways, collection) {
+  out <- as.data.frame(result, stringsAsFactors = FALSE)
+  if (!"pathway" %in% names(out)) {
+    stop("fgsea result is missing pathway identifiers", call. = FALSE)
+  }
+  out$pathway <- as.character(out$pathway)
+  requested <- names(requested_pathways)
+  if (anyNA(out$pathway) || any(!nzchar(out$pathway)) ||
+      anyDuplicated(out$pathway) ||
+      !identical(sort(out$pathway), sort(requested))) {
+    stop(
+      "fgsea returned incomplete or duplicate pathway keys for ",
+      collection,
+      call. = FALSE
+    )
+  }
+  if (!"size" %in% names(out)) {
+    stop("fgsea result is missing pathway sizes", call. = FALSE)
+  }
+  sizes <- suppressWarnings(as.numeric(out$size))
+  if (any(!is.finite(sizes)) || any(sizes != floor(sizes)) ||
+      any(sizes < 1L)) {
+    stop(
+      "fgsea returned invalid pathway sizes for ",
+      collection,
+      call. = FALSE
+    )
+  }
   out
 }
 
-run_all_gsea <- function(stats, gene_sets, ranking_id, min_size, max_size, nperm_simple, seed) {
+run_fgsea_collection <- function(
+  stats,
+  collection_obj,
+  ranking_id,
+  min_size,
+  max_size,
+  nperm_simple,
+  seed,
+  nperm_simple_max = nperm_simple,
+  nperm_simple_multiplier = 10L,
+  fgsea_runner = run_fgsea_once
+) {
+  stats <- sort(stats[is.finite(stats)], decreasing = TRUE)
+  if (length(stats) == 0L) return(data.frame())
+  eligible <- fgsea_eligible_pathways(
+    collection_obj$sets,
+    stats,
+    min_size,
+    max_size
+  )
+  if (!length(eligible)) return(data.frame())
+  budgets <- fgsea_retry_budgets(
+    nperm_simple,
+    nperm_simple_max,
+    nperm_simple_multiplier
+  )
+  merged <- NULL
+  unresolved <- names(eligible)
+  for (retry_index in seq_along(budgets)) {
+    if (!length(unresolved)) break
+    requested <- eligible[unresolved]
+    budget <- budgets[[retry_index]]
+    message(
+      "GSEA ",
+      collection_obj$collection,
+      ": nPermSimple=", budget,
+      "; pathways=", length(requested),
+      if (retry_index == 1L) "" else " (adaptive retry)"
+    )
+    attempt <- tryCatch(
+      fgsea_runner(
+        pathways = requested,
+        stats = stats,
+        min_size = min_size,
+        max_size = max_size,
+        nperm_simple = budget,
+        seed = seed
+      ),
+      error = function(error) {
+        stop(
+          "fgsea failed for ",
+          collection_obj$collection,
+          " at nPermSimple=",
+          budget,
+          ": ",
+          conditionMessage(error),
+          call. = FALSE
+        )
+      }
+    )
+    attempt <- validate_fgsea_attempt(
+      attempt,
+      requested,
+      collection_obj$collection
+    )
+    attempt$nPermSimple <- as.integer(budget)
+    attempt$retry_round <- as.integer(retry_index - 1L)
+    if (is.null(merged)) {
+      merged <- attempt
+    } else {
+      replace_index <- match(attempt$pathway, merged$pathway)
+      if (anyNA(replace_index)) {
+        stop(
+          "Adaptive GSEA retry returned an unknown pathway for ",
+          collection_obj$collection,
+          call. = FALSE
+        )
+      }
+      merged[replace_index, names(attempt)] <- attempt
+    }
+    unresolved <- attempt$pathway[!fgsea_retry_resolved(attempt)]
+  }
+  if (length(unresolved)) {
+    stop(
+      "Adaptive GSEA exhausted nPermSimple=",
+      tail(budgets, 1L),
+      " with unresolved pathways in ",
+      collection_obj$collection,
+      ": ",
+      paste(sort(unresolved), collapse = ", "),
+      call. = FALSE
+    )
+  }
+  if (nrow(merged) != length(eligible) ||
+      anyDuplicated(merged$pathway) ||
+      !identical(sort(merged$pathway), sort(names(eligible)))) {
+    stop(
+      "Adaptive GSEA merge is incomplete for ",
+      collection_obj$collection,
+      call. = FALSE
+    )
+  }
+  merged$padj <- stats::p.adjust(
+    as.numeric(merged$pval),
+    method = "BH"
+  )
+  if (any(!fgsea_core_finite(merged))) {
+    stop(
+      "Adaptive GSEA merge has nonfinite final statistics for ",
+      collection_obj$collection,
+      call. = FALSE
+    )
+  }
+  merged$direction <- ifelse(
+    as.numeric(merged$NES) >= 0,
+    "positive",
+    "negative"
+  )
+  if ("leadingEdge" %in% names(merged)) {
+    merged$leading_edge <- vapply(
+      merged$leadingEdge,
+      function(genes) paste(as.character(genes), collapse = ";"),
+      character(1L)
+    )
+    merged$leadingEdge <- NULL
+  } else {
+    merged$leading_edge <- ""
+  }
+  merged$collection <- collection_obj$collection
+  merged$collection_label <- collection_obj$label
+  merged$ranking_id <- ranking_id
+  merged$pathway_label <- format_pathway_label(
+    merged$pathway,
+    collection_obj$collection
+  )
+  merged <- merged[
+    order(merged$padj, -abs(merged$NES), merged$pathway),
+    ,
+    drop = FALSE
+  ]
+  rownames(merged) <- NULL
+  merged
+}
+
+run_all_gsea <- function(
+  stats,
+  gene_sets,
+  ranking_id,
+  min_size,
+  max_size,
+  nperm_simple,
+  seed,
+  nperm_simple_max = nperm_simple,
+  nperm_simple_multiplier = 10L,
+  fgsea_runner = run_fgsea_once
+) {
   rows <- lapply(seq_along(gene_sets), function(i) {
-    run_fgsea_collection(stats, gene_sets[[i]], ranking_id, min_size, max_size, nperm_simple, seed + i)
+    run_fgsea_collection(
+      stats,
+      gene_sets[[i]],
+      ranking_id,
+      min_size,
+      max_size,
+      nperm_simple,
+      seed + i,
+      nperm_simple_max,
+      nperm_simple_multiplier,
+      fgsea_runner
+    )
   })
   do.call(rbind, rows)
 }
@@ -1138,6 +1394,23 @@ run_support_workflow <- function(args, repo_root) {
 
   cfg <- read_config(args$config)
   species <- cfg$feature_species
+  configured_gsea_retry <- as.integer(c(
+    cfg$state_pathways$gsea_nperm_simple,
+    cfg$state_pathways$gsea_nperm_simple_max,
+    cfg$state_pathways$gsea_nperm_simple_multiplier
+  ))
+  requested_gsea_retry <- as.integer(c(
+    args$gsea_nperm_simple,
+    args$gsea_nperm_simple_max,
+    args$gsea_nperm_simple_multiplier
+  ))
+  if (!identical(requested_gsea_retry, configured_gsea_retry)) {
+    stop(
+      "Adaptive GSEA CLI values must exactly match state_pathways config: ",
+      paste(configured_gsea_retry, collapse = ","),
+      call. = FALSE
+    )
+  }
   species_policy_path <- file.path(
     repo_root,
     "Code", "in-vivo", "figure7", "src",
@@ -1307,7 +1580,9 @@ run_support_workflow <- function(args, repo_root) {
     args$gsea_min_size,
     args$gsea_max_size,
     args$gsea_nperm_simple,
-    args$seed
+    args$seed,
+    args$gsea_nperm_simple_max,
+    args$gsea_nperm_simple_multiplier
   )
   primary_gsea$model_id <- model_spec$model_id
   write_csv(primary_gsea, file.path(model_gsea, "all_collections_primary_adjacent_state_gsea.csv"))
@@ -1359,6 +1634,8 @@ main <- function() {
     gsea_min_size = 15L,
     gsea_max_size = 500L,
     gsea_nperm_simple = 10000L,
+    gsea_nperm_simple_max = 1000000L,
+    gsea_nperm_simple_multiplier = 10L,
     grid_size = 501L
   )
 

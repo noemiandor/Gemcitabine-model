@@ -164,7 +164,10 @@ figure7_validate_generated_state_reference <- function(
   )
   complete_gsea <- figure7_read_tsv(
     paths[["state_pathway_gsea_complete.tsv"]],
-    c("collection_id", "pathway_id", "NES", "padj")
+    c(
+      "collection_id", "pathway_id", "pval", "padj", "ES", "NES",
+      "size", "nPermSimple", "retry_round"
+    )
   )
   coverage <- figure7_read_tsv(
     paths[["state_pathway_sample_bin_coverage.tsv"]]
@@ -187,6 +190,66 @@ figure7_validate_generated_state_reference <- function(
   )
   if (anyDuplicated(complete_gsea[, c("collection_id", "pathway_id")])) {
     figure7_stop("Generated complete GSEA contains duplicate pathway keys")
+  }
+  finite_columns <- c("pval", "padj", "ES", "NES", "size")
+  if (any(!vapply(
+        complete_gsea[finite_columns],
+        function(column) all(is.finite(figure7_numeric(column))),
+        logical(1L)
+      ))) {
+    figure7_stop("Generated complete GSEA contains unresolved nonfinite values")
+  }
+  initial_nperm <- as.integer(config$state_pathways$gsea_nperm_simple)
+  maximum_nperm <- as.integer(
+    config$state_pathways$gsea_nperm_simple_max
+  )
+  retry_multiplier <- as.integer(
+    config$state_pathways$gsea_nperm_simple_multiplier
+  )
+  allowed_nperm <- initial_nperm
+  while (tail(allowed_nperm, 1L) < maximum_nperm) {
+    allowed_nperm <- c(
+      allowed_nperm,
+      min(tail(allowed_nperm, 1L) * retry_multiplier, maximum_nperm)
+    )
+  }
+  observed_nperm <- as.integer(figure7_numeric(
+    complete_gsea$nPermSimple
+  ))
+  observed_round <- as.integer(figure7_numeric(
+    complete_gsea$retry_round
+  ))
+  expected_round <- match(observed_nperm, allowed_nperm) - 1L
+  if (anyNA(observed_nperm) || anyNA(observed_round) ||
+      anyNA(expected_round) ||
+      any(observed_round != expected_round)) {
+    figure7_stop("Generated complete GSEA has invalid adaptive-retry metadata")
+  }
+  for (collection in collections) {
+    local <- complete_gsea[
+      complete_gsea$collection_id == collection,
+      ,
+      drop = FALSE
+    ]
+    if (!nrow(local)) {
+      figure7_stop("Generated complete GSEA is missing collection ", collection)
+    }
+    expected_padj <- stats::p.adjust(
+      figure7_numeric(local$pval),
+      method = "BH"
+    )
+    if (!isTRUE(all.equal(
+      figure7_numeric(local$padj),
+      expected_padj,
+      tolerance = 1e-12,
+      check.attributes = FALSE
+    ))) {
+      figure7_stop(
+        "Generated complete GSEA adjusted P values are not ",
+        "collection-wide BH values for ",
+        collection
+      )
+    }
   }
 
   expected_rows <- list()
@@ -281,6 +344,9 @@ figure7_validate_generated_state_reference <- function(
     "n_human_features_retained", "n_mouse_features_excluded",
     "n_ambiguous_features", "feature_species_audit_sha256",
     "feature_species_policy_code_sha256",
+    "gsea_nperm_simple", "gsea_nperm_simple_max",
+    "gsea_nperm_simple_multiplier", "gsea_nperm_simple_usage",
+    "gsea_adaptive_retry_rule",
     "pathway_selection_rule", "activity_table_sha256"
   )
   missing <- setdiff(required, names(value))
@@ -326,7 +392,22 @@ figure7_validate_generated_state_reference <- function(
       as.character(config$feature_species$unknown_feature_policy),
     pathway_selection_rule = as.character(
       config$state_pathways$pathway_selector
-    )
+    ),
+    gsea_nperm_simple_usage = {
+      usage <- table(observed_nperm)
+      paste(
+        names(usage),
+        as.integer(usage),
+        sep = ":",
+        collapse = ","
+      )
+    },
+    gsea_adaptive_retry_rule =
+      paste(
+        "retry only unresolved pathways at geometric nPermSimple",
+        "increments; merge by pathway; recompute collection-wide BH;",
+        "fail closed at cap"
+      )
   )
   if (any(value[names(expected_values)] != expected_values)) {
     figure7_stop("Generated panel-7F provenance/config values disagree")
@@ -352,7 +433,13 @@ figure7_validate_generated_state_reference <- function(
       config$state_pathways$minimum_cells_per_sample_bin
     ),
     grid_size = as.numeric(config$state_pathways$grid_size),
-    seed = as.numeric(config$statistics$seed)
+    seed = as.numeric(config$statistics$seed),
+    gsea_nperm_simple =
+      as.numeric(config$state_pathways$gsea_nperm_simple),
+    gsea_nperm_simple_max =
+      as.numeric(config$state_pathways$gsea_nperm_simple_max),
+    gsea_nperm_simple_multiplier =
+      as.numeric(config$state_pathways$gsea_nperm_simple_multiplier)
   )
   for (key in names(expected_numeric)) {
     if (!isTRUE(all.equal(

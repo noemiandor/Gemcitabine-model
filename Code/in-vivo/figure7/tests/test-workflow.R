@@ -826,6 +826,25 @@ testthat::test_that("generated references attest a removed state tree", {
       "src",
       "feature_species_policy.R"
     )),
+    gsea_nperm_simple =
+      as.character(config$state_pathways$gsea_nperm_simple),
+    gsea_nperm_simple_max =
+      as.character(config$state_pathways$gsea_nperm_simple_max),
+    gsea_nperm_simple_multiplier =
+      as.character(config$state_pathways$gsea_nperm_simple_multiplier),
+    gsea_nperm_simple_usage = paste0(
+      config$state_pathways$gsea_nperm_simple,
+      ":",
+      nrow(figure7_read_tsv(file.path(
+        reference,
+        "state_pathway_gsea_complete.tsv"
+      )))
+    ),
+    gsea_adaptive_retry_rule = paste(
+      "retry only unresolved pathways at geometric nPermSimple",
+      "increments; merge by pathway; recompute collection-wide BH;",
+      "fail closed at cap"
+    ),
     pathway_selection_rule =
       as.character(config$state_pathways$pathway_selector),
     activity_table_sha256 = figure7_sha256(file.path(
@@ -875,6 +894,59 @@ testthat::test_that("generated references attest a removed state tree", {
       seurat_rds = seurat_rds
     ),
     config_path = config_path
+  ))
+  complete_gsea_path <- file.path(
+    reference,
+    "state_pathway_gsea_complete.tsv"
+  )
+  complete_gsea_backup <- tempfile(fileext = ".tsv")
+  testthat::expect_true(file.copy(
+    complete_gsea_path,
+    complete_gsea_backup,
+    overwrite = TRUE
+  ))
+  complete_gsea <- figure7_read_tsv(complete_gsea_path)
+  complete_gsea$pval[[nrow(complete_gsea)]] <- NA_real_
+  figure7_write_tsv(complete_gsea, complete_gsea_path)
+  testthat::expect_error(
+    figure7_validate_generated_state_reference(
+      reference,
+      config,
+      expected_inputs = list(
+        cellcycle = cellcycle,
+        noncellcycle = noncellcycle,
+        seurat_rds = seurat_rds
+      ),
+      config_path = config_path
+    ),
+    "unresolved nonfinite"
+  )
+  testthat::expect_true(file.copy(
+    complete_gsea_backup,
+    complete_gsea_path,
+    overwrite = TRUE
+  ))
+  complete_gsea <- figure7_read_tsv(complete_gsea_path)
+  complete_gsea$padj[[nrow(complete_gsea)]] <-
+    as.numeric(complete_gsea$padj[[nrow(complete_gsea)]]) / 2
+  figure7_write_tsv(complete_gsea, complete_gsea_path)
+  testthat::expect_error(
+    figure7_validate_generated_state_reference(
+      reference,
+      config,
+      expected_inputs = list(
+        cellcycle = cellcycle,
+        noncellcycle = noncellcycle,
+        seurat_rds = seurat_rds
+      ),
+      config_path = config_path
+    ),
+    "collection-wide BH"
+  )
+  testthat::expect_true(file.copy(
+    complete_gsea_backup,
+    complete_gsea_path,
+    overwrite = TRUE
   ))
   figure7_write_reference_stage_manifest(paths, config_path, config)
   testthat::expect_true(figure7_saved_reference_match_inputs(

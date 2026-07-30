@@ -90,7 +90,11 @@ eligible. The corrected full-workflow path retains exact `GRCh38-` count rows
 before expression filtering, symbol resolution, modeling, and GSEA. It writes
 a separate generated human-only v2 reference with
 `canonical_publication_allowed=false` until that result is reviewed and
-explicitly blessed. A-E runs remain publication eligible.
+explicitly blessed. GSEA starts with the configured simple-permutation budget,
+retries only unresolved pathways at increasing pinned budgets, recomputes BH
+adjustment across each complete collection, and fails closed if any pathway
+still lacks finite statistics at the configured cap. A-E runs remain
+publication eligible.
 
 ## Commands
 

@@ -1112,7 +1112,10 @@ figure7_state_dependency_values <- function(paths, config_path, config) {
       config$state_pathways$spline_df,
       config$state_pathways$grid_size,
       config$state_pathways$contrast,
-      config$state_pathways$gsea_rank_statistic
+      config$state_pathways$gsea_rank_statistic,
+      config$state_pathways$gsea_nperm_simple,
+      config$state_pathways$gsea_nperm_simple_max,
+      config$state_pathways$gsea_nperm_simple_multiplier
     ))
   )
 }
@@ -1982,6 +1985,14 @@ figure7_prepare_full_workflow <- function(
             seurat_rds = paths$seurat_rds,
             config = config_path,
             output_root = paths$state_pathway_root,
+            gsea_nperm_simple =
+              as.character(config$state_pathways$gsea_nperm_simple),
+            gsea_nperm_simple_max =
+              as.character(config$state_pathways$gsea_nperm_simple_max),
+            gsea_nperm_simple_multiplier =
+              as.character(
+                config$state_pathways$gsea_nperm_simple_multiplier
+              ),
             overwrite = "FALSE"
           ),
           file.path(paths$log_dir, "03_state_pathway_support.log")

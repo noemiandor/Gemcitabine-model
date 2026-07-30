@@ -140,6 +140,9 @@ state_pathways:
   grid_size: 501
   contrast: "mean(primary grid) - 0.5 * mean(left grid) - 0.5 * mean(right grid)"
   gsea_rank_statistic: moderated_t
+  gsea_nperm_simple: 10000
+  gsea_nperm_simple_max: 1000000
+  gsea_nperm_simple_multiplier: 10
   pathway_activity: "row-standardize fitted expression per leading-edge gene, then average genes"
   collections: [H, "C2:CP:REACTOME", "C5:GO:BP"]
   top_positive_per_collection: 4

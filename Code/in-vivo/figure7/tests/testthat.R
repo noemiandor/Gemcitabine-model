@@ -6,5 +6,5 @@ Sys.setenv(FIGURE7_MODULE_DIR = dirname(test_dir))
 testthat::test_dir(
   test_dir,
   reporter = "summary",
-  filter = "contract|statistics|workflow|seurat-upstream|species"
+  filter = "contract|gsea-retry|statistics|workflow|seurat-upstream|species"
 )

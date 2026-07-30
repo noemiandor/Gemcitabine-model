@@ -569,6 +569,32 @@ figure7_read_config <- function(path, tgi_day = NULL) {
     )
   }
   state <- config$state_pathways
+  gsea_retry_fields <- c(
+    "gsea_nperm_simple", "gsea_nperm_simple_max",
+    "gsea_nperm_simple_multiplier"
+  )
+  missing_gsea_retry <- setdiff(gsea_retry_fields, names(state))
+  if (length(missing_gsea_retry)) {
+    figure7_stop(
+      "Figure 7 state-pathway config is missing field(s): ",
+      paste(missing_gsea_retry, collapse = ", ")
+    )
+  }
+  gsea_retry_values <- suppressWarnings(as.numeric(unlist(
+    state[gsea_retry_fields],
+    use.names = FALSE
+  )))
+  if (length(gsea_retry_values) != 3L ||
+      any(!is.finite(gsea_retry_values)) ||
+      any(gsea_retry_values != floor(gsea_retry_values)) ||
+      gsea_retry_values[[1L]] < 1L ||
+      gsea_retry_values[[2L]] < gsea_retry_values[[1L]] ||
+      gsea_retry_values[[3L]] < 2L) {
+    figure7_stop(
+      "Figure 7 adaptive GSEA requires positive integer initial/max ",
+      "nPermSimple values with max >= initial and multiplier >= 2"
+    )
+  }
   state_identity <- c(
     reference_id = as.character(state$reference_id),
     reference_kind = as.character(state$reference_kind),

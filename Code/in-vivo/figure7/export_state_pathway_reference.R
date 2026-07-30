@@ -189,6 +189,12 @@ expected_parameters <- c(
   seed = "1",
   gsea_min_size = "15",
   gsea_max_size = "500",
+  gsea_nperm_simple =
+    as.character(config$state_pathways$gsea_nperm_simple),
+  gsea_nperm_simple_max =
+    as.character(config$state_pathways$gsea_nperm_simple_max),
+  gsea_nperm_simple_multiplier =
+    as.character(config$state_pathways$gsea_nperm_simple_multiplier),
   grid_size = "501",
   feature_species_policy_id =
     as.character(config$feature_species$policy_id),
@@ -261,7 +267,8 @@ gsea <- read_csv(gsea_path)
 assert_columns(
   gsea,
   c("pathway", "pval", "padj", "log2err", "ES", "NES", "size", "leading_edge", "collection",
-    "collection_label", "ranking_id", "pathway_label", "direction", "model_id"),
+    "collection_label", "ranking_id", "pathway_label", "direction",
+    "nPermSimple", "retry_round", "model_id"),
   "primary-adjacent GSEA"
 )
 if (!nrow(gsea) || any(gsea$ranking_id != "primary_adjacent_state") || any(gsea$model_id != model_id)) {
@@ -270,8 +277,40 @@ if (!nrow(gsea) || any(gsea$ranking_id != "primary_adjacent_state") || any(gsea$
 if (nrow(gsea) < 100L) {
   figure7_stop("Generated primary-adjacent GSEA table is implausibly small")
 }
-
 collection_ids <- c("H", "C2:CP:REACTOME", "C5:GO:BP")
+if (!setequal(unique(as.character(gsea$collection)), collection_ids)) {
+  figure7_stop("Generated primary-adjacent GSEA collections are incomplete")
+}
+finite_gsea_columns <- c("pval", "padj", "ES", "NES", "size")
+if (any(!vapply(
+      gsea[finite_gsea_columns],
+      function(column) all(is.finite(as.numeric(column))),
+      logical(1L)
+    ))) {
+  figure7_stop(
+    "Generated primary-adjacent GSEA contains unresolved nonfinite results"
+  )
+}
+if (anyDuplicated(gsea[c("collection", "pathway")])) {
+  figure7_stop("Generated primary-adjacent GSEA contains duplicate pathways")
+}
+for (collection_id in collection_ids) {
+  local <- gsea[gsea$collection == collection_id, , drop = FALSE]
+  expected_padj <- stats::p.adjust(local$pval, method = "BH")
+  if (!isTRUE(all.equal(
+        as.numeric(local$padj),
+        expected_padj,
+        tolerance = 1e-12,
+        check.attributes = FALSE
+      ))) {
+    figure7_stop(
+      "Generated primary-adjacent GSEA adjusted P values are not ",
+      "collection-wide BH values for ",
+      collection_id
+    )
+  }
+}
+
 collection_labels <- c("H" = "Hallmark", "C2:CP:REACTOME" = "Reactome", "C5:GO:BP" = "GO biological process")
 selected_rows <- list()
 for (collection_id in collection_ids) {
@@ -452,6 +491,8 @@ gsea_complete_export <- data.frame(
   NES = gsea$NES,
   size = gsea$size,
   direction = gsea$direction,
+  nPermSimple = gsea$nPermSimple,
+  retry_round = gsea$retry_round,
   leading_edge_genes = gsea$leading_edge,
   model_id = gsea$model_id,
   stringsAsFactors = FALSE
@@ -581,6 +622,13 @@ names(data_table_hashes) <- paste0(
   sub("[.]tsv$", "", data_table_files),
   "_sha256"
 )
+gsea_retry_usage <- table(as.integer(gsea$nPermSimple))
+gsea_retry_usage_value <- paste(
+  names(gsea_retry_usage),
+  as.integer(gsea_retry_usage),
+  sep = ":",
+  collapse = ","
+)
 provenance <- c(
   reference_kind = as.character(config$state_pathways$generated_reference_kind),
   canonical_publication_allowed = "false",
@@ -615,6 +663,15 @@ provenance <- c(
   empirical_bayes = "robust",
   contrast = "mean(primary grid) - 0.5 * mean(left grid) - 0.5 * mean(right grid)",
   gsea_rank_statistic = "moderated_t",
+  gsea_nperm_simple =
+    as.character(config$state_pathways$gsea_nperm_simple),
+  gsea_nperm_simple_max =
+    as.character(config$state_pathways$gsea_nperm_simple_max),
+  gsea_nperm_simple_multiplier =
+    as.character(config$state_pathways$gsea_nperm_simple_multiplier),
+  gsea_nperm_simple_usage = gsea_retry_usage_value,
+  gsea_adaptive_retry_rule =
+    "retry only unresolved pathways at geometric nPermSimple increments; merge by pathway; recompute collection-wide BH; fail closed at cap",
   pathway_activity = "row-standardize fitted expression per leading-edge gene, then average genes",
   feature_species_policy_id =
     as.character(config$feature_species$policy_id),
