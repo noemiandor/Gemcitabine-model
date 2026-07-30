@@ -670,6 +670,10 @@ testthat::test_that("scVelo and state caches attest absent Seurat ancestors", {
 
   complete <- figure7_read_key_value_file(state$state_stage_manifest)
   complete <- complete[names(complete) != "stage_fingerprint"]
+  testthat::expect_identical(
+    unname(complete[["state_result_contract_sha256"]]),
+    figure7_state_result_contract_sha256()
+  )
   species_audit_key <-
     "output_sha256:00_manifest/feature_species_audit.csv"
   testthat::expect_identical(
@@ -696,6 +700,12 @@ testthat::test_that("scVelo and state caches attest absent Seurat ancestors", {
   )
   incomplete <- complete[names(complete) != "seurat_rds_sha256"]
   figure7_write_stage_manifest(incomplete, state$state_stage_manifest)
+  testthat::expect_false(
+    figure7_state_results_match_inputs(state, config_path, config)
+  )
+  figure7_write_stage_manifest(complete, state$state_stage_manifest)
+  legacy <- complete[names(complete) != "state_result_contract_sha256"]
+  figure7_write_stage_manifest(legacy, state$state_stage_manifest)
   testthat::expect_false(
     figure7_state_results_match_inputs(state, config_path, config)
   )
@@ -873,6 +883,33 @@ testthat::test_that("generated references attest a removed state tree", {
     config,
     config_path
   ))
+  complete_reference <- figure7_read_key_value_file(
+    paths$reference_stage_manifest
+  )
+  complete_reference <- complete_reference[
+    names(complete_reference) != "stage_fingerprint"
+  ]
+  testthat::expect_identical(
+    unname(complete_reference[["state_result_contract_sha256"]]),
+    figure7_state_result_contract_sha256()
+  )
+  legacy_reference <- complete_reference[
+    names(complete_reference) != "state_result_contract_sha256"
+  ]
+  figure7_write_stage_manifest(
+    legacy_reference,
+    paths$reference_stage_manifest
+  )
+  testthat::expect_false(figure7_saved_reference_match_inputs(
+    reference,
+    paths,
+    config,
+    config_path
+  ))
+  figure7_write_stage_manifest(
+    complete_reference,
+    paths$reference_stage_manifest
+  )
 
   unlink(c(
     paths$state_stage_manifest,

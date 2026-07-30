@@ -301,28 +301,33 @@ figure7_quarantine_generated_cache <- function(
   figure7_quarantine_existing(path, label)
 }
 
-figure7_state_result_files <- function(root) {
-  file.path(
-    root,
-    c(
-      "00_manifest/frozen_interval_definition.csv",
-      "00_manifest/feature_species_audit.csv",
-      "00_manifest/gene_set_contract.csv",
-      "00_manifest/gene_set_membership.csv",
-      "00_manifest/input_checksums.csv",
-      "00_manifest/package_versions.csv",
-      "binning/00_manifest/analysis_parameters.csv",
-      "binning/01_qc/primary_coverage_check.csv",
-      "binning/02_pseudobulk/sample_bin_metadata.csv",
-      "binning/ETP_reference_balanced_threshold_2_24/00_manifest/model_parameters.csv",
-      "binning/ETP_reference_balanced_threshold_2_24/01_qc/model_design_rank_audit.csv",
-      "binning/ETP_reference_balanced_threshold_2_24/03_gene_models/gene_primary_adjacent_state_contrast.csv",
-      "binning/ETP_reference_balanced_threshold_2_24/03_gene_models/gene_symbol_resolution.csv",
-      "binning/ETP_reference_balanced_threshold_2_24/04_gsea/all_collections_primary_adjacent_state_gsea.csv",
-      "binning/ETP_reference_balanced_threshold_2_24/04_gsea/all_collections_leading_edge_genes.csv",
-      "binning/ETP_reference_balanced_threshold_2_24/04_gsea/pathway_activity_over_pseudotime.csv"
-    )
+figure7_state_result_relative_paths <- function() {
+  c(
+    "00_manifest/frozen_interval_definition.csv",
+    "00_manifest/feature_species_audit.csv",
+    "00_manifest/gene_set_contract.csv",
+    "00_manifest/gene_set_membership.csv",
+    "00_manifest/input_checksums.csv",
+    "00_manifest/package_versions.csv",
+    "binning/00_manifest/analysis_parameters.csv",
+    "binning/01_qc/primary_coverage_check.csv",
+    "binning/02_pseudobulk/sample_bin_metadata.csv",
+    "binning/ETP_reference_balanced_threshold_2_24/00_manifest/model_parameters.csv",
+    "binning/ETP_reference_balanced_threshold_2_24/01_qc/model_design_rank_audit.csv",
+    "binning/ETP_reference_balanced_threshold_2_24/03_gene_models/gene_primary_adjacent_state_contrast.csv",
+    "binning/ETP_reference_balanced_threshold_2_24/03_gene_models/gene_symbol_resolution.csv",
+    "binning/ETP_reference_balanced_threshold_2_24/04_gsea/all_collections_primary_adjacent_state_gsea.csv",
+    "binning/ETP_reference_balanced_threshold_2_24/04_gsea/all_collections_leading_edge_genes.csv",
+    "binning/ETP_reference_balanced_threshold_2_24/04_gsea/pathway_activity_over_pseudotime.csv"
   )
+}
+
+figure7_state_result_contract_sha256 <- function() {
+  figure7_sha256_text(figure7_state_result_relative_paths())
+}
+
+figure7_state_result_files <- function(root) {
+  file.path(root, figure7_state_result_relative_paths())
 }
 
 figure7_state_results_complete <- function(root) {
@@ -387,6 +392,7 @@ figure7_state_results_match_inputs <- function(paths, config_path, config) {
       "gene_set_collections",
       "analysis_seed",
       "config_contract_sha256",
+      "state_result_contract_sha256",
       "parameter_contract_sha256",
       "package_versions_sha256",
       "analysis_parameters_sha256",
@@ -973,6 +979,8 @@ figure7_reference_dependency_values <- function(
     audit_figure7_config_sha256 = figure7_sha256(config_path),
     config_contract_sha256 =
       state_dependencies[["config_contract_sha256"]],
+    state_result_contract_sha256 =
+      state_dependencies[["state_result_contract_sha256"]],
     support_script_sha256 =
       state_dependencies[["support_script_sha256"]],
     feature_species_policy_code_sha256 =
@@ -1026,6 +1034,7 @@ figure7_reference_stage_manifest_matches <- function(
       "seurat_rds_sha256",
       "audit_figure7_config_sha256",
       "config_contract_sha256",
+      "state_result_contract_sha256",
       "support_script_sha256",
       "feature_species_policy_code_sha256",
       "exporter_script_sha256",
@@ -1046,6 +1055,8 @@ figure7_state_dependency_values <- function(paths, config_path, config) {
   c(
     schema_version = "1",
     artifact = "figure7_state_pathway_results",
+    state_result_contract_sha256 =
+      figure7_state_result_contract_sha256(),
     if (file.exists(paths$cellcycle)) c(
       cellcycle_sha256 = figure7_sha256(paths$cellcycle)
     ),
