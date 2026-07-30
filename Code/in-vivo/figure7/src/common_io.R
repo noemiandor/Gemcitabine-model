@@ -186,7 +186,7 @@ figure7_read_environment_lock <- function(path) {
 
 figure7_normalize_r_version <- function(value) {
   tryCatch(
-    as.character(utils::package_version(as.character(value))),
+    as.character(base::package_version(as.character(value))),
     error = function(error) as.character(value)
   )
 }

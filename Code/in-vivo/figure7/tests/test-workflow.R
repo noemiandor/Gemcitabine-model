@@ -296,6 +296,14 @@ testthat::test_that("raw-stage caches bind stage-scoped environment pins", {
   lock_path <- file.path(module_dir, "environment_lock.tsv")
   lock <- figure7_read_environment_lock(lock_path)
   testthat::expect_equal(nrow(lock), 71L)
+  testthat::expect_identical(
+    figure7_normalize_r_version("1.7-3"),
+    "1.7.3"
+  )
+  testthat::expect_identical(
+    figure7_normalize_r_version("1.7.3"),
+    "1.7.3"
+  )
   testthat::expect_equal(
     lock$version[
       lock$ecosystem == "python" &
