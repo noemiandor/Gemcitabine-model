@@ -2009,6 +2009,20 @@ run_si7 <- function() {
   )
   object <- human_only$object
   species_audit <- human_only$audit
+  # Release the large mixed-species source and reconstruction temporaries
+  # before FindMarkers allocates its cluster-vs-rest working vectors.
+  source_environment <- environment(run_si7)
+  if (!exists("object", envir = source_environment, inherits = FALSE) ||
+      !inherits(
+        get("object", envir = source_environment, inherits = FALSE),
+        "Seurat"
+      )) {
+    stop("SI7 cannot release the enclosing source Seurat object",
+         call. = FALSE)
+  }
+  rm(list = "object", envir = source_environment)
+  rm(human_only)
+  invisible(gc(full = TRUE))
   if (!identical(
         as.integer(species_audit$n_input_features),
         as.integer(n_source_features)
