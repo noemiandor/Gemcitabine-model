@@ -53,10 +53,10 @@ expected_input_sha256 <- c(
 )
 
 if (!identical(basename(output_dir), reference_id)) {
-  figure7_stop("Output directory must use canonical reference ID ", reference_id, ": ", output_dir)
+  figure7_stop("Output directory must use historical reference ID ", reference_id, ": ", output_dir)
 }
 if (dir.exists(output_dir)) {
-  figure7_stop("Canonical output directory already exists; refusing to overwrite: ", output_dir)
+  figure7_stop("Historical audit output already exists; refusing to overwrite: ", output_dir)
 }
 if (!identical(figure7_sha256(report_html), expected_report_sha256)) {
   figure7_stop("Report SHA-256 does not match the reviewed 04i HTML")
@@ -500,12 +500,12 @@ expected_files <- c(
 )
 observed_files <- sort(list.files(staging_dir, all.files = FALSE, recursive = FALSE))
 if (!identical(observed_files, sort(expected_files)) || any(file.info(file.path(staging_dir, expected_files))$size <= 0)) {
-  figure7_stop("Canonical staging directory does not contain exactly eight nonempty reference tables")
+  figure7_stop("Historical audit staging directory does not contain exactly eight nonempty reference tables")
 }
 
 dir.create(dirname(output_dir), recursive = TRUE, showWarnings = FALSE)
-if (!file.rename(staging_dir, output_dir)) figure7_stop("Could not atomically materialize canonical reference: ", output_dir)
+if (!file.rename(staging_dir, output_dir)) figure7_stop("Could not atomically retain historical audit reference: ", output_dir)
 completed <- TRUE
-message("Exported canonical 04i panel-7F reference: ", output_dir)
+message("Exported historical 04i panel-7F audit reference: ", output_dir)
 message("Report SHA-256: ", expected_report_sha256)
 message("Activity rows: ", nrow(activity_export), "; selected pathways: ", nrow(selected_export))

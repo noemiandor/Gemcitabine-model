@@ -5,7 +5,8 @@ script_path <- if (length(file_arg)) sub("^--file=", "", file_arg[[1L]]) else "C
 script_dir <- dirname(normalizePath(script_path, mustWork = FALSE))
 repo_root <- normalizePath(file.path(script_dir, "..", "..", ".."), mustWork = FALSE)
 for (file in c(
-  "common_io.R", "input_preflight.R", "seurat_upstream_selection.R",
+  "common_io.R", "feature_species_policy.R", "input_preflight.R",
+  "seurat_upstream_selection.R",
   "tgi_data.R", "tgi_statistics.R",
   "tgi_panels.R", "state_pathway_panel.R",
   "generated_state_pathway_reference.R", "state_pathway_analysis.R"
@@ -62,8 +63,10 @@ write_metadata <- function(
     } else if (include_panel_f) {
       list(
         id = as.character(config$state_pathways$reference_id),
-        kind = "reviewed_frozen",
-        canonical_publication_allowed = TRUE
+        kind = as.character(config$state_pathways$reference_kind),
+        canonical_publication_allowed = isTRUE(
+          config$state_pathways$reference_canonical_publication_allowed
+        )
       )
     } else {
       list(
@@ -359,12 +362,12 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
         "true"
       )
     )
-    reviewed_identity <- identical(
+    historical_identity <- identical(
       unname(unlist(reference_identity)),
       unname(unlist(list(
         id = as.character(config$state_pathways$reference_id),
-        kind = "reviewed_frozen",
-        canonical_publication_allowed = TRUE
+        kind = as.character(config$state_pathways$reference_kind),
+        canonical_publication_allowed = FALSE
       )))
     )
     generated_identity <- identical(
@@ -377,7 +380,7 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
         canonical_publication_allowed = FALSE
       )))
     )
-    if (!reviewed_identity && !generated_identity) {
+    if (!historical_identity && !generated_identity) {
       figure7_stop(
         "render-only source has an invalid panel-7F publication identity"
       )
@@ -395,12 +398,12 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
       as.character(provenance_table$value),
       provenance_table$key
     )
-    provenance_matches <- if (reviewed_identity) {
-      reviewed_provenance_matches <- identical(
+    provenance_matches <- if (historical_identity) {
+      historical_provenance_matches <- identical(
         provenance_value[["canonical_reference_id"]],
         as.character(config$state_pathways$reference_id)
       )
-      if (reviewed_provenance_matches) {
+      if (historical_provenance_matches) {
         for (reference_file in figure7_state_required_files()) {
           source_path <- if (identical(
             reference_file,
@@ -413,11 +416,11 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
           figure7_verify_checksum(
             source_path,
             config$state_pathways$expected_files[[reference_file]],
-            paste("render-only reviewed panel-7F", reference_file)
+            paste("render-only historical panel-7F", reference_file)
           )
         }
       }
-      reviewed_provenance_matches
+      historical_provenance_matches
     } else {
       identical(
         provenance_value[["generated_reference_id"]],
@@ -555,7 +558,7 @@ if (include_panel_f) {
   reference <- if (identical(mode, "full-workflow")) {
     if (identical(
       workflow$state_pathway_reference_kind,
-      "reviewed_frozen"
+      as.character(config$state_pathways$reference_kind)
     )) {
       figure7_validate_state_reference(
         saved_dir,
@@ -601,7 +604,7 @@ if (include_panel_f) {
   if (identical(mode, "full-workflow") &&
       !identical(
         workflow$state_pathway_reference_kind,
-        "reviewed_frozen"
+        as.character(config$state_pathways$reference_kind)
       )) {
     figure7_build_generated_f(reference, output_dir, config)
   } else {

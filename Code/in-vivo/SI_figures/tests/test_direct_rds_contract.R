@@ -222,6 +222,92 @@ expect_error(
   "Configured RDS context and ID-derived context disagrees"
 )
 
+# SI7 must derive its normalized data only from retained human counts. A very
+# large mouse count in one cell therefore cannot change its human expression
+# values, and a pre-existing mixed-species data layer must never be reused.
+if (!requireNamespace("Seurat", quietly = TRUE) ||
+    !requireNamespace("SeuratObject", quietly = TRUE) ||
+    !requireNamespace("Matrix", quietly = TRUE)) {
+  stop("SI7 human-only boundary test requires Seurat/SeuratObject/Matrix")
+}
+si7_counts <- Matrix::Matrix(
+  matrix(
+    c(
+      10, 10, 10,
+      10, 20, 30,
+      1000000, 1, 1
+    ),
+    nrow = 3L,
+    byrow = TRUE,
+    dimnames = list(
+      c("GRCh38-GENE1", "GRCh38-Gene2", "GRCm39-MouseLoad"),
+      c("cell-a", "cell-b", "cell-c")
+    )
+  ),
+  sparse = TRUE
+)
+si7_source <- Seurat::CreateSeuratObject(si7_counts)
+si7_source$clusters <- c("0", "0", "2")
+si7_source <- Seurat::NormalizeData(
+  si7_source,
+  assay = "RNA",
+  verbose = FALSE
+)
+si7_human <- builder_env$si7_build_human_only_object(si7_source)
+si7_data <- tryCatch(
+  SeuratObject::LayerData(
+    si7_human$object,
+    assay = "RNA",
+    layer = "data"
+  ),
+  error = function(error) {
+    Seurat::GetAssayData(
+      si7_human$object,
+      assay = "RNA",
+      slot = "data"
+    )
+  }
+)
+si7_expected_counts <- as.matrix(si7_counts[seq_len(2L), , drop = FALSE])
+si7_expected_data <- log1p(sweep(
+  si7_expected_counts,
+  2L,
+  colSums(si7_expected_counts),
+  "/"
+) * 10000)
+stopifnot(
+  identical(
+    rownames(si7_human$object),
+    c("GRCh38-GENE1", "GRCh38-Gene2")
+  ),
+  identical(colnames(si7_human$object), colnames(si7_source)),
+  isTRUE(all.equal(
+    as.matrix(si7_data),
+    si7_expected_data,
+    tolerance = 1e-12,
+    check.attributes = FALSE
+  )),
+  identical(
+    as.numeric(si7_human$object$nCount_RNA),
+    as.numeric(colSums(si7_expected_counts))
+  ),
+  identical(si7_human$audit$n_input_features, 3L),
+  identical(si7_human$audit$n_human_features_retained, 2L),
+  identical(si7_human$audit$n_mouse_features_excluded, 1L),
+  identical(si7_human$audit$n_ambiguous_features, 0L),
+  identical(si7_human$audit$source_data_layer_reused, FALSE)
+)
+
+stopifnot(
+  identical(
+    builder_env$si7_case_sensitive_intersection(
+      c("TP53", "Trp53", "MYC"),
+      c("TP53", "TRP53", "MYC")
+    ),
+    c("TP53", "MYC")
+  )
+)
+
 # A raw SI7 retry may reuse only a byte-verified, dependency-bound cluster DEG
 # table.  This contract is deliberately testable without loading Seurat.
 deg_cache_dir <- tempfile("si7-deg-resume-")
@@ -233,7 +319,7 @@ valid_de <- data.frame(
   pct.1 = c(0.8, 0.2),
   pct.2 = c(0.3, 0.5),
   p_val_adj = c(2e-7, 3e-5),
-  gene = c("GRCh38_GENE1", "GRCm39_Gene2"),
+  gene = c("GRCh38-GENE1", "GRCh38-Gene2"),
   gene_symbol = c("GENE1", "Gene2"),
   cluster = c("0", "0"),
   stringsAsFactors = FALSE
@@ -260,6 +346,18 @@ stopifnot(
     tolerance = 0
   )),
   identical(reused_de$reused, TRUE)
+)
+
+mixed_de <- valid_de
+mixed_de$gene[[2L]] <- "GRCm39-Gene2"
+expect_error(
+  builder_env$si7_write_cluster_deg_cache(
+    mixed_de,
+    deg_cache_dir,
+    "0",
+    deg_fingerprint
+  ),
+  "still contains nonhuman features"
 )
 
 deg_paths <- builder_env$si7_deg_cache_paths(deg_cache_dir, "0")
@@ -660,7 +758,10 @@ candidate_fingerprint <- wrapper_env$computational_fingerprint(
 candidate_root <- tempfile("si-generated-cache-root-")
 candidate_dir <- file.path(
   candidate_root,
-  paste0("legacy_mixed_", substr(candidate_fingerprint, 1L, 20L))
+  paste0(
+    "generated_human_only_",
+    substr(candidate_fingerprint, 1L, 20L)
+  )
 )
 dir.create(file.path(candidate_dir, "metadata"), recursive = TRUE)
 candidate_audit_roles <- c(
@@ -705,6 +806,8 @@ candidate_run_config <- c(
   output_table_count = "11",
   figures_supported = "4,5,6,7",
   si7_canonical_publication_allowed = "false",
+  si7_species_policy_id = "grch_human_tumor_only_v2",
+  si7_source_data_layer_reused = "false",
   seurat_source_kind = "manifested_reconstruction",
   si_raw_scientific_code_contract_sha256 =
     unname(base_candidate_dependencies[[
@@ -998,8 +1101,12 @@ stopifnot(
 # Prove the valid canonical-cache branch returns before resolving, checking, or
 # downloading the deliberately missing RDS.
 wrapper_env$script_path <- function() wrapper_path
-wrapper_env$validate_cache <- function(validator, cache_dir, legacy = FALSE) {
-  !legacy
+wrapper_env$validate_cache <- function(
+  validator,
+  cache_dir,
+  policy = "corrected-human-only"
+) {
+  identical(policy, "corrected-human-only")
 }
 wrapper_env$rendered <- NULL
 wrapper_env$render_cache <- function(
@@ -1007,13 +1114,14 @@ wrapper_env$render_cache <- function(
   cache,
   config,
   output,
-  legacy,
-  log_name = "00_render.log"
+  generated,
+  log_name = "00_render.log",
+  upstream_input_manifest = NULL
 ) {
   wrapper_env$rendered <- list(
     cache = cache,
     output = output,
-    legacy = legacy
+    generated = generated
   )
   invisible(output)
 }
@@ -1027,7 +1135,7 @@ wrapper_env$main(list(
 ))
 stopifnot(
   !is.null(wrapper_env$rendered),
-  identical(wrapper_env$rendered$legacy, FALSE),
+  identical(wrapper_env$rendered$generated, FALSE),
   identical(wrapper_env$rendered$output, normalizePath(
     output_dir,
     mustWork = FALSE
@@ -1039,7 +1147,11 @@ blocked_intermediate <- file.path(
   paste0("si-plot-only-must-not-fallback-", Sys.getpid())
 )
 blocked_output <- paste0(blocked_intermediate, "-output")
-wrapper_env$validate_cache <- function(validator, cache_dir, legacy = FALSE) {
+wrapper_env$validate_cache <- function(
+  validator,
+  cache_dir,
+  policy = "corrected-human-only"
+) {
   FALSE
 }
 wrapper_env$run_stage <- function(...) {

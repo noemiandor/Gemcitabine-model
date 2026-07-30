@@ -35,10 +35,11 @@ bash Manager.sh \
   --run-id example_raw_si
 ```
 
-`run_supplementary_figures.R --mode=full-workflow` validates the 11-table cache
-before touching raw inputs. If that cache is missing or invalid, it rebuilds
-the tables from the final Seurat object plus the versioned endpoint-ploidy
-table. The Seurat object can be reused/reconstructed from the same five-stage
+`run_supplementary_figures.R --mode=full-workflow` deliberately bypasses the
+reviewed plot-only cache: it first reuses a lineage-valid generated human-only
+cache when one exists, otherwise it rebuilds the tables from the final Seurat
+object plus the versioned endpoint-ploidy table. The Seurat object can be
+reused/reconstructed from the same five-stage
 Cell Ranger H5 cache as Figure 7 by passing `--figure7-cellranger-root` through
 Manager; both modules use `--figure7-seurat-upstream-dir`. If that boundary is
 unavailable, the checksum-pinned deposited final RDS is the fallback. SI
@@ -75,8 +76,9 @@ finite matrix values, and portable SHA-256 manifest.
 
 The cells in this analysis are human tumor/cell-line cells aligned to a
 combined human/mouse reference. The reviewed SI Figure 7 matrices therefore
-use a human-only feature policy: retain `GRCh*` features and remove `GRCm39-*`
-features before symbol cleanup, duplicate resolution, ORA, and GSEA. The
+use a human-only feature policy: retain exact `GRCh38-` features, exclude
+`GRCm39-` features, and reject unclassified features before symbol cleanup,
+duplicate resolution, ORA, and GSEA. The
 frozen matrices were recalculated from Tao's cluster DEG cache using MSigDB
 2026.1.Hs Hallmark gene sets.
 
@@ -87,11 +89,13 @@ to compete for marker selection. In GSEA, case-distinct mouse rows generally
 could not match the human Hallmark symbols but still occupied positions in the
 ranked vector and changed the enrichment statistic.
 
-The raw fallback currently preserves that previous Tao behavior because the
-requested GRCh/GRCm repair has been explicitly deferred until the entire raw
-pipeline is in place. Raw-rebuilt SI7 matrices and composites are therefore
+The raw fallback now builds a new SI7-only Seurat object from exact `GRCh38-`
+RNA counts and runs fresh `LogNormalize` before differential expression, ORA,
+and GSEA. It does not reuse the mixed-species normalized data layer. Species
+counts, the policy/helper hashes, and the human-only normalization contract are
+recorded in the run metadata. Raw-rebuilt SI7 matrices and composites remain
 marked `canonical_publication_allowed=false`; they cannot overwrite or validate
-as the canonical human-only cache.
+as the canonical human-only cache until reviewed.
 
 Individual subpanels are constructed in memory as part of each composite and
 are not published as duplicate derivatives.

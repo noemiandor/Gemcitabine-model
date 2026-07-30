@@ -8,10 +8,11 @@
 # ploidy. scVelo metrics are optional audit-only input and never supply values
 # used by a Supplementary Figure.
 #
-# IMPORTANT: this ports Tao's reviewed analysis behavior unchanged. In
-# particular, SI7 strips GRCh/GRCm feature prefixes and runs human Hallmark
-# matching without a species filter. The corrected canonical human-only cache
-# is a separate contract and must never be overwritten by this legacy builder.
+# SI7 has an explicit inferential boundary: it extracts the RNA counts, retains
+# only exact GRCh38-prefixed features, constructs a new SI7-only Seurat object,
+# and normalizes those human counts from scratch before differential expression
+# and enrichment. The generated cache remains noncanonical until a genuine raw
+# rerun has been reviewed and must never overwrite the frozen Data cache.
 
 parse_cli_args <- function(args) {
   out <- list()
@@ -102,6 +103,52 @@ resolve_script_path <- function() {
   if (!length(file_arg)) return(NA_character_)
   normalizePath(sub("^--file=", "", file_arg[[1L]]), mustWork = TRUE)
 }
+
+resolve_builder_source_path <- function() {
+  frame_files <- vapply(
+    sys.frames(),
+    function(frame) {
+      if (is.null(frame$ofile)) NA_character_ else as.character(frame$ofile)
+    },
+    character(1L)
+  )
+  command_file <- sub(
+    "^--file=",
+    "",
+    grep("^--file=", commandArgs(FALSE), value = TRUE)
+  )
+  candidates <- c(
+    rev(frame_files[!is.na(frame_files) & nzchar(frame_files)]),
+    command_file,
+    file.path(
+      getwd(),
+      "Code", "in-vivo", "SI_figures",
+      "build_raw_supplementary_tables.R"
+    )
+  )
+  candidates <- candidates[
+    basename(candidates) == "build_raw_supplementary_tables.R"
+  ]
+  candidates <- candidates[file.exists(candidates)]
+  if (!length(candidates)) {
+    stop("Cannot resolve SI raw-table builder path", call. = FALSE)
+  }
+  normalizePath(candidates[[1L]], mustWork = TRUE)
+}
+
+si7_builder_source_path <- resolve_builder_source_path()
+si7_feature_species_helper_path <- file.path(
+  dirname(dirname(si7_builder_source_path)),
+  "figure7", "src", "feature_species_policy.R"
+)
+if (!file.exists(si7_feature_species_helper_path)) {
+  stop(
+    "Missing shared feature-species policy helper: ",
+    si7_feature_species_helper_path,
+    call. = FALSE
+  )
+}
+sys.source(si7_feature_species_helper_path, envir = environment())
 
 is_absolute_path <- function(path) grepl("^/", path)
 
@@ -475,6 +522,128 @@ write_tsv <- function(df, path) {
   invisible(path)
 }
 
+si7_join_rna_layers <- function(object) {
+  if ("JoinLayers" %in% getNamespaceExports("SeuratObject")) {
+    object <- tryCatch(
+      SeuratObject::JoinLayers(object, assay = "RNA"),
+      error = function(error) {
+        stop(
+          "SI7 cannot join RNA layers before counts extraction: ",
+          conditionMessage(error),
+          call. = FALSE
+        )
+      }
+    )
+  }
+  object
+}
+
+si7_rna_counts <- function(object) {
+  if (!inherits(object, "Seurat") || !("RNA" %in% names(object@assays))) {
+    stop("SI7 requires a Seurat object with an RNA assay", call. = FALSE)
+  }
+  object <- si7_join_rna_layers(object)
+  if ("Layers" %in% getNamespaceExports("SeuratObject")) {
+    count_layers <- SeuratObject::Layers(
+      object[["RNA"]],
+      search = "^counts"
+    )
+    if (length(count_layers) != 1L) {
+      stop(
+        "SI7 requires exactly one joined RNA counts layer; observed ",
+        length(count_layers),
+        call. = FALSE
+      )
+    }
+  }
+  counts <- tryCatch(
+    SeuratObject::LayerData(object, assay = "RNA", layer = "counts"),
+    error = function(error) {
+      tryCatch(
+        Seurat::GetAssayData(object, assay = "RNA", slot = "counts"),
+        error = function(second_error) NULL
+      )
+    }
+  )
+  if (is.null(counts) || !nrow(counts) || !ncol(counts)) {
+    stop("SI7 cannot read nonempty RNA counts", call. = FALSE)
+  }
+  counts
+}
+
+si7_build_human_only_object <- function(
+  source_object,
+  human_prefix = "GRCh38-",
+  mouse_prefix = "GRCm39-",
+  scale_factor = 10000
+) {
+  if (!requireNamespace("Seurat", quietly = TRUE) ||
+      !requireNamespace("SeuratObject", quietly = TRUE)) {
+    stop(
+      "SI7 human-only reconstruction requires Seurat/SeuratObject",
+      call. = FALSE
+    )
+  }
+  counts <- si7_rna_counts(source_object)
+  filtered <- figure7_filter_human_feature_matrix(
+    counts,
+    analysis = "SI7 RNA counts",
+    human_prefix = human_prefix,
+    mouse_prefix = mouse_prefix
+  )
+  cells <- colnames(filtered$matrix)
+  metadata <- source_object@meta.data
+  if (is.null(cells) || !identical(cells, rownames(metadata))) {
+    stop(
+      "SI7 RNA counts must contain the exact ordered source-cell inventory",
+      call. = FALSE
+    )
+  }
+  metadata <- metadata[cells, , drop = FALSE]
+  metadata <- metadata[
+    ,
+    setdiff(
+      colnames(metadata),
+      c("nCount_RNA", "nFeature_RNA", "percent.mt")
+    ),
+    drop = FALSE
+  ]
+  object <- Seurat::CreateSeuratObject(
+    counts = filtered$matrix,
+    meta.data = metadata,
+    project = "SI7_human_only",
+    min.cells = 0,
+    min.features = 0
+  )
+  object <- Seurat::NormalizeData(
+    object,
+    assay = "RNA",
+    normalization.method = "LogNormalize",
+    scale.factor = scale_factor,
+    verbose = FALSE
+  )
+  if (!identical(colnames(object), cells)) {
+    stop("SI7 human-only reconstruction changed the cell inventory",
+         call. = FALSE)
+  }
+  figure7_assert_human_feature_names(
+    rownames(object[["RNA"]]),
+    analysis = "SI7 normalized RNA assay",
+    human_prefix = human_prefix,
+    mouse_prefix = mouse_prefix
+  )
+  audit <- filtered$audit
+  audit$n_cells <- ncol(object)
+  audit$normalization_method <- "LogNormalize"
+  audit$normalization_scale_factor <- scale_factor
+  audit$source_data_layer_reused <- FALSE
+  list(object = object, audit = audit)
+}
+
+si7_case_sensitive_intersection <- function(left, right) {
+  intersect(as.character(left), as.character(right))
+}
+
 si7_deg_cache_paths <- function(work_dir, cluster_id) {
   cluster_stub <- gsub(
     "[^A-Za-z0-9._-]+",
@@ -543,6 +712,18 @@ si7_read_reusable_cluster_deg <- function(
       anyDuplicated(de$gene)) {
     return(NULL)
   }
+  valid_human <- tryCatch(
+    {
+      figure7_assert_human_feature_names(
+        as.character(de$gene),
+        analysis = "reusable SI7 DEG cache"
+      )
+      parsed <- figure7_classify_feature_species(as.character(de$gene))
+      identical(as.character(de$gene_symbol), parsed$symbol)
+    },
+    error = function(error) FALSE
+  )
+  if (!isTRUE(valid_human)) return(NULL)
   list(cluster = as.character(cluster_id), de = de, reused = TRUE)
 }
 
@@ -552,6 +733,19 @@ si7_write_cluster_deg_cache <- function(
   cluster_id,
   dependency_fingerprint
 ) {
+  if (!all(c("gene", "gene_symbol") %in% names(de))) {
+    stop("SI7 DEG cache requires gene and gene_symbol columns",
+         call. = FALSE)
+  }
+  figure7_assert_human_feature_names(
+    as.character(de$gene),
+    analysis = "SI7 DEG cache write"
+  )
+  parsed <- figure7_classify_feature_species(as.character(de$gene))
+  if (!identical(as.character(de$gene_symbol), parsed$symbol)) {
+    stop("SI7 DEG cache symbols disagree with exact GRCh feature IDs",
+         call. = FALSE)
+  }
   paths <- si7_deg_cache_paths(work_dir, cluster_id)
   table_tmp <- paste0(paths$table, ".tmp.", Sys.getpid())
   contract_tmp <- paste0(paths$contract, ".tmp.", Sys.getpid())
@@ -680,6 +874,16 @@ si_raw_scientific_code_contract <- function(path = NULL) {
     "infer_sample_ploidy",
     "infer_id_ploidy_context",
     "resolve_reviewed_ploidy_context",
+    "figure7_human_feature_policy_id",
+    "figure7_human_feature_policy_description",
+    "figure7_classify_feature_species",
+    "figure7_select_human_features",
+    "figure7_filter_human_feature_matrix",
+    "figure7_assert_human_feature_names",
+    "si7_join_rna_layers",
+    "si7_rna_counts",
+    "si7_build_human_only_object",
+    "si7_case_sensitive_intersection",
     "si7_deg_cache_paths",
     "si7_read_reusable_cluster_deg",
     "si7_write_cluster_deg_cache"
@@ -811,6 +1015,9 @@ config_path <- resolve_path(
 config <- figure7_read_config(config_path)
 si_config <- config$si_figures
 if (is.null(si_config)) stop("Figure 7 config is missing si_figures", call. = FALSE)
+feature_species_contract <- figure7_feature_species_contract_values(config)
+si7_human_prefix <- unname(feature_species_contract[["human_prefix"]])
+si7_mouse_prefix <- unname(feature_species_contract[["mouse_prefix"]])
 analysis_seed <- as.integer(si_config$raw_rebuild_analysis_seed)
 if (length(analysis_seed) != 1L || !is.finite(analysis_seed)) {
   stop("si_figures.raw_rebuild_analysis_seed must be one finite integer", call. = FALSE)
@@ -1454,13 +1661,18 @@ safe_cluster_stub <- function(x) {
 }
 
 clean_gene_symbol <- function(x) {
-  out <- trimws(as.character(x))
-  out <- sub("^GRCh[0-9]+[-_]", "", out, ignore.case = TRUE)
-  out <- sub("^GRCm39[-_]", "", out, ignore.case = TRUE)
-  out <- sub("^hg38[-_]", "", out, ignore.case = TRUE)
-  out <- sub("\\.[0-9]+$", "", out)
-  out[out == ""] <- NA_character_
-  out
+  feature <- as.character(x)
+  figure7_assert_human_feature_names(
+    feature,
+    analysis = "SI7 differential-expression genes",
+    human_prefix = si7_human_prefix,
+    mouse_prefix = si7_mouse_prefix
+  )
+  figure7_classify_feature_species(
+    feature,
+    human_prefix = si7_human_prefix,
+    mouse_prefix = si7_mouse_prefix
+  )$symbol
 }
 
 lfc_column <- function(df) {
@@ -1516,7 +1728,7 @@ hallmark_label <- function(x) {
 prepare_ora_markers <- function(de, lfc_col) {
   out <- de
   out$gene_symbol <- clean_gene_symbol(out$gene)
-  out$gene_key <- toupper(out$gene_symbol)
+  out$gene_key <- out$gene_symbol
   out$lfc_value <- as.numeric(out[[lfc_col]])
   out$p_val_adj_num <- as.numeric(out$p_val_adj)
   out$delta_pct <- as.numeric(out$pct.1) - as.numeric(out$pct.2)
@@ -1539,9 +1751,12 @@ run_ora <- function(query_df, universe, pathways) {
   query <- unique(query_df$gene_symbol)
   query <- query[!is.na(query)]
   results <- lapply(names(pathways), function(pathway) {
-    genes <- unique(intersect(pathways[[pathway]], universe))
+    genes <- unique(si7_case_sensitive_intersection(
+      pathways[[pathway]],
+      universe
+    ))
     if (length(genes) < 15L || length(genes) > 500L) return(NULL)
-    overlap <- intersect(query, genes)
+    overlap <- si7_case_sensitive_intersection(query, genes)
     if (length(overlap) < 3L) return(NULL)
     p_value <- stats::phyper(
       length(overlap) - 1L,
@@ -1567,7 +1782,7 @@ run_ora <- function(query_df, universe, pathways) {
   out <- out[out$p_adj < 0.05, , drop = FALSE]
   if (!nrow(out)) return(out)
   overlap_stats <- lapply(strsplit(out$overlap_genes, ";", fixed = TRUE), function(genes) {
-    match_rows <- query_df[toupper(query_df$gene_symbol) %in% toupper(genes), , drop = FALSE]
+    match_rows <- query_df[query_df$gene_symbol %in% genes, , drop = FALSE]
     data.frame(
       expression_score_raw = mean(match_rows$abs_logfc, na.rm = TRUE),
       detection_score_raw = mean(as.numeric(match_rows$pct.1), na.rm = TRUE),
@@ -1749,7 +1964,7 @@ run_si7 <- function() {
   expected_msigdbr <- as.character(config$gene_sets$package_version)
   if (!identical(observed_msigdbr, expected_msigdbr)) {
     stop(
-      "Legacy SI7 raw rebuild requires msigdbr ",
+      "Generated human-only SI7 rebuild requires msigdbr ",
       expected_msigdbr,
       "; observed ",
       observed_msigdbr,
@@ -1783,24 +1998,42 @@ run_si7 <- function() {
       call. = FALSE
     )
   }
-  if (!("RNA" %in% names(object@assays))) stop("Raw Seurat object is missing RNA assay", call. = FALSE)
-  Seurat::DefaultAssay(object) <- "RNA"
-  if ("JoinLayers" %in% getNamespaceExports("SeuratObject")) {
-    object <- tryCatch(
-      SeuratObject::JoinLayers(object, assay = "RNA"),
-      error = function(e) object
-    )
+  if (!("RNA" %in% names(object@assays))) {
+    stop("Raw Seurat object is missing RNA assay", call. = FALSE)
   }
-  data_matrix <- tryCatch(
-    SeuratObject::LayerData(object, assay = "RNA", layer = "data"),
-    error = function(e) tryCatch(
-      Seurat::GetAssayData(object, assay = "RNA", slot = "data"),
-      error = function(e2) NULL
-    )
+  n_source_features <- nrow(object[["RNA"]])
+  human_only <- si7_build_human_only_object(
+    object,
+    human_prefix = si7_human_prefix,
+    mouse_prefix = si7_mouse_prefix
   )
-  if (is.null(data_matrix) || !nrow(data_matrix) || !ncol(data_matrix)) {
-    object <- Seurat::NormalizeData(object, assay = "RNA", verbose = FALSE)
+  object <- human_only$object
+  species_audit <- human_only$audit
+  if (!identical(
+        as.integer(species_audit$n_input_features),
+        as.integer(n_source_features)
+      ) ||
+      !identical(
+        as.integer(species_audit$n_human_features_retained),
+        as.integer(nrow(object))
+      ) ||
+      !identical(
+        as.integer(species_audit$n_input_features),
+        as.integer(
+          species_audit$n_human_features_retained +
+            species_audit$n_mouse_features_excluded +
+            species_audit$n_ambiguous_features
+        )
+      ) ||
+      !identical(as.integer(species_audit$n_ambiguous_features), 0L)) {
+    stop("SI7 feature-species audit is internally inconsistent",
+         call. = FALSE)
   }
+  write_tsv(
+    species_audit,
+    file.path(work_dir, "si_figure7_feature_species_audit.tsv")
+  )
+  Seurat::DefaultAssay(object) <- "RNA"
   rds_clusters <- sort_cluster_levels(object@meta.data[[canonical_cluster_col]])
   if (!identical(rds_clusters, cluster_levels)) {
     stop(
@@ -2068,7 +2301,9 @@ run_si7 <- function() {
     hallmark_release = hallmark_release,
     hallmark_membership_sha256 = hallmark_membership_sha256,
     n_object_cells = ncol(object),
-    n_genes = nrow(object)
+    n_source_features = n_source_features,
+    n_genes = nrow(object),
+    feature_species_audit = species_audit
   )
 }
 
@@ -2196,12 +2431,12 @@ table_manifest <- data.frame(
   filename = table_files,
   bytes = as.numeric(file.info(table_paths)$size),
   sha256 = vapply(table_paths, file_sha256, character(1)),
-  source_revision = paste0("raw-legacy-mixed@", source_revision),
+  source_revision = paste0("raw-generated-human-only@", source_revision),
   notes = ifelse(
     grepl("^si_figure7_cluster_Hallmark", table_files),
     paste(
-      "legacy mixed-species policy: strip GRCh/GRCm prefixes, preserve symbol",
-      "case, then match human Hallmark sets; not approved for canonical publication"
+      "generated human-only GRCh policy: exact GRCh38 features retained before",
+      "fresh normalization, DE, ORA, and GSEA; not approved for canonical publication"
     ),
     "raw-rebuilt plot-facing table; not approved for canonical publication"
   ),
@@ -2244,23 +2479,26 @@ write_tsv(table_manifest, file.path(table_dir, "manifest.tsv"))
     bytes = unname(dependency_bytes[names(work_dependency_values)]),
     stringsAsFactors = FALSE
   )
-  audit_paths <- c(
-    script_path,
-    environment_validator_path,
+audit_paths <- c(
+  script_path,
+  si7_feature_species_helper_path,
+  environment_validator_path,
     environment_lock_path,
     config_path,
     seurat_selection_path
   )
-  audit_roles <- c(
-    "audit_si_table_builder",
-    "audit_environment_validator",
+audit_roles <- c(
+  "audit_si_table_builder",
+  "audit_feature_species_helper",
+  "audit_environment_validator",
     "audit_environment_lock",
     "audit_figure7_config",
     "audit_seurat_selection"
   )
-  audit_sha256 <- c(
-    builder_sha256,
-    environment_validator_sha256,
+audit_sha256 <- c(
+  builder_sha256,
+  file_sha256(si7_feature_species_helper_path),
+  environment_validator_sha256,
     environment_lock_sha256,
     config_sha256,
     file_sha256(seurat_selection_path)
@@ -2330,7 +2568,19 @@ run_config <- data.frame(
     "output_table_count",
     "figures_supported",
     "si7_species_policy",
+    "si7_species_policy_id",
+    "si7_human_feature_prefix",
+    "si7_mouse_feature_prefix",
     "si7_canonical_publication_allowed",
+    "si7_input_features",
+    "si7_human_features_retained",
+    "si7_mouse_features_excluded",
+    "si7_ambiguous_features",
+    "si7_normalization_method",
+    "si7_normalization_scale_factor",
+    "si7_source_data_layer_reused",
+    "si7_feature_species_audit_sha256",
+    "feature_species_helper_sha256",
     "si7_gene_set_source",
     "si7_gene_set_release",
     "si7_gene_set_membership_sha256",
@@ -2356,6 +2606,7 @@ run_config <- data.frame(
     "tumor_cells",
     "seurat_rds_cells",
     "seurat_rds_features",
+    "si7_analyzed_features",
     "audit_optional_scvelo_sha256"
   ),
   value = c(
@@ -2370,12 +2621,32 @@ run_config <- data.frame(
     ),
     as.character(length(table_files)),
     "4,5,6,7",
-    paste(
-      "legacy mixed species: strip GRCh/GRCm prefixes, preserve case,",
-      "match human Hallmark symbols"
-    ),
+    figure7_human_feature_policy_description(),
+    as.character(si7_result$feature_species_audit$policy_id),
+    as.character(si7_result$feature_species_audit$human_prefix),
+    as.character(si7_result$feature_species_audit$mouse_prefix),
     "false",
-    "live msigdbr Homo sapiens Hallmark (legacy Tao behavior)",
+    as.character(si7_result$feature_species_audit$n_input_features),
+    as.character(
+      si7_result$feature_species_audit$n_human_features_retained
+    ),
+    as.character(
+      si7_result$feature_species_audit$n_mouse_features_excluded
+    ),
+    as.character(si7_result$feature_species_audit$n_ambiguous_features),
+    as.character(si7_result$feature_species_audit$normalization_method),
+    as.character(
+      si7_result$feature_species_audit$normalization_scale_factor
+    ),
+    tolower(as.character(
+      si7_result$feature_species_audit$source_data_layer_reused
+    )),
+    file_sha256(file.path(
+      work_dir,
+      "si_figure7_feature_species_audit.tsv"
+    )),
+    file_sha256(si7_feature_species_helper_path),
+    "live msigdbr Homo sapiens Hallmark; case-sensitive symbol matching",
     as.character(si7_result$hallmark_release),
     as.character(si7_result$hallmark_membership_sha256),
     as.character(si7_result$nperm_simple),
@@ -2402,6 +2673,7 @@ run_config <- data.frame(
     as.character(nrow(seurat)),
     as.character(nrow(tumor)),
     as.character(si7_result$n_object_cells),
+    as.character(si7_result$n_source_features),
     as.character(si7_result$n_genes),
     if (is.na(scvelo_metrics_path)) {
       "not_supplied"
@@ -2430,7 +2702,7 @@ validation_status <- system2(
     "--cache-dir",
     shQuote(table_dir),
     "--si7-policy",
-    "legacy-mixed"
+    "generated-human-only"
   )
 )
 if (!identical(validation_status, 0L)) {
@@ -2438,7 +2710,7 @@ if (!identical(validation_status, 0L)) {
 }
 
 message(
-  "Built exactly 11 raw SI plot-facing tables with legacy mixed-species ",
+  "Built exactly 11 raw SI plot-facing tables with generated human-only ",
   "SI7 policy: ",
   table_dir
 )

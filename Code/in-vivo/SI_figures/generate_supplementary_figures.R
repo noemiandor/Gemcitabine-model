@@ -5,9 +5,9 @@
 # The 11 committed tables under Data/in-vivo/SIfigures are the reviewed,
 # plot-facing contract. This script intentionally cannot load raw Seurat data,
 # run differential expression, or recompute enrichment. The canonical default
-# accepts only the corrected human-only SI7 cache. A separately labelled legacy
-# raw rebuild can be rendered only with an explicit opt-in and is never suitable
-# for publication over Data/in-vivo/SIfigures.
+# accepts only the reviewed SI7 cache. A separately labelled generated
+# human-only raw rebuild can be rendered only with an explicit opt-in and is
+# never suitable for publication over Data/in-vivo/SIfigures until reviewed.
 
 parse_args <- function(tokens) {
   result <- list()
@@ -57,8 +57,8 @@ usage <- function() {
       "Options:",
       "  --overwrite  Replace this generator's known outputs.",
       paste(
-        "  --allow-legacy-mixed-si7",
-        "Render a run-scoped raw cache carrying Tao's legacy mixed-species policy."
+        "  --allow-generated-human-only-si7",
+        "Render an unreviewed run-scoped cache rebuilt with the GRCh-only policy."
       ),
       "  --help       Show this help.",
       "",
@@ -398,16 +398,22 @@ output_dir <- resolve_path(
   must_work = FALSE
 )
 overwrite <- arg_flag(args, "overwrite")
-allow_legacy_mixed_si7 <- arg_flag(args, "allow-legacy-mixed-si7")
+allow_generated_human_only_si7 <- arg_flag(
+  args,
+  "allow-generated-human-only-si7"
+)
 upstream_manifest_arg <- arg_value(args, "upstream-input-manifest", NULL)
 upstream_manifest_path <- if (is.null(upstream_manifest_arg)) {
   NA_character_
 } else {
   resolve_path(upstream_manifest_arg, root, must_work = TRUE)
 }
-if (!is.na(upstream_manifest_path) && !allow_legacy_mixed_si7) {
+if (!is.na(upstream_manifest_path) && !allow_generated_human_only_si7) {
   stop(
-    "--upstream-input-manifest is valid only for a legacy raw-table render",
+    paste(
+      "--upstream-input-manifest is valid only for a generated",
+      "human-only raw-table render"
+    ),
     call. = FALSE
   )
 }
@@ -418,8 +424,8 @@ validator_args <- c(
   "--cache-dir",
   shQuote(cache_dir)
 )
-if (allow_legacy_mixed_si7) {
-  validator_args <- c(validator_args, "--si7-policy", "legacy-mixed")
+if (allow_generated_human_only_si7) {
+  validator_args <- c(validator_args, "--si7-policy", "generated-human-only")
 }
 validation_status <- system2(
   "python3",
@@ -514,7 +520,9 @@ copied_validation <- system2(
     shQuote(validator),
     "--cache-dir",
     shQuote(table_dir),
-    if (allow_legacy_mixed_si7) c("--si7-policy", "legacy-mixed")
+    if (allow_generated_human_only_si7) {
+      c("--si7-policy", "generated-human-only")
+    }
   )
 )
 if (!identical(copied_validation, 0L)) {
@@ -1202,8 +1210,8 @@ run_config <- data.frame(
     "si_figures",
     "4,5,6,7",
     as.character(nrow(panel_contract)),
-    if (allow_legacy_mixed_si7) {
-      "run_scoped_legacy_mixed_plot_tables"
+    if (allow_generated_human_only_si7) {
+      "run_scoped_generated_human_only_plot_tables"
     } else {
       "frozen_plot_tables_only"
     },
@@ -1211,20 +1219,20 @@ run_config <- data.frame(
     as.character(plot_seed),
     paste(cluster_levels, collapse = ","),
     as.character(
-      if (allow_legacy_mixed_si7) {
+      if (allow_generated_human_only_si7) {
         si_config$raw_rebuild_species_policy
       } else {
         si_config$si7_feature_species_policy
       }
     ),
     as.character(
-      if (allow_legacy_mixed_si7) {
+      if (allow_generated_human_only_si7) {
         si_config$raw_rebuild_gene_set_database
       } else {
         si_config$si7_gene_set_database
       }
     ),
-    tolower(as.character(!allow_legacy_mixed_si7)),
+    tolower(as.character(!allow_generated_human_only_si7)),
     source_revision
   ),
   stringsAsFactors = FALSE
@@ -1290,7 +1298,7 @@ provenance <- data.frame(
     git_revision,
     repo_relative(cache_dir, root),
     file_sha256(file.path(cache_dir, "manifest.tsv")),
-    if (allow_legacy_mixed_si7) {
+    if (allow_generated_human_only_si7) {
       paste(
         "plot-only rendering of a run-scoped raw rebuild;",
         "canonical publication is prohibited"
@@ -1299,24 +1307,25 @@ provenance <- data.frame(
       "plot-only; raw Seurat and enrichment dependencies are intentionally absent"
     },
     as.character(
-      if (allow_legacy_mixed_si7) {
+      if (allow_generated_human_only_si7) {
         si_config$raw_rebuild_species_policy
       } else {
         si_config$si7_feature_species_policy
       }
     ),
     as.character(
-      if (allow_legacy_mixed_si7) {
+      if (allow_generated_human_only_si7) {
         si_config$raw_rebuild_gene_set_database
       } else {
         si_config$si7_gene_set_database
       }
     ),
-    tolower(as.character(!allow_legacy_mixed_si7)),
-    if (allow_legacy_mixed_si7) {
+    tolower(as.character(!allow_generated_human_only_si7)),
+    if (allow_generated_human_only_si7) {
       paste(
-        "Legacy raw matrices strip GRCh/GRCm prefixes, preserve symbol case,",
-        "and match human Hallmark symbols; they are not canonical outputs."
+        "Generated SI7 statistics use a newly normalized object containing",
+        "only exact GRCh38-prefixed RNA counts; Hallmark matching preserves",
+        "symbol case. These rebuilt tables are not canonical until reviewed."
       )
     } else {
       paste(
@@ -1346,7 +1355,7 @@ writeLines(
     paste0(
       "SI7 feature policy: ",
       as.character(
-        if (allow_legacy_mixed_si7) {
+        if (allow_generated_human_only_si7) {
           si_config$raw_rebuild_species_policy
         } else {
           si_config$si7_feature_species_policy

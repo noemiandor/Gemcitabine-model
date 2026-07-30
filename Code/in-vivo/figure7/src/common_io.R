@@ -435,19 +435,55 @@ figure7_r_runtime_provenance <- function() {
   )
 }
 
+figure7_feature_species_contract_values <- function(config) {
+  policy <- config$feature_species
+  required <- c(
+    "policy_id", "human_prefix", "mouse_prefix",
+    "unknown_feature_policy"
+  )
+  missing <- setdiff(required, names(policy))
+  if (length(missing)) {
+    figure7_stop(
+      "Feature-species config is missing field(s): ",
+      paste(missing, collapse = ", ")
+    )
+  }
+  values <- c(
+    policy_id = as.character(policy$policy_id),
+    human_prefix = as.character(policy$human_prefix),
+    mouse_prefix = as.character(policy$mouse_prefix),
+    unknown_feature_policy =
+      as.character(policy$unknown_feature_policy)
+  )
+  expected <- c(
+    policy_id = "grch_human_tumor_only_v2",
+    human_prefix = "GRCh38-",
+    mouse_prefix = "GRCm39-",
+    unknown_feature_policy = "reject"
+  )
+  if (!identical(values, expected)) {
+    figure7_stop(
+      "Figure 7/SI7 feature-species contract must use exact GRCh38-/",
+      "GRCm39- prefixes and reject unrecognized features"
+    )
+  }
+  values
+}
+
 figure7_read_config <- function(path, tgi_day = NULL) {
   if (!file.exists(path)) figure7_stop("Missing Figure 7 config: ", path)
   if (!requireNamespace("yaml", quietly = TRUE)) figure7_stop("R package 'yaml' is required")
   config <- yaml::read_yaml(path)
   required <- c(
     "schema_version", "module", "raw_data", "versioned_source_artifacts",
-    "inputs",
+    "feature_species", "inputs",
     "si_figures", "tgi", "statistics", "gene_sets", "etp", "intervals",
     "state_pathways", "panels"
   )
   missing <- setdiff(required, names(config))
   if (length(missing)) figure7_stop("Config is missing section(s): ", paste(missing, collapse = ", "))
   if (!identical(as.character(config$module), "in_vivo_figure7")) figure7_stop("Unexpected config module")
+  figure7_feature_species_contract_values(config)
   if (!identical(as.character(config$gene_sets$provider), "msigdbr") ||
       !identical(as.character(config$gene_sets$package_version), "26.1.0") ||
       !identical(
@@ -532,6 +568,33 @@ figure7_read_config <- function(path, tgi_day = NULL) {
       paste(si_missing, collapse = ", ")
     )
   }
+  state <- config$state_pathways
+  state_identity <- c(
+    reference_id = as.character(state$reference_id),
+    reference_kind = as.character(state$reference_kind),
+    reference_canonical_publication_allowed =
+      tolower(as.character(state$reference_canonical_publication_allowed)),
+    generated_reference_kind =
+      as.character(state$generated_reference_kind),
+    generated_reference_id =
+      as.character(state$generated_reference_id),
+    generated_canonical_publication_allowed =
+      tolower(as.character(state$generated_canonical_publication_allowed))
+  )
+  expected_state_identity <- c(
+    reference_id = "taoli_04i_etp2_24_day17_v1",
+    reference_kind = "historical_mixed_frozen",
+    reference_canonical_publication_allowed = "false",
+    generated_reference_kind = "generated_human_only",
+    generated_reference_id =
+      "runtime_state_pathway_grch_human_only_v2",
+    generated_canonical_publication_allowed = "false"
+  )
+  if (!identical(state_identity, expected_state_identity)) {
+    figure7_stop(
+      "Panel-7F historical/generated publication identity is invalid"
+    )
+  }
   config
 }
 
@@ -557,6 +620,13 @@ figure7_si_raw_config_contract_values <- function(config) {
     )
   }
   c(
+    stats::setNames(
+      figure7_feature_species_contract_values(config),
+      paste0(
+        "feature_species.",
+        names(figure7_feature_species_contract_values(config))
+      )
+    ),
     `versioned_source_artifacts.endpoint_ploidy.sha256` =
       as.character(config$versioned_source_artifacts$endpoint_ploidy$sha256),
     `gene_sets.provider` = as.character(config$gene_sets$provider),
@@ -681,6 +751,7 @@ figure7_state_config_contract_sha256 <- function(config) {
     )
   ]
   values <- c(
+    unlist(config$feature_species, use.names = TRUE),
     config$etp$method,
     config$etp$threshold,
     unlist(config$intervals, use.names = TRUE),

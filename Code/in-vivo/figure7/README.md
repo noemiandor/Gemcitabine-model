@@ -1,8 +1,10 @@
 # Figure 7 reproducibility module
 
-This module generates the six approved Figure 7 source panels as matched PDF and
-300-DPI PNG files. It does not assemble the final A-F manuscript composite,
-matching the Figure 1-6 workflow.
+This module generates six Figure 7 source panels as matched PDF and 300-DPI PNG
+files. Panels 7A-7E are publication eligible; panel 7F is currently either the
+historical mixed-feature audit rendering or an unreviewed generated human-only
+replacement, so an A-F run remains noncanonical. The module does not assemble
+the final A-F manuscript composite, matching the Figure 1-6 workflow.
 
 ## Frozen routine analysis
 
@@ -12,7 +14,7 @@ matching the Figure 1-6 workflow.
 - Panel 7D uses the reference-balanced ETP threshold 2.24 and equal-mouse untreated ECDF references.
 - Panel 7F is rendered from immutable compact 04i tables in `Data/in-vivo/figure7/saved_state_pathway/taoli_04i_etp2_24_day17_v1/`.
 
-The eight canonical panel-7F tables are a read-only export from the exact
+The eight historical panel-7F tables are a read-only export from the exact
 `ETP_reference_balanced_threshold_2_24` analysis used by
 `04i_pseudotime_state_pathways_report.html`, with accumulated pseudotime interval
 0.30-0.49. Their reviewed SHA-256 values are pinned in `figure7_config.yaml`;
@@ -31,9 +33,10 @@ bash Manager.sh \
 ```
 
 With those two modules selected, Manager does not run Figures 1-6. It first
-validates the downstream frozen/generated caches. A complete valid cache avoids
-all raw-data access. When a missing downstream stage needs the final Seurat
-object, there are two supported source boundaries:
+validates corrected generated caches; the historical panel-7F reference and
+reviewed SI plot-only cache do not satisfy an explicit full refit. A complete,
+lineage-valid generated cache avoids raw-data access. When a missing downstream
+stage needs the final Seurat object, there are two supported source boundaries:
 
 - pass `--figure7-cellranger-root /path/to/cellranger` to reconstruct the final
   object from the 18 `filtered_feature_bc_matrix.h5` inputs and reuse the five
@@ -80,11 +83,14 @@ managed caches are preserved with a `.stale.<timestamp>` suffix before
 regeneration; explicit external paths are never modified. To require an
 already-populated raw cache, add `--figure7-no-download-missing-raw`.
 
-The raw-generated 7F reference deliberately remains separate from the reviewed
-canonical v1 reference. Until the deferred GRCh/GRCm correction is implemented,
-the fallback preserves Tao's mixed-species behavior and records
-`canonical_publication_allowed=false`. Routine `standard` runs continue to use
-the reviewed frozen 7F input.
+The byte-pinned v1 panel-7F reference is retained only for historical audit
+because it was fitted from mixed human/mouse features. Routine `standard` runs
+can still render it for comparison, but an A-F run is never publication
+eligible. The corrected full-workflow path retains exact `GRCh38-` count rows
+before expression filtering, symbol resolution, modeling, and GSEA. It writes
+a separate generated human-only v2 reference with
+`canonical_publication_allowed=false` until that result is reviewed and
+explicitly blessed. A-E runs remain publication eligible.
 
 ## Commands
 
@@ -126,14 +132,13 @@ calculation, plot labels, statistical tables, run metadata, panel contract, and
 day-bearing filenames. Panel 7B and panel 7F are scientifically independent of
 the TGI endpoint and are regenerated unchanged into the selected destination.
 
-Routine and raw-fallback runs do not refresh the tracked reviewed v1 panel-7F
-reference. Full-workflow instead writes a separately identified
-`runtime_state_pathway_legacy_mixed_v1` generated reference below the run
+Routine and raw-fallback runs do not refresh the tracked historical v1
+panel-7F reference. Full-workflow instead writes a separately identified
+`runtime_state_pathway_grch_human_only_v2` generated reference below the run
 intermediates and marks it noncanonical.
 
-To strictly re-export the reviewed canonical panel-7F reference from the
-completed 04i result tree, then generate and publish Figure 7 in one Manager
-run:
+To strictly re-export the historical mixed-feature panel-7F reference from the
+completed 04i result tree for audit and comparison:
 
 ```bash
 bash Manager.sh \
@@ -147,16 +152,14 @@ This explicit option runs
 `Code/in-vivo/figure7/export_04i_state_pathway_reference.R`. The exporter
 requires the reviewed report hash, source revision, source input/config
 checksums, and exact hashes of all eight scientific source tables. It records
-the normalized runtime source root only in run metadata; canonical provenance
-uses stable identifiers and checksums and therefore remains portable.
+the normalized runtime source root only in run metadata; the portable artifact
+provenance uses stable identifiers and checksums.
 
-The verified export is retained under the Manager run's
-`artifacts/figure7_state_pathway_reference/` directory. Only after Figure 7 and
-its manifests finish successfully does Manager atomically materialize the eight
-TSVs under
-`Data/in-vivo/figure7/saved_state_pathway/taoli_04i_etp2_24_day17_v1/` and
-write `metadata/figure7_state_pathway_materialization.tsv`. A failed Figure 7
-run cannot refresh the tracked reference.
+The verified export is retained only under the Manager run's
+`artifacts/figure7_state_pathway_reference/` directory. Manager labels the A-F
+result noncanonical, does not publish it to `figures/Figure7/`, and never copies
+the eight TSVs into tracked `Data/`. This option preserves the original v1
+audit chain; it is not a substitute for a reviewed human-only v2 reference.
 
 To explicitly generate and materialize only 7A-7E:
 
@@ -168,8 +171,8 @@ bash Manager.sh --mode standard --modules in_vivo_figure7 \
 This mode records a five-panel contract and does not read, validate, render, or
 materialize panel 7F. Each included panel is written in both PDF and PNG format.
 
-To run the standalone Figure 7 workflow directly on the HPC and generate all
-six source panels:
+To run the standalone Figure 7 workflow directly on the HPC and render all six
+panels for historical comparison:
 
 ```bash
 module load Python/3.12.3-GCCcore-13.3.0
@@ -193,8 +196,8 @@ echo "Figure 7 results: ${figure7_output_dir}"
 
 Run this command in the HPC shell rather than at an interactive R prompt. The
 timestamp creates a new output directory for every run. The `standard` mode
-recomputes panels 7A-7E and renders panel 7F from the pinned canonical 04i
-tables without refitting the 04i model.
+recomputes panels 7A-7E and renders panel 7F from the pinned historical 04i
+tables without refitting the 04i model; the resulting A-F run is noncanonical.
 
 Standalone rendering from an immutable completed run (does not rerun statistics):
 
@@ -206,12 +209,16 @@ Rscript Code/in-vivo/figure7/run_figure7.R \
   --output-dir=/new/empty/output
 ```
 
-The manager's `panels-only` mode does not invoke this R script; it materializes six existing PDFs from an explicit `--source-run-id`.
+The manager's `panels-only` mode does not invoke this R script. For Figure 7 it
+materializes the five publication-eligible A-E PDFs from an explicit
+`--source-run-id`; an A-F source run is skipped while no reviewed human-only 7F
+reference exists.
 
-The older `full-analysis` entrypoint remains available for comparison against a
-separately supplied gene-set artifact. Manager's `full-refit` path instead uses
-the raw-data fallback above, pins `msigdbr` and the MSigDB release, and keeps its
-generated legacy-mixed reference noncanonical.
+The older artifact-driven `full-analysis` entrypoint remains only as an
+explicit guard that directs callers to the corrected workflow. Manager's
+`full-refit` path uses the raw-data fallback above, pins `msigdbr` and the
+MSigDB release, applies the exact human-only feature policy, and keeps its
+generated reference noncanonical until scientific review.
 
 ## Output contract
 
@@ -239,7 +246,8 @@ Rscript Code/in-vivo/figure7/tests/testthat.R
 
 The tests parse all module files, reproduce the frozen A-E numerical results,
 enforce treated-only outcomes and selected ECDF IDs 1/8/9, validate the tracked
-canonical 04i reference and its lineage, exercise the strict panel-F contract,
-verify cached-stage fingerprints and tamper rejection, validate the complete
-Zenodo manifest, and confirm that missing raw inputs fail before output is
-created when downloading is disabled.
+historical 04i reference and its lineage, exercise the strict panel-F
+publication guard and generated human-only contract, verify cached-stage
+fingerprints and tamper rejection, validate the complete Zenodo manifest, and
+confirm that missing raw inputs fail before output is created when downloading
+is disabled.

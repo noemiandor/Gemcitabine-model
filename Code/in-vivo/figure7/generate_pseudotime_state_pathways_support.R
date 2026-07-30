@@ -172,12 +172,21 @@ format_pathway_label <- function(pathway, collection = NA_character_) {
   tools::toTitleCase(tolower(x))
 }
 
-clean_gene_symbols <- function(genes) {
+clean_gene_symbols <- function(
+  genes,
+  human_prefix = "GRCh38-",
+  mouse_prefix = "GRCm39-"
+) {
   g <- as.character(genes)
   g <- trimws(g)
-  g <- sub("^GRCh[0-9]+[-_]", "", g, ignore.case = TRUE)
-  g <- sub("^GRCm39[-_]", "", g, ignore.case = TRUE)
-  g <- sub("^hg38[-_]", "", g, ignore.case = TRUE)
+  if (any(startsWith(g, mouse_prefix))) {
+    stop(
+      "Mouse-prefixed features reached human-only symbol cleanup",
+      call. = FALSE
+    )
+  }
+  human <- startsWith(g, human_prefix)
+  g[human] <- substring(g[human], nchar(human_prefix) + 1L)
   g <- sub("\\.[0-9]+$", "", g)
   g[g == ""] <- NA_character_
   g
@@ -220,6 +229,66 @@ get_assay_data_slot <- function(obj, assay = "RNA", slot_name = "counts") {
 
 get_assay_matrix <- function(obj, assay = "RNA", slot_name = "counts") {
   get_assay_data_slot(obj, assay = assay, slot_name = slot_name)
+}
+
+join_assay_layers_for_counts <- function(
+  obj,
+  assay = "RNA",
+  counts_layer = "counts"
+) {
+  if (!methods::is(obj, "Seurat") ||
+      !assay %in% names(obj@assays) ||
+      !"Layers" %in% getNamespaceExports("SeuratObject")) {
+    return(obj)
+  }
+  count_layers <- SeuratObject::Layers(obj[[assay]])
+  count_layers <- count_layers[
+    count_layers == counts_layer |
+      startsWith(count_layers, paste0(counts_layer, "."))
+  ]
+  if (!length(count_layers)) {
+    stop(
+      "Cannot find assay counts layer: assay=",
+      assay,
+      ", layer=",
+      counts_layer,
+      call. = FALSE
+    )
+  }
+  if (length(count_layers) > 1L ||
+      !identical(count_layers[[1L]], counts_layer)) {
+    if (!"JoinLayers" %in% getNamespaceExports("SeuratObject")) {
+      stop(
+        "Multiple/split RNA counts layers require SeuratObject::JoinLayers",
+        call. = FALSE
+      )
+    }
+    obj <- tryCatch(
+      SeuratObject::JoinLayers(obj, assay = assay),
+      error = function(error) {
+        stop(
+          "Cannot join split assay layers before panel-7F counts extraction: ",
+          conditionMessage(error),
+          call. = FALSE
+        )
+      }
+    )
+  }
+  joined_count_layers <- SeuratObject::Layers(obj[[assay]])
+  joined_count_layers <- joined_count_layers[
+    joined_count_layers == counts_layer |
+      startsWith(joined_count_layers, paste0(counts_layer, "."))
+  ]
+  if (!identical(joined_count_layers, counts_layer)) {
+    stop(
+      "Panel 7F requires exactly one joined assay counts layer named ",
+      counts_layer,
+      "; observed ",
+      paste(joined_count_layers, collapse = ","),
+      call. = FALSE
+    )
+  }
+  obj
 }
 
 etp_reference_spec <- function() {
@@ -265,6 +334,26 @@ model_parameters_table <- function(model_spec) {
 read_config <- function(path) {
   cfg <- yaml::read_yaml(path)
   if (is.null(cfg$intervals)) stop("Config is missing intervals.", call. = FALSE)
+  species <- cfg$feature_species
+  expected_species <- c(
+    policy_id = "grch_human_tumor_only_v2",
+    human_prefix = "GRCh38-",
+    mouse_prefix = "GRCm39-",
+    unknown_feature_policy = "reject"
+  )
+  observed_species <- c(
+    policy_id = as.character(species$policy_id),
+    human_prefix = as.character(species$human_prefix),
+    mouse_prefix = as.character(species$mouse_prefix),
+    unknown_feature_policy =
+      as.character(species$unknown_feature_policy)
+  )
+  if (!identical(observed_species, expected_species)) {
+    stop(
+      "Config must use the exact fail-closed GRCh38-/GRCm39- policy",
+      call. = FALSE
+    )
+  }
   intervals <- lapply(names(cfg$intervals), function(name) {
     x <- cfg$intervals[[name]]
     x$name <- name
@@ -424,12 +513,29 @@ check_pseudotime <- function(meta, tolerance = 1e-8) {
   invisible(TRUE)
 }
 
-load_counts <- function(seurat_rds, assay, counts_layer) {
+load_counts <- function(
+  seurat_rds,
+  assay,
+  counts_layer,
+  human_prefix = "GRCh38-",
+  mouse_prefix = "GRCm39-"
+) {
   obj <- readRDS(seurat_rds)
+  obj <- join_assay_layers_for_counts(
+    obj,
+    assay = assay,
+    counts_layer = counts_layer
+  )
   counts <- get_assay_matrix(obj, assay = assay, slot_name = counts_layer)
   if (is.null(counts)) stop("Cannot read assay matrix: assay=", assay, ", layer/slot=", counts_layer, call. = FALSE)
   if (!inherits(counts, "Matrix")) counts <- Matrix::Matrix(as.matrix(counts), sparse = TRUE)
-  counts
+  filtered <- figure7_filter_human_feature_matrix(
+    counts,
+    analysis = "Panel 7F RNA counts",
+    human_prefix = human_prefix,
+    mouse_prefix = mouse_prefix
+  )
+  list(counts = filtered$matrix, species_audit = filtered$audit)
 }
 
 match_cells <- function(meta, counts, min_match_rate) {
@@ -1031,11 +1137,20 @@ run_support_workflow <- function(args, repo_root) {
   model_gsea <- ensure_dir(file.path(model_root, "04_gsea"))
 
   cfg <- read_config(args$config)
+  species <- cfg$feature_species
+  species_policy_path <- file.path(
+    repo_root,
+    "Code", "in-vivo", "figure7", "src",
+    "feature_species_policy.R"
+  )
+  if (!file.exists(species_policy_path)) {
+    stop("Missing shared feature-species policy helper", call. = FALSE)
+  }
   observed_msigdbr <- as.character(utils::packageVersion("msigdbr"))
   expected_msigdbr <- as.character(cfg$gene_sets$package_version)
   if (!identical(observed_msigdbr, expected_msigdbr)) {
     stop(
-      "Legacy panel-7F rebuild requires msigdbr ",
+      "Generated human-only panel-7F rebuild requires msigdbr ",
       expected_msigdbr,
       "; observed ",
       observed_msigdbr,
@@ -1043,14 +1158,34 @@ run_support_workflow <- function(args, repo_root) {
     )
   }
   seurat_rds <- resolve_seurat_rds(args$seurat_rds)
-  params <- data.frame(parameter = names(args), value = vapply(args, as.character, character(1L)), stringsAsFactors = FALSE)
+  params <- data.frame(
+    parameter = c(
+      names(args), "feature_species_policy_id",
+      "human_feature_prefix", "mouse_feature_prefix",
+      "unknown_feature_policy"
+    ),
+    value = c(
+      vapply(args, as.character, character(1L)),
+      as.character(species$policy_id),
+      as.character(species$human_prefix),
+      as.character(species$mouse_prefix),
+      as.character(species$unknown_feature_policy)
+    ),
+    stringsAsFactors = FALSE
+  )
 
   write_csv(intervals_table(cfg), file.path(manifest_dir, "frozen_interval_definition.csv"))
   write_csv(package_versions(), file.path(manifest_dir, "package_versions.csv"))
   input_checksums <- data.frame(
-    input = c("cell_metadata", "noncell_metadata", "seurat_rds", "config"),
+    input = c(
+      "cell_metadata", "noncell_metadata", "seurat_rds", "config",
+      "feature_species_policy_code"
+    ),
     locator = vapply(
-      c(args$cell_metadata, args$noncell_metadata, seurat_rds, args$config),
+      c(
+        args$cell_metadata, args$noncell_metadata, seurat_rds,
+        args$config, species_policy_path
+      ),
       portable_locator,
       character(1L),
       repo_root = repo_root
@@ -1059,7 +1194,8 @@ run_support_workflow <- function(args, repo_root) {
       file_checksum(args$cell_metadata),
       file_checksum(args$noncell_metadata),
       file_checksum(seurat_rds),
-      file_checksum(args$config)
+      file_checksum(args$config),
+      file_checksum(species_policy_path)
     ),
     stringsAsFactors = FALSE
   )
@@ -1081,7 +1217,18 @@ run_support_workflow <- function(args, repo_root) {
   check_pseudotime(meta)
 
   message("Reading Seurat counts: ", seurat_rds)
-  counts <- load_counts(seurat_rds, args$assay, args$counts_layer)
+  count_source <- load_counts(
+    seurat_rds,
+    args$assay,
+    args$counts_layer,
+    human_prefix = as.character(species$human_prefix),
+    mouse_prefix = as.character(species$mouse_prefix)
+  )
+  counts <- count_source$counts
+  write_csv(
+    count_source$species_audit,
+    file.path(manifest_dir, "feature_species_audit.csv")
+  )
   matched <- match_cells(meta, counts, args$min_match_rate)
   meta <- matched$meta
   counts <- matched$counts
@@ -1122,7 +1269,7 @@ run_support_workflow <- function(args, repo_root) {
   expected_release <- as.character(cfg$gene_sets$database_release)
   if (!identical(observed_releases, expected_release)) {
     stop(
-      "Legacy panel-7F rebuild requires MSigDB ",
+      "Generated human-only panel-7F rebuild requires MSigDB ",
       expected_release,
       "; observed ",
       paste(observed_releases, collapse = ","),
@@ -1176,7 +1323,7 @@ run_support_workflow <- function(args, repo_root) {
   dir.create(dirname(final_output_root), recursive = TRUE, showWarnings = FALSE)
   if (!file.rename(staging_root, final_output_root)) {
     stop(
-      "Could not atomically publish Figure 7 support folder: ",
+      "Could not atomically finalize Figure 7 support folder: ",
       final_output_root,
       call. = FALSE
     )
@@ -1190,6 +1337,10 @@ main <- function() {
   path <- script_path()
   script_dir <- if (!is.na(path)) dirname(path) else getwd()
   repo_root <- normalizePath(file.path(script_dir, "..", "..", ".."), mustWork = FALSE)
+  sys.source(
+    file.path(script_dir, "src", "feature_species_policy.R"),
+    envir = .GlobalEnv
+  )
   defaults <- list(
     cell_metadata = "",
     noncell_metadata = "",

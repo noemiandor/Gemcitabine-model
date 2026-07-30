@@ -384,8 +384,10 @@ FIGURE7_REVIEWED_FILES = {
     "state_pathway_provenance.tsv": "bb8f08f9afd0786216babcd5c38d577caa6fd41c4f1d52f28e54d8558c66b424",
 }
 SI7_REVIEWED_FEATURE_POLICY = (
-    "Human tumor/cell-line analysis: retain GRCh features; exclude GRCm39 "
-    "features before symbol cleanup, deduplication, ORA, and GSEA."
+    "Human tumor/cell-line analysis: retain exact GRCh38-prefixed features "
+    "and exclude exact GRCm39-prefixed features before RNA normalization, "
+    "differential expression, symbol cleanup, deduplication, ORA, and GSEA; "
+    "reject unrecognized feature prefixes."
 )
 SI7_REVIEWED_GENE_SET_DATABASE = (
     "MSigDB 2026.1.Hs Hallmark (Homo sapiens symbols)"
@@ -607,6 +609,7 @@ def validate_strict_source_run(
     source_run_id: str,
     figure7_tgi_day: int,
 ) -> None:
+    historical_mixed_panel_f = False
     if module not in STRICT_FIGURE_MODULES:
         return
     if module == "si_figures":
@@ -790,6 +793,7 @@ def validate_strict_source_run(
                     "Canonical Figure 7 materialization is prohibited: "
                     "reviewed provenance lineage is invalid"
                 )
+            historical_mixed_panel_f = True
 
     panel_contract = run_root / "metadata" / "panel_contract.tsv"
     if not panel_contract.is_file():
@@ -844,6 +848,14 @@ def validate_strict_source_run(
             raise ValueError(f"Output-manifest provenance mismatch for {source}")
         if row.get("sha256", "").strip() != sha256_file(source):
             raise ValueError(f"Output-manifest checksum mismatch for {source}")
+
+    if historical_mixed_panel_f:
+        raise ValueError(
+            "Canonical Figure 7 materialization is prohibited: "
+            f"{FIGURE7_REVIEWED_REFERENCE_ID} is a historical mixed-species "
+            "panel-7F reference. A reviewed GRCh-only v2 reference has not "
+            "been blessed."
+        )
 
 
 def main() -> int:

@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
 
 # Export a compact, run-scoped panel-7F reference from this repository's
-# generated state-pathway support tree. The reviewed canonical 04i export uses
-# a separate exporter and provenance contract.
+# generated state-pathway support tree. The historical byte-pinned 04i audit
+# export uses a separate exporter and provenance contract.
 
 args_full <- commandArgs(trailingOnly = FALSE)
 file_arg <- grep("^--file=", args_full, value = TRUE)
@@ -14,6 +14,10 @@ script_path <- if (length(file_arg)) {
 script_dir <- dirname(normalizePath(script_path, mustWork = FALSE))
 repo_root <- normalizePath(file.path(script_dir, "..", "..", ".."), mustWork = TRUE)
 sys.source(file.path(script_dir, "src", "common_io.R"), envir = .GlobalEnv)
+sys.source(
+  file.path(script_dir, "src", "feature_species_policy.R"),
+  envir = .GlobalEnv
+)
 
 required_packages <- c("readr", "digest")
 missing_packages <- required_packages[!vapply(required_packages, requireNamespace, logical(1L), quietly = TRUE)]
@@ -85,6 +89,8 @@ manifest_root <- file.path(results_root, "00_manifest")
 workflow_root <- file.path(results_root, workflow_id)
 model_root <- file.path(workflow_root, model_id)
 source_paths <- c(
+  feature_species_audit =
+    file.path(manifest_root, "feature_species_audit.csv"),
   primary_gsea = file.path(model_root, "04_gsea", "all_collections_primary_adjacent_state_gsea.csv"),
   activity = file.path(model_root, "04_gsea", "pathway_activity_over_pseudotime.csv"),
   leading_edge = file.path(model_root, "04_gsea", "all_collections_leading_edge_genes.csv"),
@@ -105,6 +111,9 @@ intervals <- read_csv(file.path(manifest_root, "frozen_interval_definition.csv")
 input_checksums <- read_csv(file.path(manifest_root, "input_checksums.csv"))
 package_versions <- read_csv(file.path(manifest_root, "package_versions.csv"))
 gene_set_contract <- read_csv(file.path(manifest_root, "gene_set_contract.csv"))
+feature_species_audit <- read_csv(
+  source_paths[["feature_species_audit"]]
+)
 gene_set_membership_path <- file.path(manifest_root, "gene_set_membership.csv")
 if (!file.exists(gene_set_membership_path)) {
   figure7_stop("Missing generated gene-set membership manifest")
@@ -115,6 +124,15 @@ assert_columns(intervals, c("interval_id", "start", "end", "include_start", "inc
 assert_columns(input_checksums, c("input", "locator", "sha256"), "input checksums")
 assert_columns(package_versions, c("package", "version"), "package versions")
 assert_columns(gene_set_contract, c("key", "value"), "gene-set contract")
+assert_columns(
+  feature_species_audit,
+  c(
+    "policy_id", "policy", "human_prefix", "mouse_prefix",
+    "n_input_features", "n_human_features_retained",
+    "n_mouse_features_excluded", "n_ambiguous_features"
+  ),
+  "feature-species audit"
+)
 assert_columns(model_parameters, c("parameter", "value"), "model parameters")
 if (anyDuplicated(gene_set_contract$key)) {
   figure7_stop("Gene-set contract contains duplicate keys")
@@ -153,7 +171,10 @@ if (!all(required_gene_set_keys %in% names(gene_set_value)) ||
 }
 
 observed_inputs <- setNames(as.character(input_checksums$sha256), as.character(input_checksums$input))
-if (!all(c("cell_metadata", "noncell_metadata", "seurat_rds", "config") %in%
+if (!all(c(
+  "cell_metadata", "noncell_metadata", "seurat_rds", "config",
+  "feature_species_policy_code"
+) %in%
          names(observed_inputs)) ||
     any(!grepl("^[0-9a-f]{64}$", observed_inputs))) {
   figure7_stop("State-pathway input checksum lineage is incomplete")
@@ -168,12 +189,49 @@ expected_parameters <- c(
   seed = "1",
   gsea_min_size = "15",
   gsea_max_size = "500",
-  grid_size = "501"
+  grid_size = "501",
+  feature_species_policy_id =
+    as.character(config$feature_species$policy_id),
+  human_feature_prefix =
+    as.character(config$feature_species$human_prefix),
+  mouse_feature_prefix =
+    as.character(config$feature_species$mouse_prefix),
+  unknown_feature_policy =
+    as.character(config$feature_species$unknown_feature_policy)
 )
 for (key in names(expected_parameters)) {
   if (!identical(parameter_value(analysis_parameters, key, "analysis parameters"), expected_parameters[[key]])) {
     figure7_stop("Unexpected state-pathway analysis parameter ", key)
   }
+}
+if (nrow(feature_species_audit) != 1L ||
+    !identical(
+      as.character(feature_species_audit$policy_id),
+      as.character(config$feature_species$policy_id)
+    ) ||
+    !identical(
+      as.character(feature_species_audit$human_prefix),
+      as.character(config$feature_species$human_prefix)
+    ) ||
+    !identical(
+      as.character(feature_species_audit$mouse_prefix),
+      as.character(config$feature_species$mouse_prefix)
+    )) {
+  figure7_stop("Generated feature-species audit/config identity is invalid")
+}
+species_counts <- c(
+  input = as.integer(feature_species_audit$n_input_features),
+  human = as.integer(feature_species_audit$n_human_features_retained),
+  mouse = as.integer(feature_species_audit$n_mouse_features_excluded),
+  ambiguous = as.integer(feature_species_audit$n_ambiguous_features)
+)
+if (anyNA(species_counts) ||
+    species_counts[["human"]] < 10000L ||
+    species_counts[["mouse"]] < 0L ||
+    species_counts[["ambiguous"]] != 0L ||
+    species_counts[["input"]] !=
+      species_counts[["human"]] + species_counts[["mouse"]]) {
+  figure7_stop("Generated feature-species audit counts are invalid")
 }
 if (!identical(parameter_value(model_parameters, "model_id", "model parameters"), model_id) ||
     !identical(parameter_value(model_parameters, "covariate_mode", "model parameters"), "etp_group") ||
@@ -340,15 +398,30 @@ assert_columns(
 if (nrow(contrast) < 10000L || nrow(resolution) != nrow(contrast)) {
   figure7_stop("Generated complete gene tables are implausibly small or misaligned")
 }
+figure7_assert_human_feature_names(
+  as.character(contrast$gene),
+  analysis = "Generated panel-7F contrast",
+  human_prefix = as.character(config$feature_species$human_prefix),
+  mouse_prefix = as.character(config$feature_species$mouse_prefix)
+)
 retained <- resolution[as.logical(resolution$retained_for_gsea), , drop = FALSE]
 contrast_index <- match(retained$gene, contrast$gene)
 if (anyNA(contrast_index)) figure7_stop("Retained GSEA genes are missing from the contrast table")
 ranked <- contrast[contrast_index, , drop = FALSE]
 ranked$resolution_rank <- retained$resolution_rank
 ranked <- ranked[order(-ranked$t_statistic, ranked$gene_symbol), , drop = FALSE]
-if (nrow(ranked) != 28908L || anyDuplicated(ranked$gene_symbol)) {
-  figure7_stop("Canonical GSEA ranking must contain 28,908 unique gene symbols")
+if (nrow(ranked) < 10000L || anyDuplicated(ranked$gene_symbol)) {
+  figure7_stop(
+    "Generated human-only GSEA ranking is implausibly small or has ",
+    "duplicate gene symbols"
+  )
 }
+figure7_assert_human_feature_names(
+  as.character(ranked$gene),
+  analysis = "Generated panel-7F ranking",
+  human_prefix = as.character(config$feature_species$human_prefix),
+  mouse_prefix = as.character(config$feature_species$mouse_prefix)
+)
 gene_ranking_export <- data.frame(
   rank = seq_len(nrow(ranked)),
   gene_id = ranked$gene,
@@ -543,11 +616,27 @@ provenance <- c(
   contrast = "mean(primary grid) - 0.5 * mean(left grid) - 0.5 * mean(right grid)",
   gsea_rank_statistic = "moderated_t",
   pathway_activity = "row-standardize fitted expression per leading-edge gene, then average genes",
-  feature_species_policy = paste(
-    "mixed GRCh38 and GRCm39 features; strip GRCh/GRCm/hg38 prefixes and version suffixes;",
-    "preserve symbol case; resolve duplicate symbols by largest absolute moderated t then p value;",
-    "query Homo sapiens MSigDB gene symbols"
-  ),
+  feature_species_policy_id =
+    as.character(config$feature_species$policy_id),
+  feature_species_policy =
+    as.character(config$state_pathways$generated_feature_species_policy),
+  human_feature_prefix =
+    as.character(config$feature_species$human_prefix),
+  mouse_feature_prefix =
+    as.character(config$feature_species$mouse_prefix),
+  unknown_feature_policy =
+    as.character(config$feature_species$unknown_feature_policy),
+  n_input_features = as.character(species_counts[["input"]]),
+  n_human_features_retained =
+    as.character(species_counts[["human"]]),
+  n_mouse_features_excluded =
+    as.character(species_counts[["mouse"]]),
+  n_ambiguous_features =
+    as.character(species_counts[["ambiguous"]]),
+  feature_species_audit_sha256 =
+    observed_source_sha256[["feature_species_audit"]],
+  feature_species_policy_code_sha256 =
+    input_value("feature_species_policy_code", "sha256"),
   gsea_ranking_rule = "one row per cleaned gene symbol; descending moderated t; ties retain cleaned-symbol order",
   pathway_selection_rule = "finite adjusted P; no FDR cutoff; top four per sign and collection",
   activity_table_sha256 =
@@ -601,5 +690,8 @@ if (!identical(observed_files, sort(expected_files)) || any(file.info(file.path(
 dir.create(dirname(output_dir), recursive = TRUE, showWarnings = FALSE)
 if (!file.rename(staging_dir, output_dir)) figure7_stop("Could not atomically materialize generated reference: ", output_dir)
 completed <- TRUE
-message("Exported generated legacy-mixed state-pathway panel-7F reference: ", output_dir)
+message(
+  "Exported generated GRCh-only state-pathway panel-7F reference: ",
+  output_dir
+)
 message("Activity rows: ", nrow(activity_export), "; selected pathways: ", nrow(selected_export))

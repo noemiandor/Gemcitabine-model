@@ -1,6 +1,6 @@
-# Optional full pathway recomputation guard.
-# The 04i full model is deliberately not invoked until the canonical compact
-# reference and its mixed-species feature policy have been scientifically approved.
+# Retired optional full-analysis guard.
+# Corrected panel-7F recomputation is implemented by the cache-aware
+# full-workflow support/export path, not this older artifact-driven entrypoint.
 
 figure7_full_analysis <- function(seurat_rds, gene_set_artifact, reference, output_dir, config) {
   if (is.null(seurat_rds) || !nzchar(seurat_rds) || !file.exists(seurat_rds)) {
@@ -11,8 +11,8 @@ figure7_full_analysis <- function(seurat_rds, gene_set_artifact, reference, outp
   }
   invisible(vapply(c(seurat_rds, gene_set_artifact), figure7_sha256, character(1L)))
   figure7_stop(
-    "Full panel-7F recomputation is guarded: the canonical 04i compact reference is not yet available ",
-    "and the mixed human/mouse feature policy has not been approved. No live gene-set fallback or ",
-    "reference replacement will be performed."
+    "This older --mode=full-analysis entrypoint is retired. Use full-workflow ",
+    "to recompute panel 7F with exact GRCh-only counts and a run-scoped, ",
+    "noncanonical generated reference."
   )
 }

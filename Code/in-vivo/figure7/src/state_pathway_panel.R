@@ -14,8 +14,8 @@ figure7_state_required_files <- function() c(
 figure7_validate_state_reference <- function(path, config, verify_checksums = TRUE) {
   expected_id <- as.character(config$state_pathways$reference_id)
   if (!dir.exists(path)) {
-    figure7_stop("Missing canonical panel-7F saved-state directory: ", path,
-                 ". Export the reviewed 04i compact audit tables; the report PDF/HTML is not a substitute.")
+    figure7_stop("Missing historical panel-7F saved-state directory: ", path,
+                 ". Export the byte-pinned 04i compact audit tables; the report PDF/HTML is not a substitute.")
   }
   if (!identical(basename(normalizePath(path)), expected_id)) {
     figure7_stop("Saved-state directory must use frozen reference ID ", expected_id, ": ", path)

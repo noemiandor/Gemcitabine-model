@@ -329,6 +329,7 @@ module_run_dir() {
 figure7_runtime_source_paths() {
   printf "%s\n" \
     Code/in-vivo/figure7/src/common_io.R \
+    Code/in-vivo/figure7/src/feature_species_policy.R \
     Code/in-vivo/figure7/src/input_preflight.R \
     Code/in-vivo/figure7/src/seurat_upstream_selection.R \
     Code/in-vivo/figure7/src/tgi_data.R \
@@ -352,14 +353,6 @@ si_figures_frozen_cache_paths() {
     awk -F '\t' 'NR > 1 && $1 != "" { print "Data/in-vivo/SIfigures/" $1 }' \
       "${cache_manifest}"
   fi
-}
-
-si_figures_reviewed_cache_is_valid() {
-  local validator="Code/tools/validate_si_figures_table_cache.py"
-  [[ -f "${validator}" ]] &&
-    python3 "${validator}" \
-      --cache-dir Data/in-vivo/SIfigures \
-      >/dev/null 2>&1
 }
 
 input_paths_for_module() {
@@ -740,11 +733,11 @@ required_input_paths_for_module() {
         Code/tools/validate_si_figures_table_cache.py \
         Code/in-vivo/SI_figures/run_supplementary_figures.R \
         Code/in-vivo/SI_figures/generate_supplementary_figures.R
-      if [[ "${mode}" == "full-refit" ]] &&
-          ! si_figures_reviewed_cache_is_valid; then
+      if [[ "${mode}" == "full-refit" ]]; then
         printf "%s\n" \
           Code/in-vivo/figure7/environment_lock.tsv \
           Code/in-vivo/figure7/src/common_io.R \
+          Code/in-vivo/figure7/src/feature_species_policy.R \
           Code/in-vivo/figure7/src/seurat_upstream.R \
           Code/in-vivo/figure7/src/seurat_upstream_selection.R \
           Code/in-vivo/figure7/generate_final_seurat_from_cellranger.R \
@@ -872,6 +865,12 @@ command_for_module() {
           "--output-dir=${run_dir}"
         )
       elif [[ "${mode}" == "full-refit" ]]; then
+        if [[ -n "${figure7_state_pathway_results_root}" ]]; then
+          echo \
+            "--figure7-state-pathway-results-root is a historical mixed-v1 input and cannot be used by corrected full-refit" \
+            >&2
+          return 1
+        fi
         figure7_args=(
           Rscript Code/in-vivo/figure7/run_figure7.R
           --mode=full-workflow
@@ -896,11 +895,6 @@ command_for_module() {
         fi
         if [[ -n "${figure7_raw_seurat_rds}" ]]; then
           figure7_args+=("--seurat-rds=${figure7_raw_seurat_rds}")
-        fi
-        if [[ -n "${figure7_state_pathway_results_root}" ]]; then
-          figure7_args+=(
-            "--frozen-state-pathway-dir=${figure7_reference_root}"
-          )
         fi
       else
         figure7_args=(
@@ -1022,16 +1016,7 @@ module_is_publishable_run() {
         module_publication_reason="invalid_panel_set=${panel_set}"
         return 1
       fi
-      local allowed reference_id reference_kind
-      allowed="$(metadata_value "${run_config}" canonical_publication_allowed)" || true
-      reference_id="$(metadata_value "${run_config}" state_pathway_reference_id)" || true
-      reference_kind="$(metadata_value "${run_config}" state_pathway_reference_kind)" || true
-      if [[ "${allowed}" == "true" &&
-            "${reference_id}" == "${figure7_reference_id}" &&
-            "${reference_kind}" == "reviewed_frozen" ]]; then
-        return 0
-      fi
-      module_publication_reason="noncanonical_panel_7F_reference"
+      module_publication_reason="no_reviewed_GRCh_only_panel_7F_reference"
       return 1
       ;;
     si_figures)
@@ -1040,7 +1025,7 @@ module_is_publishable_run() {
       if [[ "${allowed}" == "true" ]]; then
         return 0
       fi
-      module_publication_reason="noncanonical_legacy_mixed_SI7"
+      module_publication_reason="noncanonical_generated_human_only_SI7"
       return 1
       ;;
     *)
@@ -1064,10 +1049,9 @@ record_figure7_reference_export() {
     printf "status\t%s\n" "${status}"
     printf "source_results_root\t%s\n" "${figure7_state_pathway_results_root}"
     printf "source_report_html\t%s\n" "${figure7_state_pathway_results_root}/report/04i_pseudotime_state_pathways_report.html"
-    printf "canonical_reference_id\t%s\n" "${figure7_reference_id}"
-    printf "exported_reference_dir\t%s\n" "${figure7_reference_root}"
-    printf "canonical_data_reference_dir\t%s\n" "${figure7_canonical_reference_root}"
-    printf "canonical_data_materialization_metadata\t%s\n" "${manager_run_dir}/metadata/figure7_state_pathway_materialization.tsv"
+    printf "historical_reference_id\t%s\n" "${figure7_reference_id}"
+    printf "exported_audit_reference_dir\t%s\n" "${figure7_reference_root}"
+    printf "canonical_data_materialization\tprohibited\n"
     printf "exporter_script\t%s\n" "Code/in-vivo/figure7/export_04i_state_pathway_reference.R"
     printf "command\t%s\n" "${command_string}"
     printf "stdout_log\t%s\n" "${stdout_log}"
@@ -1105,51 +1089,6 @@ figure7_reference_filenames() {
     state_pathway_sample_bin_coverage.tsv \
     state_pathway_design_qc.tsv \
     state_pathway_provenance.tsv
-}
-
-record_figure7_reference_materialization() {
-  local status="$1" started_at="$2" finished_at="$3"
-  local metadata_path="${manager_run_dir}/metadata/figure7_state_pathway_materialization.tsv"
-  {
-    printf "key\tvalue\n"
-    printf "status\t%s\n" "${status}"
-    printf "canonical_reference_id\t%s\n" "${figure7_reference_id}"
-    printf "source_reference_dir\t%s\n" "${figure7_reference_root}"
-    printf "target_data_reference_dir\t%s\n" "${figure7_canonical_reference_root}"
-    printf "materialized_file_count\t8\n"
-    printf "started_at\t%s\n" "${started_at}"
-    printf "finished_at\t%s\n" "${finished_at}"
-  } > "${metadata_path}"
-}
-
-materialize_figure7_reference_to_data() {
-  local filename source_path target_path temporary_path
-  local materialized_count=0
-
-  while IFS= read -r filename; do
-    [[ -z "${filename}" ]] && continue
-    require_file "${figure7_reference_root}/${filename}"
-  done < <(figure7_reference_filenames)
-
-  mkdir -p "${figure7_canonical_reference_root}"
-  while IFS= read -r filename; do
-    [[ -z "${filename}" ]] && continue
-    source_path="${figure7_reference_root}/${filename}"
-    target_path="${figure7_canonical_reference_root}/${filename}"
-    temporary_path="${figure7_canonical_reference_root}/.${filename}.tmp.${run_id}"
-    cp "${source_path}" "${temporary_path}"
-    mv "${temporary_path}" "${target_path}"
-    if ! cmp -s "${source_path}" "${target_path}"; then
-      echo "Materialized Figure 7 reference does not match exported artifact: ${target_path}" >&2
-      return 1
-    fi
-    materialized_count=$((materialized_count + 1))
-  done < <(figure7_reference_filenames)
-
-  if [[ "${materialized_count}" -ne 8 ]]; then
-    echo "Expected to materialize 8 Figure 7 reference files; found ${materialized_count}" >&2
-    return 1
-  fi
 }
 
 run_module() {
@@ -1266,26 +1205,7 @@ run_module() {
 
   if [[ "${module}" == "in_vivo_figure7" &&
         -n "${figure7_state_pathway_results_root}" ]]; then
-    local materialization_started_at materialization_finished_at
-    materialization_started_at="$(date -Iseconds)"
-    if ! materialize_figure7_reference_to_data; then
-      materialization_finished_at="$(date -Iseconds)"
-      record_figure7_reference_materialization "failed" \
-        "${materialization_started_at}" "${materialization_finished_at}"
-      finished_at="${materialization_finished_at}"
-      record_module_run \
-        "${module}" "failed" "${command_string}" "${run_dir}" \
-        "${stdout_log}" "${stderr_log}" \
-        "state_pathway_materialization_failed;${module_notes};state_pathway_canonical_data_dir=${figure7_canonical_reference_root}" \
-        "${started_at}" "${finished_at}"
-      echo "Figure 7 canonical Data reference materialization failed: ${figure7_canonical_reference_root}" >&2
-      return 1
-    fi
-    materialization_finished_at="$(date -Iseconds)"
-    record_figure7_reference_materialization "ok" \
-      "${materialization_started_at}" "${materialization_finished_at}"
-    module_notes="${module_notes};state_pathway_canonical_data_dir=${figure7_canonical_reference_root}"
-    finished_at="${materialization_finished_at}"
+    module_notes="${module_notes};historical_mixed_v1_audit_only=true;canonical_data_materialization=prohibited"
   fi
 
   local recorded_status="ok"

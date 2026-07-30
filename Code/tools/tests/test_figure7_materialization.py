@@ -206,25 +206,48 @@ class Figure7MaterializationTest(unittest.TestCase):
             capture_output=True,
         )
 
-    def test_materializes_exact_six_with_source_provenance(self) -> None:
+    def test_rejects_historical_mixed_v1_even_with_legacy_reviewed_identity(
+        self,
+    ) -> None:
         result = self._run_materializer()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        manifest = self.repo / "figures/Figure7/manifest.tsv"
-        with manifest.open(newline="") as handle:
-            rows = list(csv.DictReader(handle, delimiter="\t"))
-        expected_panels = [value for letter in "ABCDEF" for value in (f"7{letter}", f"7{letter}_png")]
-        self.assertEqual([row["panel"] for row in rows], expected_panels)
-        self.assertEqual({row["run_id"] for row in rows}, {self.source_id})
-        self.assertEqual(
-            {row["result_run_dir"] for row in rows},
-            {
-                "manifest:../../"
-                + str(self.run_root.relative_to(self.repo))
-            },
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Canonical Figure 7 materialization is prohibited",
+            result.stderr,
         )
-        self.assertTrue(
-            all(f"materialization_operation_id={self.operation_id}" in row["notes"] for row in rows)
+        self.assertFalse((self.repo / "figures").exists())
+
+    def test_rejects_explicit_historical_mixed_v1_for_af(self) -> None:
+        write_tsv(
+            self.run_root / "metadata/run_config.tsv",
+            [
+                {"key": "panel_set", "value": "a-f"},
+                {"key": "tgi_day", "value": "17"},
+                {
+                    "key": "state_pathway_reference_id",
+                    "value": "taoli_04i_etp2_24_day17_v1",
+                },
+                {
+                    "key": "state_pathway_reference_kind",
+                    "value": "historical_mixed_frozen",
+                },
+                {
+                    "key": "canonical_publication_allowed",
+                    "value": "false",
+                },
+            ],
+            ["key", "value"],
         )
+        self._write_state_provenance(
+            canonical_publication_allowed="false"
+        )
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Canonical Figure 7 materialization is prohibited",
+            result.stderr,
+        )
+        self.assertFalse((self.repo / "figures").exists())
 
     def test_materializes_explicit_ae_run_without_optional_panel_f(self) -> None:
         panel_f = [spec for spec in self.figure7_specs if str(spec["panel"]).startswith("7F")]

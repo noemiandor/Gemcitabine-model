@@ -1,5 +1,10 @@
 schema_version: 1
 module: in_vivo_figure7
+feature_species:
+  policy_id: grch_human_tumor_only_v2
+  human_prefix: "GRCh38-"
+  mouse_prefix: "GRCm39-"
+  unknown_feature_policy: reject
 raw_data:
   doi: 10.5281/zenodo.21463392
   record_id: 21463392
@@ -38,10 +43,10 @@ si_figures:
   plot_shuffle_seed: 5826
   raw_rebuild_analysis_seed: 5826
   raw_rebuild_fgsea_nperm_simple: 10000
-  si7_feature_species_policy: "Human tumor/cell-line analysis: retain GRCh features; exclude GRCm39 features before symbol cleanup, deduplication, ORA, and GSEA."
+  si7_feature_species_policy: "Human tumor/cell-line analysis: retain exact GRCh38-prefixed features and exclude exact GRCm39-prefixed features before RNA normalization, differential expression, symbol cleanup, deduplication, ORA, and GSEA; reject unrecognized feature prefixes."
   si7_gene_set_database: "MSigDB 2026.1.Hs Hallmark (Homo sapiens symbols)"
-  raw_rebuild_species_policy: "Legacy Tao behavior retained pending the planned species-policy correction: strip GRCh/GRCm prefixes, preserve symbol case, and match Homo sapiens Hallmark symbols. Raw-rebuilt SI7 tables are not canonical publication inputs."
-  raw_rebuild_gene_set_database: "Live msigdbr Homo sapiens Hallmark query under pinned msigdbr 26.1.0; exact release is recorded at runtime; not approved for canonical publication."
+  raw_rebuild_species_policy: "Generated human-only analysis: retain exact GRCh38-prefixed counts and exclude exact GRCm39-prefixed counts before fresh RNA normalization and cluster differential expression; preserve symbol case for Homo sapiens Hallmark matching; reject unrecognized feature prefixes. Raw-rebuilt tables remain unreviewed publication inputs."
+  raw_rebuild_gene_set_database: "Live msigdbr Homo sapiens Hallmark query under pinned msigdbr 26.1.0; exact release is recorded at runtime; generated tables remain unreviewed publication inputs."
   umap_reduction: umap
   pca_reduction: pca
   cluster_id_field: clusters
@@ -109,10 +114,12 @@ intervals:
     source: "equal-width state immediately after the primary interval"
 state_pathways:
   reference_id: taoli_04i_etp2_24_day17_v1
-  generated_reference_id: runtime_state_pathway_legacy_mixed_v1
-  generated_reference_kind: generated_legacy_mixed
+  reference_kind: historical_mixed_frozen
+  reference_canonical_publication_allowed: false
+  generated_reference_id: runtime_state_pathway_grch_human_only_v2
+  generated_reference_kind: generated_human_only
   generated_canonical_publication_allowed: false
-  generated_feature_species_policy: "Legacy Tao behavior retained pending correction: GRCh/GRCm features remain together after prefix cleanup and are matched to human gene sets."
+  generated_feature_species_policy: "Retain exact GRCh38-prefixed counts and exclude exact GRCm39-prefixed counts before pseudobulk construction, expression filtering, model fitting, symbol cleanup, duplicate resolution, and Homo sapiens GSEA; reject unrecognized feature prefixes."
   reference_root: Data/in-vivo/figure7/saved_state_pathway
   model: ETP_reference_balanced_threshold_2_24
   accumulated_interval: {start: 0.30, end: 0.49, include_start: true, include_end: true}

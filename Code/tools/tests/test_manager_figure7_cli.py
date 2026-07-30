@@ -292,7 +292,9 @@ input_paths_for_module in_vivo_figure7 "$1"
                 archived_paths,
             )
 
-    def test_state_pathway_results_root_runs_exporter_and_is_recorded(self) -> None:
+    def test_state_pathway_results_root_is_retained_for_historical_audit(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             output_root = tmp_path / "Results"
@@ -401,55 +403,36 @@ exit 99
                 export_metadata["source_results_root"],
                 str(source_results_root.resolve()),
             )
-            reference_root = Path(export_metadata["exported_reference_dir"])
+            reference_root = Path(
+                export_metadata["exported_audit_reference_dir"]
+            )
             self.assertEqual(
                 reference_root.name,
                 "taoli_04i_etp2_24_day17_v1",
             )
             self.assertEqual(len(list(reference_root.glob("*.tsv"))), 8)
             self.assertEqual(
-                export_metadata["canonical_data_reference_dir"],
-                str(canonical_reference_root),
+                export_metadata["historical_reference_id"],
+                "taoli_04i_etp2_24_day17_v1",
             )
             self.assertEqual(
-                len(list(canonical_reference_root.glob("*.tsv"))),
-                8,
+                export_metadata["canonical_data_materialization"],
+                "prohibited",
             )
-            canonical_provenance = (
-                canonical_reference_root / "state_pathway_provenance.tsv"
+            self.assertFalse(canonical_reference_root.exists())
+            audit_provenance = (
+                reference_root / "state_pathway_provenance.tsv"
             ).read_text()
             self.assertNotIn(
                 str(source_results_root.resolve()),
-                canonical_provenance,
+                audit_provenance,
             )
-            for exported_path in reference_root.glob("*.tsv"):
-                self.assertEqual(
-                    exported_path.read_bytes(),
-                    (
-                        canonical_reference_root / exported_path.name
-                    ).read_bytes(),
-                )
 
             materialization_path = (
                 manager_root
                 / "metadata/figure7_state_pathway_materialization.tsv"
             )
-            with materialization_path.open(newline="") as handle:
-                materialization_metadata = {
-                    row["key"]: row["value"]
-                    for row in csv.DictReader(handle, delimiter="\t")
-                }
-            self.assertEqual(materialization_metadata["status"], "ok")
-            self.assertEqual(
-                materialization_metadata[
-                    "target_data_reference_dir"
-                ],
-                str(canonical_reference_root),
-            )
-            self.assertEqual(
-                materialization_metadata["materialized_file_count"],
-                "8",
-            )
+            self.assertFalse(materialization_path.exists())
 
             run_root = (
                 output_root
@@ -476,12 +459,16 @@ exit 99
                 module_runs,
             )
             self.assertIn(
-                "state_pathway_canonical_data_dir="
-                f"{canonical_reference_root}",
+                "historical_mixed_v1_audit_only=true",
                 module_runs,
             )
-            self.assertTrue(
-                (figure_root / "Figure7/manifest.tsv").is_file()
+            self.assertIn(
+                "canonical_data_materialization=prohibited",
+                module_runs,
+            )
+            self.assertIn("ok_noncanonical", module_runs)
+            self.assertFalse(
+                (figure_root / "Figure7/manifest.tsv").exists()
             )
 
     def test_failed_figure7_run_does_not_materialize_canonical_reference(
@@ -572,7 +559,10 @@ exit 7
 
             rows = []
             for spec in PANEL_SPECS:
-                if spec["module"] != "in_vivo_figure7":
+                if (
+                    spec["module"] != "in_vivo_figure7"
+                    or str(spec["panel"]).startswith("7F")
+                ):
                     continue
                 source = run_root / str(spec["source"])
                 source.write_bytes(f"fake PDF {spec['panel']}\n".encode())
@@ -599,20 +589,8 @@ exit 7
             write_tsv(
                 run_root / "metadata/run_config.tsv",
                 [
-                    {"key": "panel_set", "value": "a-f"},
+                    {"key": "panel_set", "value": "a-e"},
                     {"key": "tgi_day", "value": "17"},
-                    {
-                        "key": "state_pathway_reference_id",
-                        "value": "taoli_04i_etp2_24_day17_v1",
-                    },
-                    {
-                        "key": "state_pathway_reference_kind",
-                        "value": "reviewed_frozen",
-                    },
-                    {
-                        "key": "canonical_publication_allowed",
-                        "value": "true",
-                    },
                 ],
                 ["key", "value"],
             )
@@ -622,6 +600,7 @@ exit 7
                     {"panel_id": spec["panel"], "filename": Path(str(spec["source"])).name}
                     for spec in PANEL_SPECS
                     if spec["module"] == "in_vivo_figure7"
+                    and not str(spec["panel"]).startswith("7F")
                     and spec.get("variant", "pdf") == "pdf"
                 ],
                 ["panel_id", "filename"],

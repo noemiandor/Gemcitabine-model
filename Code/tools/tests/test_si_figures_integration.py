@@ -46,6 +46,15 @@ class SiFiguresManagerTest(unittest.TestCase):
         )
         self.assertIn("si_figures", default_line)
 
+    def test_reviewed_si_policy_matches_materialization_guard(self) -> None:
+        config_text = (
+            REPO_ROOT / "Code/in-vivo/figure7/figure7_config.yaml"
+        ).read_text()
+        self.assertIn(
+            f'si7_feature_species_policy: "{SI7_REVIEWED_FEATURE_POLICY}"',
+            config_text,
+        )
+
     def test_check_only_uses_frozen_cache_without_raw_workflow(self) -> None:
         result = subprocess.run(
             [
@@ -142,7 +151,7 @@ class SiFiguresManagerTest(unittest.TestCase):
             result.stdout.index("[si_figures]"),
         )
 
-    def test_full_refit_with_reviewed_cache_skips_raw_source_precheck(self) -> None:
+    def test_full_refit_requires_raw_lineage_despite_reviewed_cache(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             missing_ploidy = tmp_path / "absent-all-ploidy.tsv"
@@ -175,12 +184,11 @@ class SiFiguresManagerTest(unittest.TestCase):
                 text=True,
                 capture_output=True,
             )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        command = self._dry_run_commands(result.stdout)["si_figures"]
-        self.assertIn("--mode=full-workflow", command)
-        self.assertIn(f"--all-ploidy={missing_ploidy}", command)
-        self.assertIn(f"--sample-info={missing_sample_info}", command)
-        self.assertIn(f"--seurat-rds={missing_seurat}", command)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            f"Missing required file: {missing_ploidy}",
+            result.stderr,
+        )
 
     def test_explicit_shared_upstream_and_cellranger_are_forwarded_to_both(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

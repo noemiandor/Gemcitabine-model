@@ -374,6 +374,7 @@ figure7_state_results_match_inputs <- function(paths, config_path, config) {
     outputs = figure7_state_output_hashes(paths),
     required_keys = c(
       "support_script_sha256",
+      "feature_species_policy_code_sha256",
       "r_environment_contract_sha256",
       "cellcycle_sha256",
       "noncellcycle_sha256",
@@ -973,6 +974,8 @@ figure7_reference_dependency_values <- function(
       state_dependencies[["config_contract_sha256"]],
     support_script_sha256 =
       state_dependencies[["support_script_sha256"]],
+    feature_species_policy_code_sha256 =
+      state_dependencies[["feature_species_policy_code_sha256"]],
     exporter_script_sha256 = figure7_script_hash(
       config_path,
       "export_state_pathway_reference.R"
@@ -1023,6 +1026,7 @@ figure7_reference_stage_manifest_matches <- function(
       "audit_figure7_config_sha256",
       "config_contract_sha256",
       "support_script_sha256",
+      "feature_species_policy_code_sha256",
       "exporter_script_sha256",
       "exporter_common_io_sha256",
       "r_environment_contract_sha256",
@@ -1055,6 +1059,11 @@ figure7_state_dependency_values <- function(paths, config_path, config) {
       config_path,
       "generate_pseudotime_state_pathways_support.R"
     ),
+    feature_species_policy_code_sha256 = figure7_sha256(file.path(
+      dirname(config_path),
+      "src",
+      "feature_species_policy.R"
+    )),
     r_environment_contract_sha256 =
       figure7_environment_stage_contract_sha256(
         environment_lock,
@@ -1079,6 +1088,7 @@ figure7_state_dependency_values <- function(paths, config_path, config) {
     config_contract_sha256 =
       figure7_state_config_contract_sha256(config),
     parameter_contract_sha256 = figure7_sha256_text(c(
+      unname(figure7_feature_species_contract_values(config)),
       config$state_pathways$assay,
       config$state_pathways$counts_layer,
       config$state_pathways$pseudotime_bins,
@@ -1406,16 +1416,20 @@ figure7_preflight_workflow <- function(
   paths <- selection$paths
   cell_pair_ready <- isTRUE(selection$ready)
 
-  frozen_reference_ready <- isTRUE(include_panel_f) &&
+  historical_reference_ready <- isTRUE(include_panel_f) &&
     figure7_frozen_reference_valid(paths$frozen_reference, config)
   if (isTRUE(include_panel_f) &&
-      isTRUE(paths$frozen_reference_explicit) &&
-      !frozen_reference_ready) {
+      isTRUE(paths$frozen_reference_explicit)) {
     figure7_stop(
-      "Explicit frozen panel-7F reference failed its strict reviewed ",
-      "contract; the directory will not be modified"
+      "Full-workflow panel 7F cannot use an explicit historical mixed ",
+      "reference; omit --frozen-state-pathway-dir so a generated ",
+      "GRCh-only v2 reference is built or reused"
     )
   }
+  # Full-workflow is the corrected recomputation path. The byte-pinned v1
+  # reference remains renderable for historical audit, but it must never
+  # short-circuit GRCh-only model generation.
+  frozen_reference_ready <- FALSE
   scvelo_bundle_paths <- c(
     paths$scvelo_metrics,
     paths$scvelo_stage_manifest
@@ -1660,6 +1674,7 @@ figure7_preflight_workflow <- function(
     needs_scvelo = needs_scvelo,
     needs_cell_tables = needs_cell_tables,
     frozen_reference_ready = frozen_reference_ready,
+    historical_reference_ready = historical_reference_ready,
     saved_reference_ready = saved_reference_ready,
     state_results_ready = state_results_ready,
     needs_state = needs_state,
@@ -1905,17 +1920,7 @@ figure7_prepare_full_workflow <- function(
   reference_kind <- ""
   canonical_publication_allowed <- FALSE
   if (isTRUE(include_panel_f)) {
-    if (isTRUE(preflight$frozen_reference_ready)) {
-      figure7_validate_state_reference(
-        paths$frozen_reference,
-        config,
-        verify_checksums = TRUE
-      )
-      saved_reference <- paths$frozen_reference
-      reference_id <- as.character(config$state_pathways$reference_id)
-      reference_kind <- "reviewed_frozen"
-      canonical_publication_allowed <- TRUE
-    } else if (isTRUE(preflight$saved_reference_ready)) {
+    if (isTRUE(preflight$saved_reference_ready)) {
       figure7_validate_generated_state_reference(
         paths$saved_reference,
         config,
@@ -2037,10 +2042,7 @@ figure7_prepare_full_workflow <- function(
       seurat_selection$scientific_code_contracts,
     seurat_upstream_common_contract =
       seurat_selection$upstream_common_contract,
-    state_pathway_root = if (
-      isTRUE(include_panel_f) &&
-        !isTRUE(preflight$frozen_reference_ready)
-    ) {
+    state_pathway_root = if (isTRUE(include_panel_f)) {
       paths$state_pathway_root
     } else {
       ""

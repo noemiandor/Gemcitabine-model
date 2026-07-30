@@ -545,7 +545,7 @@ testthat::test_that("scVelo cache contract binds every consumed metadata field",
   )
 })
 
-testthat::test_that("validated deepest caches never invoke Seurat selection", {
+testthat::test_that("validated A-E caches never invoke Seurat selection", {
   config_path <- file.path(module_dir, "figure7_config.yaml")
   config <- figure7_read_config(config_path)
   paths <- figure7_workflow_paths(
@@ -574,7 +574,7 @@ testthat::test_that("validated deepest caches never invoke Seurat selection", {
       paths,
       config_path,
       config,
-      include_panel_f = TRUE
+      include_panel_f = FALSE
     )
   })
   testthat::expect_false(result$needs_seurat)
@@ -698,6 +698,21 @@ testthat::test_that("generated references attest a removed state tree", {
     file.path(reviewed$path, compact_files),
     file.path(reference, compact_files)
   )))
+  ranking_path <- file.path(
+    reference,
+    "state_pathway_gene_ranking_complete.tsv"
+  )
+  ranking_rows <- seq_len(10001L)
+  figure7_write_tsv(
+    data.frame(
+      rank = ranking_rows,
+      gene_id = paste0("GRCh38-GENE", ranking_rows),
+      gene_symbol = paste0("GENE", ranking_rows),
+      moderated_t = seq(5, -5, length.out = length(ranking_rows)),
+      stringsAsFactors = FALSE
+    ),
+    ranking_path
+  )
 
   cellcycle <- file.path(root, "cellcycle.csv")
   noncellcycle <- file.path(root, "noncellcycle.csv")
@@ -749,10 +764,26 @@ testthat::test_that("generated references attest a removed state tree", {
     figure7_config_sha256 = figure7_sha256(config_path),
     figure7_config_contract_sha256 =
       figure7_state_config_contract_sha256(config),
-    feature_species_policy = paste(
-      "mixed GRCh38 and GRCm39 features;",
-      "legacy prefix-cleanup behavior"
-    ),
+    feature_species_policy_id =
+      as.character(config$feature_species$policy_id),
+    feature_species_policy =
+      as.character(config$state_pathways$generated_feature_species_policy),
+    human_feature_prefix =
+      as.character(config$feature_species$human_prefix),
+    mouse_feature_prefix =
+      as.character(config$feature_species$mouse_prefix),
+    unknown_feature_policy =
+      as.character(config$feature_species$unknown_feature_policy),
+    n_input_features = "13001",
+    n_human_features_retained = "10001",
+    n_mouse_features_excluded = "3000",
+    n_ambiguous_features = "0",
+    feature_species_audit_sha256 = paste(rep("c", 64L), collapse = ""),
+    feature_species_policy_code_sha256 = figure7_sha256(file.path(
+      module_dir,
+      "src",
+      "feature_species_policy.R"
+    )),
     pathway_selection_rule =
       as.character(config$state_pathways$pathway_selector),
     activity_table_sha256 = figure7_sha256(file.path(

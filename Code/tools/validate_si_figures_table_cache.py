@@ -333,17 +333,21 @@ def validate_cache(
                 errors.append(
                     "manifest.tsv: SI7 matrices must record human-only GRCh policy"
                 )
-            if si7_policy == "legacy-mixed" and any(
-                "legacy mixed-species policy" not in row.get("notes", "")
+            if si7_policy == "generated-human-only" and any(
+                "generated human-only GRCh policy"
+                not in row.get("notes", "")
                 or "not approved for canonical publication"
                 not in row.get("notes", "")
+                or not row.get("source_revision", "").startswith(
+                    "raw-generated-human-only@"
+                )
                 for row in matrix_rows
             ):
                 errors.append(
-                    "manifest.tsv: legacy SI7 matrices must record mixed-species "
-                    "policy and the canonical-publication prohibition"
+                    "manifest.tsv: generated SI7 matrices must record the "
+                    "human-only policy, generated lineage, and canonical-"
+                    "publication prohibition"
                 )
-
     return errors
 
 
@@ -387,11 +391,15 @@ def main() -> int:
     parser.add_argument("--cache-dir", type=Path, required=True)
     parser.add_argument(
         "--si7-policy",
-        choices=("corrected-human-only", "legacy-mixed"),
+        choices=(
+            "corrected-human-only",
+            "generated-human-only",
+        ),
         default="corrected-human-only",
         help=(
-            "Expected SI7 feature policy. Only corrected-human-only is "
-            "approved for the canonical Data cache."
+            "Expected SI7 feature policy. corrected-human-only is the exact "
+            "reviewed Data cache; generated-human-only is unreviewed and "
+            "noncanonical."
         ),
     )
     parser.add_argument("--write-manifest", type=Path)

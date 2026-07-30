@@ -9,7 +9,7 @@ testthat::test_that("panel-F compact reference contract validates and selector i
                          "metadata/order|top-four")
 })
 
-testthat::test_that("tracked canonical 04i reference validates exact report lineage", {
+testthat::test_that("tracked historical 04i reference validates exact report lineage", {
   input <- figure7_test_inputs()
   reference_path <- file.path(
     repo_root,
@@ -82,7 +82,10 @@ testthat::test_that("TSV helpers round-trip multiline annotations without malfor
 testthat::test_that("missing F, wrong checksums, and nonempty outputs fail clearly", {
   input <- figure7_test_inputs()
   missing <- file.path(tempdir(), input$config$state_pathways$reference_id)
-  testthat::expect_error(figure7_validate_state_reference(missing, input$config), "Missing canonical panel-7F")
+  testthat::expect_error(
+    figure7_validate_state_reference(missing, input$config),
+    "Missing historical panel-7F"
+  )
   wrong <- tempfile(); writeLines("wrong", wrong)
   testthat::expect_error(figure7_verify_checksum(wrong, paste(rep("0", 64), collapse = "")), "SHA-256 mismatch")
   nonempty <- tempfile(); dir.create(nonempty); writeLines("x", file.path(nonempty, "existing.txt"))

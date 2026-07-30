@@ -1,7 +1,7 @@
 # Runtime-generated panel-7F reference contract.
 #
 # This intentionally does not weaken or wrap figure7_validate_state_reference(),
-# which remains the byte-pinned reviewed 04i contract. Generated legacy-mixed
+# which remains the byte-pinned historical 04i contract. Generated GRCh-only
 # references are run-scoped, explicitly noncanonical, and validated here.
 
 figure7_generated_state_required_files <- function() {
@@ -159,7 +159,8 @@ figure7_validate_generated_state_reference <- function(
   }
 
   ranking <- figure7_read_tsv(
-    paths[["state_pathway_gene_ranking_complete.tsv"]]
+    paths[["state_pathway_gene_ranking_complete.tsv"]],
+    c("gene_id", "gene_symbol")
   )
   complete_gsea <- figure7_read_tsv(
     paths[["state_pathway_gsea_complete.tsv"]],
@@ -172,6 +173,18 @@ figure7_validate_generated_state_reference <- function(
   if (!nrow(ranking) || !nrow(complete_gsea) || !nrow(coverage) || !nrow(design)) {
     figure7_stop("Generated panel-7F audit chain contains an empty table")
   }
+  if (nrow(ranking) < 10000L || anyDuplicated(ranking$gene_symbol)) {
+    figure7_stop(
+      "Generated panel-7F human-only ranking is implausibly small or ",
+      "contains duplicate gene symbols"
+    )
+  }
+  figure7_assert_human_feature_names(
+    as.character(ranking$gene_id),
+    analysis = "Generated panel-7F compact ranking",
+    human_prefix = as.character(config$feature_species$human_prefix),
+    mouse_prefix = as.character(config$feature_species$mouse_prefix)
+  )
   if (anyDuplicated(complete_gsea[, c("collection_id", "pathway_id")])) {
     figure7_stop("Generated complete GSEA contains duplicate pathway keys")
   }
@@ -262,7 +275,12 @@ figure7_validate_generated_state_reference <- function(
     "gene_set_species", "gene_set_collections", "gene_set_release",
     "msigdbr_package_version", "gene_set_membership_sha256",
     "figure7_config_sha256", "figure7_config_contract_sha256",
-    "feature_species_policy",
+    "feature_species_policy_id", "feature_species_policy",
+    "human_feature_prefix", "mouse_feature_prefix",
+    "unknown_feature_policy", "n_input_features",
+    "n_human_features_retained", "n_mouse_features_excluded",
+    "n_ambiguous_features", "feature_species_audit_sha256",
+    "feature_species_policy_code_sha256",
     "pathway_selection_rule", "activity_table_sha256"
   )
   missing <- setdiff(required, names(value))
@@ -280,7 +298,9 @@ figure7_validate_generated_state_reference <- function(
   hash_keys <- c(
     "seurat_rds_sha256", "cellcycle_metadata_sha256",
     "noncellcycle_metadata_sha256", "gene_set_membership_sha256",
-    "figure7_config_sha256", "activity_table_sha256"
+    "figure7_config_sha256", "activity_table_sha256",
+    "feature_species_audit_sha256",
+    "feature_species_policy_code_sha256"
   )
   if (any(!grepl("^[0-9a-f]{64}$", value[hash_keys])) ||
       !grepl("^sha256:[0-9a-f]{64}$", value[["source_code_revision"]])) {
@@ -294,6 +314,16 @@ figure7_validate_generated_state_reference <- function(
     msigdbr_package_version = as.character(config$gene_sets$package_version),
     gene_set_species = "Homo sapiens",
     gene_set_collections = paste(collections, collapse = ","),
+    feature_species_policy_id =
+      as.character(config$feature_species$policy_id),
+    feature_species_policy =
+      as.character(config$state_pathways$generated_feature_species_policy),
+    human_feature_prefix =
+      as.character(config$feature_species$human_prefix),
+    mouse_feature_prefix =
+      as.character(config$feature_species$mouse_prefix),
+    unknown_feature_policy =
+      as.character(config$feature_species$unknown_feature_policy),
     pathway_selection_rule = as.character(
       config$state_pathways$pathway_selector
     )
@@ -301,9 +331,18 @@ figure7_validate_generated_state_reference <- function(
   if (any(value[names(expected_values)] != expected_values)) {
     figure7_stop("Generated panel-7F provenance/config values disagree")
   }
-  if (!grepl("mixed GRCh38 and GRCm39", value[["feature_species_policy"]],
-             fixed = TRUE)) {
-    figure7_stop("Generated panel-7F provenance must retain legacy mixed policy")
+  species_counts <- suppressWarnings(as.integer(value[c(
+    "n_input_features", "n_human_features_retained",
+    "n_mouse_features_excluded", "n_ambiguous_features"
+  )]))
+  names(species_counts) <- c("input", "human", "mouse", "ambiguous")
+  if (anyNA(species_counts) ||
+      species_counts[["human"]] < 10000L ||
+      species_counts[["mouse"]] < 0L ||
+      species_counts[["ambiguous"]] != 0L ||
+      species_counts[["input"]] !=
+        species_counts[["human"]] + species_counts[["mouse"]]) {
+    figure7_stop("Generated panel-7F species-audit counts are invalid")
   }
   expected_numeric <- c(
     etp_threshold = as.numeric(config$etp$threshold),
@@ -362,6 +401,20 @@ figure7_validate_generated_state_reference <- function(
     figure7_stop(
       "Generated panel-7F consumed-config contract does not match this run"
     )
+  }
+  if (!is.null(config_path)) {
+    policy_path <- file.path(
+      dirname(config_path), "src", "feature_species_policy.R"
+    )
+    if (!file.exists(policy_path) ||
+        !identical(
+          value[["feature_species_policy_code_sha256"]],
+          figure7_sha256(policy_path)
+        )) {
+      figure7_stop(
+        "Generated panel-7F feature-species implementation changed"
+      )
+    }
   }
   if (!is.null(expected_inputs)) {
     required_input_names <- c("cellcycle", "noncellcycle", "seurat_rds")

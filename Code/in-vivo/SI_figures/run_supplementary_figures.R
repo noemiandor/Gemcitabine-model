@@ -89,9 +89,15 @@ run_stage <- function(label, script, values, log_path) {
   invisible(log_path)
 }
 
-validate_cache <- function(validator, cache_dir, legacy = FALSE) {
+validate_cache <- function(
+  validator,
+  cache_dir,
+  policy = "corrected-human-only"
+) {
   cli <- c(shQuote(validator), "--cache-dir", shQuote(cache_dir))
-  if (legacy) cli <- c(cli, "--si7-policy", "legacy-mixed")
+  if (!identical(policy, "corrected-human-only")) {
+    cli <- c(cli, "--si7-policy", shQuote(policy))
+  }
   identical(suppressWarnings(system2("python3", cli)), 0L)
 }
 
@@ -212,7 +218,7 @@ render_cache <- function(
   cache,
   config,
   output,
-  legacy,
+  generated,
   log_name = "00_render.log",
   upstream_input_manifest = NULL
 ) {
@@ -221,7 +227,9 @@ render_cache <- function(
     config = config,
     "output-dir" = output
   )
-  if (legacy) values[["allow-legacy-mixed-si7"]] <- "true"
+  if (generated) {
+    values[["allow-generated-human-only-si7"]] <- "true"
+  }
   if (!is.null(upstream_input_manifest) &&
       nzchar(upstream_input_manifest)) {
     values[["upstream-input-manifest"]] <- upstream_input_manifest
@@ -548,7 +556,7 @@ si_cache_candidate_dependencies <- function(
 
   fingerprint <- computational_fingerprint(observed)
   expected_name <- paste0(
-    "legacy_mixed_",
+    "generated_human_only_",
     substr(fingerprint, 1L, 20L)
   )
   if (isTRUE(require_fingerprint_name) &&
@@ -564,6 +572,8 @@ si_cache_candidate_dependencies <- function(
     output_table_count = "11",
     figures_supported = "4,5,6,7",
     si7_canonical_publication_allowed = "false",
+    si7_species_policy_id = "grch_human_tumor_only_v2",
+    si7_source_data_layer_reused = "false",
     seurat_source_kind = if (reconstructed) {
       "manifested_reconstruction"
     } else {
@@ -616,13 +626,13 @@ find_reusable_generated_cache <- function(
     character()
   }
   candidates <- candidates[
-    grepl("^legacy_mixed_[0-9a-f]{20}$", basename(candidates))
+    grepl("^generated_human_only_[0-9a-f]{20}$", basename(candidates))
   ]
   reusable <- lapply(candidates, function(build_dir) {
     if (!validate_cache(
       validator,
       file.path(build_dir, "tables"),
-      legacy = TRUE
+      policy = "generated-human-only"
     )) {
       return(NULL)
     }
@@ -936,7 +946,8 @@ main <- function(args = parse_args(commandArgs(trailingOnly = TRUE))) {
 
   # This branch deliberately precedes every raw-source, environment, and
   # reconstruction check.
-  if (validate_cache(validator, canonical_cache, legacy = FALSE)) {
+  if (!identical(mode, "full-workflow") &&
+      validate_cache(validator, canonical_cache)) {
     render_cache(renderer, canonical_cache, config_path, output_dir, FALSE)
     return(invisible(output_dir))
   }
@@ -1272,7 +1283,7 @@ main <- function(args = parse_args(commandArgs(trailingOnly = TRUE))) {
   fingerprint <- computational_fingerprint(expected)
   build_dir <- file.path(
     intermediate_root,
-    paste0("legacy_mixed_", substr(fingerprint, 1L, 20L))
+    paste0("generated_human_only_", substr(fingerprint, 1L, 20L))
   )
   work_cache_dir <- paste0(build_dir, ".work")
   if (dir.exists(build_dir)) {
@@ -1306,7 +1317,7 @@ main <- function(args = parse_args(commandArgs(trailingOnly = TRUE))) {
   if (!validate_cache(
     validator,
     file.path(staging, "tables"),
-    legacy = TRUE
+    policy = "generated-human-only"
   )) {
     stop("Generated SI plot-facing cache failed validation", call. = FALSE)
   }
