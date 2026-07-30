@@ -417,6 +417,15 @@ if (!is.na(upstream_manifest_path) && !allow_generated_human_only_si7) {
     call. = FALSE
   )
 }
+if (allow_generated_human_only_si7 && is.na(upstream_manifest_path)) {
+  stop(
+    paste(
+      "--upstream-input-manifest is required for a generated",
+      "human-only raw-table render"
+    ),
+    call. = FALSE
+  )
+}
 
 validator <- file.path(root, "Code", "tools", "validate_si_figures_table_cache.py")
 validator_args <- c(
@@ -432,7 +441,7 @@ validation_status <- system2(
   validator_args
 )
 if (!identical(validation_status, 0L)) {
-  stop("The frozen SI Figures table cache failed validation", call. = FALSE)
+  stop("The SI Figures table cache failed validation", call. = FALSE)
 }
 
 config <- yaml::read_yaml(config_path)
@@ -500,12 +509,12 @@ if (length(cache_files) != 11L || anyDuplicated(cache_files)) {
 source_paths <- file.path(cache_dir, cache_files)
 copied_paths <- file.path(table_dir, cache_files)
 copied <- file.copy(source_paths, copied_paths, overwrite = TRUE, copy.mode = FALSE)
-if (!all(copied)) stop("Failed to copy frozen SI Figures tables", call. = FALSE)
+if (!all(copied)) stop("Failed to copy SI Figures tables", call. = FALSE)
 if (!identical(
   unname(vapply(source_paths, file_sha256, character(1))),
   unname(vapply(copied_paths, file_sha256, character(1)))
 )) {
-  stop("Frozen SI Figures tables changed while being copied", call. = FALSE)
+  stop("SI Figures tables changed while being copied", call. = FALSE)
 }
 manifest_copied <- file.copy(
   file.path(cache_dir, "manifest.tsv"),
@@ -531,7 +540,7 @@ if (!identical(copied_validation, 0L)) {
 
 cells <- read_csv(
   file.path(table_dir, "si_figures_cell_metadata.csv"),
-  "canonical SI Figures cell metadata"
+  "SI Figures cell metadata"
 )
 cluster_key <- read_tsv(
   file.path(table_dir, "si_figures_cluster_key.tsv"),
@@ -1139,8 +1148,19 @@ input_paths <- c(
 input_manifest <- data.frame(
   role = c(
     "figure7_config",
-    "si_figures_cache_manifest",
-    rep("si_figures_frozen_table", length(source_paths))
+    if (allow_generated_human_only_si7) {
+      "si_figures_generated_cache_manifest"
+    } else {
+      "si_figures_cache_manifest"
+    },
+    rep(
+      if (allow_generated_human_only_si7) {
+        "si_figures_generated_table"
+      } else {
+        "si_figures_frozen_table"
+      },
+      length(source_paths)
+    )
   ),
   repo_relative_path = vapply(
     input_paths,
@@ -1203,7 +1223,11 @@ run_config <- data.frame(
     "si7_feature_species_policy",
     "si7_gene_set_database",
     "si7_canonical_publication_allowed",
-    "frozen_table_source_revision"
+    if (allow_generated_human_only_si7) {
+      "generated_table_source_revision"
+    } else {
+      "frozen_table_source_revision"
+    }
   ),
   value = c(
     "1",
@@ -1288,7 +1312,11 @@ provenance <- data.frame(
     "si7_feature_species_policy",
     "si7_gene_set_database",
     "si7_canonical_publication_allowed",
-    "si7_frozen_matrix_note"
+    if (allow_generated_human_only_si7) {
+      "si7_generated_matrix_note"
+    } else {
+      "si7_frozen_matrix_note"
+    }
   ),
   value = c(
     "1",
@@ -1347,7 +1375,11 @@ writeLines(
 writeLines(
   c(
     "Supplementary Figures 4-7 generation completed.",
-    "Mode: frozen plot-facing tables only",
+    if (allow_generated_human_only_si7) {
+      "Mode: generated human-only plot-facing tables (noncanonical)"
+    } else {
+      "Mode: frozen plot-facing tables only"
+    },
     paste0("Composite files: ", nrow(panel_contract)),
     paste0("All cells: ", nrow(seurat)),
     paste0("Included tumor cells: ", n_tumor),

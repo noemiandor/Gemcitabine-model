@@ -93,6 +93,25 @@ class SiFiguresManagerTest(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, generator)
 
+    def test_generated_renderer_requires_and_labels_raw_lineage(self) -> None:
+        renderer = (
+            REPO_ROOT
+            / "Code/in-vivo/SI_figures/generate_supplementary_figures.R"
+        ).read_text()
+        self.assertIn(
+            "allow_generated_human_only_si7 && "
+            "is.na(upstream_manifest_path)",
+            renderer,
+        )
+        for generated_label in (
+            "si_figures_generated_cache_manifest",
+            "si_figures_generated_table",
+            "generated_table_source_revision",
+            "si7_generated_matrix_note",
+            "Mode: generated human-only plot-facing tables (noncanonical)",
+        ):
+            self.assertIn(generated_label, renderer)
+
     def test_full_refit_wires_only_figure7_and_si4_7_raw_stages(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output_root = Path(tmp) / "Results"
