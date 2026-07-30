@@ -3,6 +3,24 @@ testthat::test_that("panel-F compact reference contract validates and selector i
   reference <- figure7_validate_state_reference(fixture$path, fixture$config)
   testthat::expect_equal(nrow(reference$pathways), 24L)
   testthat::expect_s3_class(figure7_panel_f_plot(reference$activity, fixture$config), "ggplot")
+  collision_activity <- reference$activity[
+    reference$activity$pathway_id %in% c(
+      "H_positive_1",
+      "C2:CP:REACTOME_positive_1"
+    ),
+    ,
+    drop = FALSE
+  ]
+  collision_activity$pathway_label <- "Shared display label"
+  collision_plot <- figure7_panel_f_plot(
+    collision_activity,
+    fixture$config
+  )
+  testthat::expect_silent(ggplot2::ggplot_build(collision_plot))
+  testthat::expect_equal(
+    nlevels(collision_plot$data$pathway_plot_key),
+    2L
+  )
   bad <- reference$selected; bad$selected_rank_within_direction[[1L]] <- 4L
   figure7_write_tsv(bad, file.path(fixture$path, "panel_7F_selected_pathway_gsea.tsv"))
   testthat::expect_error(figure7_validate_state_reference(fixture$path, fixture$config, verify_checksums = FALSE),

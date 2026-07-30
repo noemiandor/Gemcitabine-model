@@ -306,6 +306,7 @@ figure7_state_result_files <- function(root) {
     root,
     c(
       "00_manifest/frozen_interval_definition.csv",
+      "00_manifest/feature_species_audit.csv",
       "00_manifest/gene_set_contract.csv",
       "00_manifest/gene_set_membership.csv",
       "00_manifest/input_checksums.csv",

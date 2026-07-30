@@ -224,19 +224,43 @@ figure7_validate_state_reference <- function(path, config, verify_checksums = TR
 }
 
 figure7_panel_f_plot <- function(activity, config) {
-  path_order <- unique(activity[, c("collection_display_order", "pathway_id", "pathway_label", "pathway_display_order")])
+  path_order <- unique(activity[, c(
+    "collection_id", "collection_display_order", "pathway_id",
+    "pathway_label", "pathway_display_order"
+  )])
   path_order <- path_order[order(path_order$collection_display_order, path_order$pathway_display_order), , drop = FALSE]
   collection_order <- unique(activity[, c("collection_label", "collection_display_order")])
   collection_order <- collection_order[order(collection_order$collection_display_order), , drop = FALSE]
-  activity$pathway_label <- factor(activity$pathway_label, levels = rev(path_order$pathway_label))
+  path_order$pathway_plot_key <- paste(
+    path_order$collection_id,
+    path_order$pathway_id,
+    sep = "\r"
+  )
+  activity$pathway_plot_key <- paste(
+    activity$collection_id,
+    activity$pathway_id,
+    sep = "\r"
+  )
+  if (anyDuplicated(path_order$pathway_plot_key)) {
+    figure7_stop("Panel-7F collection/pathway keys must be unique")
+  }
+  activity$pathway_plot_key <- factor(
+    activity$pathway_plot_key,
+    levels = rev(path_order$pathway_plot_key)
+  )
+  pathway_axis_labels <- stats::setNames(
+    path_order$pathway_label,
+    path_order$pathway_plot_key
+  )
   activity$collection_label <- factor(activity$collection_label, levels = collection_order$collection_label)
   bounds <- c(as.numeric(config$state_pathways$accumulated_interval$start),
               as.numeric(config$state_pathways$accumulated_interval$end))
-  ggplot2::ggplot(activity, ggplot2::aes(pseudotime, pathway_label, fill = standardized_activity)) +
+  ggplot2::ggplot(activity, ggplot2::aes(pseudotime, pathway_plot_key, fill = standardized_activity)) +
     ggplot2::geom_tile() +
     ggplot2::geom_vline(xintercept = bounds, color = "black", linetype = "22", linewidth = 0.3) +
     ggplot2::facet_grid(collection_label ~ ., scales = "free_y", space = "free_y") +
     ggplot2::scale_fill_gradient2(low = "#4575b4", mid = "white", high = "#d73027", midpoint = 0) +
+    ggplot2::scale_y_discrete(labels = pathway_axis_labels) +
     ggplot2::labs(title = "Pathway activity over CellCycle pseudotime", x = "Pseudotime", y = NULL, fill = "Activity") +
     ggplot2::theme_bw(base_size = 9)
 }

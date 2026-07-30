@@ -670,6 +670,30 @@ testthat::test_that("scVelo and state caches attest absent Seurat ancestors", {
 
   complete <- figure7_read_key_value_file(state$state_stage_manifest)
   complete <- complete[names(complete) != "stage_fingerprint"]
+  species_audit_key <-
+    "output_sha256:00_manifest/feature_species_audit.csv"
+  testthat::expect_identical(
+    unname(complete[[species_audit_key]]),
+    figure7_sha256(file.path(
+      state_root,
+      "00_manifest",
+      "feature_species_audit.csv"
+    ))
+  )
+  species_audit_path <- file.path(
+    state_root,
+    "00_manifest",
+    "feature_species_audit.csv"
+  )
+  species_audit_contents <- readLines(species_audit_path, warn = FALSE)
+  writeLines("changed species audit", species_audit_path)
+  testthat::expect_false(
+    figure7_state_results_match_inputs(state, config_path, config)
+  )
+  writeLines(species_audit_contents, species_audit_path)
+  testthat::expect_true(
+    figure7_state_results_match_inputs(state, config_path, config)
+  )
   incomplete <- complete[names(complete) != "seurat_rds_sha256"]
   figure7_write_stage_manifest(incomplete, state$state_stage_manifest)
   testthat::expect_false(
