@@ -69,16 +69,30 @@ figure7_validate_generated_state_reference <- function(
   )
   pathways <- unique(activity[, pathway_columns, drop = FALSE])
   pathway_keys <- paste(pathways$collection_id, pathways$pathway_id, sep = "\r")
-  if (nrow(pathways) != 24L || anyDuplicated(pathway_keys)) {
-    figure7_stop("Generated panel 7F must contain 24 unique selected pathways")
-  }
   collections <- as.character(unlist(config$state_pathways$collections))
+  max_per_collection <-
+    as.integer(config$state_pathways$top_positive_per_collection) +
+    as.integer(config$state_pathways$top_negative_per_collection)
+  collection_counts <- table(factor(
+    pathways$collection_id,
+    levels = collections
+  ))
   observed_collections <- pathways$collection_id[
     order(pathways$collection_display_order)
   ]
   observed_collections <- observed_collections[!duplicated(observed_collections)]
-  if (!identical(observed_collections, collections) ||
-      any(table(pathways$collection_id)[collections] != 8L)) {
+  collection_order <- suppressWarnings(as.integer(
+    pathways$collection_display_order
+  ))
+  pathway_order <- suppressWarnings(as.integer(pathways$pathway_display_order))
+  if (!nrow(pathways) || anyDuplicated(pathway_keys) ||
+      !identical(observed_collections, collections) ||
+      any(collection_counts < 1L) ||
+      any(collection_counts > max_per_collection) ||
+      anyNA(collection_order) ||
+      any(collection_order != match(pathways$collection_id, collections)) ||
+      anyNA(pathway_order) ||
+      !identical(sort(pathway_order), seq_len(nrow(pathways)))) {
     figure7_stop("Generated panel-7F collection contract is invalid")
   }
   activity_ordered <- activity[
@@ -114,13 +128,32 @@ figure7_validate_generated_state_reference <- function(
       "padj"
     )
   )
+  selected$NES <- figure7_numeric(selected$NES)
+  selected$padj <- figure7_numeric(selected$padj)
   selected_keys <- paste(
     selected$collection_id,
     selected$pathway_id,
     sep = "\r"
   )
-  if (!setequal(pathway_keys, selected_keys)) {
+  if (nrow(selected) != nrow(pathways) ||
+      anyDuplicated(selected_keys) ||
+      !setequal(pathway_keys, selected_keys)) {
     figure7_stop("Generated panel-7F activity/selection pathway keys disagree")
+  }
+  if (any(!is.finite(selected$NES)) ||
+      any(selected$NES == 0) ||
+      any(!is.finite(selected$padj)) ||
+      any(selected$padj < 0) ||
+      any(selected$padj >
+        figure7_generated_pathway_fdr_threshold()) ||
+      any(
+        (selected$NES > 0 & selected$selected_direction != "positive") |
+          (selected$NES < 0 & selected$selected_direction != "negative")
+      )) {
+    figure7_stop(
+      "Generated panel-7F selected pathways require finite nonzero NES, ",
+      "sign-consistent direction, and BH-adjusted P <= 0.05"
+    )
   }
   ordered_activity <- pathways[
     order(pathways$collection_display_order, pathways$pathway_display_order),
@@ -252,50 +285,10 @@ figure7_validate_generated_state_reference <- function(
     }
   }
 
-  expected_rows <- list()
-  for (collection in collections) {
-    local <- complete_gsea[
-      complete_gsea$collection_id == collection &
-        is.finite(figure7_numeric(complete_gsea$padj)) &
-        is.finite(figure7_numeric(complete_gsea$NES)),
-      ,
-      drop = FALSE
-    ]
-    positive <- local[figure7_numeric(local$NES) > 0, , drop = FALSE]
-    positive <- positive[
-      order(
-        figure7_numeric(positive$padj),
-        -figure7_numeric(positive$NES),
-        positive$pathway_id
-      ),
-      ,
-      drop = FALSE
-    ]
-    positive <- head(
-      positive,
-      as.integer(config$state_pathways$top_positive_per_collection)
-    )
-    positive$selected_direction <- "positive"
-    positive$selected_rank_within_direction <- seq_len(nrow(positive))
-    negative <- local[figure7_numeric(local$NES) < 0, , drop = FALSE]
-    negative <- negative[
-      order(
-        figure7_numeric(negative$padj),
-        figure7_numeric(negative$NES),
-        negative$pathway_id
-      ),
-      ,
-      drop = FALSE
-    ]
-    negative <- head(
-      negative,
-      as.integer(config$state_pathways$top_negative_per_collection)
-    )
-    negative$selected_direction <- "negative"
-    negative$selected_rank_within_direction <- seq_len(nrow(negative))
-    expected_rows[[collection]] <- rbind(positive, negative)
-  }
-  expected_selection <- do.call(rbind, expected_rows)
+  expected_selection <- figure7_select_generated_pathways(
+    complete_gsea,
+    config
+  )
   selector_columns <- c(
     "collection_id", "pathway_id", "selected_direction",
     "selected_rank_within_direction"
@@ -319,6 +312,42 @@ figure7_validate_generated_state_reference <- function(
       "Generated panel-7F selection does not reproduce the configured selector"
     )
   }
+  selected_display_order <- order(figure7_numeric(
+    selected$pathway_display_order
+  ))
+  selected_display_keys <- selected_keys[selected_display_order]
+  expected_display_keys <- paste(
+    expected_selection$collection_id,
+    expected_selection$pathway_id,
+    sep = "\r"
+  )
+  if (!identical(selected_display_keys, expected_display_keys)) {
+    figure7_stop(
+      "Generated panel-7F pathway display order disagrees with the selector"
+    )
+  }
+  selected_match <- match(selected_keys, paste(
+    expected_selection$collection_id,
+    expected_selection$pathway_id,
+    sep = "\r"
+  ))
+  if (anyNA(selected_match) ||
+      !isTRUE(all.equal(
+        selected$NES,
+        figure7_numeric(expected_selection$NES[selected_match]),
+        tolerance = 1e-12,
+        check.attributes = FALSE
+      )) ||
+      !isTRUE(all.equal(
+        selected$padj,
+        figure7_numeric(expected_selection$padj[selected_match]),
+        tolerance = 1e-12,
+        check.attributes = FALSE
+      ))) {
+    figure7_stop(
+      "Generated panel-7F selected statistics disagree with complete GSEA"
+    )
+  }
 
   provenance <- figure7_read_tsv(
     paths[["state_pathway_provenance.tsv"]],
@@ -331,6 +360,7 @@ figure7_validate_generated_state_reference <- function(
   required <- c(
     "reference_kind", "canonical_publication_allowed",
     "generated_reference_id", "source_code_revision",
+    "exporter_script_sha256", "exporter_common_io_sha256",
     "seurat_rds_sha256", "cellcycle_metadata_sha256",
     "noncellcycle_metadata_sha256", "assay", "counts_layer", "etp_method",
     "etp_threshold", "spline_df", "pseudotime_bins",
@@ -347,7 +377,8 @@ figure7_validate_generated_state_reference <- function(
     "gsea_nperm_simple", "gsea_nperm_simple_max",
     "gsea_nperm_simple_multiplier", "gsea_nperm_simple_usage",
     "gsea_adaptive_retry_rule",
-    "pathway_selection_rule", "activity_table_sha256"
+    "pathway_selection_fdr_threshold", "pathway_selection_rule",
+    "activity_table_sha256"
   )
   missing <- setdiff(required, names(value))
   if (length(missing)) {
@@ -366,7 +397,8 @@ figure7_validate_generated_state_reference <- function(
     "noncellcycle_metadata_sha256", "gene_set_membership_sha256",
     "figure7_config_sha256", "activity_table_sha256",
     "feature_species_audit_sha256",
-    "feature_species_policy_code_sha256"
+    "feature_species_policy_code_sha256",
+    "exporter_script_sha256", "exporter_common_io_sha256"
   )
   if (any(!grepl("^[0-9a-f]{64}$", value[hash_keys])) ||
       !grepl("^sha256:[0-9a-f]{64}$", value[["source_code_revision"]])) {
@@ -390,9 +422,7 @@ figure7_validate_generated_state_reference <- function(
       as.character(config$feature_species$mouse_prefix),
     unknown_feature_policy =
       as.character(config$feature_species$unknown_feature_policy),
-    pathway_selection_rule = as.character(
-      config$state_pathways$pathway_selector
-    ),
+    pathway_selection_rule = figure7_generated_pathway_selection_rule(),
     gsea_nperm_simple_usage = {
       usage <- table(observed_nperm)
       paste(
@@ -439,7 +469,9 @@ figure7_validate_generated_state_reference <- function(
     gsea_nperm_simple_max =
       as.numeric(config$state_pathways$gsea_nperm_simple_max),
     gsea_nperm_simple_multiplier =
-      as.numeric(config$state_pathways$gsea_nperm_simple_multiplier)
+      as.numeric(config$state_pathways$gsea_nperm_simple_multiplier),
+    pathway_selection_fdr_threshold =
+      figure7_generated_pathway_fdr_threshold()
   )
   for (key in names(expected_numeric)) {
     if (!isTRUE(all.equal(
@@ -500,6 +532,21 @@ figure7_validate_generated_state_reference <- function(
         )) {
       figure7_stop(
         "Generated panel-7F feature-species implementation changed"
+      )
+    }
+    code_paths <- c(
+      exporter_script_sha256 =
+        file.path(dirname(config_path), "export_state_pathway_reference.R"),
+      exporter_common_io_sha256 =
+        file.path(dirname(config_path), "src", "common_io.R")
+    )
+    if (any(!file.exists(code_paths)) ||
+        !identical(
+          unname(value[names(code_paths)]),
+          unname(vapply(code_paths, figure7_sha256, character(1L)))
+        )) {
+      figure7_stop(
+        "Generated panel-7F exporter/selector implementation changed"
       )
     }
   }

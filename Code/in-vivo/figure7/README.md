@@ -93,8 +93,12 @@ a separate generated human-only v2 reference with
 explicitly blessed. GSEA starts with the configured simple-permutation budget,
 retries only unresolved pathways at increasing pinned budgets, recomputes BH
 adjustment across each complete collection, and fails closed if any pathway
-still lacks finite statistics at the configured cap. A-E runs remain
-publication eligible.
+still lacks finite statistics at the configured cap. The generated human-only
+panel displays only pathways with collection-wide BH-adjusted P <= 0.05, then
+takes up to four pathways in each direction and collection. It never backfills
+a direction with nonsignificant pathways, so generated collection and panel row
+counts may be smaller than the historical frozen 8/24-pathway layout. A-E runs
+remain publication eligible.
 
 ## Commands
 

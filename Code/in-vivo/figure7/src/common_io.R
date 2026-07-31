@@ -791,6 +791,105 @@ figure7_state_config_contract_sha256 <- function(config) {
   ))
 }
 
+figure7_generated_pathway_fdr_threshold <- function() 0.05
+
+figure7_generated_pathway_selection_rule <- function() {
+  paste(
+    "BH-adjusted P <= 0.05;",
+    "up to top four per sign and collection"
+  )
+}
+
+figure7_select_generated_pathways <- function(data, config) {
+  required <- c("collection_id", "pathway_id", "padj", "NES")
+  missing <- setdiff(required, names(data))
+  if (length(missing)) {
+    figure7_stop(
+      "Generated pathway selection is missing column(s): ",
+      paste(missing, collapse = ", ")
+    )
+  }
+  collections <- as.character(unlist(config$state_pathways$collections))
+  collection_id <- as.character(data$collection_id)
+  pathway_id <- as.character(data$pathway_id)
+  if (anyNA(collection_id) || any(!nzchar(collection_id)) ||
+      anyNA(pathway_id) || any(!nzchar(pathway_id)) ||
+      anyDuplicated(data.frame(collection_id, pathway_id)) ||
+      !setequal(unique(collection_id), collections)) {
+    figure7_stop(
+      "Generated pathway selection requires unique keys in every ",
+      "configured collection"
+    )
+  }
+  top_positive <- suppressWarnings(as.integer(
+    config$state_pathways$top_positive_per_collection
+  ))
+  top_negative <- suppressWarnings(as.integer(
+    config$state_pathways$top_negative_per_collection
+  ))
+  if (length(top_positive) != 1L || is.na(top_positive) ||
+      length(top_negative) != 1L || is.na(top_negative) ||
+      top_positive != 4L || top_negative != 4L) {
+    figure7_stop(
+      "Generated pathway selection requires exactly four candidates per sign"
+    )
+  }
+  numeric_value <- function(value) suppressWarnings(as.numeric(value))
+  padj <- numeric_value(data$padj)
+  nes <- numeric_value(data$NES)
+  threshold <- figure7_generated_pathway_fdr_threshold()
+  eligible <- is.finite(padj) & padj >= 0 & padj <= threshold &
+    is.finite(nes) & nes != 0
+  rows <- lapply(collections, function(collection) {
+    local <- data[collection_id == collection & eligible, , drop = FALSE]
+    local_nes <- numeric_value(local$NES)
+
+    positive <- local[local_nes > 0, , drop = FALSE]
+    if (nrow(positive)) {
+      positive <- positive[
+        order(
+          numeric_value(positive$padj),
+          -numeric_value(positive$NES),
+          as.character(positive$pathway_id)
+        ),
+        ,
+        drop = FALSE
+      ]
+      positive <- head(positive, top_positive)
+    }
+    positive$selected_direction <- rep("positive", nrow(positive))
+    positive$selected_rank_within_direction <- seq_len(nrow(positive))
+
+    negative <- local[local_nes < 0, , drop = FALSE]
+    if (nrow(negative)) {
+      negative <- negative[
+        order(
+          numeric_value(negative$padj),
+          numeric_value(negative$NES),
+          as.character(negative$pathway_id)
+        ),
+        ,
+        drop = FALSE
+      ]
+      negative <- head(negative, top_negative)
+    }
+    negative$selected_direction <- rep("negative", nrow(negative))
+    negative$selected_rank_within_direction <- seq_len(nrow(negative))
+
+    selected <- rbind(positive, negative)
+    if (!nrow(selected)) {
+      figure7_stop(
+        "Generated panel 7F has no FDR-significant pathway for ",
+        collection
+      )
+    }
+    selected
+  })
+  selected <- do.call(rbind, rows)
+  rownames(selected) <- NULL
+  selected
+}
+
 figure7_tgi_day <- function(config) as.integer(config$tgi$day)
 
 figure7_tgi_measure <- function(config) {

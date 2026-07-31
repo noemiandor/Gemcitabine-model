@@ -311,26 +311,15 @@ for (collection_id in collection_ids) {
   }
 }
 
-collection_labels <- c("H" = "Hallmark", "C2:CP:REACTOME" = "Reactome", "C5:GO:BP" = "GO biological process")
-selected_rows <- list()
-for (collection_id in collection_ids) {
-  local <- gsea[gsea$collection == collection_id & is.finite(gsea$padj) & is.finite(gsea$NES), , drop = FALSE]
-  positive <- local[local$NES > 0, , drop = FALSE]
-  positive <- positive[order(positive$padj, -positive$NES, positive$pathway), , drop = FALSE]
-  positive <- head(positive, 4L)
-  positive$selected_direction <- "positive"
-  positive$selected_rank_within_direction <- seq_len(nrow(positive))
-  negative <- local[local$NES < 0, , drop = FALSE]
-  negative <- negative[order(negative$padj, negative$NES, negative$pathway), , drop = FALSE]
-  negative <- head(negative, 4L)
-  negative$selected_direction <- "negative"
-  negative$selected_rank_within_direction <- seq_len(nrow(negative))
-  if (nrow(positive) != 4L || nrow(negative) != 4L) {
-    figure7_stop("Expected four positive and four negative pathways for ", collection_id)
-  }
-  selected_rows[[collection_id]] <- rbind(positive, negative)
-}
-selected <- do.call(rbind, selected_rows)
+collection_labels <- c(
+  "H" = "Hallmark",
+  "C2:CP:REACTOME" = "Reactome",
+  "C5:GO:BP" = "GO biological process"
+)
+selection_source <- gsea
+selection_source$collection_id <- as.character(gsea$collection)
+selection_source$pathway_id <- as.character(gsea$pathway)
+selected <- figure7_select_generated_pathways(selection_source, config)
 selected$collection_display_order <- match(selected$collection, collection_ids)
 selected$pathway_display_order <- seq_len(nrow(selected))
 selected_export <- data.frame(
@@ -347,8 +336,23 @@ selected_export <- data.frame(
   stringsAsFactors = FALSE
 )
 selected_keys <- paste(selected_export$collection_id, selected_export$pathway_id, sep = "\r")
-if (nrow(selected_export) != 24L || anyDuplicated(selected_keys)) {
-  figure7_stop("Canonical pathway selection must contain 24 unique collection/pathway keys")
+selected_counts <- table(factor(
+  selected_export$collection_id,
+  levels = collection_ids
+))
+max_per_collection <-
+  as.integer(config$state_pathways$top_positive_per_collection) +
+  as.integer(config$state_pathways$top_negative_per_collection)
+if (!nrow(selected_export) || anyDuplicated(selected_keys) ||
+    any(selected_counts < 1L) ||
+    any(selected_counts > max_per_collection) ||
+    any(!is.finite(selected_export$padj)) ||
+    any(selected_export$padj >
+      figure7_generated_pathway_fdr_threshold())) {
+  figure7_stop(
+    "Generated pathway selection must contain only unique ",
+    "FDR-significant pathways within configured per-collection limits"
+  )
 }
 
 activity_path <- source_paths[["activity"]]
@@ -389,9 +393,16 @@ activity_export <- cbind(
 activity_export <- activity_export[order(activity_export$pathway_display_order, activity_export$pseudotime), , drop = FALSE]
 rownames(activity_export) <- NULL
 activity_groups <- split(activity_export$pseudotime, activity_export$pathway_display_order)
-if (nrow(activity_export) != 24L * 501L || any(lengths(activity_groups) != 501L) ||
+expected_activity_rows <-
+  nrow(selected_export) * as.integer(config$state_pathways$grid_size)
+if (nrow(activity_export) != expected_activity_rows ||
+    any(lengths(activity_groups) !=
+      as.integer(config$state_pathways$grid_size)) ||
     !all(vapply(activity_groups, identical, logical(1L), activity_groups[[1L]]))) {
-  figure7_stop("Canonical activity table must contain 24 pathways on an identical 501-point grid")
+  figure7_stop(
+    "Generated activity table must contain every selected pathway on ",
+    "the identical configured grid"
+  )
 }
 
 leading_path <- source_paths[["leading_edge"]]
@@ -634,6 +645,10 @@ provenance <- c(
   canonical_publication_allowed = "false",
   source_results_id = "generated_pseudotime_state_pathways",
   source_code_revision = recorded_source_code_revision,
+  exporter_script_sha256 =
+    figure7_sha256(file.path(script_dir, "export_state_pathway_reference.R")),
+  exporter_common_io_sha256 =
+    figure7_sha256(file.path(script_dir, "src", "common_io.R")),
   seurat_rds_sha256 = input_value("seurat_rds", "sha256"),
   cellcycle_metadata_sha256 = input_value("cell_metadata", "sha256"),
   noncellcycle_metadata_sha256 = input_value("noncell_metadata", "sha256"),
@@ -695,7 +710,10 @@ provenance <- c(
   feature_species_policy_code_sha256 =
     input_value("feature_species_policy_code", "sha256"),
   gsea_ranking_rule = "one row per cleaned gene symbol; descending moderated t; ties retain cleaned-symbol order",
-  pathway_selection_rule = "finite adjusted P; no FDR cutoff; top four per sign and collection",
+  pathway_selection_fdr_threshold =
+    as.character(figure7_generated_pathway_fdr_threshold()),
+  pathway_selection_rule =
+    figure7_generated_pathway_selection_rule(),
   activity_table_sha256 =
     data_table_hashes[["panel_7F_pathway_activity_plot_data_sha256"]],
   data_table_hashes,

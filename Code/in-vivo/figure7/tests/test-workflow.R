@@ -740,6 +740,107 @@ testthat::test_that("generated references attest a removed state tree", {
     file.path(reviewed$path, compact_files),
     file.path(reference, compact_files)
   )))
+  complete_gsea_path <- file.path(
+    reference,
+    "state_pathway_gsea_complete.tsv"
+  )
+  complete_gsea <- figure7_read_tsv(complete_gsea_path)
+  nonsignificant_hallmark <- complete_gsea$collection_id == "H" &
+    complete_gsea$pathway_id %in% paste0("H_positive_", 2:4)
+  complete_gsea$pval[nonsignificant_hallmark] <- c(0.6, 0.7, 0.8)
+  complete_gsea$padj <- ave(
+    complete_gsea$pval,
+    complete_gsea$collection_id,
+    FUN = function(pvalue) stats::p.adjust(pvalue, method = "BH")
+  )
+  figure7_write_tsv(complete_gsea, complete_gsea_path)
+
+  complete_keys <- paste(
+    complete_gsea$collection_id,
+    complete_gsea$pathway_id,
+    sep = "\r"
+  )
+  removed_keys <- paste(
+    "H",
+    paste0("H_positive_", 2:4),
+    sep = "\r"
+  )
+  selected_path <- file.path(
+    reference,
+    "panel_7F_selected_pathway_gsea.tsv"
+  )
+  selected <- figure7_read_tsv(selected_path)
+  selected_keys <- paste(
+    selected$collection_id,
+    selected$pathway_id,
+    sep = "\r"
+  )
+  selected <- selected[!selected_keys %in% removed_keys, , drop = FALSE]
+  selected_keys <- paste(
+    selected$collection_id,
+    selected$pathway_id,
+    sep = "\r"
+  )
+  selected$padj <- complete_gsea$padj[
+    match(selected_keys, complete_keys)
+  ]
+  expected_selection <- figure7_select_generated_pathways(
+    complete_gsea,
+    config
+  )
+  expected_keys <- paste(
+    expected_selection$collection_id,
+    expected_selection$pathway_id,
+    sep = "\r"
+  )
+  selected <- selected[
+    match(expected_keys, selected_keys),
+    ,
+    drop = FALSE
+  ]
+  selected_keys <- expected_keys
+  selected$pathway_display_order <- seq_len(nrow(selected))
+  figure7_write_tsv(selected, selected_path)
+
+  activity_path <- file.path(
+    reference,
+    "panel_7F_pathway_activity_plot_data.tsv"
+  )
+  activity <- figure7_read_tsv(activity_path)
+  activity_keys <- paste(
+    activity$collection_id,
+    activity$pathway_id,
+    sep = "\r"
+  )
+  activity <- activity[!activity_keys %in% removed_keys, , drop = FALSE]
+  activity_keys <- paste(
+    activity$collection_id,
+    activity$pathway_id,
+    sep = "\r"
+  )
+  activity$pathway_display_order <- selected$pathway_display_order[
+    match(activity_keys, selected_keys)
+  ]
+  activity <- activity[
+    order(activity$pathway_display_order, activity$pseudotime),
+    ,
+    drop = FALSE
+  ]
+  figure7_write_tsv(activity, activity_path)
+
+  leading_path <- file.path(
+    reference,
+    "panel_7F_leading_edge_genes.tsv"
+  )
+  leading <- figure7_read_tsv(leading_path)
+  leading_keys <- paste(
+    leading$collection_id,
+    leading$pathway_id,
+    sep = "\r"
+  )
+  leading <- leading[!leading_keys %in% removed_keys, , drop = FALSE]
+  figure7_write_tsv(leading, leading_path)
+
   ranking_path <- file.path(
     reference,
     "state_pathway_gene_ranking_complete.tsv"
@@ -779,6 +880,15 @@ testthat::test_that("generated references attest a removed state tree", {
       as.character(config$state_pathways$generated_reference_id),
     source_code_revision =
       paste0("sha256:", paste(rep("a", 64L), collapse = "")),
+    exporter_script_sha256 = figure7_sha256(file.path(
+      module_dir,
+      "export_state_pathway_reference.R"
+    )),
+    exporter_common_io_sha256 = figure7_sha256(file.path(
+      module_dir,
+      "src",
+      "common_io.R"
+    )),
     seurat_rds_sha256 = figure7_sha256(seurat_rds),
     cellcycle_metadata_sha256 = figure7_sha256(cellcycle),
     noncellcycle_metadata_sha256 = figure7_sha256(noncellcycle),
@@ -845,8 +955,9 @@ testthat::test_that("generated references attest a removed state tree", {
       "increments; merge by pathway; recompute collection-wide BH;",
       "fail closed at cap"
     ),
-    pathway_selection_rule =
-      as.character(config$state_pathways$pathway_selector),
+    pathway_selection_fdr_threshold =
+      as.character(figure7_generated_pathway_fdr_threshold()),
+    pathway_selection_rule = figure7_generated_pathway_selection_rule(),
     activity_table_sha256 = figure7_sha256(file.path(
       reference,
       "panel_7F_pathway_activity_plot_data.tsv"
@@ -895,10 +1006,28 @@ testthat::test_that("generated references attest a removed state tree", {
     ),
     config_path = config_path
   ))
-  complete_gsea_path <- file.path(
+  validated <- figure7_validate_generated_state_reference(
     reference,
-    "state_pathway_gsea_complete.tsv"
+    config,
+    expected_inputs = list(
+      cellcycle = cellcycle,
+      noncellcycle = noncellcycle,
+      seurat_rds = seurat_rds
+    ),
+    config_path = config_path
   )
+  testthat::expect_equal(nrow(validated$selected), 21L)
+  testthat::expect_identical(
+    as.integer(table(factor(
+      validated$selected$collection_id,
+      levels = as.character(unlist(config$state_pathways$collections))
+    ))),
+    c(5L, 8L, 8L)
+  )
+  testthat::expect_equal(nrow(validated$activity), 21L * 501L)
+  testthat::expect_true(all(
+    validated$selected$padj <= figure7_generated_pathway_fdr_threshold()
+  ))
   complete_gsea_backup <- tempfile(fileext = ".tsv")
   testthat::expect_true(file.copy(
     complete_gsea_path,
@@ -946,6 +1075,83 @@ testthat::test_that("generated references attest a removed state tree", {
   testthat::expect_true(file.copy(
     complete_gsea_backup,
     complete_gsea_path,
+    overwrite = TRUE
+  ))
+  selected_backup <- tempfile(fileext = ".tsv")
+  testthat::expect_true(file.copy(
+    selected_path,
+    selected_backup,
+    overwrite = TRUE
+  ))
+  selected <- figure7_read_tsv(selected_path)
+  selected$padj[[1L]] <- 0.9
+  figure7_write_tsv(selected, selected_path)
+  testthat::expect_error(
+    figure7_validate_generated_state_reference(
+      reference,
+      config,
+      expected_inputs = list(
+        cellcycle = cellcycle,
+        noncellcycle = noncellcycle,
+        seurat_rds = seurat_rds
+      ),
+      config_path = config_path
+    ),
+    "BH-adjusted P <= 0.05"
+  )
+  testthat::expect_true(file.copy(
+    selected_backup,
+    selected_path,
+    overwrite = TRUE
+  ))
+  activity_backup <- tempfile(fileext = ".tsv")
+  testthat::expect_true(file.copy(
+    activity_path,
+    activity_backup,
+    overwrite = TRUE
+  ))
+  selected <- figure7_read_tsv(selected_path)
+  activity <- figure7_read_tsv(activity_path)
+  swap_keys <- paste(
+    selected$collection_id[1:2],
+    selected$pathway_id[1:2],
+    sep = "\r"
+  )
+  selected$pathway_display_order[1:2] <- rev(
+    selected$pathway_display_order[1:2]
+  )
+  activity_keys <- paste(
+    activity$collection_id,
+    activity$pathway_id,
+    sep = "\r"
+  )
+  activity$pathway_display_order[activity_keys == swap_keys[[1L]]] <-
+    selected$pathway_display_order[[1L]]
+  activity$pathway_display_order[activity_keys == swap_keys[[2L]]] <-
+    selected$pathway_display_order[[2L]]
+  figure7_write_tsv(selected, selected_path)
+  figure7_write_tsv(activity, activity_path)
+  testthat::expect_error(
+    figure7_validate_generated_state_reference(
+      reference,
+      config,
+      expected_inputs = list(
+        cellcycle = cellcycle,
+        noncellcycle = noncellcycle,
+        seurat_rds = seurat_rds
+      ),
+      config_path = config_path
+    ),
+    "display order disagrees"
+  )
+  testthat::expect_true(file.copy(
+    selected_backup,
+    selected_path,
+    overwrite = TRUE
+  ))
+  testthat::expect_true(file.copy(
+    activity_backup,
+    activity_path,
     overwrite = TRUE
   ))
   figure7_write_reference_stage_manifest(paths, config_path, config)

@@ -332,9 +332,28 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
       c("collection_id", "collection_label", "collection_display_order", "pathway_id", "pathway_label",
         "pathway_display_order", "selected_direction", "selected_rank_within_direction",
         "pseudotime", "standardized_activity"))
-    pathway_meta <- unique(f[, c("collection_id", "pathway_id")])
-    if (nrow(pathway_meta) != 24L || any(base::table(pathway_meta$collection_id) != 8L)) {
-      figure7_stop("render-only panel-7F table must contain eight pathways in each of three collections")
+    pathway_meta <- unique(f[, c(
+      "collection_id", "collection_display_order",
+      "pathway_id", "pathway_display_order"
+    )])
+    pathway_keys <- paste(
+      pathway_meta$collection_id,
+      pathway_meta$pathway_id,
+      sep = "\r"
+    )
+    collections <- as.character(unlist(config$state_pathways$collections))
+    collection_counts <- table(factor(
+      pathway_meta$collection_id,
+      levels = collections
+    ))
+    max_per_collection <-
+      as.integer(config$state_pathways$top_positive_per_collection) +
+      as.integer(config$state_pathways$top_negative_per_collection)
+    if (!nrow(pathway_meta) || anyDuplicated(pathway_keys) ||
+        !setequal(unique(pathway_meta$collection_id), collections) ||
+        any(collection_counts < 1L) ||
+        any(collection_counts > max_per_collection)) {
+      figure7_stop("render-only panel-7F collection contract is invalid")
     }
     f_key <- interaction(f$collection_id, f$pathway_id, drop = TRUE)
     grids <- lapply(levels(f_key), function(key) sort(figure7_numeric(f$pseudotime[f_key == key])))
@@ -383,6 +402,13 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
     if (!historical_identity && !generated_identity) {
       figure7_stop(
         "render-only source has an invalid panel-7F publication identity"
+      )
+    }
+    if (historical_identity &&
+        (nrow(pathway_meta) != 24L || any(collection_counts != 8L))) {
+      figure7_stop(
+        "render-only historical panel-7F table must contain ",
+        "eight pathways in each of three collections"
       )
     }
     provenance_table <- figure7_read_tsv(
@@ -438,6 +464,40 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
     if (!isTRUE(provenance_matches)) {
       figure7_stop(
         "render-only panel-7F provenance contradicts run metadata"
+      )
+    }
+    if (generated_identity) {
+      temporary_root <- tempfile("figure7_render_generated_reference_")
+      temporary_reference <- file.path(
+        temporary_root,
+        as.character(config$state_pathways$generated_reference_id)
+      )
+      dir.create(temporary_reference, recursive = TRUE)
+      on.exit(unlink(temporary_root, recursive = TRUE, force = TRUE), add = TRUE)
+      compact_files <- setdiff(
+        figure7_generated_state_required_files(),
+        "state_pathway_provenance.tsv"
+      )
+      compact_sources <- c(
+        file.path(source_dir, "tables", compact_files),
+        provenance
+      )
+      copied <- file.copy(
+        compact_sources,
+        file.path(
+          temporary_reference,
+          c(compact_files, "state_pathway_provenance.tsv")
+        )
+      )
+      if (any(!copied)) {
+        figure7_stop(
+          "render-only generated panel-7F compact reference is incomplete"
+        )
+      }
+      figure7_validate_generated_state_reference(
+        temporary_reference,
+        config,
+        config_path = config_path
       )
     }
   }
