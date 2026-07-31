@@ -1154,7 +1154,27 @@ testthat::test_that("generated references attest a removed state tree", {
     activity_path,
     overwrite = TRUE
   ))
-  figure7_write_reference_stage_manifest(paths, config_path, config)
+  inactive_lineage_paths <- paths
+  inactive_lineage_paths$seurat_rds_lineage_active <- FALSE
+  figure7_write_reference_stage_manifest(
+    inactive_lineage_paths,
+    config_path,
+    config
+  )
+  inactive_reference_manifest <- figure7_read_key_value_file(
+    paths$reference_stage_manifest
+  )
+  state_manifest <- figure7_read_key_value_file(paths$state_stage_manifest)
+  testthat::expect_identical(
+    unname(inactive_reference_manifest[["seurat_rds_sha256"]]),
+    unname(state_manifest[["seurat_rds_sha256"]])
+  )
+  testthat::expect_true(figure7_saved_reference_match_inputs(
+    reference,
+    inactive_lineage_paths,
+    config,
+    config_path
+  ))
   testthat::expect_true(figure7_saved_reference_match_inputs(
     reference,
     paths,

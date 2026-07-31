@@ -963,19 +963,37 @@ figure7_reference_dependency_values <- function(
     config_path,
     config
   )
+  lineage_keys <- c(
+    "cellcycle_sha256", "noncellcycle_sha256", "seurat_rds_sha256"
+  )
+  lineage_dependencies <- state_dependencies[intersect(
+    lineage_keys,
+    names(state_dependencies)
+  )]
+  if (state_manifest_available) {
+    manifest_lineage <- state_manifest[intersect(
+      lineage_keys,
+      names(state_manifest)
+    )]
+    overlapping <- intersect(names(lineage_dependencies), names(manifest_lineage))
+    if (length(overlapping) &&
+        any(lineage_dependencies[overlapping] != manifest_lineage[overlapping])) {
+      figure7_stop(
+        "Generated reference lineage disagrees with the state-stage manifest"
+      )
+    }
+    missing_lineage <- setdiff(names(manifest_lineage), names(lineage_dependencies))
+    lineage_dependencies <- c(
+      lineage_dependencies,
+      manifest_lineage[missing_lineage]
+    )
+  }
   c(
     schema_version = "1",
     artifact = "figure7_generated_state_reference",
     generated_reference_id =
       as.character(config$state_pathways$generated_reference_id),
-    state_dependencies[intersect(
-      c(
-        "cellcycle_sha256",
-        "noncellcycle_sha256",
-        "seurat_rds_sha256"
-      ),
-      names(state_dependencies)
-    )],
+    lineage_dependencies,
     audit_figure7_config_sha256 = figure7_sha256(config_path),
     config_contract_sha256 =
       state_dependencies[["config_contract_sha256"]],
@@ -1942,7 +1960,7 @@ figure7_prepare_full_workflow <- function(
         expected_inputs = list(
           cellcycle = paths$cellcycle,
           noncellcycle = paths$noncellcycle,
-          seurat_rds = paths$seurat_rds
+          seurat_rds = figure7_active_lineage_seurat(paths)
         ),
         config_path = config_path
       )
@@ -2019,7 +2037,7 @@ figure7_prepare_full_workflow <- function(
         expected_inputs = list(
           cellcycle = paths$cellcycle,
           noncellcycle = paths$noncellcycle,
-          seurat_rds = paths$seurat_rds
+          seurat_rds = figure7_active_lineage_seurat(paths)
         ),
         config_path = config_path
       )
