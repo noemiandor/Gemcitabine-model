@@ -270,7 +270,8 @@ make_composition_plot <- function(
   x_title,
   y_title,
   tag,
-  use_proportion
+  use_proportion,
+  subtitle = NULL
 ) {
   y_field <- if (use_proportion) "proportion" else "n_cells"
   plot <- ggplot2::ggplot(
@@ -279,7 +280,13 @@ make_composition_plot <- function(
   ) +
     ggplot2::geom_col(width = 0.82, color = "white", linewidth = 0.12) +
     ggplot2::scale_fill_manual(values = fill_colors, drop = FALSE) +
-    ggplot2::labs(title = title, x = x_title, y = y_title, fill = NULL) +
+    ggplot2::labs(
+      title = title,
+      subtitle = subtitle,
+      x = x_title,
+      y = y_title,
+      fill = NULL
+    ) +
     figure_theme(9.5) +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 35, hjust = 1))
   if (use_proportion) {
@@ -382,6 +389,17 @@ root <- normalizePath(
   dirname(dirname(dirname(dirname(script)))),
   mustWork = TRUE
 )
+composition_helper_path <- file.path(
+  root,
+  "Code",
+  "in-vivo",
+  "SI_figures",
+  "normalized_composition.R"
+)
+if (!file.exists(composition_helper_path)) {
+  stop("Missing normalized-composition helper: ", composition_helper_path, call. = FALSE)
+}
+sys.source(composition_helper_path, envir = environment())
 cache_dir <- resolve_path(
   arg_value(args, "table-cache-dir", "Data/in-vivo/SIfigures"),
   root,
@@ -558,25 +576,6 @@ s4_ploidy <- read_csv(
   file.path(table_dir, "si_figure4_cluster_initial_ploidy_composition.csv"),
   "SI Figure 4 ploidy composition"
 )
-composition_table <- read_csv(
-  file.path(table_dir, "si_figure5_cluster_composition_by_mouse.csv"),
-  "SI Figure 5 per-mouse composition"
-)
-group_summary <- read_csv(
-  file.path(
-    table_dir,
-    "si_figure5_mouse_weighted_composition_by_initial_ploidy_dose.csv"
-  ),
-  "SI Figure 5 mouse-weighted composition"
-)
-s5_dose <- read_csv(
-  file.path(table_dir, "si_figure5_cluster_dose_composition.csv"),
-  "SI Figure 5 dose composition"
-)
-s5_ploidy <- read_csv(
-  file.path(table_dir, "si_figure5_cluster_initial_ploidy_composition.csv"),
-  "SI Figure 5 ploidy composition"
-)
 
 cells$UMAP_1 <- as.numeric(cells$UMAP_1)
 cells$UMAP_2 <- as.numeric(cells$UMAP_2)
@@ -648,8 +647,6 @@ s4_context <- factor_composition(
   c("Tumor", "CellLine")
 )
 s4_ploidy <- factor_composition(s4_ploidy, cluster_levels, ploidy_levels)
-s5_dose <- factor_composition(s5_dose, cluster_levels, dose_levels)
-s5_ploidy <- factor_composition(s5_ploidy, cluster_levels, ploidy_levels)
 
 message("Generating Supplementary Figure 4 composite.")
 s4a <- make_umap_discrete(
@@ -693,15 +690,42 @@ s4d <- make_umap_continuous(
   limits = range(seurat$s_phase_score),
   diverging = TRUE
 )
-s4e <- make_composition_plot(
-  s4_context,
-  context_colors,
-  "Tumor and CellLine proportions by cluster",
-  "Cluster",
-  "Cell proportion",
-  "E",
-  TRUE
+s4e_result <- make_normalized_composition_plot(
+  data = seurat,
+  unit_col = "mouse",
+  cluster_col = "cluster",
+  group_col = "context",
+  cluster_levels = cluster_levels,
+  group_levels = c("Tumor", "CellLine"),
+  fill_colors = context_colors,
+  bar_axis = "cluster",
+  strata_cols = "initial_ploidy",
+  title = "Equal-sample cluster composition by context",
+  subtitle = paste(
+    "Each tumor or CellLine sample contributes equally within context;",
+    "stars mark context enrichment within ploidy at BH FDR <= 0.05"
+  ),
+  x_title = "Cluster",
+  y_title = "Mean within-sample cluster proportion",
+  legend_title = "Context",
+  tag = "E",
+  theme_function = figure_theme,
+  x_text_angle = 0
 )
+s4e <- s4e_result$plot
+selected_cellcycle_clusters <- c("4c", "6", "10")
+selected_tumor_cells <- sum(
+  s4_context$n_cells[
+    as.character(s4_context$group_value) %in% selected_cellcycle_clusters &
+      as.character(s4_context$fill_value) == "Tumor"
+  ]
+)
+metadata_selected_tumor_cells <- sum(
+  as.character(tumor$cluster) %in% selected_cellcycle_clusters
+)
+if (!identical(as.numeric(selected_tumor_cells), as.numeric(metadata_selected_tumor_cells))) {
+  stop("SI4F selected tumor-cell count does not reconcile to cell metadata", call. = FALSE)
+}
 s4f <- make_composition_plot(
   s4_context,
   context_colors,
@@ -709,17 +733,35 @@ s4f <- make_composition_plot(
   "Cluster",
   "Number of cells",
   "F",
-  FALSE
+  FALSE,
+  subtitle = sprintf(
+    "Selected CellCycle clusters 4c + 6 + 10 contain n = %s tumor cells",
+    format(selected_tumor_cells, big.mark = ",", scientific = FALSE)
+  )
 )
-s4g <- make_composition_plot(
-  s4_ploidy,
-  ploidy_colors,
-  "Initial ploidy proportions by cluster",
-  "Cluster",
-  "Cell proportion",
-  "G",
-  TRUE
+s4g_result <- make_normalized_composition_plot(
+  data = seurat,
+  unit_col = "mouse",
+  cluster_col = "cluster",
+  group_col = "initial_ploidy",
+  cluster_levels = cluster_levels,
+  group_levels = ploidy_levels,
+  fill_colors = ploidy_colors,
+  bar_axis = "cluster",
+  strata_cols = "context",
+  title = "Equal-sample cluster composition by initial ploidy",
+  subtitle = paste(
+    "Each sample contributes equally within initial ploidy;",
+    "stars mark ploidy enrichment within context at BH FDR <= 0.05"
+  ),
+  x_title = "Cluster",
+  y_title = "Mean within-sample cluster proportion",
+  legend_title = "Initial ploidy",
+  tag = "G",
+  theme_function = figure_theme,
+  x_text_angle = 0
 )
+s4g <- s4g_result$plot
 s4h <- make_composition_plot(
   s4_ploidy,
   ploidy_colors,
@@ -837,122 +879,128 @@ s5e <- ggplot2::ggplot(
   )
 s5e <- add_tag(s5e, "E")
 
-composition_table$mouse <- factor(composition_table$mouse, levels = mouse_levels)
-composition_table$initial_ploidy <- factor(
-  composition_table$initial_ploidy,
-  levels = ploidy_levels
+tumor$ploidy_dose_group <- paste(
+  as.character(tumor$initial_ploidy),
+  as.character(tumor$dose),
+  sep = " | "
 )
-composition_table$dose <- factor(composition_table$dose, levels = dose_levels)
-composition_table$cluster_final <- factor(
-  composition_table$cluster_final,
-  levels = cluster_levels
-)
-composition_table$proportion <- as.numeric(composition_table$proportion)
-s5f <- ggplot2::ggplot(
-  composition_table,
-  ggplot2::aes(mouse, proportion, fill = cluster_final)
-) +
-  ggplot2::geom_col(width = 0.84, color = "white", linewidth = 0.10) +
-  ggplot2::facet_grid(
-    . ~ initial_ploidy + dose,
-    scales = "free_x",
-    space = "free_x",
-    drop = FALSE
-  ) +
-  ggplot2::scale_fill_manual(
-    values = cluster_colors,
-    drop = FALSE,
-    name = "Cluster"
-  ) +
-  ggplot2::scale_y_continuous(
-    breaks = seq(0, 1, 0.25),
-    labels = percent_labels,
-    expand = ggplot2::expansion(mult = c(0, 0))
-  ) +
-  ggplot2::coord_cartesian(ylim = c(0, 1)) +
-  ggplot2::labs(
-    title = "Cluster composition of each mouse",
-    subtitle = "Each mouse sums to 100%",
-    x = "Mouse",
-    y = "Cluster composition"
-  ) +
-  figure_theme(9.5) +
-  ggplot2::theme(
-    axis.text.x = ggplot2::element_text(angle = 50, hjust = 1, size = 7.5)
-  )
-s5f <- add_tag(s5f, "F")
+ploidy_dose_levels <- unlist(lapply(
+  ploidy_levels,
+  function(ploidy) paste(ploidy, dose_levels, sep = " | ")
+))
 
-group_summary$initial_ploidy <- factor(
-  group_summary$initial_ploidy,
-  levels = ploidy_levels
+s5f_result <- make_normalized_composition_plot(
+  data = tumor,
+  unit_col = "mouse",
+  cluster_col = "cluster",
+  group_col = "mouse",
+  cluster_levels = cluster_levels,
+  group_levels = mouse_levels,
+  fill_colors = cluster_colors,
+  bar_axis = "group",
+  x_col = "mouse",
+  x_levels = mouse_levels,
+  facet_cols = c("initial_ploidy", "dose"),
+  facet_formula = stats::as.formula(". ~ initial_ploidy + dose"),
+  facet_type = "grid",
+  facet_scales = "free_x",
+  facet_space = "free_x",
+  title = "Within-mouse cluster composition",
+  subtitle = paste(
+    "Every mouse sums to 100%; one biological sample per bar,",
+    "so this panel is descriptive and has no inferential stars"
+  ),
+  x_title = "Mouse",
+  y_title = "Within-mouse cluster proportion",
+  legend_title = "Cluster",
+  tag = "F",
+  theme_function = figure_theme,
+  x_text_angle = 50,
+  test_mode = "descriptive",
+  descriptive_reason = "one biological sample per displayed mouse"
 )
-group_summary$dose <- factor(group_summary$dose, levels = dose_levels)
-group_summary$cluster_final <- factor(
-  group_summary$cluster_final,
-  levels = cluster_levels
+s5f <- s5f_result$plot + ggplot2::theme(
+  axis.text.x = ggplot2::element_text(angle = 50, hjust = 1, size = 7.5)
 )
-group_summary$n_mice <- as.integer(group_summary$n_mice)
-group_summary$mean_proportion <- as.numeric(group_summary$mean_proportion)
-group_n <- unique(
-  group_summary[, c("initial_ploidy", "dose", "n_mice"), drop = FALSE]
-)
-s5g <- ggplot2::ggplot(
-  group_summary,
-  ggplot2::aes(dose, mean_proportion, fill = cluster_final)
-) +
-  ggplot2::geom_col(width = 0.72, color = "white", linewidth = 0.12) +
-  ggplot2::geom_text(
-    data = group_n,
-    ggplot2::aes(dose, 0.985, label = paste0("n=", n_mice)),
-    inherit.aes = FALSE,
-    size = 2.8,
-    vjust = 1
-  ) +
-  ggplot2::facet_wrap(~initial_ploidy, nrow = 1, drop = FALSE) +
-  ggplot2::scale_fill_manual(
-    values = cluster_colors,
-    drop = FALSE,
-    name = "Cluster"
-  ) +
-  ggplot2::scale_y_continuous(
-    breaks = seq(0, 1, 0.25),
-    labels = percent_labels,
-    expand = ggplot2::expansion(mult = c(0, 0))
-  ) +
-  ggplot2::coord_cartesian(ylim = c(0, 1)) +
-  ggplot2::labs(
-    title = "Mouse-weighted composition by initial ploidy and dose",
-    subtitle = paste(
-      "Cluster proportions are calculated per mouse,",
-      "then averaged with equal mouse weights"
-    ),
-    x = "Gemcitabine dose",
-    y = "Mean cluster composition"
-  ) +
-  figure_theme(9.5) +
-  ggplot2::theme(
-    axis.text.x = ggplot2::element_text(angle = 25, hjust = 1)
-  )
-s5g <- add_tag(s5g, "G")
 
-s5h <- make_composition_plot(
-  s5_dose,
-  dose_colors,
-  "Gemcitabine dose composition by cluster",
-  "Cluster",
-  "Cell proportion",
-  "H",
-  TRUE
+s5g_result <- make_normalized_composition_plot(
+  data = tumor,
+  unit_col = "mouse",
+  cluster_col = "cluster",
+  group_col = "ploidy_dose_group",
+  cluster_levels = cluster_levels,
+  group_levels = ploidy_dose_levels,
+  fill_colors = cluster_colors,
+  bar_axis = "group",
+  x_col = "dose",
+  x_levels = dose_levels,
+  facet_cols = "initial_ploidy",
+  strata_cols = "initial_ploidy",
+  facet_formula = stats::as.formula("~ initial_ploidy"),
+  facet_type = "wrap",
+  facet_nrow = 1,
+  title = "Equal-mouse composition by initial ploidy and dose",
+  subtitle = paste(
+    "Within-mouse proportions are averaged with equal mouse weights;",
+    "stars mark dose enrichment within ploidy at BH FDR <= 0.05"
+  ),
+  x_title = "Gemcitabine dose",
+  y_title = "Mean within-mouse cluster proportion",
+  legend_title = "Cluster",
+  tag = "G",
+  theme_function = figure_theme,
+  x_text_angle = 25,
+  show_n = TRUE
 )
-s5i <- make_composition_plot(
-  s5_ploidy,
-  ploidy_colors,
-  "Initial ploidy composition by cluster",
-  "Cluster",
-  "Cell proportion",
-  "I",
-  TRUE
+s5g <- s5g_result$plot
+
+s5h_result <- make_normalized_composition_plot(
+  data = tumor,
+  unit_col = "mouse",
+  cluster_col = "cluster",
+  group_col = "dose",
+  cluster_levels = cluster_levels,
+  group_levels = dose_levels,
+  fill_colors = dose_colors,
+  bar_axis = "cluster",
+  strata_cols = "initial_ploidy",
+  title = "Equal-mouse cluster composition by gemcitabine dose",
+  subtitle = paste(
+    "Each mouse contributes equally within dose;",
+    "stars mark dose enrichment within ploidy at BH FDR <= 0.05"
+  ),
+  x_title = "Cluster",
+  y_title = "Mean within-mouse cluster proportion",
+  legend_title = "Gemcitabine dose",
+  tag = "H",
+  theme_function = figure_theme,
+  x_text_angle = 0
 )
+s5h <- s5h_result$plot
+
+s5i_result <- make_normalized_composition_plot(
+  data = tumor,
+  unit_col = "mouse",
+  cluster_col = "cluster",
+  group_col = "initial_ploidy",
+  cluster_levels = cluster_levels,
+  group_levels = ploidy_levels,
+  fill_colors = ploidy_colors,
+  bar_axis = "cluster",
+  strata_cols = "dose",
+  title = "Equal-mouse cluster composition by initial ploidy",
+  subtitle = paste(
+    "Each mouse contributes equally within initial ploidy;",
+    "stars mark ploidy enrichment within dose at BH FDR <= 0.05"
+  ),
+  x_title = "Cluster",
+  y_title = "Mean within-mouse cluster proportion",
+  legend_title = "Initial ploidy",
+  tag = "I",
+  theme_function = figure_theme,
+  x_text_angle = 0
+)
+s5i <- s5i_result$plot
 
 s5_left <- patchwork::wrap_plots(s5a, s5b, s5c, s5d, ncol = 1)
 s5_upper <- patchwork::wrap_plots(
@@ -1117,6 +1165,62 @@ panel_rows[[length(panel_rows) + 1L]] <- save_composite(
   8.8
 )
 
+composition_results <- list(
+  SI4E = s4e_result,
+  SI4G = s4g_result,
+  SI5F = s5f_result,
+  SI5G = s5g_result,
+  SI5H = s5h_result,
+  SI5I = s5i_result
+)
+composition_test_audit <- do.call(rbind, lapply(
+  names(composition_results),
+  function(panel_id) {
+    data <- composition_results[[panel_id]]$tests
+    data$panel_id <- panel_id
+    data[, c(
+      "panel_id", "group_value", "cluster", "n_group_samples",
+      "n_rest_samples", "mean_group_proportion", "mean_rest_proportion",
+      "difference", "exact_permutations", "p_value", "q_value", "enriched",
+      "significance", "testable", "test", "strata", "adjustment"
+    )]
+  }
+))
+rownames(composition_test_audit) <- NULL
+write_tsv(
+  composition_test_audit,
+  file.path(metadata_dir, "normalized_composition_enrichment_tests.tsv")
+)
+
+composition_plot_audit <- do.call(rbind, lapply(
+  names(composition_results),
+  function(panel_id) {
+    data <- composition_results[[panel_id]]$plot_data
+    data$panel_id <- panel_id
+    data.frame(
+      panel_id = data$panel_id,
+      group_value = as.character(data$group_value),
+      cluster = as.character(data$cluster),
+      x_value = as.character(data$x_value),
+      n_samples = data$n_samples,
+      sum_n_cells = data$sum_n_cells,
+      mean_proportion = data$mean_proportion,
+      min_sample_proportion = data$min_sample_proportion,
+      max_sample_proportion = data$max_sample_proportion,
+      difference = data$difference,
+      q_value = data$q_value,
+      significance = data$significance,
+      testable = data$testable,
+      stringsAsFactors = FALSE
+    )
+  }
+))
+rownames(composition_plot_audit) <- NULL
+write_tsv(
+  composition_plot_audit,
+  file.path(metadata_dir, "normalized_composition_plot_data.tsv")
+)
+
 panel_contract <- do.call(rbind, panel_rows)
 rownames(panel_contract) <- NULL
 expected_figures <- sort(panel_contract$filename)
@@ -1142,12 +1246,14 @@ write_tsv(panel_contract, file.path(metadata_dir, "panel_contract.tsv"))
 
 input_paths <- c(
   config_path,
+  composition_helper_path,
   file.path(cache_dir, "manifest.tsv"),
   source_paths
 )
 input_manifest <- data.frame(
   role = c(
     "figure7_config",
+    "normalized_composition_helper",
     if (allow_generated_human_only_si7) {
       "si_figures_generated_cache_manifest"
     } else {
@@ -1220,6 +1326,11 @@ run_config <- data.frame(
     "cache_file_count",
     "plot_shuffle_seed",
     "cluster_order",
+    "composition_normalization",
+    "composition_enrichment_test",
+    "composition_permutation_strata",
+    "composition_multiple_testing",
+    "composition_fdr_threshold",
     "si7_feature_species_policy",
     "si7_gene_set_database",
     "si7_canonical_publication_allowed",
@@ -1242,6 +1353,15 @@ run_config <- data.frame(
     as.character(length(cache_files)),
     as.character(plot_seed),
     paste(cluster_levels, collapse = ","),
+    "within-sample cluster proportions averaged with equal sample weights within group",
+    "exact independent-sample label permutation; one group versus exchangeable remaining samples",
+    paste(
+      "SI4E=initial_ploidy;SI4G=context;SI5F=descriptive;",
+      "SI5G=initial_ploidy;SI5H=initial_ploidy;SI5I=dose",
+      sep = ""
+    ),
+    "Benjamini-Hochberg across all group-by-cluster contrasts within each panel",
+    "0.05",
     as.character(
       if (allow_generated_human_only_si7) {
         si_config$raw_rebuild_species_policy
@@ -1273,6 +1393,12 @@ input_qc <- data.frame(
     "endpoint_audit_rows",
     "tumor_endpoint_ploidy_min",
     "tumor_endpoint_ploidy_max",
+    "selected_cellcycle_tumor_cells",
+    "normalized_composition_panels",
+    "normalized_composition_contrasts",
+    "normalized_composition_tested_contrasts",
+    "normalized_composition_descriptive_contrasts",
+    "normalized_composition_significant_enrichments",
     "composite_files"
   ),
   value = c(
@@ -1284,6 +1410,12 @@ input_qc <- data.frame(
     nrow(endpoint_audit),
     format(endpoint_limits[[1L]], digits = 16),
     format(endpoint_limits[[2L]], digits = 16),
+    selected_tumor_cells,
+    length(composition_results),
+    nrow(composition_test_audit),
+    sum(composition_test_audit$testable),
+    sum(!composition_test_audit$testable),
+    sum(composition_test_audit$enriched),
     nrow(panel_contract)
   ),
   stringsAsFactors = FALSE
@@ -1305,6 +1437,8 @@ provenance <- data.frame(
     "artifact",
     "entrypoint",
     "entrypoint_sha256",
+    "normalized_composition_helper",
+    "normalized_composition_helper_sha256",
     "source_code_revision",
     "table_cache",
     "table_cache_manifest_sha256",
@@ -1323,6 +1457,8 @@ provenance <- data.frame(
     "supplementary_figures_4_7",
     repo_relative(script, root),
     file_sha256(script),
+    repo_relative(composition_helper_path, root),
+    file_sha256(composition_helper_path),
     git_revision,
     repo_relative(cache_dir, root),
     file_sha256(file.path(cache_dir, "manifest.tsv")),
@@ -1386,7 +1522,22 @@ writeLines(
     paste0("Composite files: ", nrow(panel_contract)),
     paste0("All cells: ", nrow(seurat)),
     paste0("Included tumor cells: ", n_tumor),
-    paste0("Tumor mice: ", n_mice),
+        paste0("Tumor mice: ", n_mice),
+        paste0("Selected CellCycle tumor cells: ", selected_tumor_cells),
+        paste0(
+          "Normalized composition panels: ",
+          paste(names(composition_results), collapse = ",")
+        ),
+        paste0(
+          "Significant composition enrichments (BH FDR <= 0.05): ",
+          sum(composition_test_audit$enriched)
+        ),
+        paste0(
+          "Tested/descriptive composition contrasts: ",
+          sum(composition_test_audit$testable),
+          "/",
+          sum(!composition_test_audit$testable)
+        ),
     paste0(
       "SI7 feature policy: ",
       as.character(

@@ -588,6 +588,7 @@ input_paths_for_module() {
       printf "%s\n" \
         Code/in-vivo/SI_figures/run_supplementary_figures.R \
         Code/in-vivo/SI_figures/generate_supplementary_figures.R \
+        Code/in-vivo/SI_figures/normalized_composition.R \
         Code/tools/validate_si_figures_table_cache.py
       local rendered_input_manifest="${run_dir}/metadata/analysis_input_manifest.tsv"
       if [[ -n "${run_dir}" && -f "${rendered_input_manifest}" ]]; then
@@ -618,6 +619,14 @@ input_paths_for_module() {
             {
               role = $1
               locator = $2
+              if (role == "normalized_composition_helper") {
+                if (locator != "Code/in-vivo/SI_figures/normalized_composition.R" ||
+                  seen_helper++) {
+                  invalid = 1
+                }
+                role_count[role]++
+                next
+              }
               if (role == "figure7_config" ||
                 role == "si_figures_cache_manifest" ||
                 role == "si_figures_frozen_table") {
@@ -638,6 +647,7 @@ input_paths_for_module() {
             END {
               if (invalid ||
                 role_count["figure7_config"] != 1 ||
+                role_count["normalized_composition_helper"] != 1 ||
                 role_count["si_figures_cache_manifest"] != 1 ||
                 role_count["si_figures_frozen_table"] != 11 ||
                 path_count != 13) {
@@ -733,7 +743,8 @@ required_input_paths_for_module() {
         Code/in-vivo/figure7/figure7_config.yaml \
         Code/tools/validate_si_figures_table_cache.py \
         Code/in-vivo/SI_figures/run_supplementary_figures.R \
-        Code/in-vivo/SI_figures/generate_supplementary_figures.R
+        Code/in-vivo/SI_figures/generate_supplementary_figures.R \
+        Code/in-vivo/SI_figures/normalized_composition.R
       if [[ "${mode}" == "full-refit" ]]; then
         printf "%s\n" \
           Code/in-vivo/figure7/environment_lock.tsv \

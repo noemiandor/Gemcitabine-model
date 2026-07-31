@@ -11,6 +11,7 @@ from pathlib import Path
 
 from figure_output_contract import (
     FIGURE_MANIFEST_COLUMNS,
+    GENERATED_SOURCE_KINDS,
     first_local_path,
     module_manifest_local_path,
     read_tsv,
@@ -506,6 +507,13 @@ def manifest_relative(path: Path, manifest_parent: Path) -> str:
     return f"manifest:{relative.as_posix()}"
 
 
+def portable_locator(path: Path, repo_root: Path, manifest_parent: Path) -> str:
+    try:
+        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return manifest_relative(path, manifest_parent)
+
+
 def generated_row(
     spec: dict[str, object],
     source: Path,
@@ -516,23 +524,41 @@ def generated_row(
     operation_id: str,
 ) -> dict[str, str]:
     manifest_parent = asset.parent
+    published_asset = portable_locator(asset, repo_root, manifest_parent)
+    source_locator = portable_locator(source, repo_root, manifest_parent)
+    source_run_locator = portable_locator(
+        result_run_root,
+        repo_root,
+        manifest_parent,
+    )
     return {
         "figure": str(spec["figure"]),
         "panel": str(spec["panel"]),
-        "asset_path": manifest_relative(asset, manifest_parent),
-        "source_file": manifest_relative(source, manifest_parent),
+        "asset_path": published_asset,
+        "source_file": published_asset,
         "source_kind": "generated_panel",
         "generated_by": "Manager.sh",
         "command": "materialize_figure_assets.py",
-        "input_data": manifest_relative(source, manifest_parent),
-        "result_run_dir": manifest_relative(result_run_root, manifest_parent),
+        "input_data": published_asset,
+        "result_run_dir": portable_locator(
+            manifest_parent,
+            repo_root,
+            manifest_parent,
+        ),
         "run_id": source_run_id,
         "caption_role": str(spec["caption_role"]),
         "asset_status": "generated",
         "not_regenerated_reason": "",
         "local_provenance_path": "",
         "citation_or_uri": "",
-        "notes": f"materialization_operation_id={operation_id}",
+        "notes": ";".join(
+            (
+                f"materialization_operation_id={operation_id}",
+                f"validated_source_file={source_locator}",
+                f"validated_source_run={source_run_locator}",
+                f"validated_source_sha256={sha256_file(source)}",
+            )
+        ),
     }
 
 
@@ -637,10 +663,29 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
                 "Canonical SI Figures materialization is prohibited: source "
                 f"run table {filename} is not the exact reviewed cache table"
             )
-    expected = {
+    si7_expected = {
         "si7_canonical_publication_allowed": "true",
         "si7_feature_species_policy": SI7_REVIEWED_FEATURE_POLICY,
         "si7_gene_set_database": SI7_REVIEWED_GENE_SET_DATABASE,
+    }
+    composition_expected = {
+        "composition_normalization": (
+            "within-sample cluster proportions averaged with equal sample "
+            "weights within group"
+        ),
+        "composition_enrichment_test": (
+            "exact independent-sample label permutation; one group versus "
+            "exchangeable remaining samples"
+        ),
+        "composition_permutation_strata": (
+            "SI4E=initial_ploidy;SI4G=context;SI5F=descriptive;"
+            "SI5G=initial_ploidy;SI5H=initial_ploidy;SI5I=dose"
+        ),
+        "composition_multiple_testing": (
+            "Benjamini-Hochberg across all group-by-cluster contrasts "
+            "within each panel"
+        ),
+        "composition_fdr_threshold": "0.05",
     }
     renderer = (
         repo_root
@@ -651,9 +696,26 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
     )
     if not renderer.is_file():
         raise FileNotFoundError(f"Missing SI Figures renderer: {renderer}")
+    composition_helper = (
+        repo_root
+        / "Code"
+        / "in-vivo"
+        / "SI_figures"
+        / "normalized_composition.R"
+    )
+    if not composition_helper.is_file():
+        raise FileNotFoundError(
+            f"Missing SI Figures normalized-composition helper: {composition_helper}"
+        )
     if (
-        any(provenance.get(key) != value for key, value in expected.items())
-        or any(run_config.get(key) != value for key, value in expected.items())
+        any(
+            provenance.get(key) != value
+            for key, value in si7_expected.items()
+        )
+        or any(
+            run_config.get(key) != value
+            for key, value in {**si7_expected, **composition_expected}.items()
+        )
         or provenance.get("si7_frozen_matrix_note")
         != SI7_REVIEWED_FROZEN_MATRIX_NOTE
         or run_config.get("module") != "si_figures"
@@ -666,6 +728,11 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
             "Code/in-vivo/SI_figures/generate_supplementary_figures.R"
         )
         or provenance.get("entrypoint_sha256") != sha256_file(renderer)
+        or provenance.get("normalized_composition_helper") != (
+            "Code/in-vivo/SI_figures/normalized_composition.R"
+        )
+        or provenance.get("normalized_composition_helper_sha256")
+        != sha256_file(composition_helper)
         or provenance.get("table_cache_manifest_sha256")
         != sha256_file(canonical_manifest)
     ):
@@ -754,6 +821,33 @@ def validate_strict_source_run(
                 / "in-vivo"
                 / "figure7"
                 / "figure7_config.yaml"
+            ).resolve(),
+            (
+                repo_root
+                / "Code"
+                / "in-vivo"
+                / "SI_figures"
+                / "run_supplementary_figures.R"
+            ).resolve(),
+            (
+                repo_root
+                / "Code"
+                / "in-vivo"
+                / "SI_figures"
+                / "generate_supplementary_figures.R"
+            ).resolve(),
+            (
+                repo_root
+                / "Code"
+                / "in-vivo"
+                / "SI_figures"
+                / "normalized_composition.R"
+            ).resolve(),
+            (
+                repo_root
+                / "Code"
+                / "tools"
+                / "validate_si_figures_table_cache.py"
             ).resolve(),
             cache_manifest.resolve(),
             *{(cache_root / name).resolve() for name in cache_names},
@@ -1066,6 +1160,33 @@ def main() -> int:
         )
 
     touched_figures = set(rows_by_figure)
+    for figure in touched_figures:
+        manifest_path = figure_root / figure / "manifest.tsv"
+        if not manifest_path.is_file():
+            continue
+        headers, existing_rows = read_tsv(manifest_path)
+        if headers != list(FIGURE_MANIFEST_COLUMNS):
+            raise ValueError(
+                f"Existing figure manifest has an invalid schema: {manifest_path}"
+            )
+        replaced_panels = set(expected_by_figure.get(figure, set()))
+        replaced_panels.update(
+            str(row["panel"])
+            for row in EXTERNAL_ROWS
+            if row["figure"] == figure
+        )
+        preserved_rows = [
+            row
+            for row in existing_rows
+            if row.get("panel", "") not in replaced_panels
+        ]
+        rows_by_figure[figure].extend(preserved_rows)
+        expected_by_figure.setdefault(figure, set()).update(
+            row.get("panel", "")
+            for row in preserved_rows
+            if row.get("source_kind", "") in GENERATED_SOURCE_KINDS
+            and row.get("panel", "")
+        )
     for row in EXTERNAL_ROWS:
         if row["figure"] in touched_figures:
             rows_by_figure.setdefault(row["figure"], []).append(external_row(row))

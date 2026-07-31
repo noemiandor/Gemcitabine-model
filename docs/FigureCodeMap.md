@@ -132,8 +132,8 @@ final composite PDF/PNG pairs.
 
 | Figure | Content | Published composite |
 |---|---|---|
-| Supplementary Figure 4 | Tumor and CellLine UMAPs, context/ploidy composition, and S-phase score | `figures/Supplementary/panel_SuppFig4_composite.pdf` and `.png` |
-| Supplementary Figure 5 | Tumor cluster, ploidy, dose, sample, and mouse-weighted composition | `figures/Supplementary/panel_SuppFig5_composite.pdf` and `.png` |
+| Supplementary Figure 4 | Tumor and CellLine UMAPs, S-phase score, equal-sample context/ploidy composition with sample-level enrichment tests, and the explicit 2,881-cell CellCycle subset count | `figures/Supplementary/panel_SuppFig4_composite.pdf` and `.png` |
+| Supplementary Figure 5 | Tumor cluster, ploidy, dose, and sample views; descriptive per-mouse composition plus equal-mouse grouped composition with stratified sample-level enrichment tests | `figures/Supplementary/panel_SuppFig5_composite.pdf` and `.png` |
 | Supplementary Figure 6 | Endpoint tumor ploidy overall, by initial ploidy, and by mouse | `figures/Supplementary/panel_SuppFig6_composite.pdf` and `.png` |
 | Supplementary Figure 7 | Top-20 Hallmark ORA annotation-score and GSEA NES heatmaps | `figures/Supplementary/panel_SuppFig7_composite.pdf` and `.png` |
 

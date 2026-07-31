@@ -16,6 +16,7 @@ TOOLS_DIR = REPO_ROOT / "Code/tools"
 sys.path.insert(0, str(TOOLS_DIR))
 
 from figure_output_contract import (  # noqa: E402
+    FIGURE_MANIFEST_COLUMNS,
     MODULE_MANIFEST_COLUMNS,
     sha256_file,
     write_tsv,
@@ -399,6 +400,10 @@ input_paths_for_module si_figures "$1"
                 paths,
             )
             self.assertIn(
+                "Code/in-vivo/SI_figures/normalized_composition.R",
+                paths,
+            )
+            self.assertIn(
                 "Code/tools/validate_si_figures_table_cache.py",
                 paths,
             )
@@ -415,6 +420,8 @@ input_paths_for_module si_figures "$1"
                     "run_supplementary_figures.R",
                     "Code/in-vivo/SI_figures/"
                     "generate_supplementary_figures.R",
+                    "Code/in-vivo/SI_figures/"
+                    "normalized_composition.R",
                     "Code/tools/validate_si_figures_table_cache.py",
                     str(retained),
                 },
@@ -471,6 +478,10 @@ input_paths_for_module si_figures "$1"
                 Path(
                     "Code/in-vivo/SI_figures/"
                     "generate_supplementary_figures.R"
+                ),
+                Path(
+                    "Code/in-vivo/SI_figures/"
+                    "normalized_composition.R"
                 ),
                 Path("Code/tools/validate_si_figures_table_cache.py"),
             ):
@@ -694,6 +705,10 @@ printf 'key\\tvalue\\nsi7_canonical_publication_allowed\\ttrue\\n' \\
                     "Code/in-vivo/figure7/figure7_config.yaml",
                 ),
                 (
+                    "normalized_composition_helper",
+                    "Code/in-vivo/SI_figures/normalized_composition.R",
+                ),
+                (
                     "si_figures_cache_manifest",
                     "Data/in-vivo/SIfigures/manifest.tsv",
                 ),
@@ -753,6 +768,46 @@ input_paths_for_module si_figures "$1"
 
 
 class SiFiguresMaterializationTest(unittest.TestCase):
+    def _canonical_fixture(
+        self,
+        tmp: str,
+    ) -> tuple[Path, Path, list[dict[str, object]]]:
+        specs = [
+            spec for spec in PANEL_SPECS
+            if spec["module"] == "si_figures"
+        ]
+        repo = Path(tmp) / "repo"
+        repo.mkdir()
+        run_root = (
+            repo
+            / "Results/in-vivo/SI_figures/runs/source_si_figures"
+        )
+        (run_root / "figures").mkdir(parents=True)
+        (run_root / "metadata").mkdir()
+        for spec in specs:
+            source = run_root / str(spec["source"])
+            source.write_bytes(f"fixture {spec['panel']}\n".encode())
+        self._write_publication_contract(repo, run_root, allowed=True)
+        return repo, run_root, specs
+
+    @staticmethod
+    def _materializer_command(repo: Path, run_root: Path) -> list[str]:
+        return [
+            sys.executable,
+            str(TOOLS_DIR / "materialize_figure_assets.py"),
+            "--repo-root",
+            str(repo),
+            "--figure-root",
+            str(repo / "figures"),
+            "--source-run-id",
+            "source",
+            "--operation-id",
+            "publish",
+            "--module-run",
+            f"si_figures={run_root}",
+            "--overwrite",
+        ]
+
     def test_contract_contains_only_four_composite_pairs(self) -> None:
         specs = [spec for spec in PANEL_SPECS if spec["module"] == "si_figures"]
         self.assertEqual(len(specs), 8)
@@ -826,6 +881,14 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                     "SuppFig7_png",
                 ],
             )
+            for row in rows:
+                self.assertEqual(row["source_file"], row["asset_path"])
+                self.assertEqual(row["input_data"], row["asset_path"])
+                self.assertEqual(
+                    row["result_run_dir"],
+                    "figures/Supplementary",
+                )
+                self.assertIn("validated_source_sha256=", row["notes"])
             published = {
                 path.name
                 for path in (repo / "figures/Supplementary").iterdir()
@@ -834,6 +897,95 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             self.assertEqual(
                 published,
                 {Path(str(spec["asset"])).name for spec in specs},
+            )
+
+    def test_materializer_preserves_unselected_supplementary_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, specs = self._canonical_fixture(tmp)
+            supplementary = repo / "figures/Supplementary"
+            supplementary.mkdir(parents=True)
+            legacy_asset = supplementary / "panel_SuppFig1A_legacy.png"
+            legacy_asset.write_bytes(b"legacy supplementary panel\n")
+            legacy_row = {
+                "figure": "Supplementary",
+                "panel": "SuppFig1A",
+                "asset_path": "manifest:panel_SuppFig1A_legacy.png",
+                "source_file": "manifest:panel_SuppFig1A_legacy.png",
+                "source_kind": "generated_panel",
+                "generated_by": "legacy-test",
+                "command": "legacy-test",
+                "input_data": "manifest:panel_SuppFig1A_legacy.png",
+                "result_run_dir": "manifest:.",
+                "run_id": "legacy_run",
+                "caption_role": "Unselected legacy panel",
+                "asset_status": "generated",
+                "not_regenerated_reason": "",
+                "local_provenance_path": "",
+                "citation_or_uri": "",
+                "notes": "must survive targeted SI4-7 materialization",
+            }
+            write_tsv(
+                supplementary / "manifest.tsv",
+                [legacy_row],
+                FIGURE_MANIFEST_COLUMNS,
+            )
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with (supplementary / "manifest.tsv").open(newline="") as handle:
+                rows = list(csv.DictReader(handle, delimiter="\t"))
+            self.assertEqual(len(rows), len(specs) + 1)
+            self.assertEqual(
+                [row for row in rows if row["panel"] == "SuppFig1A"],
+                [legacy_row],
+            )
+
+    def test_materializer_requires_composition_helper_input_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, _ = self._canonical_fixture(tmp)
+            input_manifest = run_root / "metadata/input_manifest.tsv"
+            with input_manifest.open(newline="") as handle:
+                rows = list(csv.DictReader(handle, delimiter="\t"))
+            rows = [
+                row for row in rows
+                if not row["path"].endswith("normalized_composition.R")
+            ]
+            write_tsv(
+                input_manifest,
+                rows,
+                MODULE_MANIFEST_COLUMNS,
+            )
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("normalized_composition.R", result.stderr)
+
+    def test_materializer_rejects_stale_composition_helper_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, _ = self._canonical_fixture(tmp)
+            helper = (
+                repo
+                / "Code/in-vivo/SI_figures/normalized_composition.R"
+            )
+            helper.write_text(helper.read_text() + "\n# tampered after render\n")
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "does not carry the reviewed frozen-table publication contract",
+                result.stderr,
             )
 
     @staticmethod
@@ -888,6 +1040,32 @@ class SiFiguresMaterializationTest(unittest.TestCase):
         )
         renderer_target.parent.mkdir(parents=True)
         shutil.copy2(renderer_source, renderer_target)
+        helper_source = (
+            REPO_ROOT
+            / "Code/in-vivo/SI_figures/normalized_composition.R"
+        )
+        helper_target = (
+            repo
+            / "Code/in-vivo/SI_figures/normalized_composition.R"
+        )
+        shutil.copy2(helper_source, helper_target)
+        runner_source = (
+            REPO_ROOT
+            / "Code/in-vivo/SI_figures/run_supplementary_figures.R"
+        )
+        runner_target = (
+            repo
+            / "Code/in-vivo/SI_figures/run_supplementary_figures.R"
+        )
+        shutil.copy2(runner_source, runner_target)
+        validator_source = (
+            REPO_ROOT / "Code/tools/validate_si_figures_table_cache.py"
+        )
+        validator_target = (
+            repo / "Code/tools/validate_si_figures_table_cache.py"
+        )
+        validator_target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(validator_source, validator_target)
         config_source = (
             REPO_ROOT / "Code/in-vivo/figure7/figure7_config.yaml"
         )
@@ -910,6 +1088,17 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             {
                 "key": "entrypoint_sha256",
                 "value": sha256_file(renderer_target),
+            },
+            {
+                "key": "normalized_composition_helper",
+                "value": (
+                    "Code/in-vivo/SI_figures/"
+                    "normalized_composition.R"
+                ),
+            },
+            {
+                "key": "normalized_composition_helper_sha256",
+                "value": sha256_file(helper_target),
             },
             {
                 "key": "table_cache_manifest_sha256",
@@ -938,6 +1127,35 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             {"key": "figure_file_count", "value": "8"},
             {"key": "table_mode", "value": "frozen_plot_tables_only"},
             {"key": "cache_file_count", "value": "11"},
+            {
+                "key": "composition_normalization",
+                "value": (
+                    "within-sample cluster proportions averaged with equal "
+                    "sample weights within group"
+                ),
+            },
+            {
+                "key": "composition_enrichment_test",
+                "value": (
+                    "exact independent-sample label permutation; one group "
+                    "versus exchangeable remaining samples"
+                ),
+            },
+            {
+                "key": "composition_permutation_strata",
+                "value": (
+                    "SI4E=initial_ploidy;SI4G=context;SI5F=descriptive;"
+                    "SI5G=initial_ploidy;SI5H=initial_ploidy;SI5I=dose"
+                ),
+            },
+            {
+                "key": "composition_multiple_testing",
+                "value": (
+                    "Benjamini-Hochberg across all group-by-cluster "
+                    "contrasts within each panel"
+                ),
+            },
+            {"key": "composition_fdr_threshold", "value": "0.05"},
             {
                 "key": "si7_feature_species_policy",
                 "value": SI7_REVIEWED_FEATURE_POLICY,
@@ -983,6 +1201,10 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             cache_rows = list(csv.DictReader(handle, delimiter="\t"))
         input_paths = [
             config_target,
+            runner_target,
+            renderer_target,
+            helper_target,
+            validator_target,
             cache_manifest,
             *[
                 cache_target / row["filename"]

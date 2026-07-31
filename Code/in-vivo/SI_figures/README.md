@@ -25,6 +25,19 @@ The renderer intentionally cannot download raw data, load the Seurat RDS,
 perform differential expression, or rerun ORA/GSEA. Its only analysis
 dependencies are `ggplot2`, `patchwork`, `pheatmap`, and `yaml`.
 
+Composition panels SI4E/G and SI5F-I share
+`normalized_composition.R`. Cells are first converted to within-sample
+cluster proportions; samples are then averaged with equal weight inside each
+displayed group, so sequencing depth cannot determine a sample's influence.
+Positive enrichment is assessed on those independent-sample proportions by
+an exact one-group-versus-rest label-permutation test inside the relevant
+nuisance strata: initial ploidy for SI4E and SI5G/H, context for SI4G, and dose
+for SI5I. Benjamini-Hochberg correction covers every group-by-cluster contrast
+in a panel, and asterisks mark only positive enrichments at FDR <= 0.05. SI5F
+has one biological sample per displayed mouse; it is therefore explicitly
+descriptive and emits no inferential stars rather than treating cells as
+replicates.
+
 To rebuild Supplementary Figures 4-7 from the shared Seurat source boundary
 without running Figures 1-6:
 
@@ -54,7 +67,7 @@ manifest-attested; any still-present final, partial-stage, or H5 source must
 match. If more than one cache is lineage-compatible, the run stops unless one
 is selected explicitly with `--generated-cache-dir`.
 
-The builder writes exactly the same 11 plot-facing table names to a run-scoped
+The builder writes exactly the same 11 frozen support-table names to a run-scoped
 cache. Cluster differential-expression work is separately resumable: each
 completed cluster has a table and dependency sidecar under the cache's stable
 `work/` directory, and is reused only after schema, hash, and fingerprint
@@ -65,12 +78,26 @@ four composite PDF/PNG pairs are materialized under
 The cache contains:
 
 - canonical cell metadata and cluster keys used by Figures 4-6;
-- six plot-facing composition/audit tables;
+- six composition/audit tables retained by the established cache contract;
 - the two 20-by-9 Hallmark matrices plotted in Figure 7.
+
+The normalized SI4E/G and SI5F-I estimates and tests are derived directly from
+canonical cell metadata. The SI4 context/ploidy tables still supply the raw
+count panels SI4F/H; the four historical SI5 aggregate tables are retained and
+validated for backward-compatible audit only and are not plotting inputs.
 
 `Code/tools/validate_si_figures_table_cache.py` enforces the exact 11-file
 inventory, schemas, cell/cluster reconciliation, endpoint-ploidy contract,
 finite matrix values, and portable SHA-256 manifest.
+
+The renderer writes the exact composition estimates and test results to
+`metadata/normalized_composition_plot_data.tsv` and
+`metadata/normalized_composition_enrichment_tests.tsv`. Run the targeted
+statistical contract test with:
+
+```bash
+Rscript Code/in-vivo/SI_figures/tests/test_normalized_composition.R
+```
 
 ## SI Figure 7 species policy
 
