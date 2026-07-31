@@ -77,10 +77,13 @@ finite matrix values, and portable SHA-256 manifest.
 The cells in this analysis are human tumor/cell-line cells aligned to a
 combined human/mouse reference. The reviewed SI Figure 7 matrices therefore
 use a human-only feature policy: retain exact `GRCh38-` features, exclude
-`GRCm39-` features, and reject unclassified features before symbol cleanup,
-duplicate resolution, ORA, and GSEA. The
-frozen matrices were recalculated from Tao's cluster DEG cache using MSigDB
-2026.1.Hs Hallmark gene sets.
+`GRCm39-` features, and reject unclassified features before fresh RNA
+normalization, differential expression, symbol cleanup, duplicate resolution,
+ORA, and GSEA. The frozen matrices are the exact scientifically reviewed
+outputs from raw-refit run
+`grch_human_only_v2_20260729_raw_refit_retry3_si_figures`, using MSigDB
+2026.1.Hs Hallmark gene sets. The other nine SI4-7 frozen tables remain
+unchanged.
 
 This explicit filter replaces the previous mixed behavior, where species
 prefixes were stripped but symbol case was preserved before querying human
@@ -93,9 +96,10 @@ The raw fallback now builds a new SI7-only Seurat object from exact `GRCh38-`
 RNA counts and runs fresh `LogNormalize` before differential expression, ORA,
 and GSEA. It does not reuse the mixed-species normalized data layer. Species
 counts, the policy/helper hashes, and the human-only normalization contract are
-recorded in the run metadata. Raw-rebuilt SI7 matrices and composites remain
-marked `canonical_publication_allowed=false`; they cannot overwrite or validate
-as the canonical human-only cache until reviewed.
+recorded in the run metadata. The exact approved retry3 SI7 matrices are now
+the reviewed routine cache. Future raw-rebuilt matrices and composites remain
+marked `canonical_publication_allowed=false`; they cannot overwrite or
+impersonate the reviewed cache without a new explicit promotion.
 
 Individual subpanels are constructed in memory as part of each composite and
 are not published as duplicate derivatives.

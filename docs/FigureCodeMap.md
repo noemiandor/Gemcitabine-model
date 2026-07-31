@@ -105,7 +105,7 @@ Manuscript asset: `figures/Figure6_v5_Overleaf.png` at `GemcitabinePaper.tex:397
 
 ### Figure 7: In-vivo TGI, CellCycle Pseudotime, And State Pathways
 
-The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one immutable run under `Results/in-vivo/figure7/runs/<run_id>_figure7/`. Routine mode recomputes panels 7A-7E from the tracked CellCycle and NonCellCycle cell-level tables and renders 7F from the immutable `taoli_04i_etp2_24_day17_v1` saved pathway analysis. It is included in the default manuscript module set. `--figure7-panels-ae-only` remains available when an explicit five-panel A-E contract is desired. Each included panel is emitted as a vector PDF and a 300-DPI PNG derivative. The cache-first `full-refit` path can reconstruct the shared final Seurat object from 18 external Cell Ranger H5 matrices using only the figure-relevant portions of Tao's five upstream Seurat stages, or use the checksum-pinned deposited final RDS when those H5 inputs are unavailable. It then runs only missing scVelo, TGI-table, and pathway-support stages. The external H5 matrices are the earliest available expression-data boundary; `all_ploidy.tsv` is a versioned source boundary because neither FASTQ/Cell Ranger execution nor the complete karyotyping workflow was available to port. The manager materializes source assets but, consistently with Figures 1-6, does not assemble the final A-F composite.
+The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one immutable run under `Results/in-vivo/figure7/runs/<run_id>_figure7/`. Routine mode recomputes panels 7A-7E from the tracked CellCycle and NonCellCycle cell-level tables and renders 7F from the reviewed, byte-pinned human-only reference `state_pathway_grch_human_only_etp2_24_day17_v2`. That reference retains exact `GRCh38-` features before expression filtering and modeling, uses Homo sapiens MSigDB 2026.1.Hs collections, and displays only pathways with collection-wide BH-FDR <= 0.05, up to four per direction without nonsignificant backfill. The historical mixed-feature `taoli_04i_etp2_24_day17_v1` reference remains separately available for audit and is not publication eligible. Figure 7 is included in the default manuscript module set. `--figure7-panels-ae-only` remains available when an explicit five-panel A-E contract is desired. Each included panel is emitted as a vector PDF and a 300-DPI PNG derivative. The cache-first `full-refit` path can reconstruct the shared final Seurat object from 18 external Cell Ranger H5 matrices using only the figure-relevant portions of Tao's five upstream Seurat stages, or use the checksum-pinned deposited final RDS when those H5 inputs are unavailable. It then runs only missing scVelo, TGI-table, and human-only pathway-support stages. Raw-refit results remain run-scoped and noncanonical until separately reviewed; they cannot impersonate the frozen v2 reference. The external H5 matrices are the earliest available expression-data boundary; `all_ploidy.tsv` is a versioned source boundary because neither FASTQ/Cell Ranger execution nor the complete karyotyping workflow was available to port. The manager materializes source assets but, consistently with Figures 1-6, does not assemble the final A-F composite.
 
 | Panel | Manuscript content | Canonical source output |
 |---|---|---|
@@ -137,10 +137,11 @@ final composite PDF/PNG pairs.
 | Supplementary Figure 6 | Endpoint tumor ploidy overall, by initial ploidy, and by mouse | `figures/Supplementary/panel_SuppFig6_composite.pdf` and `.png` |
 | Supplementary Figure 7 | Top-20 Hallmark ORA annotation-score and GSEA NES heatmaps | `figures/Supplementary/panel_SuppFig7_composite.pdf` and `.png` |
 
-The SI Figure 7 frozen matrices use an explicit human-only feature policy:
-`GRCh*` features are retained and `GRCm39-*` features are excluded before
-symbol cleanup and deduplication. The cache records MSigDB 2026.1.Hs Hallmark
-as the gene-set database.
+The reviewed SI Figure 7 matrices are the exact approved raw-refit outputs:
+exact `GRCh38-` features are retained and exact `GRCm39-` features are excluded
+before fresh RNA normalization, differential expression, symbol cleanup,
+deduplication, ORA, and GSEA. The cache records MSigDB 2026.1.Hs Hallmark as
+the gene-set database. The other nine SI4-7 frozen tables remain unchanged.
 
 ### Supplementary Figure: SI_GDSC_vs_ploidy_A
 

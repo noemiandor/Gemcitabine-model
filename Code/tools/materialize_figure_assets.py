@@ -371,17 +371,23 @@ PANEL_SPECS = [
 
 STRICT_FIGURE_MODULES = {"in_vivo_figure7", "si_figures"}
 FIGURE_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".svg", ".tif", ".tiff"}
-FIGURE7_REVIEWED_REFERENCE_ID = "taoli_04i_etp2_24_day17_v1"
-FIGURE7_REVIEWED_REFERENCE_KIND = "reviewed_frozen"
+FIGURE7_REVIEWED_REFERENCE_ID = (
+    "state_pathway_grch_human_only_etp2_24_day17_v2"
+)
+FIGURE7_REVIEWED_REFERENCE_KIND = "reviewed_human_only_frozen"
+FIGURE7_REVIEWED_REFERENCE_ROOT = (
+    Path("Data/in-vivo/figure7/saved_state_pathway")
+    / FIGURE7_REVIEWED_REFERENCE_ID
+)
 FIGURE7_REVIEWED_FILES = {
-    "panel_7F_pathway_activity_plot_data.tsv": "0ab4631d00126b7ad3c8e8f653102c0ed69f03d6db0a6db605198bc0b993ee3c",
-    "panel_7F_selected_pathway_gsea.tsv": "eed1418505ff120f2212b59d337833bb42e5cdeaadeff053b7fb94e66ea062e0",
-    "panel_7F_leading_edge_genes.tsv": "270e352e506664d44f61ebea3af5d36270c33f9806baaf224580a8e5c8342a41",
-    "state_pathway_gene_ranking_complete.tsv": "fc8f1f8a24915e91c108e026b71d61ab1222dee2ce9469e48984d53a295e4738",
-    "state_pathway_gsea_complete.tsv": "0439be2fc152e7a3f0a070410bfa0cfdc01a30624b09d453e9511b031c065e36",
-    "state_pathway_sample_bin_coverage.tsv": "b42694cd910b5faf6a5b9e5add8a90b06f5207317df98f2969cf57887027e8d8",
-    "state_pathway_design_qc.tsv": "156cc8b7aaeb56866c258c6d6433635b881040691ab816fc7c5edc7cd5048b4c",
-    "state_pathway_provenance.tsv": "bb8f08f9afd0786216babcd5c38d577caa6fd41c4f1d52f28e54d8558c66b424",
+    "panel_7F_pathway_activity_plot_data.tsv": "c2a6d455fd11c1d95bbc31441419953d4cc0d88eb8acf611fc3488f04af8d0f8",
+    "panel_7F_selected_pathway_gsea.tsv": "ca86833bb6159cfde1e1218d897183809eba00a0cf096fc5c4951b5065767460",
+    "panel_7F_leading_edge_genes.tsv": "6e86e697b64565cf0281e8684d29001eed84c83e1a3b9e45f7ffd37b78fdf9dd",
+    "state_pathway_gene_ranking_complete.tsv": "ac9ced0c9bb691b490b0197c9962a72a6d272781e6883631c76d7c9f2397d34c",
+    "state_pathway_gsea_complete.tsv": "4d1283e89b28e5100586a591621b5522b1698859d5d64b69054c4c470356a8d6",
+    "state_pathway_sample_bin_coverage.tsv": "a0a408a91968f172ea7a30d9432c63571f74cea5fe27f4c5ad1c8f6044172a47",
+    "state_pathway_design_qc.tsv": "66a1cf1a5362539f50777ae482b37b5b30e4d92bd673eee9aa4c842e91160151",
+    "state_pathway_provenance.tsv": "406c4fa97b96dc001b1744e01658a533fc571897724a485080e8bbbc787293a4",
 }
 SI7_REVIEWED_FEATURE_POLICY = (
     "Human tumor/cell-line analysis: retain exact GRCh38-prefixed features "
@@ -392,8 +398,14 @@ SI7_REVIEWED_FEATURE_POLICY = (
 SI7_REVIEWED_GENE_SET_DATABASE = (
     "MSigDB 2026.1.Hs Hallmark (Homo sapiens symbols)"
 )
+SI7_REVIEWED_FROZEN_MATRIX_NOTE = (
+    "Reviewed SI7 matrices are the exact outputs from raw-refit run "
+    "grch_human_only_v2_20260729_raw_refit_retry3_si_figures: exact "
+    "GRCh38-prefixed RNA counts were retained before fresh RNA normalization, "
+    "differential expression, symbol cleanup, deduplication, ORA, and GSEA."
+)
 SI_REVIEWED_MANIFEST_SHA256 = (
-    "5713379814b457d470753ec92a4e9155ecf776fe8f22eed8c8d66eb56881167d"
+    "b624c3f3ff945c51f09b9e6e512a97df57eb4e514b3fba28a65e97a38207f135"
 )
 
 EXTERNAL_ROWS = [
@@ -565,6 +577,66 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
             "Canonical SI Figures materialization is prohibited: the repository "
             "does not contain the exact reviewed 11-table manifest"
         )
+    manifest_headers, manifest_rows = read_tsv(canonical_manifest)
+    if manifest_headers != [
+        "filename",
+        "bytes",
+        "sha256",
+        "source_revision",
+        "notes",
+    ]:
+        raise ValueError(
+            "Canonical SI Figures materialization is prohibited: the reviewed "
+            "cache manifest schema is invalid"
+        )
+    reviewed_names = [row.get("filename", "") for row in manifest_rows]
+    if (
+        len(reviewed_names) != 11
+        or len(set(reviewed_names)) != 11
+        or any(
+            not name
+            or Path(name).name != name
+            or name == "manifest.tsv"
+            for name in reviewed_names
+        )
+    ):
+        raise ValueError(
+            "Canonical SI Figures materialization is prohibited: the reviewed "
+            "cache manifest must name exactly 11 safe tables"
+        )
+    run_tables = run_root / "tables"
+    run_manifest = run_tables / "manifest.tsv"
+    observed_run_names = sorted(
+        path.name for path in run_tables.iterdir() if path.is_file()
+    ) if run_tables.is_dir() else []
+    expected_run_names = sorted(["manifest.tsv", *reviewed_names])
+    if observed_run_names != expected_run_names:
+        raise ValueError(
+            "Canonical SI Figures materialization is prohibited: the source "
+            "run does not contain the exact reviewed 11-table cache inventory"
+        )
+    if sha256_file(run_manifest) != SI_REVIEWED_MANIFEST_SHA256:
+        raise ValueError(
+            "Canonical SI Figures materialization is prohibited: the source "
+            "run table manifest is not the reviewed manifest"
+        )
+    canonical_cache = canonical_manifest.parent
+    for row in manifest_rows:
+        filename = row["filename"]
+        canonical_table = canonical_cache / filename
+        run_table = run_tables / filename
+        if (
+            not canonical_table.is_file()
+            or not run_table.is_file()
+            or row.get("bytes") != str(canonical_table.stat().st_size)
+            or row.get("sha256") != sha256_file(canonical_table)
+            or sha256_file(run_table) != row.get("sha256")
+            or run_table.stat().st_size != canonical_table.stat().st_size
+        ):
+            raise ValueError(
+                "Canonical SI Figures materialization is prohibited: source "
+                f"run table {filename} is not the exact reviewed cache table"
+            )
     expected = {
         "si7_canonical_publication_allowed": "true",
         "si7_feature_species_policy": SI7_REVIEWED_FEATURE_POLICY,
@@ -582,6 +654,8 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
     if (
         any(provenance.get(key) != value for key, value in expected.items())
         or any(run_config.get(key) != value for key, value in expected.items())
+        or provenance.get("si7_frozen_matrix_note")
+        != SI7_REVIEWED_FROZEN_MATRIX_NOTE
         or run_config.get("module") != "si_figures"
         or run_config.get("figures") != "4,5,6,7"
         or run_config.get("figure_file_count") != "8"
@@ -609,7 +683,6 @@ def validate_strict_source_run(
     source_run_id: str,
     figure7_tgi_day: int,
 ) -> None:
-    historical_mixed_panel_f = False
     if module not in STRICT_FIGURE_MODULES:
         return
     if module == "si_figures":
@@ -749,6 +822,19 @@ def validate_strict_source_run(
                 f"tgi_day={figure7_tgi_day}"
             )
         if has_panel_f:
+            figure7_config = (
+                repo_root
+                / "Code/in-vivo/figure7/figure7_config.yaml"
+            )
+            if (
+                not figure7_config.is_file()
+                or run_config.get("config_sha256")
+                != sha256_file(figure7_config)
+            ):
+                raise ValueError(
+                    "Canonical Figure 7 materialization is prohibited: "
+                    "the run does not bind the active reviewed config"
+                )
             reviewed_identity = {
                 "state_pathway_reference_id": FIGURE7_REVIEWED_REFERENCE_ID,
                 "state_pathway_reference_kind": FIGURE7_REVIEWED_REFERENCE_KIND,
@@ -779,6 +865,45 @@ def validate_strict_source_run(
                         f"{filename} is not the reviewed "
                         f"{FIGURE7_REVIEWED_REFERENCE_ID} artifact"
                     )
+            required_input_paths = {
+                (
+                    repo_root
+                    / "Code/in-vivo/figure7/run_figure7.R"
+                ).resolve(),
+                (
+                    repo_root
+                    / "Code/in-vivo/figure7/figure7_config.yaml"
+                ).resolve(),
+                *{
+                    (
+                        repo_root
+                        / FIGURE7_REVIEWED_REFERENCE_ROOT
+                        / filename
+                    ).resolve()
+                    for filename in FIGURE7_REVIEWED_FILES
+                },
+            }
+            observed_input_paths = {
+                path.resolve()
+                for row in input_rows
+                if (
+                    path := module_manifest_local_path(
+                        row,
+                        repo_root,
+                    )
+                ) is not None
+            }
+            missing_input_paths = sorted(
+                str(path)
+                for path in required_input_paths - observed_input_paths
+            )
+            if missing_input_paths:
+                raise ValueError(
+                    "Canonical Figure 7 materialization is prohibited: "
+                    "the source input manifest does not bind the reviewed "
+                    "renderer, config, and eight-file panel-7F reference: "
+                    f"missing={missing_input_paths}"
+                )
             provenance = read_unique_key_values(
                 run_root / "metadata" / "state_pathway_provenance.tsv",
                 "source Figure 7 state-pathway provenance",
@@ -786,14 +911,20 @@ def validate_strict_source_run(
             if (
                 provenance.get("canonical_reference_id")
                 != FIGURE7_REVIEWED_REFERENCE_ID
-                or provenance.get("code_revision_04i")
-                != "dc751eab928bc40f3edb063baec447fe32a69d73"
+                or provenance.get("reference_kind")
+                != FIGURE7_REVIEWED_REFERENCE_KIND
+                or provenance.get("canonical_publication_allowed")
+                != "true"
+                or provenance.get("reviewed_source_provenance_sha256")
+                != (
+                    "c325359b1d0fe67c3ad1f13523e993cb80e5168d164d06e1"
+                    "b2fa1b1b584be888"
+                )
             ):
                 raise ValueError(
                     "Canonical Figure 7 materialization is prohibited: "
                     "reviewed provenance lineage is invalid"
                 )
-            historical_mixed_panel_f = True
 
     panel_contract = run_root / "metadata" / "panel_contract.tsv"
     if not panel_contract.is_file():
@@ -848,15 +979,6 @@ def validate_strict_source_run(
             raise ValueError(f"Output-manifest provenance mismatch for {source}")
         if row.get("sha256", "").strip() != sha256_file(source):
             raise ValueError(f"Output-manifest checksum mismatch for {source}")
-
-    if historical_mixed_panel_f:
-        raise ValueError(
-            "Canonical Figure 7 materialization is prohibited: "
-            f"{FIGURE7_REVIEWED_REFERENCE_ID} is a historical mixed-species "
-            "panel-7F reference. A reviewed GRCh-only v2 reference has not "
-            "been blessed."
-        )
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)

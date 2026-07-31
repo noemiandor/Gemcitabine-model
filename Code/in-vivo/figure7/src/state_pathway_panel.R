@@ -11,7 +11,11 @@ figure7_state_required_files <- function() c(
   "state_pathway_provenance.tsv"
 )
 
-figure7_validate_state_reference <- function(path, config, verify_checksums = TRUE) {
+figure7_validate_historical_state_reference <- function(
+  path,
+  config,
+  verify_checksums = TRUE
+) {
   expected_id <- as.character(config$state_pathways$reference_id)
   if (!dir.exists(path)) {
     figure7_stop("Missing historical panel-7F saved-state directory: ", path,
@@ -219,8 +223,232 @@ figure7_validate_state_reference <- function(path, config, verify_checksums = TR
       any(!grepl("^[0-9a-f]{64}$", vapply(source_hash_keys, provenance_value, character(1L))))) {
     figure7_stop("Panel-7F provenance must contain eight valid source-table SHA-256 values")
   }
-  list(activity = activity, pathways = pathways, selected = selected, leading = leading,
-       provenance = provenance, files = setNames(file.path(path, files), files))
+  reference_paths <- stats::setNames(file.path(path, files), files)
+  list(
+    activity = activity,
+    pathways = pathways,
+    selected = selected,
+    leading = leading,
+    provenance = provenance,
+    files = reference_paths,
+    reference_id = expected_id,
+    reference_kind = as.character(config$state_pathways$reference_kind),
+    canonical_publication_allowed = FALSE,
+    observed_hashes = vapply(
+      reference_paths,
+      figure7_sha256,
+      character(1L)
+    )
+  )
+}
+
+figure7_validate_reviewed_state_reference <- function(
+  path,
+  config,
+  verify_checksums = TRUE
+) {
+  expected_id <- as.character(config$state_pathways$reviewed_reference_id)
+  expected_kind <- as.character(
+    config$state_pathways$reviewed_reference_kind
+  )
+  if (!dir.exists(path)) {
+    figure7_stop("Missing reviewed human-only panel-7F reference: ", path)
+  }
+  if (!identical(basename(normalizePath(path)), expected_id)) {
+    figure7_stop(
+      "Reviewed panel-7F reference must use ID ",
+      expected_id,
+      ": ",
+      path
+    )
+  }
+  files <- figure7_state_required_files()
+  observed_files <- sort(list.files(path, all.files = FALSE))
+  if (!identical(observed_files, sort(files))) {
+    figure7_stop(
+      "Reviewed panel-7F reference must contain exactly eight files; missing=",
+      paste(setdiff(files, observed_files), collapse = ","),
+      "; unexpected=",
+      paste(setdiff(observed_files, files), collapse = ",")
+    )
+  }
+  paths <- stats::setNames(file.path(path, files), files)
+  if (any(file.info(paths)$size <= 0)) {
+    figure7_stop("Reviewed panel-7F reference contains an empty file")
+  }
+  expected_hashes <- unlist(
+    config$state_pathways$reviewed_expected_files,
+    use.names = TRUE
+  )
+  if (!identical(sort(names(expected_hashes)), sort(files))) {
+    figure7_stop("Reviewed panel-7F checksum inventory is incomplete")
+  }
+  observed_hashes <- vapply(paths, figure7_sha256, character(1L))
+  if (isTRUE(verify_checksums)) {
+    for (file in files) {
+      figure7_verify_checksum(
+        paths[[file]],
+        expected_hashes[[file]],
+        paste("reviewed panel-7F", file)
+      )
+    }
+  }
+
+  provenance <- figure7_read_tsv(
+    paths[["state_pathway_provenance.tsv"]],
+    c("key", "value")
+  )
+  if (anyDuplicated(provenance$key)) {
+    figure7_stop("Reviewed panel-7F provenance contains duplicate keys")
+  }
+  value <- stats::setNames(
+    as.character(provenance$value),
+    provenance$key
+  )
+  required_review <- c(
+    "reference_kind", "canonical_publication_allowed",
+    "canonical_reference_id", "reviewed_source_reference_id",
+    "reviewed_source_run_id", "reviewed_source_provenance_sha256",
+    "reviewed_source_input_manifest_sha256",
+    "reviewed_source_output_manifest_sha256",
+    "reviewed_source_run_config_sha256",
+    "reviewed_source_panel_7F_pdf_sha256",
+    "reviewed_source_panel_7F_png_sha256",
+    "reviewed_on", "reviewed_decision", "generated_reference_id"
+  )
+  missing_review <- setdiff(required_review, names(value))
+  if (length(missing_review)) {
+    figure7_stop(
+      "Reviewed panel-7F provenance is missing: ",
+      paste(missing_review, collapse = ", ")
+    )
+  }
+  expected_review <- c(
+    reference_kind = expected_kind,
+    canonical_publication_allowed = "true",
+    canonical_reference_id = expected_id,
+    reviewed_source_reference_id =
+      as.character(config$state_pathways$generated_reference_id),
+    reviewed_source_run_id =
+      "grch_human_only_v2_20260730_fdr_filtered_retry7_figure7",
+    reviewed_source_provenance_sha256 =
+      "c325359b1d0fe67c3ad1f13523e993cb80e5168d164d06e1b2fa1b1b584be888",
+    reviewed_source_input_manifest_sha256 =
+      "c7f26ef6ea0e7206e47468017bde905ac367d22dce65d5c851339f14135667d3",
+    reviewed_source_output_manifest_sha256 =
+      "f9053044381faefa5213a92ebe77e7edd94c285d4d668f01da5639a7da238fdf",
+    reviewed_source_run_config_sha256 =
+      "14306ba1b4a3f7c9c3ce4389b2c701a0db664d9110f669bcfd72834dadf7b4d6",
+    reviewed_source_panel_7F_pdf_sha256 =
+      "d49f6e1e408b0ebdf51f87bbaf66168ba785470e64f307ed1f3760bce41b9b8c",
+    reviewed_source_panel_7F_png_sha256 =
+      "bc49a6a6d44cdd1681cf0b17eab1a757b1e1a28fbb6444ca9725c9f617ce93f9",
+    reviewed_on = "2026-07-30",
+    generated_reference_id =
+      as.character(config$state_pathways$generated_reference_id)
+  )
+  if (any(value[names(expected_review)] != expected_review)) {
+    figure7_stop(
+      "Reviewed panel-7F provenance does not identify the exact approved ",
+      "retry7 candidate"
+    )
+  }
+  expected_decision <- paste(
+    "Approved exact GRCh-only retry7 result after requiring collection-wide",
+    "BH-adjusted P <= 0.05 and prohibiting nonsignificant pathway backfill."
+  )
+  if (!identical(value[["reviewed_decision"]], expected_decision)) {
+    figure7_stop("Reviewed panel-7F approval decision is invalid")
+  }
+  review_hash_keys <- c(
+    "reviewed_source_provenance_sha256",
+    "reviewed_source_input_manifest_sha256",
+    "reviewed_source_output_manifest_sha256",
+    "reviewed_source_run_config_sha256",
+    "reviewed_source_panel_7F_pdf_sha256",
+    "reviewed_source_panel_7F_png_sha256"
+  )
+  if (any(!grepl("^[0-9a-f]{64}$", value[review_hash_keys]))) {
+    figure7_stop("Reviewed panel-7F source attestation contains an invalid hash")
+  }
+  provenance_values <- as.character(provenance$value)
+  if (any(grepl("^(/|[A-Za-z]:[\\\\/])", provenance_values)) ||
+      any(grepl("/(private|share|Users)/", provenance_values))) {
+    figure7_stop(
+      "Reviewed panel-7F provenance must not contain runtime filesystem paths"
+    )
+  }
+
+  # Reuse the strict generated scientific contract after changing only the
+  # publication identity in a temporary copy. This recomputes the BH selector,
+  # validates the GRCh-only ranking/audit chain, and leaves the frozen bytes
+  # untouched.
+  temporary_root <- tempfile("figure7_reviewed_reference_validation_")
+  temporary_reference <- file.path(
+    temporary_root,
+    as.character(config$state_pathways$generated_reference_id)
+  )
+  dir.create(temporary_reference, recursive = TRUE)
+  on.exit(unlink(temporary_root, recursive = TRUE, force = TRUE), add = TRUE)
+  copied <- file.copy(paths, file.path(temporary_reference, files))
+  if (any(!copied)) {
+    figure7_stop("Could not stage the reviewed panel-7F validation copy")
+  }
+  generated_provenance_path <- file.path(
+    temporary_reference,
+    "state_pathway_provenance.tsv"
+  )
+  generated_provenance <- provenance
+  generated_provenance$value[
+    match("reference_kind", generated_provenance$key)
+  ] <- as.character(config$state_pathways$generated_reference_kind)
+  generated_provenance$value[
+    match("canonical_publication_allowed", generated_provenance$key)
+  ] <- "false"
+  figure7_write_tsv(generated_provenance, generated_provenance_path)
+  scientific <- figure7_validate_generated_state_reference(
+    temporary_reference,
+    config,
+    expected_inputs = NULL,
+    config_path = NULL
+  )
+
+  collection_counts <- table(factor(
+    scientific$pathways$collection_id,
+    levels = as.character(unlist(config$state_pathways$collections))
+  ))
+  expected_counts <- c(5L, 8L, 8L)
+  if (nrow(scientific$selected) != 21L ||
+      nrow(scientific$activity) != 21L *
+        as.integer(config$state_pathways$grid_size) ||
+      !identical(as.integer(collection_counts), expected_counts) ||
+      any(figure7_numeric(scientific$selected$padj) >
+        figure7_generated_pathway_fdr_threshold())) {
+    figure7_stop(
+      "Reviewed panel-7F must contain the exact approved 21-pathway ",
+      "5/8/8 FDR-significant selection"
+    )
+  }
+
+  scientific$provenance <- provenance
+  scientific$files <- paths
+  scientific$reference_id <- expected_id
+  scientific$reference_kind <- expected_kind
+  scientific$canonical_publication_allowed <- TRUE
+  scientific$observed_hashes <- observed_hashes
+  scientific
+}
+
+figure7_validate_state_reference <- function(
+  path,
+  config,
+  verify_checksums = TRUE
+) {
+  figure7_validate_reviewed_state_reference(
+    path,
+    config,
+    verify_checksums = verify_checksums
+  )
 }
 
 figure7_panel_f_plot <- function(activity, config) {
@@ -273,7 +501,13 @@ figure7_build_f <- function(reference, output_dir, config) {
                     file.path(output_dir, "metadata", "state_pathway_provenance.tsv"))
   comparison <- data.frame(
     file = names(reference$files), sha256 = vapply(reference$files, figure7_sha256, character(1L)),
-    checksum_match = TRUE, reference_id = config$state_pathways$reference_id, stringsAsFactors = FALSE
+    checksum_match = TRUE,
+    reference_id = if (!is.null(reference$reference_id)) {
+      reference$reference_id
+    } else {
+      config$state_pathways$reviewed_reference_id
+    },
+    stringsAsFactors = FALSE
   )
   figure7_write_tsv(comparison, file.path(output_dir, "tables", "state_pathway_frozen_reference_comparison.tsv"))
   figure7_save_panel(figure7_panel_f_plot(reference$activity, config),

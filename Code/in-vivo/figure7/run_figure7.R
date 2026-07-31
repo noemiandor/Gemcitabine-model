@@ -62,10 +62,11 @@ write_metadata <- function(
       )
     } else if (include_panel_f) {
       list(
-        id = as.character(config$state_pathways$reference_id),
-        kind = as.character(config$state_pathways$reference_kind),
+        id = as.character(config$state_pathways$reviewed_reference_id),
+        kind = as.character(config$state_pathways$reviewed_reference_kind),
         canonical_publication_allowed = isTRUE(
-          config$state_pathways$reference_canonical_publication_allowed
+          config$state_pathways$
+            reviewed_reference_canonical_publication_allowed
         )
       )
     } else {
@@ -399,7 +400,17 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
         canonical_publication_allowed = FALSE
       )))
     )
-    if (!historical_identity && !generated_identity) {
+    reviewed_identity <- identical(
+      unname(unlist(reference_identity)),
+      unname(unlist(list(
+        id = as.character(config$state_pathways$reviewed_reference_id),
+        kind = as.character(
+          config$state_pathways$reviewed_reference_kind
+        ),
+        canonical_publication_allowed = TRUE
+      )))
+    )
+    if (!historical_identity && !reviewed_identity && !generated_identity) {
       figure7_stop(
         "render-only source has an invalid panel-7F publication identity"
       )
@@ -447,6 +458,39 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
         }
       }
       historical_provenance_matches
+    } else if (reviewed_identity) {
+      reviewed_provenance_matches <-
+        identical(
+          provenance_value[["canonical_reference_id"]],
+          as.character(config$state_pathways$reviewed_reference_id)
+        ) &&
+        identical(
+          provenance_value[["reference_kind"]],
+          as.character(config$state_pathways$reviewed_reference_kind)
+        ) &&
+        identical(
+          provenance_value[["canonical_publication_allowed"]],
+          "true"
+        )
+      if (reviewed_provenance_matches) {
+        for (reference_file in figure7_state_required_files()) {
+          source_path <- if (identical(
+            reference_file,
+            "state_pathway_provenance.tsv"
+          )) {
+            provenance
+          } else {
+            table_path(reference_file)
+          }
+          figure7_verify_checksum(
+            source_path,
+            config$state_pathways$
+              reviewed_expected_files[[reference_file]],
+            paste("render-only reviewed panel-7F", reference_file)
+          )
+        }
+      }
+      reviewed_provenance_matches
     } else {
       identical(
         provenance_value[["generated_reference_id"]],
@@ -464,6 +508,39 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
     if (!isTRUE(provenance_matches)) {
       figure7_stop(
         "render-only panel-7F provenance contradicts run metadata"
+      )
+    }
+    if (reviewed_identity) {
+      temporary_root <- tempfile("figure7_render_reviewed_reference_")
+      temporary_reference <- file.path(
+        temporary_root,
+        as.character(config$state_pathways$reviewed_reference_id)
+      )
+      dir.create(temporary_reference, recursive = TRUE)
+      on.exit(unlink(temporary_root, recursive = TRUE, force = TRUE), add = TRUE)
+      compact_files <- setdiff(
+        figure7_state_required_files(),
+        "state_pathway_provenance.tsv"
+      )
+      compact_sources <- c(
+        file.path(source_dir, "tables", compact_files),
+        provenance
+      )
+      copied <- file.copy(
+        compact_sources,
+        file.path(
+          temporary_reference,
+          c(compact_files, "state_pathway_provenance.tsv")
+        )
+      )
+      if (any(!copied)) {
+        figure7_stop(
+          "render-only reviewed panel-7F compact reference is incomplete"
+        )
+      }
+      figure7_validate_reviewed_state_reference(
+        temporary_reference,
+        config
       )
     }
     if (generated_identity) {
@@ -609,6 +686,7 @@ if (identical(mode, "full-workflow")) {
   figure7_verify_checksum(noncellcycle_path, config$inputs$noncellcycle_sha256, "NonCellCycle processed input")
 }
 reference <- NULL
+reference_identity <- NULL
 if (include_panel_f) {
   saved_dir <- if (identical(mode, "full-workflow")) {
     workflow$saved_reference
@@ -616,34 +694,58 @@ if (include_panel_f) {
     normalizePath(figure7_arg(args, "saved-state-pathway-dir", required = TRUE), mustWork = FALSE)
   }
   reference <- if (identical(mode, "full-workflow")) {
+    if (!identical(
+          workflow$state_pathway_reference_kind,
+          as.character(config$state_pathways$generated_reference_kind)
+        )) {
+      figure7_stop(
+        "Full-workflow panel 7F must use the generated human-only ",
+        "noncanonical reference profile"
+      )
+    }
+    figure7_validate_generated_state_reference(
+      saved_dir,
+      config,
+      expected_inputs = list(
+        cellcycle = cellcycle_path,
+        noncellcycle = noncellcycle_path,
+        seurat_rds = workflow$seurat_rds
+      ),
+      config_path = config_path
+    )
+  } else {
+    saved_id <- basename(normalizePath(saved_dir, mustWork = FALSE))
     if (identical(
-      workflow$state_pathway_reference_kind,
-      as.character(config$state_pathways$reference_kind)
-    )) {
-      figure7_validate_state_reference(
+          saved_id,
+          as.character(config$state_pathways$reviewed_reference_id)
+        )) {
+      figure7_validate_reviewed_state_reference(
+        saved_dir,
+        config,
+        verify_checksums = TRUE
+      )
+    } else if (identical(
+          saved_id,
+          as.character(config$state_pathways$reference_id)
+        )) {
+      figure7_validate_historical_state_reference(
         saved_dir,
         config,
         verify_checksums = TRUE
       )
     } else {
-      figure7_validate_generated_state_reference(
-        saved_dir,
-        config,
-        expected_inputs = list(
-          cellcycle = cellcycle_path,
-          noncellcycle = noncellcycle_path,
-          seurat_rds = workflow$seurat_rds
-        ),
-        config_path = config_path
+      figure7_stop(
+        "Standard panel-7F reference must be the reviewed human-only v2 ",
+        "or the explicit historical mixed-v1 audit reference"
       )
     }
-  } else {
-    figure7_validate_state_reference(
-      saved_dir,
-      config,
-      verify_checksums = TRUE
-    )
   }
+  reference_identity <- list(
+    id = reference$reference_id,
+    kind = reference$reference_kind,
+    canonical_publication_allowed =
+      reference$canonical_publication_allowed
+  )
 }
 
 if (identical(mode, "full-analysis")) {
@@ -661,16 +763,21 @@ data <- figure7_prepare_cellcycle(cellcycle, samples, config)
 figure7_prepare_output(output_dir)
 figure7_build_ae(cellcycle, data, samples, output_dir, config)
 if (include_panel_f) {
-  if (identical(mode, "full-workflow") &&
-      !identical(
-        workflow$state_pathway_reference_kind,
-        as.character(config$state_pathways$reference_kind)
-      )) {
+  if (identical(mode, "full-workflow")) {
     figure7_build_generated_f(reference, output_dir, config)
   } else {
     figure7_build_f(reference, output_dir, config)
   }
 }
-write_metadata(output_dir, mode, config, config_path, panel_ids, state_pathway_results_root, workflow)
+write_metadata(
+  output_dir,
+  mode,
+  config,
+  config_path,
+  panel_ids,
+  state_pathway_results_root,
+  workflow,
+  reference_identity
+)
 figure7_validate_figure_inventory(output_dir, config, panel_ids)
 message("Generated exactly ", length(panel_ids), " Figure 7 source panels: ", output_dir)

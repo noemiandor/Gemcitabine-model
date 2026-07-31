@@ -50,9 +50,10 @@ figure7_sample_info_input="Data/in-vivo/sample_info.xlsx"
 figure7_growth_curve_input="Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx"
 figure7_download_missing_raw=true
 si_figures_intermediate_dir=""
-figure7_reference_id="taoli_04i_etp2_24_day17_v1"
+figure7_historical_reference_id="taoli_04i_etp2_24_day17_v1"
+figure7_reviewed_reference_id="state_pathway_grch_human_only_etp2_24_day17_v2"
 figure7_state_pathway_results_root=""
-figure7_canonical_reference_root="${FIGURE7_CANONICAL_REFERENCE_ROOT:-Data/in-vivo/figure7/saved_state_pathway/${figure7_reference_id}}"
+figure7_canonical_reference_root="${FIGURE7_CANONICAL_REFERENCE_ROOT:-Data/in-vivo/figure7/saved_state_pathway/${figure7_reviewed_reference_id}}"
 figure7_reference_root="${figure7_canonical_reference_root}"
 skip_analysis_loop=false
 
@@ -88,7 +89,7 @@ Module options:
   --include-in-vivo
   --metabolomics-input PATH
   --figure7-full-analysis          Opt-in legacy pinned-artifact pathway recomputation
-  --figure7-panels-ae-only         Generate/materialize 7A-7E while canonical panel 7F is unavailable
+  --figure7-panels-ae-only         Generate/materialize an explicit 7A-7E-only panel set
   --figure7-tgi-day DAY            TGI endpoint day (default: 17)
   --figure7-figure-name NAME       Materialization folder under --figure-root (default: Figure7)
   --figure7-intermediate-dir DIR    Reusable Figure 7 raw-analysis intermediates
@@ -106,7 +107,7 @@ Module options:
   --figure7-no-download-missing-raw Do not download missing deposited raw files
   --si-figures-intermediate-dir DIR Reusable SI4-7 raw-analysis intermediates
   --figure7-state-pathway-results-root PATH
-                                  Export panel-7F reference from this completed reviewed 04i result tree
+                                  Export the historical mixed-v1 panel-7F audit reference from this 04i result tree
 EOF
 }
 
@@ -1004,7 +1005,7 @@ module_is_publishable_run() {
   module_publication_reason=""
   case "${module}" in
     in_vivo_figure7)
-      local panel_set
+      local panel_set reference_id reference_kind allowed
       panel_set="$(metadata_value "${run_config}" panel_set)" || {
         module_publication_reason="missing_or_ambiguous_panel_set"
         return 1
@@ -1016,7 +1017,21 @@ module_is_publishable_run() {
         module_publication_reason="invalid_panel_set=${panel_set}"
         return 1
       fi
-      module_publication_reason="no_reviewed_GRCh_only_panel_7F_reference"
+      reference_id="$(
+        metadata_value "${run_config}" state_pathway_reference_id
+      )" || true
+      reference_kind="$(
+        metadata_value "${run_config}" state_pathway_reference_kind
+      )" || true
+      allowed="$(
+        metadata_value "${run_config}" canonical_publication_allowed
+      )" || true
+      if [[ "${reference_id}" == "${figure7_reviewed_reference_id}" &&
+            "${reference_kind}" == "reviewed_human_only_frozen" &&
+            "${allowed}" == "true" ]]; then
+        return 0
+      fi
+      module_publication_reason="panel_7F_not_exact_reviewed_human_only_v2"
       return 1
       ;;
     si_figures)
@@ -1049,7 +1064,7 @@ record_figure7_reference_export() {
     printf "status\t%s\n" "${status}"
     printf "source_results_root\t%s\n" "${figure7_state_pathway_results_root}"
     printf "source_report_html\t%s\n" "${figure7_state_pathway_results_root}/report/04i_pseudotime_state_pathways_report.html"
-    printf "historical_reference_id\t%s\n" "${figure7_reference_id}"
+    printf "historical_reference_id\t%s\n" "${figure7_historical_reference_id}"
     printf "exported_audit_reference_dir\t%s\n" "${figure7_reference_root}"
     printf "canonical_data_materialization\tprohibited\n"
     printf "exporter_script\t%s\n" "Code/in-vivo/figure7/export_04i_state_pathway_reference.R"
@@ -1227,7 +1242,7 @@ run_module() {
 manager_run_dir="${output_root}/manager/runs/${run_id}"
 module_runs_file="${manager_run_dir}/metadata/module_runs.tsv"
 if [[ -n "${figure7_state_pathway_results_root}" ]]; then
-  figure7_reference_root="${manager_run_dir}/artifacts/figure7_state_pathway_reference/${figure7_reference_id}"
+  figure7_reference_root="${manager_run_dir}/artifacts/figure7_state_pathway_reference/${figure7_historical_reference_id}"
 fi
 
 validate_module_registry "${module_list[@]}"

@@ -23,6 +23,7 @@ from figure_output_contract import (  # noqa: E402
 from materialize_figure_assets import (  # noqa: E402
     PANEL_SPECS,
     SI7_REVIEWED_FEATURE_POLICY,
+    SI7_REVIEWED_FROZEN_MATRIX_NOTE,
     SI7_REVIEWED_GENE_SET_DATABASE,
 )
 
@@ -50,9 +51,21 @@ class SiFiguresManagerTest(unittest.TestCase):
         config_text = (
             REPO_ROOT / "Code/in-vivo/figure7/figure7_config.yaml"
         ).read_text()
+        generator_text = (
+            REPO_ROOT
+            / "Code/in-vivo/SI_figures/generate_supplementary_figures.R"
+        ).read_text()
         self.assertIn(
             f'si7_feature_species_policy: "{SI7_REVIEWED_FEATURE_POLICY}"',
             config_text,
+        )
+        self.assertIn(
+            "grch_human_only_v2_20260729_raw_refit_retry3_si_figures",
+            generator_text,
+        )
+        self.assertNotIn(
+            "Frozen matrices were recalculated from Tao's cluster DEG cache",
+            generator_text,
         )
 
     def test_check_only_uses_frozen_cache_without_raw_workflow(self) -> None:
@@ -864,6 +877,7 @@ class SiFiguresMaterializationTest(unittest.TestCase):
         cache_source = REPO_ROOT / "Data/in-vivo/SIfigures"
         cache_target = repo / "Data/in-vivo/SIfigures"
         shutil.copytree(cache_source, cache_target)
+        shutil.copytree(cache_target, run_root / "tables")
         renderer_source = (
             REPO_ROOT
             / "Code/in-vivo/SI_figures/generate_supplementary_figures.R"
@@ -912,6 +926,10 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             {
                 "key": "si7_canonical_publication_allowed",
                 "value": value,
+            },
+            {
+                "key": "si7_frozen_matrix_note",
+                "value": SI7_REVIEWED_FROZEN_MATRIX_NOTE,
             },
         ]
         run_config_rows = [
@@ -1060,6 +1078,114 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             self.assertIn(
                 "Missing source SI Figures provenance",
                 missing.stderr,
+            )
+            self.assertFalse((repo / "figures").exists())
+
+    def test_materializer_rejects_tampered_run_scoped_table_cache(
+        self,
+    ) -> None:
+        specs = [
+            spec for spec in PANEL_SPECS
+            if spec["module"] == "si_figures"
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            run_root = (
+                repo
+                / "Results/in-vivo/SI_figures/runs/source_si_figures"
+            )
+            (run_root / "figures").mkdir(parents=True)
+            (run_root / "metadata").mkdir()
+            for spec in specs:
+                source = run_root / str(spec["source"])
+                source.write_bytes(b"canonical render fixture\n")
+            self._write_publication_contract(repo, run_root, allowed=True)
+            (
+                run_root
+                / "tables"
+                / "si_figure7_cluster_Hallmark_GSEA_NES_heatmap_top20_matrix.tsv"
+            ).write_text("tampered\n")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(TOOLS_DIR / "materialize_figure_assets.py"),
+                    "--repo-root",
+                    str(repo),
+                    "--figure-root",
+                    str(repo / "figures"),
+                    "--source-run-id",
+                    "source",
+                    "--module-run",
+                    f"si_figures={run_root}",
+                    "--overwrite",
+                ],
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "is not the exact reviewed cache table",
+                result.stderr,
+            )
+            self.assertFalse((repo / "figures").exists())
+
+    def test_materializer_rejects_false_reviewed_si7_lineage(self) -> None:
+        specs = [
+            spec for spec in PANEL_SPECS
+            if spec["module"] == "si_figures"
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            run_root = (
+                repo
+                / "Results/in-vivo/SI_figures/runs/source_si_figures"
+            )
+            (run_root / "figures").mkdir(parents=True)
+            (run_root / "metadata").mkdir()
+            for spec in specs:
+                source = run_root / str(spec["source"])
+                source.write_bytes(b"canonical render fixture\n")
+            self._write_publication_contract(repo, run_root, allowed=True)
+            provenance_path = (
+                run_root / "metadata/si_figures_provenance.tsv"
+            )
+            with provenance_path.open(newline="") as handle:
+                provenance_rows = list(
+                    csv.DictReader(handle, delimiter="\t")
+                )
+            for row in provenance_rows:
+                if row["key"] == "si7_frozen_matrix_note":
+                    row["value"] = (
+                        "Frozen matrices came from the historical DEG cache."
+                    )
+            write_tsv(
+                provenance_path,
+                provenance_rows,
+                ["key", "value"],
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(TOOLS_DIR / "materialize_figure_assets.py"),
+                    "--repo-root",
+                    str(repo),
+                    "--figure-root",
+                    str(repo / "figures"),
+                    "--source-run-id",
+                    "source",
+                    "--module-run",
+                    f"si_figures={run_root}",
+                    "--overwrite",
+                ],
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "does not carry the reviewed frozen-table publication contract",
+                result.stderr,
             )
             self.assertFalse((repo / "figures").exists())
 

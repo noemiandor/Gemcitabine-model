@@ -2,7 +2,11 @@
 
 ## Status
 
-Drafted on 2026-07-16 for promotion to `main` after implementation and validation.
+Drafted on 2026-07-16 for promotion to `main` after implementation and
+validation. Updated on 2026-07-30 to record the implemented matched PDF/PNG
+contract and the promoted reviewed human-only panel-7F v2 reference. The module
+README and pinned configuration are authoritative where the original plan
+differs from the final implementation.
 
 This plan defines a narrow manuscript workflow for the six approved Figure 7 source panels. It follows the `main`-branch Figure 1–6 pattern: a manager-controlled module writes an immutable result run, input/output manifests record provenance, selected source panels are materialized under `figures/Figure7/`, and the figure manifest is validated. It does not automate final composite assembly because the existing Figure 1–6 workflow does not assemble the Overleaf composites either.
 
@@ -12,14 +16,14 @@ Promote only the code, compact inputs, configuration, and tests needed to reprod
 
 The routine workflow must:
 
-1. generate exactly six Figure 7 source-panel PDFs;
+1. generate exactly six Figure 7 source panels as matched PDF/PNG pairs;
 2. preserve the approved Day-17 TGI, matched-control, ploidy, ETP-threshold, and pseudotime-state choices;
 3. record all inputs and outputs with checksums;
 4. support rematerialization from an immutable result run with `--mode panels-only`;
 5. fail on a missing, duplicated, or unexpected Figure 7 panel;
 6. leave Figure 1–6 materialization unchanged.
 
-Statistical tables, panel plotting-data tables, logs, and metadata are required provenance and are not counted as extra panels. No unrequested PDF, PNG, or other figure may be emitted by the Figure 7 module.
+Statistical tables, panel plotting-data tables, logs, and metadata are required provenance and are not counted as extra panels. No unrequested panel derivative may be emitted by the Figure 7 module.
 
 ## Frozen Figure 7 panel contract
 
@@ -106,10 +110,10 @@ The module needs two manager-driven analysis modes and one standalone rendering 
    - record the RDS checksum, package versions, gene-set release, feature/species policy, and all model parameters.
 3. standalone module `render-only`:
    - read plotting-data and statistics tables from an existing immutable Figure 7 run;
-   - regenerate the same six PDFs into a new, explicitly supplied output directory without rerunning statistical tests or pathway modeling;
+   - regenerate the same six matched PDF/PNG pairs into a new, explicitly supplied output directory without rerunning statistical tests or pathway modeling;
    - never modify the source run and never use a mutable `latest.txt` pointer.
 
-Preserve the root manager's existing semantics: `Manager.sh --mode panels-only` must not invoke module analysis or rendering. It should locate a concrete existing Figure 7 result run and copy its six existing PDFs into `figures/Figure7/` through the materializer.
+Preserve the root manager's existing semantics: `Manager.sh --mode panels-only` must not invoke module analysis or rendering. It should locate a concrete existing Figure 7 result run and copy its six existing PDF/PNG pairs into `figures/Figure7/` through the materializer.
 
 Add a generic `--source-run-id ID` option for `Manager.sh --mode panels-only`. `--run-id` identifies the new manager/materialization operation, while `--source-run-id` identifies the immutable module runs to materialize. This avoids reusing or overwriting the original manager run directory. Reject `--source-run-id` outside panels-only mode and reject `latest.txt` or arbitrary directory inference. Generated figure-manifest rows must record the source analysis run ID in their `run_id` field; the fresh materialization-operation ID belongs in manager metadata or a separate notes/operation field, never in place of the source run ID.
 
@@ -131,7 +135,7 @@ Define Figure 7 behavior for every existing global manager mode:
 | `standard` | Recompute 7A–7E and render 7F from the frozen compact state-pathway analysis. |
 | `full-refit` without both Figure 7 full-analysis flags | Same Figure 7 behavior as `standard`; do not require the RDS. |
 | `full-refit` with both Figure 7 full-analysis flags | Recompute 7F from the RDS, write the full compact audit chain, and compare against the frozen reference. |
-| `panels-only` | Run no Figure 7 code; materialize the six existing PDFs from `--source-run-id`. |
+| `panels-only` | Run no Figure 7 code; materialize the six existing PDF/PNG pairs from `--source-run-id`. |
 
 ### Canonical run layout
 
@@ -152,6 +156,12 @@ Required contents:
 │   ├── panel_7D_day17_tgi_vs_centered_ecdf_shift.pdf
 │   ├── panel_7E_day17_tgi_vs_mean_etp.pdf
 │   └── panel_7F_pseudotime_state_pathway_activity.pdf
+│   ├── panel_7A_day17_tgi_calculation.png
+│   ├── panel_7B_cellcycle_selected_ecdf_comparisons.png
+│   ├── panel_7C_day17_tgi_by_initial_ploidy.png
+│   ├── panel_7D_day17_tgi_vs_centered_ecdf_shift.png
+│   ├── panel_7E_day17_tgi_vs_mean_etp.png
+│   └── panel_7F_pseudotime_state_pathway_activity.png
 ├── tables/
 │   ├── panel_7A_plot_data.tsv
 │   ├── panel_7B_plot_data.tsv
@@ -182,7 +192,7 @@ Required contents:
     └── stderr.log
 ```
 
-Full-analysis mode must add the complete compact audit chain under `tables/state_pathway_full_analysis/`: the modeled-gene ranking, complete GSEA results for every configured collection, sample/bin coverage, design/model QC, selected-pathway leading edges and activity, and frozen-reference comparison. It must still emit only the six PDFs listed above. Standard mode must copy the corresponding frozen compact reference tables into its run so its panel-F selection remains auditable without the external RDS. Standard and render-only modes must never copy or regenerate the other `04h`/`04i` figures. Manager panels-only may only materialize those six existing PDFs.
+Full-analysis mode must add the complete compact audit chain under `tables/state_pathway_full_analysis/`: the modeled-gene ranking, complete GSEA results for every configured collection, sample/bin coverage, design/model QC, selected-pathway leading edges and activity, and frozen-reference comparison. It must still emit only the six PDF/PNG pairs listed above. Standard mode must copy the corresponding frozen compact reference tables into its run so its panel-F selection remains auditable without the external RDS. Standard and render-only modes must never copy or regenerate the other `04h`/`04i` figures. Manager panels-only may only materialize those six existing pairs.
 
 ## Input contract
 
@@ -330,20 +340,24 @@ state_pathways:
   collections: [H, C2:CP:REACTOME, C5:GO:BP]
   top_positive_per_collection: 4
   top_negative_per_collection: 4
-  pathway_selector: "finite adjusted P; no FDR cutoff; top four per sign and collection"
+  reviewed_pathway_selector: "BH-adjusted P <= 0.05; up to top four per sign and collection; no nonsignificant backfill"
 ```
 
 The standard renderer must use the pathway and collection order stored in the approved panel-ready table; it must not rerank pathways at render time. The dotted vertical lines must be placed at 0.30 and 0.49. Full analysis uses TMM-normalized sample-by-bin pseudobulk counts, a common pseudotime spline plus dose and ETP-group nuisance terms, mouse-blocked correlation, robust empirical Bayes, and no treatment-by-pseudotime interaction. The primary contrast is the equal-grid mean inside the accumulated interval minus equally weighted left and right neighboring means.
 
-Full-analysis pathway reselection must reproduce the original selector exactly within each collection:
+Full-analysis pathway reselection for a new human-only candidate must reproduce
+the reviewed-v2 selector exactly within each collection:
 
-1. retain positive rows with `NES > 0` and finite adjusted P, with no FDR-significance cutoff;
-2. order positives by adjusted P ascending, NES descending, then pathway ID ascending, and retain four;
-3. retain negative rows with `NES < 0` and finite adjusted P, again with no FDR-significance cutoff;
-4. order negatives by adjusted P ascending, NES ascending, then pathway ID ascending, and retain four;
+1. retain only rows with finite NES and collection-wide BH-adjusted P <= 0.05;
+2. order positives by adjusted P ascending, NES descending, then pathway ID ascending, and retain up to four;
+3. order negatives by adjusted P ascending, NES ascending, then pathway ID ascending, and retain up to four;
+4. do not backfill either direction with nonsignificant pathways;
 5. concatenate the positive and negative selections using the frozen collection/pathway display-order convention.
 
-The lack of an FDR cutoff is intentional: the approved heatmap includes the highest-ranked positive Hallmark pathways even though no positive Hallmark pathway passes FDR 0.05.
+The reviewed v2 heatmap contains 21 significant pathways: five Hallmark, eight
+Reactome, and eight GO biological-process pathways. The former no-FDR,
+eight-per-collection selector belongs only to the historical mixed-species v1
+audit reference and is not publication eligible.
 
 Prespecify the full-analysis comparison with the frozen reference:
 
@@ -355,7 +369,10 @@ Prespecify the full-analysis comparison with the frozen reference:
 
 Keep these tolerances in the frozen config. They may be changed only through an explicitly reviewed reference update, not during a failing run.
 
-Do not silently change the current feature/species policy during promotion. Before approving a new full-analysis reference, explicitly resolve the mixed human/mouse feature issue identified in review. If a corrected tumor-species filter or ortholog mapping changes panel 7F, treat that as a scientific figure revision requiring approval, not as an implementation-only change.
+The promoted v2 feature policy retains exact `GRCh38-` rows and excludes exact
+`GRCm39-` and unclassified rows before expression filtering, symbol resolution,
+modeling, and Homo sapiens GSEA. Future feature-policy changes remain scientific
+figure revisions requiring explicit review.
 
 ## Root manager integration
 
@@ -404,7 +421,7 @@ source: figures/panel_7F_pseudotime_state_pathway_activity.pdf
   -> asset: figures/Figure7/panel_7F_pseudotime_state_pathway_activity.pdf
 ```
 
-The materializer should create `figures/Figure7/manifest.tsv` with exactly six generated-panel rows. For both standard and panels-only materialization, each row's `run_id`, `source_file`, and `result_run_dir` must consistently identify the same source analysis run.
+The materializer should create `figures/Figure7/manifest.tsv` with exactly 12 generated-panel rows, one PDF and one PNG for each of the six panels. For both standard and panels-only materialization, each row's `run_id`, `source_file`, and `result_run_dir` must consistently identify the same source analysis run.
 
 While adding Figure 7, close two generic contract gaps:
 
@@ -440,7 +457,7 @@ Require:
 - Python compilation/tests for changed materializer and manifest helpers;
 - schema tests for every plotting/statistics table;
 - tests that unknown modes, missing inputs, mismatched settings, and nonempty output directories fail clearly;
-- a test that the Figure 7 module emits exactly six PDFs and no PNG/SVG/TIFF or extra PDF;
+- a test that the Figure 7 module emits exactly six PDFs and six PNGs, with no SVG/TIFF or extra panel derivative;
 - a test that materialization fails for any missing, duplicated, or unexpected Figure 7 panel.
 
 ### Frozen numerical regression checks
@@ -452,7 +469,7 @@ At minimum, assert the currently approved values within explicit numerical toler
 - panel 7D Pearson `r = 0.8105173` and exact permutation `P = 0.0104167`;
 - panel 7E Pearson `r = -0.6984010` and exact permutation `P = 0.0591270`;
 - all A–E metadata report `TGI_percent_Day_17`, outcome `day`, matched-control summary `mean`, and Day 17;
-- panel 7F contains the approved collection labels and pathway order, exactly eight selected pathways per collection unless the approved frozen table documents a different count;
+- panel 7F contains the approved collection labels and pathway order, exactly 21 selected pathways split 5/8/8 across Hallmark/Reactome/GO biological process, and no adjusted P above 0.05;
 - panel 7F vertical boundaries are exactly 0.30 and 0.49.
 
 If a code cleanup changes these values, stop and determine whether it is a bug fix or a scientific revision. Do not update reference values merely to make tests pass.
@@ -499,7 +516,7 @@ bash Manager.sh \
 This command must copy existing PDFs from the immutable source run; it must not rerun R code or overwrite the source manager run. Verify:
 
 - both module input/output manifests validate;
-- `figures/Figure7/manifest.tsv` validates and contains exactly six generated rows;
+- `figures/Figure7/manifest.tsv` validates and contains exactly 12 generated rows;
 - every manifest `result_run_dir` points to the Figure 7 module root;
 - every manifest `run_id` equals `<canonical_analysis_run_id>`, not `<fresh_materialization_run_id>`;
 - no source path comes from `Figs/`, `Downloads`, a report HTML, or `latest.txt`;
@@ -571,7 +588,7 @@ This phase is a hard prerequisite. The PDF alone is insufficient as the canonica
 Figure 7 is ready for `main` only when all of the following are true:
 
 - a clean checkout can run the routine Figure 7 module without developer-specific paths;
-- the module writes exactly six source-panel PDFs with the frozen settings;
+- the module writes exactly six source panels as matched PDF/PNG pairs with the frozen settings;
 - panel 7F has a tracked plotting table and complete full-analysis provenance, not only a PDF;
 - panel 7F's complete compact gene ranking, candidate GSEA results, coverage, and design QC are retained so its displayed selection can be audited;
 - full-analysis mode can recompute panel 7F when the external RDS is supplied;

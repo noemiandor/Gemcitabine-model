@@ -1357,8 +1357,11 @@ provenance <- data.frame(
       )
     } else {
       paste(
-        "Frozen matrices were recalculated from Tao's cluster DEG cache after",
-        "explicitly retaining GRCh features and excluding GRCm39 features."
+        "Reviewed SI7 matrices are the exact outputs from raw-refit run",
+        "grch_human_only_v2_20260729_raw_refit_retry3_si_figures:",
+        "exact GRCh38-prefixed RNA counts were retained before fresh RNA",
+        "normalization, differential expression, symbol cleanup,",
+        "deduplication, ORA, and GSEA."
       )
     }
   ),

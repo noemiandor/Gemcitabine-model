@@ -26,7 +26,7 @@ EXPECTED_FILES = (
 )
 MANIFEST_COLUMNS = ("filename", "bytes", "sha256", "source_revision", "notes")
 REVIEWED_MANIFEST_SHA256 = (
-    "5713379814b457d470753ec92a4e9155ecf776fe8f22eed8c8d66eb56881167d"
+    "b624c3f3ff945c51f09b9e6e512a97df57eb4e514b3fba28a65e97a38207f135"
 )
 
 
@@ -327,11 +327,15 @@ def validate_cache(
         ]
         if len(matrix_rows) == 2:
             if si7_policy == "corrected-human-only" and any(
-                "human-only GRCh" not in row.get("notes", "")
+                "reviewed exact output" not in row.get("notes", "")
+                or "exact GRCh38 counts retained" not in row.get("notes", "")
+                or "GRCm39 excluded" not in row.get("notes", "")
+                or "reviewed=" not in row.get("source_revision", "")
                 for row in matrix_rows
             ):
                 errors.append(
-                    "manifest.tsv: SI7 matrices must record human-only GRCh policy"
+                    "manifest.tsv: SI7 matrices must record reviewed exact-GRCh "
+                    "raw-refit lineage"
                 )
             if si7_policy == "generated-human-only" and any(
                 "generated human-only GRCh policy"
@@ -377,8 +381,8 @@ def write_manifest(
                     "sha256": sha256(path),
                     "source_revision": source_revision,
                     "notes": (
-                        "human-only GRCh feature policy; mouse-aligned GRCm39 "
-                        "features excluded; MSigDB 2026.1.Hs"
+                        "reviewed exact output; exact GRCh38 counts retained; "
+                        "GRCm39 excluded; MSigDB 2026.1.Hs"
                         if is_si7
                         else "frozen plot-facing table"
                     ),

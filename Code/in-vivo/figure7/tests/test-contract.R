@@ -1,6 +1,9 @@
 testthat::test_that("panel-F compact reference contract validates and selector is audited", {
   fixture <- figure7_test_state_reference()
-  reference <- figure7_validate_state_reference(fixture$path, fixture$config)
+  reference <- figure7_validate_historical_state_reference(
+    fixture$path,
+    fixture$config
+  )
   testthat::expect_equal(nrow(reference$pathways), 24L)
   testthat::expect_s3_class(figure7_panel_f_plot(reference$activity, fixture$config), "ggplot")
   collision_activity <- reference$activity[
@@ -23,7 +26,7 @@ testthat::test_that("panel-F compact reference contract validates and selector i
   )
   bad <- reference$selected; bad$selected_rank_within_direction[[1L]] <- 4L
   figure7_write_tsv(bad, file.path(fixture$path, "panel_7F_selected_pathway_gsea.tsv"))
-  testthat::expect_error(figure7_validate_state_reference(fixture$path, fixture$config, verify_checksums = FALSE),
+  testthat::expect_error(figure7_validate_historical_state_reference(fixture$path, fixture$config, verify_checksums = FALSE),
                          "metadata/order|top-four")
 })
 
@@ -34,7 +37,10 @@ testthat::test_that("tracked historical 04i reference validates exact report lin
     input$config$state_pathways$reference_root,
     input$config$state_pathways$reference_id
   )
-  reference <- figure7_validate_state_reference(reference_path, input$config)
+  reference <- figure7_validate_historical_state_reference(
+    reference_path,
+    input$config
+  )
   provenance <- stats::setNames(as.character(reference$provenance$value), reference$provenance$key)
 
   testthat::expect_equal(nrow(reference$activity), 24L * 501L)
@@ -58,6 +64,89 @@ testthat::test_that("tracked historical 04i reference validates exact report lin
   )
 })
 
+testthat::test_that("tracked reviewed v2 is the exact approved human-only FDR reference", {
+  input <- figure7_test_inputs()
+  reference_path <- file.path(
+    repo_root,
+    input$config$state_pathways$reviewed_reference_root,
+    input$config$state_pathways$reviewed_reference_id
+  )
+  reference <- figure7_validate_reviewed_state_reference(
+    reference_path,
+    input$config
+  )
+  provenance <- stats::setNames(
+    as.character(reference$provenance$value),
+    reference$provenance$key
+  )
+  collection_counts <- table(reference$pathways$collection_id)
+
+  testthat::expect_identical(
+    reference$reference_id,
+    "state_pathway_grch_human_only_etp2_24_day17_v2"
+  )
+  testthat::expect_identical(
+    reference$reference_kind,
+    "reviewed_human_only_frozen"
+  )
+  testthat::expect_true(reference$canonical_publication_allowed)
+  testthat::expect_equal(nrow(reference$selected), 21L)
+  testthat::expect_equal(nrow(reference$activity), 21L * 501L)
+  testthat::expect_identical(
+    as.integer(collection_counts[c("H", "C2:CP:REACTOME", "C5:GO:BP")]),
+    c(5L, 8L, 8L)
+  )
+  testthat::expect_lte(max(figure7_numeric(reference$selected$padj)), 0.05)
+  testthat::expect_identical(
+    provenance[["reviewed_source_provenance_sha256"]],
+    "c325359b1d0fe67c3ad1f13523e993cb80e5168d164d06e1b2fa1b1b584be888"
+  )
+  testthat::expect_identical(
+    provenance[["canonical_publication_allowed"]],
+    "true"
+  )
+  testthat::expect_false(any(grepl(
+    "^(/|[A-Za-z]:[\\\\/])|/(private|share|Users)/",
+    provenance
+  )))
+})
+
+testthat::test_that("reviewed v2 rejects provenance or selected-table tampering", {
+  input <- figure7_test_inputs()
+  source <- file.path(
+    repo_root,
+    input$config$state_pathways$reviewed_reference_root,
+    input$config$state_pathways$reviewed_reference_id
+  )
+  parent <- tempfile("figure7_reviewed_tamper_")
+  tampered <- file.path(
+    parent,
+    input$config$state_pathways$reviewed_reference_id
+  )
+  dir.create(tampered, recursive = TRUE)
+  testthat::expect_true(all(file.copy(
+    file.path(source, figure7_state_required_files()),
+    file.path(tampered, figure7_state_required_files())
+  )))
+
+  provenance_path <- file.path(tampered, "state_pathway_provenance.tsv")
+  provenance <- figure7_read_tsv(provenance_path, c("key", "value"))
+  provenance$value[provenance$key == "reviewed_on"] <- "2026-07-31"
+  figure7_write_tsv(provenance, provenance_path)
+  testthat::expect_error(
+    figure7_validate_reviewed_state_reference(tampered, input$config),
+    "SHA-256 mismatch"
+  )
+  testthat::expect_error(
+    figure7_validate_reviewed_state_reference(
+      tampered,
+      input$config,
+      verify_checksums = FALSE
+    ),
+    "exact approved retry7"
+  )
+})
+
 testthat::test_that("canonical provenance is location-independent and always checksummed", {
   fixture <- figure7_test_state_reference()
   provenance_path <- file.path(fixture$path, "state_pathway_provenance.tsv")
@@ -69,11 +158,18 @@ testthat::test_that("canonical provenance is location-independent and always che
   figure7_write_tsv(provenance, provenance_path)
 
   testthat::expect_error(
-    figure7_validate_state_reference(fixture$path, fixture$config),
+    figure7_validate_historical_state_reference(
+      fixture$path,
+      fixture$config
+    ),
     "SHA-256 mismatch"
   )
   testthat::expect_error(
-    figure7_validate_state_reference(fixture$path, fixture$config, verify_checksums = FALSE),
+    figure7_validate_historical_state_reference(
+      fixture$path,
+      fixture$config,
+      verify_checksums = FALSE
+    ),
     "runtime filesystem paths"
   )
 })
@@ -101,7 +197,7 @@ testthat::test_that("missing F, wrong checksums, and nonempty outputs fail clear
   input <- figure7_test_inputs()
   missing <- file.path(tempdir(), input$config$state_pathways$reference_id)
   testthat::expect_error(
-    figure7_validate_state_reference(missing, input$config),
+    figure7_validate_historical_state_reference(missing, input$config),
     "Missing historical panel-7F"
   )
   wrong <- tempfile(); writeLines("wrong", wrong)
@@ -120,7 +216,10 @@ testthat::test_that("entire-run image inventory is exact", {
 
 testthat::test_that("A-E plus a validated fixture F satisfy six exact PDF/PNG pairs", {
   input <- figure7_test_inputs(); fixture <- figure7_test_state_reference()
-  reference <- figure7_validate_state_reference(fixture$path, fixture$config)
+  reference <- figure7_validate_historical_state_reference(
+    fixture$path,
+    fixture$config
+  )
   out <- tempfile("figure7_six_"); figure7_prepare_output(out)
   figure7_build_ae(input$cellcycle, input$data, input$samples, out, fixture$config)
   figure7_build_f(reference, out, fixture$config)

@@ -1,10 +1,11 @@
 # Figure 7 reproducibility module
 
 This module generates six Figure 7 source panels as matched PDF and 300-DPI PNG
-files. Panels 7A-7E are publication eligible; panel 7F is currently either the
-historical mixed-feature audit rendering or an unreviewed generated human-only
-replacement, so an A-F run remains noncanonical. The module does not assemble
-the final A-F manuscript composite, matching the Figure 1-6 workflow.
+files. Routine A-F runs are publication eligible and use the reviewed,
+byte-pinned human-only panel-7F v2 reference. The historical mixed-feature v1
+reference remains available only for audit, while newly generated raw-refit
+references remain noncanonical until separately reviewed. The module does not
+assemble the final A-F manuscript composite, matching the Figure 1-6 workflow.
 
 ## Frozen routine analysis
 
@@ -12,13 +13,17 @@ the final A-F manuscript composite, matching the Figure 1-6 workflow.
 - TGI is the Day-17 endpoint statistic, recalculated for each treated mouse using the mean Day-17 growth delta of untreated controls matched by initial ploidy.
 - Panels 7C-7E contain exactly eight treated mice at 30 or 120 mg/kg. Untreated mice contribute references only.
 - Panel 7D uses the reference-balanced ETP threshold 2.24 and equal-mouse untreated ECDF references.
-- Panel 7F is rendered from immutable compact 04i tables in `Data/in-vivo/figure7/saved_state_pathway/taoli_04i_etp2_24_day17_v1/`.
+- Panel 7F is rendered from immutable compact tables in `Data/in-vivo/figure7/saved_state_pathway/state_pathway_grch_human_only_etp2_24_day17_v2/`.
 
-The eight historical panel-7F tables are a read-only export from the exact
-`ETP_reference_balanced_threshold_2_24` analysis used by
-`04i_pseudotime_state_pathways_report.html`, with accumulated pseudotime interval
-0.30-0.49. Their reviewed SHA-256 values are pinned in `figure7_config.yaml`;
-an embedded report raster is not accepted as plotting data.
+The eight reviewed panel-7F files retain exact `GRCh38-` features before
+expression filtering, symbol resolution, model fitting, and Homo sapiens GSEA.
+They use the `ETP_reference_balanced_threshold_2_24` analysis and accumulated
+pseudotime interval 0.30-0.49. The displayed selection contains 21
+FDR-significant pathways (Hallmark 5, Reactome 8, GO biological process 8):
+collection-wide BH-adjusted P <= 0.05, up to four per sign and collection, with
+no nonsignificant backfill. All eight SHA-256 values and the exact approved
+retry7 lineage are pinned in `figure7_config.yaml` and the reviewed provenance.
+An embedded report raster is not accepted as plotting data.
 
 ## Raw-data fallback and intermediate reuse
 
@@ -84,13 +89,14 @@ regeneration; explicit external paths are never modified. To require an
 already-populated raw cache, add `--figure7-no-download-missing-raw`.
 
 The byte-pinned v1 panel-7F reference is retained only for historical audit
-because it was fitted from mixed human/mouse features. Routine `standard` runs
-can still render it for comparison, but an A-F run is never publication
-eligible. The corrected full-workflow path retains exact `GRCh38-` count rows
+because it was fitted from mixed human/mouse features. It can still be rendered
+for comparison by explicitly supplying its directory, but that A-F run is
+never publication eligible. Routine `standard` uses the reviewed human-only v2
+reference. The corrected full-workflow path retains exact `GRCh38-` count rows
 before expression filtering, symbol resolution, modeling, and GSEA. It writes
-a separate generated human-only v2 reference with
-`canonical_publication_allowed=false` until that result is reviewed and
-explicitly blessed. GSEA starts with the configured simple-permutation budget,
+a separate generated human-only reference with
+`canonical_publication_allowed=false`; raw reruns do not inherit the approval
+of the exact frozen v2 bytes. GSEA starts with the configured simple-permutation budget,
 retries only unresolved pathways at increasing pinned budgets, recomputes BH
 adjustment across each complete collection, and fails closed if any pathway
 still lacks finite statistics at the configured cap. The generated human-only
@@ -140,8 +146,8 @@ calculation, plot labels, statistical tables, run metadata, panel contract, and
 day-bearing filenames. Panel 7B and panel 7F are scientifically independent of
 the TGI endpoint and are regenerated unchanged into the selected destination.
 
-Routine and raw-fallback runs do not refresh the tracked historical v1
-panel-7F reference. Full-workflow instead writes a separately identified
+Routine and raw-fallback runs do not refresh either tracked frozen reference.
+Full-workflow instead writes a separately identified
 `runtime_state_pathway_grch_human_only_v2` generated reference below the run
 intermediates and marks it noncanonical.
 
@@ -179,8 +185,8 @@ bash Manager.sh --mode standard --modules in_vivo_figure7 \
 This mode records a five-panel contract and does not read, validate, render, or
 materialize panel 7F. Each included panel is written in both PDF and PNG format.
 
-To run the standalone Figure 7 workflow directly on the HPC and render all six
-panels for historical comparison:
+To run the standalone canonical Figure 7 workflow directly on the HPC and
+render all six panels:
 
 ```bash
 module load Python/3.12.3-GCCcore-13.3.0
@@ -196,7 +202,7 @@ Rscript Code/in-vivo/figure7/run_figure7.R \
   --config=Code/in-vivo/figure7/figure7_config.yaml \
   --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
   --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
-  --saved-state-pathway-dir=Data/in-vivo/figure7/saved_state_pathway/taoli_04i_etp2_24_day17_v1 \
+  --saved-state-pathway-dir=Data/in-vivo/figure7/saved_state_pathway/state_pathway_grch_human_only_etp2_24_day17_v2 \
   --output-dir="${figure7_output_dir}"
 
 echo "Figure 7 results: ${figure7_output_dir}"
@@ -204,8 +210,9 @@ echo "Figure 7 results: ${figure7_output_dir}"
 
 Run this command in the HPC shell rather than at an interactive R prompt. The
 timestamp creates a new output directory for every run. The `standard` mode
-recomputes panels 7A-7E and renders panel 7F from the pinned historical 04i
-tables without refitting the 04i model; the resulting A-F run is noncanonical.
+recomputes panels 7A-7E and renders panel 7F from the pinned reviewed
+human-only tables without refitting the model; the resulting A-F run is
+canonical.
 
 Standalone rendering from an immutable completed run (does not rerun statistics):
 
@@ -218,9 +225,9 @@ Rscript Code/in-vivo/figure7/run_figure7.R \
 ```
 
 The manager's `panels-only` mode does not invoke this R script. For Figure 7 it
-materializes the five publication-eligible A-E PDFs from an explicit
-`--source-run-id`; an A-F source run is skipped while no reviewed human-only 7F
-reference exists.
+materializes the exact recorded A-F or explicit A-E panel contract from an
+explicit `--source-run-id`. Historical or generated/noncanonical panel-7F runs
+are rejected.
 
 The older artifact-driven `full-analysis` entrypoint remains only as an
 explicit guard that directs callers to the corrected workflow. Manager's
@@ -255,7 +262,7 @@ Rscript Code/in-vivo/figure7/tests/testthat.R
 The tests parse all module files, reproduce the frozen A-E numerical results,
 enforce treated-only outcomes and selected ECDF IDs 1/8/9, validate the tracked
 historical 04i reference and its lineage, exercise the strict panel-F
-publication guard and generated human-only contract, verify cached-stage
+reviewed-v2 publication guard and generated human-only contract, verify cached-stage
 fingerprints and tamper rejection, validate the complete Zenodo manifest, and
 confirm that missing raw inputs fail before output is created when downloading
 is disabled.

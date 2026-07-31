@@ -1378,9 +1378,9 @@ figure7_cell_pair_has_canonical_hashes <- function(paths, config) {
     )
 }
 
-figure7_frozen_reference_valid <- function(path, config) {
+figure7_historical_reference_valid <- function(path, config) {
   !is.null(tryCatch(
-    figure7_validate_state_reference(
+    figure7_validate_historical_state_reference(
       path,
       config,
       verify_checksums = TRUE
@@ -1474,11 +1474,11 @@ figure7_preflight_workflow <- function(
   cell_pair_ready <- isTRUE(selection$ready)
 
   historical_reference_ready <- isTRUE(include_panel_f) &&
-    figure7_frozen_reference_valid(paths$frozen_reference, config)
+    figure7_historical_reference_valid(paths$frozen_reference, config)
   if (isTRUE(include_panel_f) &&
       isTRUE(paths$frozen_reference_explicit)) {
     figure7_stop(
-      "Full-workflow panel 7F cannot use an explicit historical mixed ",
+      "Full-workflow panel 7F cannot use an explicit frozen publication ",
       "reference; omit --frozen-state-pathway-dir so a generated ",
       "GRCh-only v2 reference is built or reused"
     )

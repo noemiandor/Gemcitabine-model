@@ -42,10 +42,34 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.input_path = self.repo / "Data/in-vivo/figure7/fixture.tsv"
         self.input_path.parent.mkdir(parents=True)
         self.input_path.write_text("value\n1\n")
-        self.reviewed_reference_root = (
+        self.reviewed_reference_source = (
             REPO_ROOT
             / "Data/in-vivo/figure7/saved_state_pathway"
-            / "taoli_04i_etp2_24_day17_v1"
+            / "state_pathway_grch_human_only_etp2_24_day17_v2"
+        )
+        self.reviewed_reference_root = (
+            self.repo
+            / "Data/in-vivo/figure7/saved_state_pathway"
+            / "state_pathway_grch_human_only_etp2_24_day17_v2"
+        )
+        shutil.copytree(
+            self.reviewed_reference_source,
+            self.reviewed_reference_root,
+        )
+        self.figure7_config = (
+            self.repo / "Code/in-vivo/figure7/figure7_config.yaml"
+        )
+        self.figure7_config.parent.mkdir(parents=True)
+        shutil.copy2(
+            REPO_ROOT / "Code/in-vivo/figure7/figure7_config.yaml",
+            self.figure7_config,
+        )
+        self.figure7_renderer = (
+            self.repo / "Code/in-vivo/figure7/run_figure7.R"
+        )
+        shutil.copy2(
+            REPO_ROOT / "Code/in-vivo/figure7/run_figure7.R",
+            self.figure7_renderer,
         )
         self.figure7_specs = [
             spec for spec in PANEL_SPECS if spec["module"] == "in_vivo_figure7"
@@ -76,15 +100,22 @@ class Figure7MaterializationTest(unittest.TestCase):
                 [
                     {
                         "key": "state_pathway_reference_id",
-                        "value": "taoli_04i_etp2_24_day17_v1",
+                        "value": (
+                            "state_pathway_grch_human_only_"
+                            "etp2_24_day17_v2"
+                        ),
                     },
                     {
                         "key": "state_pathway_reference_kind",
-                        "value": "reviewed_frozen",
+                        "value": "reviewed_human_only_frozen",
                     },
                     {
                         "key": "canonical_publication_allowed",
                         "value": "true",
+                    },
+                    {
+                        "key": "config_sha256",
+                        "value": sha256_file(self.figure7_config),
                     },
                 ]
             )
@@ -103,27 +134,33 @@ class Figure7MaterializationTest(unittest.TestCase):
         )
 
     def _write_input_manifest(self) -> None:
-        relative = str(self.input_path.relative_to(self.repo))
+        input_paths = [
+            self.input_path,
+            self.figure7_config,
+            self.figure7_renderer,
+            *sorted(self.reviewed_reference_root.glob("*.tsv")),
+        ]
         write_tsv(
             self.run_root / "metadata/input_manifest.tsv",
             [
                 {
-                    "path": relative,
-                    "repo_relative_path": relative,
-                    "absolute_path": str(self.input_path),
+                    "path": str(path.relative_to(self.repo)),
+                    "repo_relative_path": str(path.relative_to(self.repo)),
+                    "absolute_path": str(path),
                     "role": "input_data",
                     "source_kind": "input_file",
                     "module": "in_vivo_figure7",
                     "generated_by": "Manager.sh",
                     "command_id": self.source_id,
-                    "sha256": sha256_file(self.input_path),
+                    "sha256": sha256_file(path),
                     "checksum_unavailable_reason": "",
-                    "byte_size": self.input_path.stat().st_size,
+                    "byte_size": path.stat().st_size,
                     "mtime_utc": "2026-07-16T00:00:00+00:00",
                     "figure": "",
                     "panel": "",
                     "notes": "test fixture",
                 }
+                for path in input_paths
             ],
             MODULE_MANIFEST_COLUMNS,
         )
@@ -206,9 +243,35 @@ class Figure7MaterializationTest(unittest.TestCase):
             capture_output=True,
         )
 
-    def test_rejects_historical_mixed_v1_even_with_legacy_reviewed_identity(
+    def test_materializes_exact_reviewed_human_only_v2(self) -> None:
+        result = self._run_materializer()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(
+            (
+                self.repo
+                / "figures/Figure7/"
+                "panel_7F_pseudotime_state_pathway_activity.pdf"
+            ).is_file()
+        )
+
+    def test_rejects_historical_mixed_v1_spoofed_as_reviewed_v2(
         self,
     ) -> None:
+        historical = (
+            REPO_ROOT
+            / "Data/in-vivo/figure7/saved_state_pathway"
+            / "taoli_04i_etp2_24_day17_v1"
+        )
+        for target in self.run_root.joinpath("tables").glob("*.tsv"):
+            target.unlink()
+        (self.run_root / "metadata/state_pathway_provenance.tsv").unlink()
+        for source in historical.glob("*.tsv"):
+            destination = (
+                self.run_root / "metadata" / source.name
+                if source.name == "state_pathway_provenance.tsv"
+                else self.run_root / "tables" / source.name
+            )
+            shutil.copy2(source, destination)
         result = self._run_materializer()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
@@ -372,6 +435,41 @@ class Figure7MaterializationTest(unittest.TestCase):
         result = self._run_materializer()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("input-manifest provenance", result.stderr)
+
+    def test_rejects_canonical_identity_without_reviewed_input_binding(
+        self,
+    ) -> None:
+        relative = str(self.input_path.relative_to(self.repo))
+        write_tsv(
+            self.run_root / "metadata/input_manifest.tsv",
+            [
+                {
+                    "path": relative,
+                    "repo_relative_path": relative,
+                    "absolute_path": str(self.input_path),
+                    "role": "input_data",
+                    "source_kind": "input_file",
+                    "module": "in_vivo_figure7",
+                    "generated_by": "Manager.sh",
+                    "command_id": self.source_id,
+                    "sha256": sha256_file(self.input_path),
+                    "checksum_unavailable_reason": "",
+                    "byte_size": self.input_path.stat().st_size,
+                    "mtime_utc": "2026-07-16T00:00:00+00:00",
+                    "figure": "",
+                    "panel": "",
+                    "notes": "insufficient binding",
+                }
+            ],
+            MODULE_MANIFEST_COLUMNS,
+        )
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "does not bind the reviewed renderer, config, and eight-file",
+            result.stderr,
+        )
+        self.assertFalse((self.repo / "figures").exists())
 
 
 class ManifestContractTest(unittest.TestCase):

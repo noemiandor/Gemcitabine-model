@@ -1,8 +1,9 @@
 # Runtime-generated panel-7F reference contract.
 #
-# This intentionally does not weaken or wrap figure7_validate_state_reference(),
-# which remains the byte-pinned historical 04i contract. Generated GRCh-only
-# references are run-scoped, explicitly noncanonical, and validated here.
+# Generated GRCh-only references are run-scoped, explicitly noncanonical, and
+# validated here. The reviewed-v2 validator reuses this scientific contract
+# only after independently enforcing its exact frozen bytes and approval
+# identity; the historical mixed-v1 validator remains separate.
 
 figure7_generated_state_required_files <- function() {
   figure7_state_required_files()

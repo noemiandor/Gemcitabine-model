@@ -600,6 +600,14 @@ figure7_read_config <- function(path, tgi_day = NULL) {
     reference_kind = as.character(state$reference_kind),
     reference_canonical_publication_allowed =
       tolower(as.character(state$reference_canonical_publication_allowed)),
+    reviewed_reference_id =
+      as.character(state$reviewed_reference_id),
+    reviewed_reference_kind =
+      as.character(state$reviewed_reference_kind),
+    reviewed_reference_canonical_publication_allowed =
+      tolower(as.character(
+        state$reviewed_reference_canonical_publication_allowed
+      )),
     generated_reference_kind =
       as.character(state$generated_reference_kind),
     generated_reference_id =
@@ -611,6 +619,10 @@ figure7_read_config <- function(path, tgi_day = NULL) {
     reference_id = "taoli_04i_etp2_24_day17_v1",
     reference_kind = "historical_mixed_frozen",
     reference_canonical_publication_allowed = "false",
+    reviewed_reference_id =
+      "state_pathway_grch_human_only_etp2_24_day17_v2",
+    reviewed_reference_kind = "reviewed_human_only_frozen",
+    reviewed_reference_canonical_publication_allowed = "true",
     generated_reference_kind = "generated_human_only",
     generated_reference_id =
       "runtime_state_pathway_grch_human_only_v2",
@@ -618,7 +630,41 @@ figure7_read_config <- function(path, tgi_day = NULL) {
   )
   if (!identical(state_identity, expected_state_identity)) {
     figure7_stop(
-      "Panel-7F historical/generated publication identity is invalid"
+      "Panel-7F historical/reviewed/generated publication identity is invalid"
+    )
+  }
+  expected_reference_files <- c(
+    "panel_7F_pathway_activity_plot_data.tsv",
+    "panel_7F_selected_pathway_gsea.tsv",
+    "panel_7F_leading_edge_genes.tsv",
+    "state_pathway_gene_ranking_complete.tsv",
+    "state_pathway_gsea_complete.tsv",
+    "state_pathway_sample_bin_coverage.tsv",
+    "state_pathway_design_qc.tsv",
+    "state_pathway_provenance.tsv"
+  )
+  reviewed_hashes <- unlist(
+    state$reviewed_expected_files,
+    use.names = TRUE
+  )
+  if (!identical(
+        sort(names(reviewed_hashes)),
+        sort(expected_reference_files)
+      ) ||
+      any(!grepl("^[0-9a-f]{64}$", reviewed_hashes)) ||
+      !identical(
+        as.character(state$reviewed_reference_root),
+        "Data/in-vivo/figure7/saved_state_pathway"
+      ) ||
+      !identical(
+        as.character(state$reviewed_pathway_selector),
+        paste(
+          "BH-adjusted P <= 0.05; up to top four per sign and collection;",
+          "no nonsignificant backfill"
+        )
+      )) {
+    figure7_stop(
+      "Panel-7F reviewed human-only reference contract is invalid"
     )
   }
   config
@@ -772,7 +818,11 @@ figure7_state_config_contract_sha256 <- function(config) {
         "reference_id", "reference_root", "expected_files",
         "comparison_tolerances", "generated_reference_id",
         "generated_reference_kind",
-        "generated_canonical_publication_allowed"
+        "generated_canonical_publication_allowed",
+        "reviewed_reference_id", "reviewed_reference_kind",
+        "reviewed_reference_canonical_publication_allowed",
+        "reviewed_reference_root", "reviewed_expected_files",
+        "reviewed_pathway_selector"
       )
     )
   ]

@@ -34,7 +34,7 @@ inputs:
 si_figures:
   cache_schema_version: 1
   cache_root: Data/in-vivo/SIfigures
-  reviewed_manifest_sha256: 5713379814b457d470753ec92a4e9155ecf776fe8f22eed8c8d66eb56881167d
+  reviewed_manifest_sha256: b624c3f3ff945c51f09b9e6e512a97df57eb4e514b3fba28a65e97a38207f135
   cache_file_count: 11
   figures: [4, 5, 6, 7]
   cluster_order: ["0", "2", "4c", "5", "6", "8", "10", "13", "14"]
@@ -116,6 +116,10 @@ state_pathways:
   reference_id: taoli_04i_etp2_24_day17_v1
   reference_kind: historical_mixed_frozen
   reference_canonical_publication_allowed: false
+  reviewed_reference_id: state_pathway_grch_human_only_etp2_24_day17_v2
+  reviewed_reference_kind: reviewed_human_only_frozen
+  reviewed_reference_canonical_publication_allowed: true
+  reviewed_reference_root: Data/in-vivo/figure7/saved_state_pathway
   generated_reference_id: runtime_state_pathway_grch_human_only_v2
   generated_reference_kind: generated_human_only
   generated_canonical_publication_allowed: false
@@ -148,6 +152,7 @@ state_pathways:
   top_positive_per_collection: 4
   top_negative_per_collection: 4
   pathway_selector: "finite adjusted P; no FDR cutoff; top four per sign and collection"
+  reviewed_pathway_selector: "BH-adjusted P <= 0.05; up to top four per sign and collection; no nonsignificant backfill"
   expected_files:
     panel_7F_pathway_activity_plot_data.tsv: 0ab4631d00126b7ad3c8e8f653102c0ed69f03d6db0a6db605198bc0b993ee3c
     panel_7F_selected_pathway_gsea.tsv: eed1418505ff120f2212b59d337833bb42e5cdeaadeff053b7fb94e66ea062e0
@@ -157,6 +162,15 @@ state_pathways:
     state_pathway_sample_bin_coverage.tsv: b42694cd910b5faf6a5b9e5add8a90b06f5207317df98f2969cf57887027e8d8
     state_pathway_design_qc.tsv: 156cc8b7aaeb56866c258c6d6433635b881040691ab816fc7c5edc7cd5048b4c
     state_pathway_provenance.tsv: bb8f08f9afd0786216babcd5c38d577caa6fd41c4f1d52f28e54d8558c66b424
+  reviewed_expected_files:
+    panel_7F_pathway_activity_plot_data.tsv: c2a6d455fd11c1d95bbc31441419953d4cc0d88eb8acf611fc3488f04af8d0f8
+    panel_7F_selected_pathway_gsea.tsv: ca86833bb6159cfde1e1218d897183809eba00a0cf096fc5c4951b5065767460
+    panel_7F_leading_edge_genes.tsv: 6e86e697b64565cf0281e8684d29001eed84c83e1a3b9e45f7ffd37b78fdf9dd
+    state_pathway_gene_ranking_complete.tsv: ac9ced0c9bb691b490b0197c9962a72a6d272781e6883631c76d7c9f2397d34c
+    state_pathway_gsea_complete.tsv: 4d1283e89b28e5100586a591621b5522b1698859d5d64b69054c4c470356a8d6
+    state_pathway_sample_bin_coverage.tsv: a0a408a91968f172ea7a30d9432c63571f74cea5fe27f4c5ad1c8f6044172a47
+    state_pathway_design_qc.tsv: 66a1cf1a5362539f50777ae482b37b5b30e4d92bd673eee9aa4c842e91160151
+    state_pathway_provenance.tsv: 406c4fa97b96dc001b1744e01658a533fc571897724a485080e8bbbc787293a4
   comparison_tolerances:
     absolute: 1.0e-10
     relative: 1.0e-6
