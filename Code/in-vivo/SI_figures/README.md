@@ -93,10 +93,11 @@ finite matrix values, and portable SHA-256 manifest.
 The renderer writes the exact composition estimates and test results to
 `metadata/normalized_composition_plot_data.tsv` and
 `metadata/normalized_composition_enrichment_tests.tsv`. Run the targeted
-statistical contract test with:
+statistical and SI7 heatmap contract tests with:
 
 ```bash
 Rscript Code/in-vivo/SI_figures/tests/test_normalized_composition.R
+Rscript Code/in-vivo/SI_figures/tests/test_si7_heatmap_clustering.R
 ```
 
 ## SI Figure 7 species policy
@@ -111,6 +112,10 @@ outputs from raw-refit run
 `grch_human_only_v2_20260729_raw_refit_retry3_si_figures`, using MSigDB
 2026.1.Hs Hallmark gene sets. The other nine SI4-7 frozen tables remain
 unchanged.
+
+Both SI7 heatmaps hierarchically cluster the pathway rows and cluster columns;
+the rendered panels therefore include dendrograms on both axes. Clustering
+changes display order only and does not modify the reviewed matrix values.
 
 This explicit filter replaces the previous mixed behavior, where species
 prefixes were stripped but symbol case was preserved before querying human

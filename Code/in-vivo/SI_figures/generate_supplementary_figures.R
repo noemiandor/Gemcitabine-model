@@ -306,11 +306,11 @@ make_composition_plot <- function(
   add_tag(plot, tag)
 }
 
-heatmap_plot <- function(matrix_data, title, diverging, tag) {
+build_heatmap <- function(matrix_data, title, diverging, tag) {
   arguments <- list(
     mat = matrix_data,
     cluster_rows = TRUE,
-    cluster_cols = FALSE,
+    cluster_cols = TRUE,
     border_color = NA,
     fontsize_row = 8,
     fontsize_col = 7,
@@ -329,7 +329,11 @@ heatmap_plot <- function(matrix_data, title, diverging, tag) {
       length.out = length(arguments$color) + 1L
     )
   }
-  heatmap <- do.call(pheatmap::pheatmap, arguments)
+  do.call(pheatmap::pheatmap, arguments)
+}
+
+heatmap_plot <- function(matrix_data, title, diverging, tag) {
+  heatmap <- build_heatmap(matrix_data, title, diverging, tag)
   patchwork::wrap_elements(full = heatmap$gtable)
 }
 
