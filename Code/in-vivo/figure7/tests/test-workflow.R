@@ -1175,6 +1175,45 @@ testthat::test_that("generated references attest a removed state tree", {
     config,
     config_path
   ))
+  provenance_path <- file.path(reference, "state_pathway_provenance.tsv")
+  provenance_backup <- tempfile(fileext = ".tsv")
+  testthat::expect_true(file.copy(
+    provenance_path,
+    provenance_backup,
+    overwrite = TRUE
+  ))
+  provenance <- figure7_read_tsv(provenance_path)
+  provenance$value[provenance$key == "seurat_rds_sha256"] <-
+    paste(rep("d", 64L), collapse = "")
+  figure7_write_tsv(provenance, provenance_path)
+  tampered_manifest <- figure7_read_key_value_file(
+    paths$reference_stage_manifest
+  )
+  tampered_manifest <- tampered_manifest[
+    names(tampered_manifest) != "stage_fingerprint"
+  ]
+  tampered_manifest[["output_sha256:state_pathway_provenance.tsv"]] <-
+    figure7_sha256(provenance_path)
+  figure7_write_stage_manifest(
+    tampered_manifest,
+    paths$reference_stage_manifest
+  )
+  testthat::expect_false(figure7_saved_reference_match_inputs(
+    reference,
+    inactive_lineage_paths,
+    config,
+    config_path
+  ))
+  testthat::expect_true(file.copy(
+    provenance_backup,
+    provenance_path,
+    overwrite = TRUE
+  ))
+  figure7_write_reference_stage_manifest(
+    inactive_lineage_paths,
+    config_path,
+    config
+  )
   testthat::expect_true(figure7_saved_reference_match_inputs(
     reference,
     paths,

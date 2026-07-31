@@ -361,7 +361,7 @@ figure7_saved_reference_match_inputs <- function(
   )
   if (is.null(reference)) return(FALSE)
   paths$saved_reference <- path
-  isTRUE(tryCatch(
+  stage_matches <- isTRUE(tryCatch(
     figure7_reference_stage_manifest_matches(
       paths,
       config_path,
@@ -369,6 +369,23 @@ figure7_saved_reference_match_inputs <- function(
     ),
     error = function(error) FALSE
   ))
+  if (!stage_matches) return(FALSE)
+  manifest <- figure7_read_key_value_file(paths$reference_stage_manifest)
+  provenance_value <- stats::setNames(
+    as.character(reference$provenance$value),
+    as.character(reference$provenance$key)
+  )
+  lineage_mapping <- c(
+    cellcycle_sha256 = "cellcycle_metadata_sha256",
+    noncellcycle_sha256 = "noncellcycle_metadata_sha256",
+    seurat_rds_sha256 = "seurat_rds_sha256"
+  )
+  all(names(lineage_mapping) %in% names(manifest)) &&
+    all(unname(lineage_mapping) %in% names(provenance_value)) &&
+    identical(
+      unname(manifest[names(lineage_mapping)]),
+      unname(provenance_value[unname(lineage_mapping)])
+    )
 }
 
 figure7_state_results_match_inputs <- function(paths, config_path, config) {
@@ -944,6 +961,9 @@ figure7_reference_dependency_values <- function(
   config_path,
   config
 ) {
+  lineage_keys <- c(
+    "cellcycle_sha256", "noncellcycle_sha256", "seurat_rds_sha256"
+  )
   state_manifest_available <- file.exists(paths$state_stage_manifest)
   state_manifest <- character()
   if (state_manifest_available) {
@@ -956,15 +976,19 @@ figure7_reference_dependency_values <- function(
     state_manifest <- figure7_read_key_value_file(
       paths$state_stage_manifest
     )
+    missing_lineage <- setdiff(lineage_keys, names(state_manifest))
+    if (length(missing_lineage)) {
+      figure7_stop(
+        "Available state-stage manifest is missing lineage key(s): ",
+        paste(missing_lineage, collapse = ", ")
+      )
+    }
   }
   environment_lock <- figure7_environment_lock_path(config_path, config)
   state_dependencies <- figure7_state_dependency_values(
     paths,
     config_path,
     config
-  )
-  lineage_keys <- c(
-    "cellcycle_sha256", "noncellcycle_sha256", "seurat_rds_sha256"
   )
   lineage_dependencies <- state_dependencies[intersect(
     lineage_keys,
