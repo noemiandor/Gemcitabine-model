@@ -139,128 +139,6 @@ write_tsv <- function(data, path) {
   )
 }
 
-figure_theme <- function(base_size = 10) {
-  ggplot2::theme_classic(base_size = base_size) +
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(
-        face = "bold", color = "#222222", size = base_size + 1
-      ),
-      plot.subtitle = ggplot2::element_text(
-        color = "#444444", size = base_size - 1
-      ),
-      plot.tag = ggplot2::element_text(face = "bold", size = base_size + 3),
-      legend.title = ggplot2::element_text(face = "bold"),
-      strip.background = ggplot2::element_rect(
-        fill = "grey94", color = "grey75", linewidth = 0.35
-      ),
-      strip.text = ggplot2::element_text(face = "bold", color = "#333333"),
-      axis.title = ggplot2::element_text(color = "#333333")
-    )
-}
-
-umap_theme <- function(base_size = 10) {
-  figure_theme(base_size) +
-    ggplot2::theme(
-      axis.line = ggplot2::element_line(color = "grey35", linewidth = 0.35),
-      axis.ticks = ggplot2::element_blank(),
-      axis.text = ggplot2::element_blank(),
-      legend.title = ggplot2::element_text(face = "bold", size = base_size + 2),
-      legend.text = ggplot2::element_text(size = base_size + 1),
-      legend.key.height = grid::unit(0.85, "lines"),
-      legend.key.width = grid::unit(0.90, "lines")
-    )
-}
-
-add_tag <- function(plot, tag) plot + ggplot2::labs(tag = tag)
-
-shuffle_cells <- function(data, seed) {
-  set.seed(seed)
-  data[sample.int(nrow(data)), , drop = FALSE]
-}
-
-make_umap_discrete <- function(
-  data,
-  field,
-  colors,
-  title,
-  legend_title,
-  tag,
-  point_size,
-  subtitle = NULL,
-  labels = FALSE
-) {
-  data <- shuffle_cells(data, plot_seed + utf8ToInt(tag)[[1L]])
-  plot <- ggplot2::ggplot(
-    data,
-    ggplot2::aes(UMAP_1, UMAP_2, color = .data[[field]])
-  ) +
-    ggplot2::geom_point(size = point_size, alpha = 0.76, stroke = 0) +
-    ggplot2::scale_color_manual(values = colors, drop = FALSE, name = legend_title) +
-    ggplot2::guides(
-      color = ggplot2::guide_legend(
-        override.aes = list(size = 3, alpha = 1, stroke = 0)
-      )
-    ) +
-    ggplot2::coord_equal() +
-    ggplot2::labs(title = title, subtitle = subtitle, x = "UMAP 1", y = "UMAP 2") +
-    umap_theme(10)
-  if (labels) {
-    centers <- aggregate(cbind(UMAP_1, UMAP_2) ~ cluster, data = data, FUN = median)
-    plot <- plot + ggplot2::geom_label(
-      data = centers,
-      ggplot2::aes(UMAP_1, UMAP_2, label = cluster),
-      inherit.aes = FALSE,
-      size = 2.5,
-      linewidth = 0.2,
-      fill = "white",
-      color = "#222222",
-      alpha = 0.86,
-      label.padding = grid::unit(0.10, "lines")
-    )
-  }
-  add_tag(plot, tag)
-}
-
-make_umap_continuous <- function(
-  data,
-  field,
-  title,
-  legend_title,
-  tag,
-  point_size,
-  limits = NULL,
-  subtitle = NULL,
-  diverging = FALSE
-) {
-  data <- shuffle_cells(data, plot_seed + 1000L + utf8ToInt(tag)[[1L]])
-  plot <- ggplot2::ggplot(
-    data,
-    ggplot2::aes(UMAP_1, UMAP_2, color = .data[[field]])
-  ) +
-    ggplot2::geom_point(size = point_size, alpha = 0.80, stroke = 0) +
-    ggplot2::coord_equal() +
-    ggplot2::labs(title = title, subtitle = subtitle, x = "UMAP 1", y = "UMAP 2") +
-    umap_theme(10)
-  if (diverging) {
-    plot <- plot + ggplot2::scale_color_gradient2(
-      low = "#2C7BB6",
-      mid = "white",
-      high = "#D7191C",
-      midpoint = 0,
-      limits = limits,
-      name = legend_title
-    )
-  } else {
-    plot <- plot + ggplot2::scale_color_gradient(
-      low = "#2C7BB6",
-      high = "#D7191C",
-      limits = limits,
-      name = legend_title
-    )
-  }
-  add_tag(plot, tag)
-}
-
 percent_labels <- function(values) paste0(round(100 * values), "%")
 
 make_composition_plot <- function(
@@ -287,7 +165,7 @@ make_composition_plot <- function(
       y = y_title,
       fill = NULL
     ) +
-    figure_theme(9.5) +
+    shared_context_figure_theme(9.5) +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 35, hjust = 1))
   if (use_proportion) {
     plot <- plot +
@@ -303,38 +181,7 @@ make_composition_plot <- function(
       expand = ggplot2::expansion(mult = c(0, 0.04))
     )
   }
-  add_tag(plot, tag)
-}
-
-build_heatmap <- function(matrix_data, title, diverging, tag) {
-  arguments <- list(
-    mat = matrix_data,
-    cluster_rows = TRUE,
-    cluster_cols = TRUE,
-    border_color = NA,
-    fontsize_row = 8,
-    fontsize_col = 7,
-    angle_col = 45,
-    main = paste0(tag, "  ", title),
-    silent = TRUE
-  )
-  if (diverging) {
-    max_abs <- max(abs(matrix_data))
-    arguments$color <- grDevices::colorRampPalette(
-      c("#2C7BB6", "white", "#D7191C")
-    )(101)
-    arguments$breaks <- seq(
-      -max_abs,
-      max_abs,
-      length.out = length(arguments$color) + 1L
-    )
-  }
-  do.call(pheatmap::pheatmap, arguments)
-}
-
-heatmap_plot <- function(matrix_data, title, diverging, tag) {
-  heatmap <- build_heatmap(matrix_data, title, diverging, tag)
-  patchwork::wrap_elements(full = heatmap$gtable)
+  shared_context_add_tag(plot, tag)
 }
 
 save_composite <- function(
@@ -404,6 +251,17 @@ if (!file.exists(composition_helper_path)) {
   stop("Missing normalized-composition helper: ", composition_helper_path, call. = FALSE)
 }
 sys.source(composition_helper_path, envir = environment())
+shared_context_helper_path <- file.path(
+  root,
+  "Code",
+  "in-vivo",
+  "SI_figures",
+  "shared_context_panels.R"
+)
+if (!file.exists(shared_context_helper_path)) {
+  stop("Missing shared context-panel helper: ", shared_context_helper_path, call. = FALSE)
+}
+sys.source(shared_context_helper_path, envir = environment())
 cache_dir <- resolve_path(
   arg_value(args, "table-cache-dir", "Data/in-vivo/SIfigures"),
   root,
@@ -653,70 +511,31 @@ s4_context <- factor_composition(
 s4_ploidy <- factor_composition(s4_ploidy, cluster_levels, ploidy_levels)
 
 message("Generating Supplementary Figure 4 composite.")
-s4a <- make_umap_discrete(
-  seurat,
-  "cluster",
-  cluster_colors,
-  "UMAP by cluster",
-  "Cluster",
-  "A",
-  point_size,
-  sprintf("Tumor and CellLine cells; n = %s", format(nrow(seurat), big.mark = ",")),
-  labels = TRUE
+shared_si4 <- shared_context_build_si4_panels(
+  data = seurat,
+  cluster_levels = cluster_levels,
+  cluster_colors = cluster_colors,
+  ploidy_colors = ploidy_colors,
+  context_colors = context_colors,
+  point_size = point_size,
+  plot_seed = plot_seed
 )
-s4b <- make_umap_discrete(
-  seurat,
-  "initial_ploidy",
-  ploidy_colors,
-  "UMAP by initial ploidy",
-  "Initial ploidy",
-  "B",
-  point_size,
-  "Tumor and CellLine cells"
-)
-s4c <- make_umap_discrete(
-  seurat,
-  "context",
-  context_colors,
-  "UMAP by Tumor/CellLine context",
-  "Context",
-  "C",
-  point_size,
-  "Tumor and CellLine cells"
-)
-s4d <- make_umap_continuous(
+s4a <- shared_si4$plots$cluster
+s4b <- shared_si4$plots$initial_ploidy
+s4c <- shared_si4$plots$context
+s4e_result <- shared_si4$composition_result
+s4e <- shared_si4$plots$composition
+s4d <- shared_context_make_umap_continuous(
   seurat,
   "s_phase_score",
   "UMAP by S phase score",
   "S phase score",
   "D",
   point_size,
+  plot_seed,
   limits = range(seurat$s_phase_score),
   diverging = TRUE
 )
-s4e_result <- make_normalized_composition_plot(
-  data = seurat,
-  unit_col = "mouse",
-  cluster_col = "cluster",
-  group_col = "context",
-  cluster_levels = cluster_levels,
-  group_levels = c("Tumor", "CellLine"),
-  fill_colors = context_colors,
-  bar_axis = "cluster",
-  strata_cols = "initial_ploidy",
-  title = "Equal-sample cluster composition by context",
-  subtitle = paste(
-    "Each tumor or CellLine sample contributes equally within context;",
-    "stars mark context enrichment within ploidy at BH FDR <= 0.05"
-  ),
-  x_title = "Cluster",
-  y_title = "Mean within-sample cluster proportion",
-  legend_title = "Context",
-  tag = "E",
-  theme_function = figure_theme,
-  x_text_angle = 0
-)
-s4e <- s4e_result$plot
 selected_cellcycle_clusters <- c("4c", "6", "10")
 selected_tumor_cells <- sum(
   s4_context$n_cells[
@@ -762,7 +581,7 @@ s4g_result <- make_normalized_composition_plot(
   y_title = "Mean within-sample cluster proportion",
   legend_title = "Initial ploidy",
   tag = "G",
-  theme_function = figure_theme,
+  theme_function = shared_context_figure_theme,
   x_text_angle = 0
 )
 s4g <- s4g_result$plot
@@ -796,7 +615,7 @@ panel_rows <- list(
 )
 
 message("Generating Supplementary Figure 5 composite.")
-s5a <- make_umap_discrete(
+s5a <- shared_context_make_umap_discrete(
   tumor,
   "cluster",
   cluster_colors,
@@ -804,34 +623,38 @@ s5a <- make_umap_discrete(
   "Cluster",
   "A",
   point_size,
+  plot_seed,
   sprintf("Tumor cells; n = %s", format(n_tumor, big.mark = ",")),
   labels = TRUE
 )
-s5b <- make_umap_discrete(
+s5b <- shared_context_make_umap_discrete(
   tumor,
   "initial_ploidy",
   ploidy_colors,
   "UMAP by initial tumor ploidy",
   "Initial ploidy",
   "B",
-  point_size
+  point_size,
+  plot_seed
 )
-s5c <- make_umap_discrete(
+s5c <- shared_context_make_umap_discrete(
   tumor,
   "dose",
   dose_colors,
   "UMAP by Gemcitabine dose",
   "Gemcitabine dose",
   "C",
-  point_size
+  point_size,
+  plot_seed
 )
-s5d <- make_umap_continuous(
+s5d <- shared_context_make_umap_continuous(
   tumor,
   "s_phase_score",
   "UMAP by S phase score",
   "S phase score",
   "D",
   point_size,
+  plot_seed,
   limits = range(tumor$s_phase_score),
   diverging = TRUE
 )
@@ -874,14 +697,14 @@ s5e <- ggplot2::ggplot(
     x = "UMAP 1",
     y = "UMAP 2"
   ) +
-  umap_theme(8.5) +
+  shared_context_umap_theme(8.5) +
   ggplot2::theme(
     legend.position = "none",
     strip.text = ggplot2::element_text(size = 7.2),
     panel.spacing = grid::unit(0.10, "lines"),
     plot.margin = ggplot2::margin(5.5, 5.5, 5.5, 5.5)
   )
-s5e <- add_tag(s5e, "E")
+s5e <- shared_context_add_tag(s5e, "E")
 
 tumor$ploidy_dose_group <- paste(
   as.character(tumor$initial_ploidy),
@@ -918,7 +741,7 @@ s5f_result <- make_normalized_composition_plot(
   y_title = "Within-mouse cluster proportion",
   legend_title = "Cluster",
   tag = "F",
-  theme_function = figure_theme,
+  theme_function = shared_context_figure_theme,
   x_text_angle = 50,
   test_mode = "descriptive",
   descriptive_reason = "one biological sample per displayed mouse"
@@ -952,7 +775,7 @@ s5g_result <- make_normalized_composition_plot(
   y_title = "Mean within-mouse cluster proportion",
   legend_title = "Cluster",
   tag = "G",
-  theme_function = figure_theme,
+  theme_function = shared_context_figure_theme,
   x_text_angle = 25,
   show_n = TRUE
 )
@@ -977,7 +800,7 @@ s5h_result <- make_normalized_composition_plot(
   y_title = "Mean within-mouse cluster proportion",
   legend_title = "Gemcitabine dose",
   tag = "H",
-  theme_function = figure_theme,
+  theme_function = shared_context_figure_theme,
   x_text_angle = 0
 )
 s5h <- s5h_result$plot
@@ -1001,7 +824,7 @@ s5i_result <- make_normalized_composition_plot(
   y_title = "Mean within-mouse cluster proportion",
   legend_title = "Initial ploidy",
   tag = "I",
-  theme_function = figure_theme,
+  theme_function = shared_context_figure_theme,
   x_text_angle = 0
 )
 s5i <- s5i_result$plot
@@ -1035,13 +858,14 @@ message("Generating Supplementary Figure 6 composite.")
 endpoint_limits <- range(tumor$endpoint_ploidy)
 tumor_2n <- tumor[tumor$initial_ploidy == "2N", , drop = FALSE]
 tumor_4n <- tumor[tumor$initial_ploidy == "4N", , drop = FALSE]
-s6a <- make_umap_continuous(
+s6a <- shared_context_make_umap_continuous(
   tumor,
   "endpoint_ploidy",
   "Endpoint ploidy in all tumors",
   "Endpoint ploidy",
   "A",
   point_size,
+  plot_seed,
   limits = endpoint_limits,
   subtitle = sprintf(
     "Range %.3f-%.3f",
@@ -1049,22 +873,24 @@ s6a <- make_umap_continuous(
     endpoint_limits[[2L]]
   )
 )
-s6b <- make_umap_continuous(
+s6b <- shared_context_make_umap_continuous(
   tumor_2n,
   "endpoint_ploidy",
   "Endpoint ploidy in initial 2N tumors",
   "Endpoint ploidy",
   "B",
   point_size,
+  plot_seed,
   limits = endpoint_limits
 )
-s6c <- make_umap_continuous(
+s6c <- shared_context_make_umap_continuous(
   tumor_4n,
   "endpoint_ploidy",
   "Endpoint ploidy in initial 4N tumors",
   "Endpoint ploidy",
   "C",
   point_size,
+  plot_seed,
   limits = endpoint_limits
 )
 s6_mouse <- tumor
@@ -1073,7 +899,7 @@ s6_mouse$mouse_panel <- factor(
   levels = panel_metadata$mouse_panel
 )
 s6d <- ggplot2::ggplot(
-  shuffle_cells(s6_mouse, plot_seed + 2000L),
+  shared_context_shuffle_cells(s6_mouse, plot_seed + 2000L),
   ggplot2::aes(UMAP_1, UMAP_2, color = endpoint_ploidy)
 ) +
   ggplot2::geom_point(
@@ -1095,7 +921,7 @@ s6d <- ggplot2::ggplot(
     x = "UMAP 1",
     y = "UMAP 2"
   ) +
-  umap_theme(8.5) +
+  shared_context_umap_theme(8.5) +
   ggplot2::theme(
     legend.position = "top",
     legend.justification = "right",
@@ -1103,7 +929,7 @@ s6d <- ggplot2::ggplot(
     strip.text = ggplot2::element_text(size = 7.2),
     panel.spacing = grid::unit(0.10, "lines")
   )
-s6d <- add_tag(s6d, "D")
+s6d <- shared_context_add_tag(s6d, "D")
 s6 <- patchwork::wrap_plots(
   patchwork::wrap_plots(s6a, s6b, s6c, ncol = 1),
   s6d,
@@ -1144,18 +970,12 @@ gsea_matrix <- read_matrix(
   "si_figure7_cluster_Hallmark_GSEA_NES_heatmap_top20_matrix.tsv",
   "SI Figure 7 GSEA matrix"
 )
-s7a <- heatmap_plot(
-  ora_matrix,
-  "Cluster Hallmark ORA annotation score",
-  FALSE,
-  "A"
+shared_si7 <- shared_context_build_si7_heatmap_panels(
+  ora_matrix = ora_matrix,
+  gsea_matrix = gsea_matrix
 )
-s7b <- heatmap_plot(
-  gsea_matrix,
-  "Cluster Hallmark GSEA NES",
-  TRUE,
-  "B"
-)
+s7a <- shared_si7$plots$ora
+s7b <- shared_si7$plots$gsea
 s7 <- patchwork::wrap_plots(s7a, s7b, ncol = 2) +
   patchwork::plot_annotation(
     title = "Supplementary Figure 7 | Cluster Hallmark pathway analysis"
@@ -1251,6 +1071,7 @@ write_tsv(panel_contract, file.path(metadata_dir, "panel_contract.tsv"))
 input_paths <- c(
   config_path,
   composition_helper_path,
+  shared_context_helper_path,
   file.path(cache_dir, "manifest.tsv"),
   source_paths
 )
@@ -1258,6 +1079,7 @@ input_manifest <- data.frame(
   role = c(
     "figure7_config",
     "normalized_composition_helper",
+    "shared_context_panels_helper",
     if (allow_generated_human_only_si7) {
       "si_figures_generated_cache_manifest"
     } else {
@@ -1443,6 +1265,8 @@ provenance <- data.frame(
     "entrypoint_sha256",
     "normalized_composition_helper",
     "normalized_composition_helper_sha256",
+    "shared_context_panels_helper",
+    "shared_context_panels_helper_sha256",
     "source_code_revision",
     "table_cache",
     "table_cache_manifest_sha256",
@@ -1463,6 +1287,8 @@ provenance <- data.frame(
     file_sha256(script),
     repo_relative(composition_helper_path, root),
     file_sha256(composition_helper_path),
+    repo_relative(shared_context_helper_path, root),
+    file_sha256(shared_context_helper_path),
     git_revision,
     repo_relative(cache_dir, root),
     file_sha256(file.path(cache_dir, "manifest.tsv")),

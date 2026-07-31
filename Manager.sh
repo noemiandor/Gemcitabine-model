@@ -232,6 +232,31 @@ IFS=',' read -r -a module_list <<< "${modules}"
 if [[ "${include_in_vivo}" == true && ",${modules}," != *",in_vivo,"* ]]; then
   module_list+=("in_vivo")
 fi
+if [[ "${mode}" == "full-refit" &&
+      "${figure7_full_analysis}" != true &&
+      "${figure7_panels_ae_only}" != true ]]; then
+  figure7_selected=false
+  for module in "${module_list[@]}"; do
+    if [[ "${module}" == "in_vivo_figure7" ]]; then
+      figure7_selected=true
+      break
+    fi
+  done
+  if [[ "${figure7_selected}" == true ]]; then
+    reordered_modules=()
+    si_dependency_inserted=false
+    for module in "${module_list[@]}"; do
+      [[ "${module}" == "si_figures" ]] && continue
+      if [[ "${module}" == "in_vivo_figure7" &&
+            "${si_dependency_inserted}" != true ]]; then
+        reordered_modules+=("si_figures")
+        si_dependency_inserted=true
+      fi
+      reordered_modules+=("${module}")
+    done
+    module_list=("${reordered_modules[@]}")
+  fi
+fi
 if [[ -n "${figure7_state_pathway_results_root}" ]]; then
   if [[ "${mode}" == "panels-only" ]]; then
     echo "--figure7-state-pathway-results-root cannot be used with --mode panels-only" >&2
@@ -336,6 +361,7 @@ figure7_runtime_source_paths() {
     Code/in-vivo/figure7/src/tgi_data.R \
     Code/in-vivo/figure7/src/tgi_statistics.R \
     Code/in-vivo/figure7/src/tgi_panels.R \
+    Code/in-vivo/figure7/src/context_panels.R \
     Code/in-vivo/figure7/src/state_pathway_panel.R \
     Code/in-vivo/figure7/src/generated_state_pathway_reference.R \
     Code/in-vivo/figure7/src/state_pathway_analysis.R
@@ -348,12 +374,32 @@ figure7_stage_was_executed() {
 }
 
 si_figures_frozen_cache_paths() {
-  local cache_manifest="Data/in-vivo/SIfigures/manifest.tsv"
+  si_figures_cache_paths "Data/in-vivo/SIfigures"
+}
+
+si_figures_cache_paths() {
+  local cache_root="$1"
+  local cache_manifest="${cache_root}/manifest.tsv"
   printf "%s\n" "${cache_manifest}"
   if [[ -f "${cache_manifest}" ]]; then
-    awk -F '\t' 'NR > 1 && $1 != "" { print "Data/in-vivo/SIfigures/" $1 }' \
+    awk -F '\t' -v root="${cache_root}" \
+      'NR > 1 && $1 != "" { print root "/" $1 }' \
       "${cache_manifest}"
   fi
+}
+
+figure7_uses_generated_si_cache() {
+  [[ "${mode}" == "full-refit" &&
+     "${figure7_full_analysis}" != true &&
+     "${figure7_panels_ae_only}" != true ]]
+}
+
+figure7_generated_si_run_dir() {
+  module_run_dir si_figures
+}
+
+figure7_generated_si_cache_dir() {
+  printf "%s/tables" "$(figure7_generated_si_run_dir)"
 }
 
 input_paths_for_module() {
@@ -399,6 +445,108 @@ input_paths_for_module() {
         Code/in-vivo/figure7/run_figure7.R \
         Code/in-vivo/figure7/figure7_config.yaml
       figure7_runtime_source_paths
+      if [[ "${figure7_panels_ae_only}" != true ]]; then
+        printf "%s\n" \
+          Code/tools/validate_si_figures_table_cache.py \
+          Code/in-vivo/SI_figures/shared_context_panels.R \
+          Code/in-vivo/SI_figures/normalized_composition.R
+        local context_policy=""
+        local context_manifest=""
+        if [[ -n "${run_dir}" &&
+              -f "${run_dir}/metadata/run_config.tsv" ]]; then
+          context_policy="$(
+            metadata_value \
+              "${run_dir}/metadata/run_config.tsv" \
+              si_context_cache_policy ||
+              true
+          )"
+          context_manifest="$(
+            metadata_value \
+              "${run_dir}/metadata/run_config.tsv" \
+              si_context_cache_manifest ||
+              true
+          )"
+        elif figure7_uses_generated_si_cache; then
+          context_policy="generated-human-only"
+          context_manifest="$(figure7_generated_si_cache_dir)/manifest.tsv"
+        else
+          context_policy="reviewed"
+          context_manifest="Data/in-vivo/SIfigures/manifest.tsv"
+        fi
+        if [[ -z "${context_policy}" ]]; then
+          if figure7_uses_generated_si_cache; then
+            context_policy="generated-human-only"
+            context_manifest="$(figure7_generated_si_cache_dir)/manifest.tsv"
+          else
+            context_policy="reviewed"
+            context_manifest="Data/in-vivo/SIfigures/manifest.tsv"
+          fi
+        fi
+        case "${context_policy}" in
+          reviewed)
+            si_figures_frozen_cache_paths
+            ;;
+          generated-human-only)
+            if [[ -z "${context_manifest}" ||
+                  "${context_manifest}" == "not_recorded" ]]; then
+              echo "Generated Figure 7 SI cache manifest is not recorded" >&2
+              return 1
+            fi
+            local generated_si_run=""
+            generated_si_run="$(figure7_generated_si_run_dir)"
+            if [[ "${context_manifest}" == external:* ]]; then
+              if [[ "${context_manifest}" != "external:manifest.tsv" ]]; then
+                echo "Generated Figure 7 SI cache locator is invalid: ${context_manifest}" >&2
+                return 1
+              fi
+              context_manifest="${generated_si_run}/tables/manifest.tsv"
+            fi
+            si_figures_cache_paths "$(dirname "${context_manifest}")"
+            local context_lineage_key
+            local context_lineage_path
+            local context_lineage_basename
+            for context_lineage_key in \
+              si_context_upstream_input_manifest \
+              si_context_source_run_config \
+              si_context_source_provenance; do
+              context_lineage_path="$(
+                metadata_value \
+                  "${run_dir}/metadata/run_config.tsv" \
+                  "${context_lineage_key}" ||
+                  true
+              )"
+              case "${context_lineage_key}" in
+                si_context_upstream_input_manifest)
+                  context_lineage_basename="analysis_input_manifest.tsv"
+                  ;;
+                si_context_source_run_config)
+                  context_lineage_basename="run_config.tsv"
+                  ;;
+                si_context_source_provenance)
+                  context_lineage_basename="si_figures_provenance.tsv"
+                  ;;
+              esac
+              if [[ "${context_lineage_path}" == external:* ]]; then
+                if [[ "${context_lineage_path}" != "external:${context_lineage_basename}" ]]; then
+                  echo "Generated Figure 7 SI lineage locator is invalid: ${context_lineage_key}" >&2
+                  return 1
+                fi
+                context_lineage_path="${generated_si_run}/metadata/${context_lineage_basename}"
+              fi
+              if [[ -z "${context_lineage_path}" ||
+                    "${context_lineage_path}" == "not_recorded" ]]; then
+                echo "Generated Figure 7 SI lineage is incomplete: ${context_lineage_key}" >&2
+                return 1
+              fi
+              printf "%s\n" "${context_lineage_path}"
+            done
+            ;;
+          *)
+            echo "Unknown Figure 7 SI context-cache policy: ${context_policy}" >&2
+            return 1
+            ;;
+        esac
+      fi
       local selected_reference=""
       local executed_stages=""
       local selected_cellcycle=""
@@ -406,9 +554,54 @@ input_paths_for_module() {
       local selected_scvelo=""
       local selected_state_root=""
       if [[ -n "${run_dir}" && -f "${run_dir}/metadata/run_config.tsv" ]]; then
+        local recorded_mode=""
+        recorded_mode="$(
+          metadata_value "${run_dir}/metadata/run_config.tsv" mode || true
+        )"
         executed_stages="$(metadata_value "${run_dir}/metadata/run_config.tsv" workflow_executed_stages || true)"
-        selected_cellcycle="$(metadata_value "${run_dir}/metadata/run_config.tsv" workflow_cellcycle_input || true)"
-        selected_noncellcycle="$(metadata_value "${run_dir}/metadata/run_config.tsv" workflow_noncellcycle_input || true)"
+        selected_cellcycle="$(metadata_value "${run_dir}/metadata/run_config.tsv" cellcycle_input || true)"
+        selected_noncellcycle="$(metadata_value "${run_dir}/metadata/run_config.tsv" noncellcycle_input || true)"
+        local workflow_cellcycle=""
+        local workflow_noncellcycle=""
+        workflow_cellcycle="$(metadata_value "${run_dir}/metadata/run_config.tsv" workflow_cellcycle_input || true)"
+        workflow_noncellcycle="$(metadata_value "${run_dir}/metadata/run_config.tsv" workflow_noncellcycle_input || true)"
+        if [[ "${selected_cellcycle}" == external:* ]]; then
+          if [[ -z "${workflow_cellcycle}" ||
+                "$(basename "${workflow_cellcycle}")" != "${selected_cellcycle#external:}" ]]; then
+            echo "Figure 7 external CellCycle locator cannot be resolved" >&2
+            return 1
+          fi
+          selected_cellcycle="${workflow_cellcycle}"
+        fi
+        if [[ "${selected_noncellcycle}" == external:* ]]; then
+          if [[ -z "${workflow_noncellcycle}" ||
+                "$(basename "${workflow_noncellcycle}")" != "${selected_noncellcycle#external:}" ]]; then
+            echo "Figure 7 external NonCellCycle locator cannot be resolved" >&2
+            return 1
+          fi
+          selected_noncellcycle="${workflow_noncellcycle}"
+        fi
+        if [[ -z "${selected_cellcycle}" ||
+              "${selected_cellcycle}" == "not_recorded" ]]; then
+          selected_cellcycle="${workflow_cellcycle}"
+        fi
+        if [[ -z "${selected_noncellcycle}" ||
+              "${selected_noncellcycle}" == "not_recorded" ]]; then
+          selected_noncellcycle="${workflow_noncellcycle}"
+        fi
+        if [[ ( -z "${selected_cellcycle}" ||
+                "${selected_cellcycle}" == "not_recorded" ||
+                -z "${selected_noncellcycle}" ||
+                "${selected_noncellcycle}" == "not_recorded" ) ]]; then
+          if [[ "${recorded_mode}" == "standard" ||
+                "${recorded_mode}" == "full-analysis" ]]; then
+            selected_cellcycle="Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+            selected_noncellcycle="Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+          else
+            echo "Figure 7 run does not record both consumed cell tables" >&2
+            return 1
+          fi
+        fi
         selected_scvelo="$(metadata_value "${run_dir}/metadata/run_config.tsv" workflow_scvelo_metrics || true)"
         selected_state_root="$(metadata_value "${run_dir}/metadata/run_config.tsv" workflow_state_pathway_results || true)"
         printf "%s\n" \
@@ -588,6 +781,7 @@ input_paths_for_module() {
       printf "%s\n" \
         Code/in-vivo/SI_figures/run_supplementary_figures.R \
         Code/in-vivo/SI_figures/generate_supplementary_figures.R \
+        Code/in-vivo/SI_figures/shared_context_panels.R \
         Code/in-vivo/SI_figures/normalized_composition.R \
         Code/tools/validate_si_figures_table_cache.py
       local rendered_input_manifest="${run_dir}/metadata/analysis_input_manifest.tsv"
@@ -627,6 +821,14 @@ input_paths_for_module() {
                 role_count[role]++
                 next
               }
+              if (role == "shared_context_panels_helper") {
+                if (locator != "Code/in-vivo/SI_figures/shared_context_panels.R" ||
+                  seen_shared_helper++) {
+                  invalid = 1
+                }
+                role_count[role]++
+                next
+              }
               if (role == "figure7_config" ||
                 role == "si_figures_cache_manifest" ||
                 role == "si_figures_frozen_table") {
@@ -648,6 +850,7 @@ input_paths_for_module() {
               if (invalid ||
                 role_count["figure7_config"] != 1 ||
                 role_count["normalized_composition_helper"] != 1 ||
+                role_count["shared_context_panels_helper"] != 1 ||
                 role_count["si_figures_cache_manifest"] != 1 ||
                 role_count["si_figures_frozen_table"] != 11 ||
                 path_count != 13) {
@@ -707,6 +910,25 @@ required_input_paths_for_module() {
     in_vivo_figure7)
       printf "%s\n" Code/in-vivo/figure7/run_figure7.R Code/in-vivo/figure7/figure7_config.yaml
       figure7_runtime_source_paths
+      if [[ "${figure7_panels_ae_only}" != true ]]; then
+        printf "%s\n" \
+          Code/tools/validate_si_figures_table_cache.py \
+          Code/in-vivo/SI_figures/shared_context_panels.R \
+          Code/in-vivo/SI_figures/normalized_composition.R
+        if figure7_uses_generated_si_cache; then
+          if [[ "${dry_run}" != true && "${mode}" != "check-only" ]]; then
+            local generated_si_run
+            generated_si_run="$(figure7_generated_si_run_dir)"
+            si_figures_cache_paths "${generated_si_run}/tables"
+            printf "%s\n" \
+              "${generated_si_run}/metadata/analysis_input_manifest.tsv" \
+              "${generated_si_run}/metadata/run_config.tsv" \
+              "${generated_si_run}/metadata/si_figures_provenance.tsv"
+          fi
+        else
+          si_figures_frozen_cache_paths
+        fi
+      fi
       if [[ "${figure7_full_analysis}" == true ]]; then
         printf "%s\n" \
           Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
@@ -720,6 +942,10 @@ required_input_paths_for_module() {
           done < <(figure7_reference_filenames)
         fi
       elif [[ "${mode}" == "full-refit" ]]; then
+        printf "%s\n" \
+          "${figure7_cell_ploidy_input}" \
+          "${figure7_sample_info_input}" \
+          "${figure7_growth_curve_input}"
         if [[ -n "${figure7_state_pathway_results_root}" &&
               "${phase}" != "pre-export" ]]; then
           while IFS= read -r filename; do
@@ -744,6 +970,7 @@ required_input_paths_for_module() {
         Code/tools/validate_si_figures_table_cache.py \
         Code/in-vivo/SI_figures/run_supplementary_figures.R \
         Code/in-vivo/SI_figures/generate_supplementary_figures.R \
+        Code/in-vivo/SI_figures/shared_context_panels.R \
         Code/in-vivo/SI_figures/normalized_composition.R
       if [[ "${mode}" == "full-refit" ]]; then
         printf "%s\n" \
@@ -929,6 +1156,21 @@ command_for_module() {
       fi
       if [[ "${figure7_panels_ae_only}" == true ]]; then
         figure7_args+=(--panel-set=a-e)
+      elif figure7_uses_generated_si_cache; then
+        local generated_si_run
+        generated_si_run="$(figure7_generated_si_run_dir)"
+        figure7_args+=(
+          "--si-table-cache-dir=${generated_si_run}/tables"
+          --si-cache-policy=generated-human-only
+          "--si-cache-upstream-input-manifest=${generated_si_run}/metadata/analysis_input_manifest.tsv"
+          "--si-cache-source-run-config=${generated_si_run}/metadata/run_config.tsv"
+          "--si-cache-source-provenance=${generated_si_run}/metadata/si_figures_provenance.tsv"
+        )
+      else
+        figure7_args+=(
+          --si-table-cache-dir=Data/in-vivo/SIfigures
+          --si-cache-policy=reviewed
+        )
       fi
       quote_args "${figure7_args[@]}"
       ;;
@@ -1017,6 +1259,7 @@ module_is_publishable_run() {
   case "${module}" in
     in_vivo_figure7)
       local panel_set reference_id reference_kind allowed
+      local composite_set composite_file si_cache_hash context_policy
       panel_set="$(metadata_value "${run_config}" panel_set)" || {
         module_publication_reason="missing_or_ambiguous_panel_set"
         return 1
@@ -1037,12 +1280,28 @@ module_is_publishable_run() {
       allowed="$(
         metadata_value "${run_config}" canonical_publication_allowed
       )" || true
+      composite_set="$(
+        metadata_value "${run_config}" main_composite_panel_set
+      )" || true
+      composite_file="$(
+        metadata_value "${run_config}" main_composite_filename
+      )" || true
+      si_cache_hash="$(
+        metadata_value "${run_config}" reviewed_si_cache_manifest_sha256
+      )" || true
+      context_policy="$(
+        metadata_value "${run_config}" si_context_cache_policy
+      )" || true
       if [[ "${reference_id}" == "${figure7_reviewed_reference_id}" &&
             "${reference_kind}" == "reviewed_human_only_frozen" &&
-            "${allowed}" == "true" ]]; then
+            "${allowed}" == "true" &&
+            "${composite_set}" == "a-k" &&
+            "${composite_file}" == "Figure7_reviewed_GRCh.png" &&
+            "${context_policy}" == "reviewed" &&
+            "${si_cache_hash}" == "b624c3f3ff945c51f09b9e6e512a97df57eb4e514b3fba28a65e97a38207f135" ]]; then
         return 0
       fi
-      module_publication_reason="panel_7F_not_exact_reviewed_human_only_v2"
+      module_publication_reason="figure7_not_exact_reviewed_a_k_composite"
       return 1
       ;;
     si_figures)

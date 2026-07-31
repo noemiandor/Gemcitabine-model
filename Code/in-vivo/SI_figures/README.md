@@ -38,6 +38,11 @@ has one biological sample per displayed mouse; it is therefore explicitly
 descriptive and emits no inferential stars rather than treating cells as
 replicates.
 
+SI4A-C/E and SI7A/B are constructed by `shared_context_panels.R`. Main Figure
+7 calls the same helper for its copies of SI4A-C/E and SI7B, with display tags
+assigned by the A-K compositor; fixed shuffle keys keep the UMAP point order
+identical between main and supplementary copies.
+
 To rebuild Supplementary Figures 4-7 from the shared Seurat source boundary
 without running Figures 1-6:
 
@@ -47,6 +52,13 @@ bash Manager.sh \
   --modules si_figures \
   --run-id example_raw_si
 ```
+
+For a full-refit A-K Figure 7, Manager automatically runs this module before
+`in_vivo_figure7` (including when only `in_vivo_figure7` was requested). It
+passes the run-scoped table cache, analysis-input manifest, run configuration,
+and SI provenance to Figure 7. That generated-cache composite is a
+noncanonical review candidate; canonical routine Figure 7 remains bound to the
+exact reviewed cache below `Data/in-vivo/SIfigures/`.
 
 `run_supplementary_figures.R --mode=full-workflow` deliberately bypasses the
 reviewed plot-only cache: it first reuses a lineage-valid generated human-only
@@ -98,6 +110,7 @@ statistical and SI7 heatmap contract tests with:
 ```bash
 Rscript Code/in-vivo/SI_figures/tests/test_normalized_composition.R
 Rscript Code/in-vivo/SI_figures/tests/test_si7_heatmap_clustering.R
+Rscript Code/in-vivo/SI_figures/tests/test_shared_context_panels.R
 ```
 
 ## SI Figure 7 species policy

@@ -368,6 +368,19 @@ PANEL_SPECS = [
         "variant": "png",
         "optional": True,
     },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/Figure7_reviewed_GRCh.png",
+        "figure": "Figure7",
+        "panel": "7A-7K_composite",
+        "asset": "Figure7_reviewed_GRCh.png",
+        "caption_role": (
+            "Main Figure 7 A-K composite assembled in first-citation order"
+        ),
+        "variant": "png",
+        "optional": True,
+        "contract": True,
+    },
 ]
 
 STRICT_FIGURE_MODULES = {"in_vivo_figure7", "si_figures"}
@@ -408,6 +421,16 @@ SI7_REVIEWED_FROZEN_MATRIX_NOTE = (
 SI_REVIEWED_MANIFEST_SHA256 = (
     "b624c3f3ff945c51f09b9e6e512a97df57eb4e514b3fba28a65e97a38207f135"
 )
+FIGURE7_PROCESSED_INPUTS = {
+    Path(
+        "Data/in-vivo/figure7/processed/"
+        "CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+    ): "bd0c6fcf3f6691114445a7c8a9fb8de7e55ef6580a9737284cd38f5bba216186",
+    Path(
+        "Data/in-vivo/figure7/processed/"
+        "NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+    ): "1e44794fb2b2c402b49cf9d17abcc54cd7690dc5d1d611e38a6aa3b996093d3c",
+}
 
 EXTERNAL_ROWS = [
     {
@@ -707,6 +730,17 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
         raise FileNotFoundError(
             f"Missing SI Figures normalized-composition helper: {composition_helper}"
         )
+    shared_context_helper = (
+        repo_root
+        / "Code"
+        / "in-vivo"
+        / "SI_figures"
+        / "shared_context_panels.R"
+    )
+    if not shared_context_helper.is_file():
+        raise FileNotFoundError(
+            f"Missing SI Figures shared-context helper: {shared_context_helper}"
+        )
     if (
         any(
             provenance.get(key) != value
@@ -733,6 +767,11 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
         )
         or provenance.get("normalized_composition_helper_sha256")
         != sha256_file(composition_helper)
+        or provenance.get("shared_context_panels_helper") != (
+            "Code/in-vivo/SI_figures/shared_context_panels.R"
+        )
+        or provenance.get("shared_context_panels_helper_sha256")
+        != sha256_file(shared_context_helper)
         or provenance.get("table_cache_manifest_sha256")
         != sha256_file(canonical_manifest)
     ):
@@ -841,6 +880,13 @@ def validate_strict_source_run(
                 / "Code"
                 / "in-vivo"
                 / "SI_figures"
+                / "shared_context_panels.R"
+            ).resolve(),
+            (
+                repo_root
+                / "Code"
+                / "in-vivo"
+                / "SI_figures"
                 / "normalized_composition.R"
             ).resolve(),
             (
@@ -900,6 +946,23 @@ def validate_strict_source_run(
                 "assets or neither"
             )
         has_panel_f = present_panel_f_paths == panel_f_paths
+        composite_specs = [
+            spec
+            for spec in selected_specs
+            if str(spec["module"]) == module
+            and str(spec["panel"]) == "7A-7K_composite"
+        ]
+        if len(composite_specs) != 1:
+            raise ValueError("Figure 7 must define one A-K composite contract")
+        composite_path = (
+            run_root / str(composite_specs[0]["source"])
+        ).resolve()
+        if composite_path.is_file() != has_panel_f:
+            requirement = "present" if has_panel_f else "absent"
+            raise ValueError(
+                "Source Figure 7 A-K composite must be "
+                f"{requirement} exactly when panel F is present"
+            )
         expected_panel_set = "a-f" if has_panel_f else "a-e"
         run_config = read_unique_key_values(
             run_root / "metadata" / "run_config.tsv",
@@ -915,6 +978,31 @@ def validate_strict_source_run(
                 "Source Figure 7 run must explicitly record "
                 f"tgi_day={figure7_tgi_day}"
             )
+        observed_input_paths = {
+            path.resolve()
+            for row in input_rows
+            if (
+                path := module_manifest_local_path(
+                    row,
+                    repo_root,
+                )
+            ) is not None
+        }
+        for relative_path, expected_hash in FIGURE7_PROCESSED_INPUTS.items():
+            processed_path = (repo_root / relative_path).resolve()
+            if processed_path not in observed_input_paths:
+                raise ValueError(
+                    "Figure 7 source input manifest does not bind the exact "
+                    f"processed input: {relative_path}"
+                )
+            if (
+                not processed_path.is_file()
+                or sha256_file(processed_path) != expected_hash
+            ):
+                raise ValueError(
+                    "Figure 7 processed input differs from its reviewed hash: "
+                    f"{relative_path}"
+                )
         if has_panel_f:
             figure7_config = (
                 repo_root
@@ -977,16 +1065,6 @@ def validate_strict_source_run(
                     for filename in FIGURE7_REVIEWED_FILES
                 },
             }
-            observed_input_paths = {
-                path.resolve()
-                for row in input_rows
-                if (
-                    path := module_manifest_local_path(
-                        row,
-                        repo_root,
-                    )
-                ) is not None
-            }
             missing_input_paths = sorted(
                 str(path)
                 for path in required_input_paths - observed_input_paths
@@ -1019,6 +1097,113 @@ def validate_strict_source_run(
                     "Canonical Figure 7 materialization is prohibited: "
                     "reviewed provenance lineage is invalid"
                 )
+            expected_composite = {
+                "main_composite_panel_set": "a-k",
+                "main_composite_filename": "Figure7_reviewed_GRCh.png",
+                "main_composite_panel_order": (
+                    "A=7A;B=7C;C=SI4A;D=SI4B;E=SI4C;F=SI4E;"
+                    "G=SI7B;H=7B;I=7F;J=7D;K=7E"
+                ),
+                "reviewed_si_cache_manifest": (
+                    "Data/in-vivo/SIfigures/manifest.tsv"
+                ),
+                "reviewed_si_cache_manifest_sha256": (
+                    SI_REVIEWED_MANIFEST_SHA256
+                ),
+                "si_context_cache_policy": "reviewed",
+                "si_context_cache_kind": "reviewed_human_only_frozen",
+                "si_context_cache_manifest": (
+                    "Data/in-vivo/SIfigures/manifest.tsv"
+                ),
+                "si_context_cache_manifest_sha256": (
+                    SI_REVIEWED_MANIFEST_SHA256
+                ),
+                "si_context_cache_canonical_publication_allowed": "true",
+            }
+            if any(
+                run_config.get(key) != value
+                for key, value in expected_composite.items()
+            ):
+                raise ValueError(
+                    "Canonical Figure 7 materialization is prohibited: "
+                    "the A-K composite/cache contract is invalid"
+                )
+
+            cache_root = repo_root / "Data/in-vivo/SIfigures"
+            cache_manifest = cache_root / "manifest.tsv"
+            cache_headers, cache_rows = read_tsv(cache_manifest)
+            cache_names = [row.get("filename", "") for row in cache_rows]
+            if (
+                cache_headers
+                != [
+                    "filename",
+                    "bytes",
+                    "sha256",
+                    "source_revision",
+                    "notes",
+                ]
+                or sha256_file(cache_manifest)
+                != SI_REVIEWED_MANIFEST_SHA256
+                or len(cache_names) != 11
+                or len(set(cache_names)) != 11
+            ):
+                raise ValueError(
+                    "Canonical Figure 7 requires the exact reviewed SI cache"
+                )
+            for row in cache_rows:
+                table = cache_root / row["filename"]
+                if (
+                    not table.is_file()
+                    or row.get("bytes") != str(table.stat().st_size)
+                    or row.get("sha256") != sha256_file(table)
+                ):
+                    raise ValueError(
+                        "Canonical Figure 7 reviewed SI cache mismatch: "
+                        f"{row['filename']}"
+                    )
+            observed_inputs = {
+                path.resolve()
+                for row in input_rows
+                if (
+                    path := first_local_path(
+                        row,
+                        repo_root,
+                        ("repo_relative_path", "absolute_path", "path"),
+                    )
+                )
+                is not None
+            }
+            required_context_inputs = {
+                (repo_root / "Code/in-vivo/figure7/run_figure7.R").resolve(),
+                (
+                    repo_root
+                    / "Code/in-vivo/figure7/src/context_panels.R"
+                ).resolve(),
+                (
+                    repo_root
+                    / "Code/in-vivo/SI_figures/shared_context_panels.R"
+                ).resolve(),
+                (
+                    repo_root
+                    / "Code/in-vivo/SI_figures/normalized_composition.R"
+                ).resolve(),
+                (
+                    repo_root
+                    / "Code/tools/validate_si_figures_table_cache.py"
+                ).resolve(),
+                cache_manifest.resolve(),
+                *{(cache_root / name).resolve() for name in cache_names},
+            }
+            missing_context_inputs = sorted(
+                str(path)
+                for path in required_context_inputs - observed_inputs
+            )
+            if missing_context_inputs:
+                raise ValueError(
+                    "Canonical Figure 7 input manifest does not bind the "
+                    "reviewed SI context inputs: "
+                    f"missing={missing_context_inputs}"
+                )
 
     panel_contract = run_root / "metadata" / "panel_contract.tsv"
     if not panel_contract.is_file():
@@ -1030,7 +1215,7 @@ def validate_strict_source_run(
         if str(spec["module"]) == module
         and (
             module == "si_figures"
-            or spec.get("variant", "pdf") == "pdf"
+            or spec.get("contract", spec.get("variant", "pdf") == "pdf")
         )
         and (not spec.get("optional") or (run_root / str(spec["source"])).is_file())
     ]

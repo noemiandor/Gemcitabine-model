@@ -40,6 +40,48 @@ class SiFiguresManagerTest(unittest.TestCase):
             commands[label.removeprefix("[")] = shlex.split(command)
         return commands
 
+    @staticmethod
+    def _figure7_required_input_paths(
+        output_root: Path,
+        run_id: str,
+    ) -> list[str]:
+        manager_text = (REPO_ROOT / "Manager.sh").read_text()
+        start = manager_text.index("module_run_dir()")
+        end = manager_text.index("\ncheck_module_inputs()", start)
+        function_block = manager_text[start:end]
+        script = f"""
+set -euo pipefail
+{function_block}
+mode=full-refit
+dry_run=false
+figure7_full_analysis=false
+figure7_panels_ae_only=false
+figure7_state_pathway_results_root=""
+figure7_reference_root=unused
+figure7_cell_ploidy_input=Data/in-vivo/all_ploidy.tsv
+figure7_sample_info_input=Data/in-vivo/sample_info.xlsx
+figure7_growth_curve_input=Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx
+output_root="$1"
+run_id="$2"
+required_input_paths_for_module in_vivo_figure7
+"""
+        result = subprocess.run(
+            [
+                "bash",
+                "-c",
+                script,
+                "fixture",
+                str(output_root),
+                run_id,
+            ],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            raise AssertionError(result.stderr)
+        return [line for line in result.stdout.splitlines() if line]
+
     def test_default_modules_include_frozen_si_figures(self) -> None:
         default_line = next(
             line
@@ -179,10 +221,288 @@ class SiFiguresManagerTest(unittest.TestCase):
             "--sample-info=Data/in-vivo/sample_info.xlsx",
             commands["si_figures"],
         )
-        self.assertLess(
-            result.stdout.index("[in_vivo_figure7]"),
-            result.stdout.index("[si_figures]"),
+        generated_si_run = (
+            output_root
+            / "in-vivo/SI_figures/runs"
+            / "raw_figure7_contract_si_figures"
         )
+        figure7_command = commands["in_vivo_figure7"]
+        self.assertIn(
+            f"--si-table-cache-dir={generated_si_run / 'tables'}",
+            figure7_command,
+        )
+        self.assertIn(
+            "--si-cache-policy=generated-human-only",
+            figure7_command,
+        )
+        self.assertIn(
+            "--si-cache-upstream-input-manifest="
+            f"{generated_si_run / 'metadata/analysis_input_manifest.tsv'}",
+            figure7_command,
+        )
+        self.assertIn(
+            "--si-cache-source-run-config="
+            f"{generated_si_run / 'metadata/run_config.tsv'}",
+            figure7_command,
+        )
+        self.assertIn(
+            "--si-cache-source-provenance="
+            f"{generated_si_run / 'metadata/si_figures_provenance.tsv'}",
+            figure7_command,
+        )
+        self.assertFalse(
+            any("Data/in-vivo/SIfigures" in arg for arg in figure7_command)
+        )
+        self.assertLess(
+            result.stdout.index("[si_figures]"),
+            result.stdout.index("[in_vivo_figure7]"),
+        )
+
+    def test_figure7_only_full_refit_adds_run_scoped_si_prerequisite(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            output_root = tmp_path / "Results"
+            run_id = "figure7_with_automatic_si"
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(REPO_ROOT / "Manager.sh"),
+                    "--mode",
+                    "full-refit",
+                    "--modules",
+                    "in_vivo_figure7",
+                    "--run-id",
+                    run_id,
+                    "--output-root",
+                    str(output_root),
+                    "--figure-root",
+                    str(tmp_path / "figures"),
+                    "--no-update-latest",
+                    "--dry-run",
+                ],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = self._dry_run_commands(result.stdout)
+        self.assertEqual(
+            [
+                module
+                for module in commands
+                if module in {"si_figures", "in_vivo_figure7"}
+            ],
+            ["si_figures", "in_vivo_figure7"],
+        )
+        generated_si_run = (
+            output_root
+            / "in-vivo/SI_figures/runs"
+            / f"{run_id}_si_figures"
+        )
+        figure7_command = commands["in_vivo_figure7"]
+        self.assertIn(
+            f"--si-table-cache-dir={generated_si_run / 'tables'}",
+            figure7_command,
+        )
+        self.assertIn(
+            "--si-cache-policy=generated-human-only",
+            figure7_command,
+        )
+
+    def test_full_refit_figure7_required_inputs_exclude_reviewed_si_cache(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output_root = Path(tmp) / "Results"
+            run_id = "generated_si_required_inputs"
+            paths = self._figure7_required_input_paths(output_root, run_id)
+
+        generated_si_run = (
+            output_root
+            / "in-vivo/SI_figures/runs"
+            / f"{run_id}_si_figures"
+        )
+        self.assertIn(str(generated_si_run / "tables/manifest.tsv"), paths)
+        self.assertIn(
+            str(generated_si_run / "metadata/analysis_input_manifest.tsv"),
+            paths,
+        )
+        self.assertFalse(
+            any("Data/in-vivo/SIfigures" in path for path in paths)
+        )
+
+    def test_generated_figure7_input_paths_recover_external_run_scoped_si_lineage(
+        self,
+    ) -> None:
+        manager_text = (REPO_ROOT / "Manager.sh").read_text()
+        start = manager_text.index("module_run_dir()")
+        end = manager_text.index(
+            "\nrequired_input_paths_for_module()",
+            start,
+        )
+        function_block = manager_text[start:end]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_root = Path(tmp) / "external-results"
+            run_id = "external_generated_si_handoff"
+            figure7_run = (
+                output_root
+                / "in-vivo/figure7/runs"
+                / f"{run_id}_figure7"
+            )
+            si_run = (
+                output_root
+                / "in-vivo/SI_figures/runs"
+                / f"{run_id}_si_figures"
+            )
+            figure7_metadata = figure7_run / "metadata"
+            cell_table_root = (
+                output_root
+                / "in-vivo/figure7/intermediates/celllevel_inputs"
+            )
+            cellcycle = cell_table_root / "cellcycle.csv"
+            noncellcycle = cell_table_root / "noncellcycle.csv"
+            si_metadata = si_run / "metadata"
+            si_tables = si_run / "tables"
+            figure7_metadata.mkdir(parents=True)
+            cell_table_root.mkdir(parents=True)
+            si_metadata.mkdir(parents=True)
+            si_tables.mkdir(parents=True)
+            cellcycle.write_text("cell\n")
+            noncellcycle.write_text("cell\n")
+
+            table_names = ["context.csv", "gsea.tsv"]
+            (si_tables / "manifest.tsv").write_text(
+                "filename\tbytes\tsha256\tsource_revision\tnotes\n"
+                + "".join(
+                    f"{name}\t1\t{'a' * 64}\traw-fixture\tgenerated\n"
+                    for name in table_names
+                )
+            )
+            for name in table_names:
+                (si_tables / name).write_text("x")
+            lineage_names = [
+                "analysis_input_manifest.tsv",
+                "run_config.tsv",
+                "si_figures_provenance.tsv",
+            ]
+            for name in lineage_names:
+                (si_metadata / name).write_text("fixture\n")
+
+            write_tsv(
+                figure7_metadata / "run_config.tsv",
+                [
+                    {"key": "mode", "value": "full-workflow"},
+                    {
+                        "key": "si_context_cache_policy",
+                        "value": "generated-human-only",
+                    },
+                    {
+                        "key": "si_context_cache_manifest",
+                        "value": "external:manifest.tsv",
+                    },
+                    {
+                        "key": "si_context_upstream_input_manifest",
+                        "value": "external:analysis_input_manifest.tsv",
+                    },
+                    {
+                        "key": "si_context_source_run_config",
+                        "value": "external:run_config.tsv",
+                    },
+                    {
+                        "key": "si_context_source_provenance",
+                        "value": "external:si_figures_provenance.tsv",
+                    },
+                    {
+                        "key": "cellcycle_input",
+                        "value": "external:cellcycle.csv",
+                    },
+                    {
+                        "key": "noncellcycle_input",
+                        "value": "external:noncellcycle.csv",
+                    },
+                    {
+                        "key": "workflow_cellcycle_input",
+                        "value": str(cellcycle),
+                    },
+                    {
+                        "key": "workflow_noncellcycle_input",
+                        "value": str(noncellcycle),
+                    },
+                    {"key": "workflow_executed_stages", "value": "none"},
+                    {
+                        "key": "workflow_state_pathway_reference",
+                        "value": "not_applicable",
+                    },
+                    {
+                        "key": "workflow_state_pathway_results",
+                        "value": "not_applicable",
+                    },
+                    {"key": "raw_data_dir", "value": "not_applicable"},
+                    {
+                        "key": "seurat_rds_sha256",
+                        "value": "not_available",
+                    },
+                    {"key": "loom_file_count", "value": "0"},
+                ],
+                ["key", "value"],
+            )
+
+            script = f"""
+set -euo pipefail
+{function_block}
+metadata_value() {{
+  local path="$1" key="$2"
+  awk -F '\\t' -v expected="${{key}}" '
+    $1 == expected {{ count += 1; value = $2 }}
+    END {{ if (count != 1 || value == "") exit 1; print value }}
+  ' "${{path}}"
+}}
+mode=full-refit
+figure7_full_analysis=false
+figure7_panels_ae_only=false
+figure7_state_pathway_results_root=""
+figure7_reference_root=unused
+figure7_raw_data_dir=unused
+figure7_loom_root=""
+figure7_cell_ploidy_input=unused
+figure7_sample_info_input=unused
+figure7_growth_curve_input=unused
+figure7_seurat_rds=unused
+figure7_gene_set_artifact=unused
+output_root="$1"
+run_id="$2"
+input_paths_for_module in_vivo_figure7 "$3"
+"""
+            result = subprocess.run(
+                [
+                    "bash",
+                    "-c",
+                    script,
+                    "fixture",
+                    str(output_root),
+                    run_id,
+                    str(figure7_run),
+                ],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            paths = set(result.stdout.splitlines())
+            expected_si_paths = {
+                str(si_tables / "manifest.tsv"),
+                *(str(si_tables / name) for name in table_names),
+                *(str(si_metadata / name) for name in lineage_names),
+                str(cellcycle),
+                str(noncellcycle),
+            }
+            self.assertTrue(expected_si_paths.issubset(paths))
+            self.assertFalse(any(path.startswith("external:") for path in paths))
 
     def test_full_refit_requires_raw_lineage_despite_reviewed_cache(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -404,6 +724,10 @@ input_paths_for_module si_figures "$1"
                 paths,
             )
             self.assertIn(
+                "Code/in-vivo/SI_figures/shared_context_panels.R",
+                paths,
+            )
+            self.assertIn(
                 "Code/tools/validate_si_figures_table_cache.py",
                 paths,
             )
@@ -422,6 +746,8 @@ input_paths_for_module si_figures "$1"
                     "generate_supplementary_figures.R",
                     "Code/in-vivo/SI_figures/"
                     "normalized_composition.R",
+                    "Code/in-vivo/SI_figures/"
+                    "shared_context_panels.R",
                     "Code/tools/validate_si_figures_table_cache.py",
                     str(retained),
                 },
@@ -482,6 +808,10 @@ input_paths_for_module si_figures "$1"
                 Path(
                     "Code/in-vivo/SI_figures/"
                     "normalized_composition.R"
+                ),
+                Path(
+                    "Code/in-vivo/SI_figures/"
+                    "shared_context_panels.R"
                 ),
                 Path("Code/tools/validate_si_figures_table_cache.py"),
             ):
@@ -707,6 +1037,10 @@ printf 'key\\tvalue\\nsi7_canonical_publication_allowed\\ttrue\\n' \\
                 (
                     "normalized_composition_helper",
                     "Code/in-vivo/SI_figures/normalized_composition.R",
+                ),
+                (
+                    "shared_context_panels_helper",
+                    "Code/in-vivo/SI_figures/shared_context_panels.R",
                 ),
                 (
                     "si_figures_cache_manifest",
@@ -988,6 +1322,50 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 result.stderr,
             )
 
+    def test_materializer_requires_shared_context_helper_input_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, _ = self._canonical_fixture(tmp)
+            input_manifest = run_root / "metadata/input_manifest.tsv"
+            with input_manifest.open(newline="") as handle:
+                rows = list(csv.DictReader(handle, delimiter="\t"))
+            rows = [
+                row for row in rows
+                if not row["path"].endswith("shared_context_panels.R")
+            ]
+            write_tsv(
+                input_manifest,
+                rows,
+                MODULE_MANIFEST_COLUMNS,
+            )
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("shared_context_panels.R", result.stderr)
+
+    def test_materializer_rejects_stale_shared_context_helper_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, _ = self._canonical_fixture(tmp)
+            helper = (
+                repo
+                / "Code/in-vivo/SI_figures/shared_context_panels.R"
+            )
+            helper.write_text(helper.read_text() + "\n# tampered after render\n")
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "does not carry the reviewed frozen-table publication contract",
+                result.stderr,
+            )
+
     @staticmethod
     def _manifest_row(
         path: Path,
@@ -1049,6 +1427,15 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             / "Code/in-vivo/SI_figures/normalized_composition.R"
         )
         shutil.copy2(helper_source, helper_target)
+        shared_context_source = (
+            REPO_ROOT
+            / "Code/in-vivo/SI_figures/shared_context_panels.R"
+        )
+        shared_context_target = (
+            repo
+            / "Code/in-vivo/SI_figures/shared_context_panels.R"
+        )
+        shutil.copy2(shared_context_source, shared_context_target)
         runner_source = (
             REPO_ROOT
             / "Code/in-vivo/SI_figures/run_supplementary_figures.R"
@@ -1099,6 +1486,16 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             {
                 "key": "normalized_composition_helper_sha256",
                 "value": sha256_file(helper_target),
+            },
+            {
+                "key": "shared_context_panels_helper",
+                "value": (
+                    "Code/in-vivo/SI_figures/shared_context_panels.R"
+                ),
+            },
+            {
+                "key": "shared_context_panels_helper_sha256",
+                "value": sha256_file(shared_context_target),
             },
             {
                 "key": "table_cache_manifest_sha256",
@@ -1204,6 +1601,7 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             runner_target,
             renderer_target,
             helper_target,
+            shared_context_target,
             validator_target,
             cache_manifest,
             *[

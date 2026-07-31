@@ -510,7 +510,12 @@ figure7_build_f <- function(reference, output_dir, config) {
     stringsAsFactors = FALSE
   )
   figure7_write_tsv(comparison, file.path(output_dir, "tables", "state_pathway_frozen_reference_comparison.tsv"))
-  figure7_save_panel(figure7_panel_f_plot(reference$activity, config),
-                   file.path(output_dir, "figures", config$panels$filenames[["7F"]]), 9, 8)
-  invisible(reference)
+  plot <- figure7_panel_f_plot(reference$activity, config)
+  figure7_save_panel(
+    plot,
+    file.path(output_dir, "figures", config$panels$filenames[["7F"]]),
+    9,
+    8
+  )
+  invisible(plot)
 }

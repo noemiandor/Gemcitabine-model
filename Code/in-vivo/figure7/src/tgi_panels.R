@@ -169,17 +169,51 @@ figure7_build_ae <- function(cellcycle, data, samples, output_dir, config) {
   figure7_write_tsv(panel_e$test, file.path(tables, "panel_7E_test.tsv"))
 
   filenames <- stats::setNames(figure7_panel_filenames(config), figure7_panel_ids(TRUE))
-  figure7_save_panel(figure7_panel_a_plot(trajectory, config), file.path(figures, filenames[["7A"]]), 10, 6.5)
-  figure7_save_panel(figure7_panel_b_plot(panel_b$data, panel_b$tests), file.path(figures, filenames[["7B"]]), 15, 5.5)
-  figure7_save_panel(figure7_panel_c_plot(treated, test_c, config), file.path(figures, filenames[["7C"]]), 6.8, 6.4)
-  figure7_save_panel(figure7_scatter_plot(panel_d$data, "shift_centered", "tgi_centered", panel_d$test,
-    "CellCycle TGI association after within-dose centering", "Dose-centered ECDF RMSE",
-    paste("Dose-centered Day", tgi_day, "TGI (%)")) +
-    ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.35),
-    file.path(figures, filenames[["7D"]]), 6.6, 6.6)
-  figure7_save_panel(figure7_scatter_plot(panel_e$data, "sample_mean_endpoint_ploidy", tgi_measure, panel_e$test,
-    paste("Cell-cycle-associated tumor cells: Day", tgi_day, "TGI vs sample mean ETP"),
-    "Sample mean ETP", paste("Day", tgi_day, "TGI (%)")),
-    file.path(figures, filenames[["7E"]]), 6.8, 6.8)
-  invisible(list(panel_b = panel_b, panel_c = test_c, panel_d = panel_d, panel_e = panel_e))
+  plots <- list(
+    A = figure7_panel_a_plot(trajectory, config),
+    B = figure7_panel_b_plot(panel_b$data, panel_b$tests),
+    C = figure7_panel_c_plot(treated, test_c, config),
+    D = figure7_scatter_plot(
+      panel_d$data,
+      "shift_centered",
+      "tgi_centered",
+      panel_d$test,
+      "CellCycle TGI association after within-dose centering",
+      "Dose-centered ECDF RMSE",
+      paste("Dose-centered Day", tgi_day, "TGI (%)")
+    ) +
+      ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.35),
+    E = figure7_scatter_plot(
+      panel_e$data,
+      "sample_mean_endpoint_ploidy",
+      tgi_measure,
+      panel_e$test,
+      paste("Cell-cycle-associated tumor cells: Day", tgi_day, "TGI vs sample mean ETP"),
+      "Sample mean ETP",
+      paste("Day", tgi_day, "TGI (%)")
+    )
+  )
+  sizes <- list(
+    A = c(10, 6.5),
+    B = c(15, 5.5),
+    C = c(6.8, 6.4),
+    D = c(6.6, 6.6),
+    E = c(6.8, 6.8)
+  )
+  for (panel in names(plots)) {
+    dimensions <- sizes[[panel]]
+    figure7_save_panel(
+      plots[[panel]],
+      file.path(figures, filenames[[paste0("7", panel)]]),
+      dimensions[[1L]],
+      dimensions[[2L]]
+    )
+  }
+  invisible(list(
+    plots = plots,
+    panel_b = panel_b,
+    panel_c = test_c,
+    panel_d = panel_d,
+    panel_e = panel_e
+  ))
 }

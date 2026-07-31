@@ -71,6 +71,40 @@ class Figure7MaterializationTest(unittest.TestCase):
             REPO_ROOT / "Code/in-vivo/figure7/run_figure7.R",
             self.figure7_renderer,
         )
+        self.processed_inputs = []
+        for relative in (
+            Path(
+                "Data/in-vivo/figure7/processed/"
+                "CellCycleCells_pseudotime_distribution_per_sample_"
+                "cell_level_with_ploidy_dose_tgi.csv"
+            ),
+            Path(
+                "Data/in-vivo/figure7/processed/"
+                "NonCellCycleCells_pseudotime_distribution_per_sample_"
+                "cell_level_with_ploidy_dose_tgi.csv"
+            ),
+        ):
+            destination = self.repo / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(REPO_ROOT / relative, destination)
+            self.processed_inputs.append(destination)
+        self.si_cache_root = self.repo / "Data/in-vivo/SIfigures"
+        shutil.copytree(
+            REPO_ROOT / "Data/in-vivo/SIfigures",
+            self.si_cache_root,
+        )
+        self.context_inputs = []
+        for relative in (
+            "Code/in-vivo/figure7/src/context_panels.R",
+            "Code/in-vivo/SI_figures/shared_context_panels.R",
+            "Code/in-vivo/SI_figures/normalized_composition.R",
+            "Code/tools/validate_si_figures_table_cache.py",
+        ):
+            source = REPO_ROOT / relative
+            destination = self.repo / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+            self.context_inputs.append(destination)
         self.figure7_specs = [
             spec for spec in PANEL_SPECS if spec["module"] == "in_vivo_figure7"
         ]
@@ -88,8 +122,14 @@ class Figure7MaterializationTest(unittest.TestCase):
     def _write_run_metadata(self, include_f: bool) -> None:
         selected = [
             spec for spec in self.figure7_specs
-            if spec.get("variant", "pdf") == "pdf"
-            and (include_f or not str(spec["panel"]).startswith("7F"))
+            if spec.get("contract", spec.get("variant", "pdf") == "pdf")
+            and (
+                include_f
+                or (
+                    not str(spec["panel"]).startswith("7F")
+                    and str(spec["panel"]) != "7A-7K_composite"
+                )
+            )
         ]
         run_config = [
             {"key": "panel_set", "value": "a-f" if include_f else "a-e"},
@@ -117,6 +157,53 @@ class Figure7MaterializationTest(unittest.TestCase):
                         "key": "config_sha256",
                         "value": sha256_file(self.figure7_config),
                     },
+                    {"key": "main_composite_panel_set", "value": "a-k"},
+                    {
+                        "key": "main_composite_filename",
+                        "value": "Figure7_reviewed_GRCh.png",
+                    },
+                    {
+                        "key": "main_composite_panel_order",
+                        "value": (
+                            "A=7A;B=7C;C=SI4A;D=SI4B;E=SI4C;F=SI4E;"
+                            "G=SI7B;H=7B;I=7F;J=7D;K=7E"
+                        ),
+                    },
+                    {
+                        "key": "reviewed_si_cache_manifest",
+                        "value": "Data/in-vivo/SIfigures/manifest.tsv",
+                    },
+                    {
+                        "key": "reviewed_si_cache_manifest_sha256",
+                        "value": sha256_file(
+                            self.si_cache_root / "manifest.tsv"
+                        ),
+                    },
+                    {
+                        "key": "si_context_cache_policy",
+                        "value": "reviewed",
+                    },
+                    {
+                        "key": "si_context_cache_kind",
+                        "value": "reviewed_human_only_frozen",
+                    },
+                    {
+                        "key": "si_context_cache_manifest",
+                        "value": "Data/in-vivo/SIfigures/manifest.tsv",
+                    },
+                    {
+                        "key": "si_context_cache_manifest_sha256",
+                        "value": sha256_file(
+                            self.si_cache_root / "manifest.tsv"
+                        ),
+                    },
+                    {
+                        "key": (
+                            "si_context_cache_canonical_"
+                            "publication_allowed"
+                        ),
+                        "value": "true",
+                    },
                 ]
             )
         write_tsv(
@@ -138,6 +225,14 @@ class Figure7MaterializationTest(unittest.TestCase):
             self.input_path,
             self.figure7_config,
             self.figure7_renderer,
+            *self.processed_inputs,
+            *self.context_inputs,
+            self.si_cache_root / "manifest.tsv",
+            *sorted(
+                path
+                for path in self.si_cache_root.iterdir()
+                if path.name != "manifest.tsv"
+            ),
             *sorted(self.reviewed_reference_root.glob("*.tsv")),
         ]
         write_tsv(
@@ -254,6 +349,56 @@ class Figure7MaterializationTest(unittest.TestCase):
             ).is_file()
         )
 
+    def test_rejects_missing_exact_processed_input_binding(self) -> None:
+        manifest = self.run_root / "metadata/input_manifest.tsv"
+        with manifest.open(newline="") as handle:
+            original_rows = list(csv.DictReader(handle, delimiter="\t"))
+
+        for processed_input in self.processed_inputs:
+            with self.subTest(processed_input=processed_input.name):
+                omitted = str(processed_input.relative_to(self.repo))
+                rows = [
+                    row for row in original_rows
+                    if row["repo_relative_path"] != omitted
+                ]
+                write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
+
+                result = self._run_materializer()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(
+                    "does not bind the exact processed input",
+                    result.stderr,
+                )
+                self.assertIn(omitted, result.stderr)
+                self.assertFalse((self.repo / "figures").exists())
+
+    def test_rejects_generated_si_context_identity_as_canonical(self) -> None:
+        run_config_path = self.run_root / "metadata/run_config.tsv"
+        with run_config_path.open(newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        generated_values = {
+            "si_context_cache_policy": "generated-human-only",
+            "si_context_cache_kind": "generated_human_only_run_scoped",
+            "si_context_cache_manifest": (
+                "Results/in-vivo/SI_figures/intermediates/"
+                "generated_human_only_fixture/tables/manifest.tsv"
+            ),
+            "si_context_cache_manifest_sha256": "a" * 64,
+            "si_context_cache_canonical_publication_allowed": "false",
+        }
+        for row in rows:
+            if row["key"] in generated_values:
+                row["value"] = generated_values[row["key"]]
+        write_tsv(run_config_path, rows, ["key", "value"])
+
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "A-K composite/cache contract is invalid",
+            result.stderr,
+        )
+        self.assertFalse((self.repo / "figures").exists())
+
     def test_rejects_historical_mixed_v1_spoofed_as_reviewed_v2(
         self,
     ) -> None:
@@ -313,14 +458,20 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.assertFalse((self.repo / "figures").exists())
 
     def test_materializes_explicit_ae_run_without_optional_panel_f(self) -> None:
-        panel_f = [spec for spec in self.figure7_specs if str(spec["panel"]).startswith("7F")]
-        for spec in panel_f:
+        full_only = [
+            spec
+            for spec in self.figure7_specs
+            if str(spec["panel"]).startswith("7F")
+            or str(spec["panel"]) == "7A-7K_composite"
+        ]
+        for spec in full_only:
             (self.run_root / str(spec["source"])).unlink()
         manifest = self.run_root / "metadata/output_manifest.tsv"
         with manifest.open(newline="") as handle:
             rows = [
                 row for row in csv.DictReader(handle, delimiter="\t")
                 if not row["panel"].startswith("7F")
+                and row["panel"] != "7A-7K_composite"
             ]
         write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
         self._write_run_metadata(include_f=False)
@@ -334,14 +485,20 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.assertFalse((self.repo / "figures/Figure7/panel_7F_pseudotime_state_pathway_activity.pdf").exists())
 
     def test_rejects_unrecorded_ae_omission(self) -> None:
-        panel_f = [spec for spec in self.figure7_specs if str(spec["panel"]).startswith("7F")]
-        for spec in panel_f:
+        full_only = [
+            spec
+            for spec in self.figure7_specs
+            if str(spec["panel"]).startswith("7F")
+            or str(spec["panel"]) == "7A-7K_composite"
+        ]
+        for spec in full_only:
             (self.run_root / str(spec["source"])).unlink()
         manifest = self.run_root / "metadata/output_manifest.tsv"
         with manifest.open(newline="") as handle:
             rows = [
                 row for row in csv.DictReader(handle, delimiter="\t")
                 if not row["panel"].startswith("7F")
+                and row["panel"] != "7A-7K_composite"
             ]
         write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
         result = self._run_materializer()
@@ -439,27 +596,28 @@ class Figure7MaterializationTest(unittest.TestCase):
     def test_rejects_canonical_identity_without_reviewed_input_binding(
         self,
     ) -> None:
-        relative = str(self.input_path.relative_to(self.repo))
+        retained_paths = [self.input_path, *self.processed_inputs]
         write_tsv(
             self.run_root / "metadata/input_manifest.tsv",
             [
                 {
-                    "path": relative,
-                    "repo_relative_path": relative,
-                    "absolute_path": str(self.input_path),
+                    "path": str(path.relative_to(self.repo)),
+                    "repo_relative_path": str(path.relative_to(self.repo)),
+                    "absolute_path": str(path),
                     "role": "input_data",
                     "source_kind": "input_file",
                     "module": "in_vivo_figure7",
                     "generated_by": "Manager.sh",
                     "command_id": self.source_id,
-                    "sha256": sha256_file(self.input_path),
+                    "sha256": sha256_file(path),
                     "checksum_unavailable_reason": "",
-                    "byte_size": self.input_path.stat().st_size,
+                    "byte_size": path.stat().st_size,
                     "mtime_utc": "2026-07-16T00:00:00+00:00",
                     "figure": "",
                     "panel": "",
                     "notes": "insufficient binding",
                 }
+                for path in retained_paths
             ],
             MODULE_MANIFEST_COLUMNS,
         )

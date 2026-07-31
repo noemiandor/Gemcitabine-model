@@ -548,6 +548,33 @@ figure7_read_config <- function(path, tgi_day = NULL) {
   if (!identical(as.integer(unlist(config$panels$selected_direct_comparison_ids)), c(1L, 8L, 9L))) {
     figure7_stop("Figure 7 panel 7B requires comparison IDs 1, 8, and 9")
   }
+  expected_main_mapping <- c(
+    A = "7A", B = "7C", C = "SI4A", D = "SI4B", E = "SI4C",
+    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7D", K = "7E"
+  )
+  observed_main_mapping <- as.character(unlist(
+    config$panels$main_composite$panel_order,
+    use.names = TRUE
+  ))
+  names(observed_main_mapping) <- names(unlist(
+    config$panels$main_composite$panel_order,
+    use.names = TRUE
+  ))
+  if (!identical(
+        as.character(config$panels$main_composite$filename),
+        "Figure7_reviewed_GRCh.png"
+      ) ||
+      !identical(
+        as.character(
+          config$panels$main_composite$generated_candidate_filename
+        ),
+        "Figure7_generated_GRCh_candidate.png"
+      ) ||
+      !identical(observed_main_mapping, expected_main_mapping)) {
+    figure7_stop(
+      "Main Figure 7 must use the reviewed A-K first-citation panel mapping"
+    )
+  }
   si <- config$si_figures
   si_required <- c(
     "cluster_order", "ploidy_levels", "dose_levels", "plot_shuffle_seed",
@@ -1059,19 +1086,136 @@ figure7_panel_filenames <- function(config, panel_ids = figure7_panel_ids(TRUE))
   sub("day17", paste0("day", figure7_tgi_day(config)), filenames, ignore.case = TRUE)
 }
 
-figure7_panel_asset_filenames <- function(config, panel_ids = figure7_panel_ids(TRUE)) {
-  pdfs <- figure7_panel_filenames(config, panel_ids)
-  c(pdfs, sub("[.]pdf$", ".png", pdfs, ignore.case = TRUE))
+figure7_main_composite_filename <- function(
+  config,
+  cache_policy = "reviewed"
+) {
+  if (identical(cache_policy, "reviewed")) {
+    return(as.character(config$panels$main_composite$filename))
+  }
+  if (identical(cache_policy, "generated-human-only")) {
+    return(as.character(
+      config$panels$main_composite$generated_candidate_filename
+    ))
+  }
+  figure7_stop("Unknown Figure 7 SI context-cache policy: ", cache_policy)
 }
 
-figure7_validate_figure_inventory <- function(output_dir, config, panel_ids = figure7_panel_ids(TRUE)) {
+figure7_panel_contract <- function(
+  config,
+  panel_ids = figure7_panel_ids(TRUE),
+  composite_filename = figure7_main_composite_filename(config)
+) {
+  contract <- data.frame(
+    panel_id = panel_ids,
+    filename = figure7_panel_filenames(config, panel_ids),
+    stringsAsFactors = FALSE
+  )
+  if (identical(panel_ids, figure7_panel_ids(TRUE))) {
+    contract <- rbind(
+      contract,
+      data.frame(
+        panel_id = "7A-7K_composite",
+        filename = composite_filename,
+        stringsAsFactors = FALSE
+      )
+    )
+  }
+  rownames(contract) <- NULL
+  contract
+}
+
+figure7_panel_asset_filenames <- function(
+  config,
+  panel_ids = figure7_panel_ids(TRUE),
+  composite_filename = figure7_main_composite_filename(config)
+) {
+  pdfs <- figure7_panel_filenames(config, panel_ids)
+  assets <- c(pdfs, sub("[.]pdf$", ".png", pdfs, ignore.case = TRUE))
+  if (identical(panel_ids, figure7_panel_ids(TRUE))) {
+    assets <- c(assets, composite_filename)
+  }
+  assets
+}
+
+figure7_save_main_composite <- function(
+  plots,
+  output_dir,
+  config,
+  composite_filename = figure7_main_composite_filename(config),
+  width = 24,
+  height = 28,
+  png_dpi = 300
+) {
+  expected <- LETTERS[1:11]
+  if (!identical(names(plots), expected)) {
+    figure7_stop("Main Figure 7 composite requires named plot objects A-K")
+  }
+  valid_plot <- vapply(
+    plots,
+    function(plot) inherits(plot, c("ggplot", "patchwork", "wrapped_patch")),
+    logical(1L)
+  )
+  if (!all(valid_plot)) {
+    figure7_stop("Every main Figure 7 component must be a ggplot/patchwork object")
+  }
+  if (!requireNamespace("patchwork", quietly = TRUE)) {
+    figure7_stop("R package 'patchwork' is required to assemble main Figure 7")
+  }
+
+  design <- paste(
+    "AAAAABBB",
+    "CCDDEEFF",
+    "GGGGHHHH",
+    "IIIIJJKK",
+    sep = "\n"
+  )
+  composite <- patchwork::wrap_plots(plots, design = design) +
+    patchwork::plot_layout(heights = c(6.5, 6.2, 7.0, 8.3)) +
+    patchwork::plot_annotation(tag_levels = "A") &
+    ggplot2::theme(
+      plot.tag = ggplot2::element_text(face = "bold", size = 16),
+      plot.tag.position = c(0, 1)
+    )
+  figure_dir <- file.path(output_dir, "figures")
+  png_path <- file.path(
+    figure_dir,
+    composite_filename
+  )
+  ggplot2::ggsave(
+    png_path,
+    plot = composite,
+    device = "png",
+    dpi = png_dpi,
+    width = width,
+    height = height,
+    units = "in",
+    bg = "white",
+    limitsize = FALSE
+  )
+  if (!file.exists(png_path) || file.info(png_path)$size <= 0) {
+    figure7_stop("Failed to write assembled main Figure 7")
+  }
+  invisible(png_path)
+}
+
+figure7_validate_figure_inventory <- function(
+  output_dir,
+  config,
+  panel_ids = figure7_panel_ids(TRUE),
+  composite_filename = figure7_main_composite_filename(config)
+) {
   figures_dir <- file.path(output_dir, "figures")
   all_figures <- list.files(
     output_dir, pattern = "[.](pdf|png|svg|tiff?|jpg|jpeg)$",
     recursive = TRUE, full.names = TRUE, ignore.case = TRUE
   )
   observed <- sort(basename(all_figures))
-  expected <- sort(figure7_panel_asset_filenames(config, panel_ids))
+  expected <- sort(figure7_panel_asset_filenames(
+    config,
+    panel_ids,
+    composite_filename
+  ))
   if (!identical(observed, expected) ||
       any(dirname(normalizePath(all_figures)) != normalizePath(figures_dir))) {
     figure7_stop("Figure inventory mismatch. Expected: ", paste(expected, collapse = ", "),

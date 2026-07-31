@@ -1,11 +1,14 @@
 # Figure 7 reproducibility module
 
-This module generates six Figure 7 source panels as matched PDF and 300-DPI PNG
-files. Routine A-F runs are publication eligible and use the reviewed,
-byte-pinned human-only panel-7F v2 reference. The historical mixed-feature v1
-reference remains available only for audit, while newly generated raw-refit
-references remain noncanonical until separately reviewed. The module does not
-assemble the final A-F manuscript composite, matching the Figure 1-6 workflow.
+This module generates six reviewed scientific source panels as matched PDF and
+300-DPI PNG files and assembles the manuscript-facing A-K composite
+`Figure7_reviewed_GRCh.png`. The composite reuses Supplementary Figure 4A-C/E
+and Supplementary Figure 7B through the shared production plotting helper;
+their supplementary copies are retained. Routine A-F source runs are
+publication eligible and use the byte-pinned human-only panel-7F v2 reference.
+The historical mixed-feature v1 reference remains available only for audit,
+while newly generated raw-refit references remain noncanonical until
+separately reviewed.
 
 ## Frozen routine analysis
 
@@ -14,6 +17,9 @@ assemble the final A-F manuscript composite, matching the Figure 1-6 workflow.
 - Panels 7C-7E contain exactly eight treated mice at 30 or 120 mg/kg. Untreated mice contribute references only.
 - Panel 7D uses the reference-balanced ETP threshold 2.24 and equal-mouse untreated ECDF references.
 - Panel 7F is rendered from immutable compact tables in `Data/in-vivo/figure7/saved_state_pathway/state_pathway_grch_human_only_etp2_24_day17_v2/`.
+- The A-K manuscript composite binds the exact reviewed 11-table SI cache and
+  displays, in first-citation order: source 7A, source 7C, SI4A-C, SI4E, SI7B,
+  source 7B, source 7F, and source 7D-E.
 
 The eight reviewed panel-7F files retain exact `GRCh38-` features before
 expression filtering, symbol resolution, model fitting, and Homo sapiens GSEA.
@@ -37,9 +43,11 @@ bash Manager.sh \
   --run-id <run_id>
 ```
 
-With those two modules selected, Manager does not run Figures 1-6. It first
-validates corrected generated caches; the historical panel-7F reference and
-reviewed SI plot-only cache do not satisfy an explicit full refit. A complete,
+With those two modules selected, Manager does not run Figures 1-6. When the
+full A-K figure is requested, Manager automatically schedules `si_figures`
+before `in_vivo_figure7`, even if only the latter was listed. It first validates
+corrected generated caches; the historical panel-7F reference and reviewed SI
+plot-only cache do not satisfy an explicit full refit. A complete,
 lineage-valid generated cache avoids raw-data access. When a missing downstream
 stage needs the final Seurat object, there are two supported source boundaries:
 
@@ -55,11 +63,18 @@ complete Zenodo fallback is about 10.61 GiB. Manager then runs only the missing
 figure-facing stages:
 
 1. reconstruct or validate the shared final Seurat object when required;
-2. calculate scVelo pseudotime and derive the CellCycle and NonCellCycle
+2. build the run-scoped, human-only 11-table supplementary cache and render
+   Supplementary Figures 4-7;
+3. calculate scVelo pseudotime and derive the CellCycle and NonCellCycle
    Day-17 TGI tables used by 7A-7E;
-3. fit the state-pathway model and export a compact generated reference for 7F;
-4. build the 11 plot-facing Supplementary Figure tables and render the four
-   composites.
+4. fit the state-pathway model and export a compact generated reference for 7F;
+5. pass the generated supplementary cache and its complete raw-input lineage
+   into Figure 7 and assemble the A-K review candidate.
+
+The generated-cache handoff is required in `full-refit`: Figure 7 will not
+silently fall back to the reviewed supplementary cache. The resulting
+`Figure7_generated_GRCh_candidate.png` is explicitly noncanonical. Only the
+exact reviewed cache may produce `Figure7_reviewed_GRCh.png` in routine mode.
 
 The upstream Seurat reconstruction is the exact narrow sequence needed from
 Tao's `01_data.R`, `01a_cell_cycle.R`, `02b_cluster_refine.R`,
@@ -203,6 +218,7 @@ Rscript Code/in-vivo/figure7/run_figure7.R \
   --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
   --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
   --saved-state-pathway-dir=Data/in-vivo/figure7/saved_state_pathway/state_pathway_grch_human_only_etp2_24_day17_v2 \
+  --si-table-cache-dir=Data/in-vivo/SIfigures \
   --output-dir="${figure7_output_dir}"
 
 echo "Figure 7 results: ${figure7_output_dir}"
@@ -210,8 +226,9 @@ echo "Figure 7 results: ${figure7_output_dir}"
 
 Run this command in the HPC shell rather than at an interactive R prompt. The
 timestamp creates a new output directory for every run. The `standard` mode
-recomputes panels 7A-7E and renders panel 7F from the pinned reviewed
-human-only tables without refitting the model; the resulting A-F run is
+recomputes source panels 7A-7E, renders source panel 7F from the pinned reviewed
+human-only tables without refitting the model, and assembles the A-K main
+composite from those sources and the reviewed SI cache; the resulting run is
 canonical.
 
 Standalone rendering from an immutable completed run (does not rerun statistics):
@@ -225,9 +242,9 @@ Rscript Code/in-vivo/figure7/run_figure7.R \
 ```
 
 The manager's `panels-only` mode does not invoke this R script. For Figure 7 it
-materializes the exact recorded A-F or explicit A-E panel contract from an
-explicit `--source-run-id`. Historical or generated/noncanonical panel-7F runs
-are rejected.
+materializes the exact recorded A-K composite/source-panel or explicit A-E
+contract from an explicit `--source-run-id`. Historical and generated/
+noncanonical runs are rejected.
 
 The older artifact-driven `full-analysis` entrypoint remains only as an
 explicit guard that directs callers to the corrected workflow. Manager's
@@ -238,7 +255,7 @@ generated reference noncanonical until scientific review.
 ## Output contract
 
 Each successful run has `figures/`, `tables/`, `metadata/`, and `logs/`. The
-default six-panel contract contains these PDF/PNG pairs:
+default six-panel source contract contains these PDF/PNG pairs:
 
 1. `panel_7A_day17_tgi_calculation.{pdf,png}`
 2. `panel_7B_cellcycle_selected_ecdf_comparisons.{pdf,png}`
@@ -247,9 +264,21 @@ default six-panel contract contains these PDF/PNG pairs:
 5. `panel_7E_day17_tgi_vs_mean_etp.{pdf,png}`
 6. `panel_7F_pseudotime_state_pathway_activity.{pdf,png}`
 
+It additionally contains `Figure7_reviewed_GRCh.png`, whose panel contract is:
+A=7A, B=7C, C=SI4A, D=SI4B, E=SI4C, F=SI4E, G=SI7B, H=7B, I=7F, J=7D,
+and K=7E. The reviewed SI manifest hash and this ordered mapping are recorded in
+run metadata and enforced during materialization.
+
+A full-refit run has the same scientific panel mapping but writes
+`Figure7_generated_GRCh_candidate.png`. Its generated supplementary-cache
+manifest, analysis-input manifest, run configuration, and provenance are all
+hash-bound in Figure 7 metadata; `canonical_publication_allowed=false` prevents
+the candidate from being materialized as a manuscript asset.
+
 An explicit `--panel-set=a-e`/`--figure7-panels-ae-only` run instead contains
 exactly the first five pairs, records `panel_set=a-e`, and excludes all panel-F
-inputs and outputs.
+inputs and outputs. It also excludes the A-K composite because the main figure
+requires the reviewed state-pathway and SI-cache contracts together.
 
 Plotting data, exact-permutation tests, the complete compact state-pathway audit chain, frozen-reference comparison, run settings, panel contract, and session information are retained alongside the PDFs.
 

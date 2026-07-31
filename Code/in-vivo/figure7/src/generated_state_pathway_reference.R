@@ -628,11 +628,12 @@ figure7_build_generated_f <- function(reference, output_dir, config) {
       "state_pathway_generated_reference_comparison.tsv"
     )
   )
+  plot <- figure7_panel_f_plot(reference$activity, config)
   figure7_save_panel(
-    figure7_panel_f_plot(reference$activity, config),
+    plot,
     file.path(output_dir, "figures", config$panels$filenames[["7F"]]),
     9,
     8
   )
-  invisible(reference)
+  invisible(plot)
 }

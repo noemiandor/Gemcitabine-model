@@ -185,3 +185,18 @@ panels:
     7D: panel_7D_day17_tgi_vs_centered_ecdf_shift.pdf
     7E: panel_7E_day17_tgi_vs_mean_etp.pdf
     7F: panel_7F_pseudotime_state_pathway_activity.pdf
+  main_composite:
+    filename: Figure7_reviewed_GRCh.png
+    generated_candidate_filename: Figure7_generated_GRCh_candidate.png
+    panel_order:
+      A: 7A
+      B: 7C
+      C: SI4A
+      D: SI4B
+      E: SI4C
+      F: SI4E
+      G: SI7B
+      H: 7B
+      I: 7F
+      J: 7D
+      K: 7E

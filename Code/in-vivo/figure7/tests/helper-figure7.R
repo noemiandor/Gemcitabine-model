@@ -1,10 +1,18 @@
 module_dir <- normalizePath(Sys.getenv("FIGURE7_MODULE_DIR"), mustWork = TRUE)
 repo_root <- normalizePath(file.path(module_dir, "..", "..", ".."), mustWork = TRUE)
 for (file in c("common_io.R", "feature_species_policy.R", "tgi_data.R", "tgi_statistics.R", "tgi_panels.R",
-               "state_pathway_panel.R", "generated_state_pathway_reference.R",
+               "context_panels.R", "state_pathway_panel.R", "generated_state_pathway_reference.R",
                "state_pathway_analysis.R")) {
   source(file.path(module_dir, "src", file), local = FALSE)
 }
+source(
+  file.path(repo_root, "Code/in-vivo/SI_figures/normalized_composition.R"),
+  local = FALSE
+)
+source(
+  file.path(repo_root, "Code/in-vivo/SI_figures/shared_context_panels.R"),
+  local = FALSE
+)
 
 figure7_test_inputs <- local({
   cache <- NULL

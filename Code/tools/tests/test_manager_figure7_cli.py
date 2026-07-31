@@ -31,7 +31,12 @@ class ManagerFigure7CliTest(unittest.TestCase):
             capture_output=True,
         )
 
-    def _figure7_input_lineage_paths(self, run_dir: Path) -> list[str]:
+    def _figure7_input_lineage_paths(
+        self,
+        run_dir: Path,
+        *,
+        manager_mode: str = "full-refit",
+    ) -> list[str]:
         manager_text = (REPO_ROOT / "Manager.sh").read_text()
         start = manager_text.index("figure7_runtime_source_paths()")
         end = manager_text.index("\nrequired_input_paths_for_module()", start)
@@ -46,7 +51,7 @@ metadata_value() {{
     END {{ if (count != 1 || value == "") exit 1; print value }}
   ' "${{path}}"
 }}
-mode=full-refit
+mode="$3"
 figure7_full_analysis=false
 figure7_panels_ae_only=true
 figure7_state_pathway_results_root=""
@@ -62,7 +67,15 @@ figure7_growth_curve_input=growth_curve.xlsx
 input_paths_for_module in_vivo_figure7 "$1"
 """
         result = subprocess.run(
-            ["bash", "-c", script, "fixture", str(run_dir), str(run_dir / "raw")],
+            [
+                "bash",
+                "-c",
+                script,
+                "fixture",
+                str(run_dir),
+                str(run_dir / "raw"),
+                manager_mode,
+            ],
             cwd=REPO_ROOT,
             text=True,
             capture_output=True,
@@ -209,6 +222,44 @@ input_paths_for_module in_vivo_figure7 "$1"
             self.assertNotIn(str(stale_scvelo), paths)
             self.assertNotIn(str(stale_manifest), paths)
 
+    def test_standard_input_lineage_uses_generic_processed_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            processed = run_dir / "processed"
+            processed.mkdir()
+            cellcycle = processed / "cellcycle.csv"
+            noncellcycle = processed / "noncellcycle.csv"
+            legacy_cellcycle = run_dir / "legacy-cellcycle.csv"
+            legacy_noncellcycle = run_dir / "legacy-noncellcycle.csv"
+            self._write_run_config(
+                run_dir,
+                {
+                    "mode": "standard",
+                    "cellcycle_input": str(cellcycle),
+                    "cellcycle_sha256": "a" * 64,
+                    "noncellcycle_input": str(noncellcycle),
+                    "noncellcycle_sha256": "b" * 64,
+                    "workflow_executed_stages": "none",
+                    "workflow_cellcycle_input": str(legacy_cellcycle),
+                    "workflow_noncellcycle_input": str(legacy_noncellcycle),
+                    "workflow_state_pathway_results": "not_applicable",
+                    "workflow_state_pathway_reference": "not_applicable",
+                    "raw_data_dir": str(run_dir / "raw"),
+                    "seurat_rds_sha256": "not_available",
+                    "loom_file_count": "0",
+                },
+            )
+
+            paths = self._figure7_input_lineage_paths(
+                run_dir,
+                manager_mode="standard",
+            )
+
+            self.assertEqual(paths.count(str(cellcycle)), 1)
+            self.assertEqual(paths.count(str(noncellcycle)), 1)
+            self.assertNotIn(str(legacy_cellcycle), paths)
+            self.assertNotIn(str(legacy_noncellcycle), paths)
+
     def test_input_lineage_uses_exact_explicit_workflow_seurat_rds(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
@@ -343,7 +394,7 @@ if [[ "$entrypoint" == *run_figure7.R ]]; then
     printf 'fake pdf\\n' > "$output_dir/figures/$name.pdf"
     printf 'fake png\\n' > "$output_dir/figures/$name.png"
   done
-  printf 'key\\tvalue\\npanel_set\\ta-f\\ntgi_day\\t17\\nstate_pathway_reference_id\\ttaoli_04i_etp2_24_day17_v1\\nstate_pathway_reference_kind\\treviewed_frozen\\ncanonical_publication_allowed\\ttrue\\nstate_pathway_source_results_root\\t%s\\n' \
+  printf 'key\\tvalue\\nmode\\tstandard\\npanel_set\\ta-f\\ntgi_day\\t17\\ncellcycle_input\\tData/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv\\ncellcycle_sha256\\tfixture\\nnoncellcycle_input\\tData/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv\\nnoncellcycle_sha256\\tfixture\\nstate_pathway_reference_id\\ttaoli_04i_etp2_24_day17_v1\\nstate_pathway_reference_kind\\treviewed_frozen\\ncanonical_publication_allowed\\ttrue\\nstate_pathway_source_results_root\\t%s\\n' \
     "$source_results_root" > "$output_dir/metadata/run_config.tsv"
   printf 'panel_id\\tfilename\\n' > "$output_dir/metadata/panel_contract.tsv"
   printf '7A\\tpanel_7A_day17_tgi_calculation.pdf\\n' >> "$output_dir/metadata/panel_contract.tsv"
@@ -562,6 +613,7 @@ exit 7
                 if (
                     spec["module"] != "in_vivo_figure7"
                     or str(spec["panel"]).startswith("7F")
+                    or str(spec["panel"]) == "7A-7K_composite"
                 ):
                     continue
                 source = run_root / str(spec["source"])
@@ -589,8 +641,25 @@ exit 7
             write_tsv(
                 run_root / "metadata/run_config.tsv",
                 [
+                    {"key": "mode", "value": "standard"},
                     {"key": "panel_set", "value": "a-e"},
                     {"key": "tgi_day", "value": "17"},
+                    {
+                        "key": "cellcycle_input",
+                        "value": (
+                            "Data/in-vivo/figure7/processed/"
+                            "CellCycleCells_pseudotime_distribution_per_"
+                            "sample_cell_level_with_ploidy_dose_tgi.csv"
+                        ),
+                    },
+                    {
+                        "key": "noncellcycle_input",
+                        "value": (
+                            "Data/in-vivo/figure7/processed/"
+                            "NonCellCycleCells_pseudotime_distribution_per_"
+                            "sample_cell_level_with_ploidy_dose_tgi.csv"
+                        ),
+                    },
                 ],
                 ["key", "value"],
             )
@@ -601,32 +670,46 @@ exit 7
                     for spec in PANEL_SPECS
                     if spec["module"] == "in_vivo_figure7"
                     and not str(spec["panel"]).startswith("7F")
+                    and str(spec["panel"]) != "7A-7K_composite"
                     and spec.get("variant", "pdf") == "pdf"
                 ],
                 ["panel_id", "filename"],
             )
-            input_path = tmp_path / "figure7_input.tsv"
-            input_path.write_text("value\n1\n")
+            processed_input_paths = [
+                Path(
+                    "Data/in-vivo/figure7/processed/"
+                    "CellCycleCells_pseudotime_distribution_per_sample_"
+                    "cell_level_with_ploidy_dose_tgi.csv"
+                ),
+                Path(
+                    "Data/in-vivo/figure7/processed/"
+                    "NonCellCycleCells_pseudotime_distribution_per_sample_"
+                    "cell_level_with_ploidy_dose_tgi.csv"
+                ),
+            ]
             write_tsv(
                 run_root / "metadata/input_manifest.tsv",
                 [
                     {
-                        "path": str(input_path),
-                        "repo_relative_path": "",
-                        "absolute_path": str(input_path),
+                        "path": str(relative_path),
+                        "repo_relative_path": str(relative_path),
+                        "absolute_path": str(REPO_ROOT / relative_path),
                         "role": "input_data",
                         "source_kind": "input_file",
                         "module": "in_vivo_figure7",
                         "generated_by": "test",
                         "command_id": source_id,
-                        "sha256": sha256_file(input_path),
+                        "sha256": sha256_file(REPO_ROOT / relative_path),
                         "checksum_unavailable_reason": "",
-                        "byte_size": input_path.stat().st_size,
+                        "byte_size": (
+                            REPO_ROOT / relative_path
+                        ).stat().st_size,
                         "mtime_utc": "2026-07-16T00:00:00+00:00",
                         "figure": "",
                         "panel": "",
                         "notes": "fixture",
                     }
+                    for relative_path in processed_input_paths
                 ],
                 MODULE_MANIFEST_COLUMNS,
             )

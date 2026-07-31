@@ -17,36 +17,14 @@ for (package in c("patchwork", "pheatmap")) {
   }
 }
 
-# Evaluate the production helpers themselves without running the top-level
+# Evaluate the shared production helpers without running the top-level
 # renderer.
-generator_path <- file.path(
+helper_path <- file.path(
   repo_root,
-  "Code", "in-vivo", "SI_figures", "generate_supplementary_figures.R"
+  "Code", "in-vivo", "SI_figures", "shared_context_panels.R"
 )
-generator_expressions <- parse(generator_path)
-helper_names <- c("build_heatmap", "heatmap_plot")
-helper_indexes <- vapply(helper_names, function(helper_name) {
-  matches <- which(vapply(
-    generator_expressions,
-    function(expression) {
-      is.call(expression) &&
-        identical(expression[[1L]], as.name("<-")) &&
-        identical(as.character(expression[[2L]]), helper_name)
-    },
-    logical(1)
-  ))
-  if (length(matches) != 1L) {
-    stop(
-      "Expected exactly one production ", helper_name, " definition",
-      call. = FALSE
-    )
-  }
-  matches
-}, integer(1))
 helper_environment <- new.env(parent = globalenv())
-for (helper_index in helper_indexes) {
-  eval(generator_expressions[[helper_index]], envir = helper_environment)
-}
+sys.source(helper_path, envir = helper_environment)
 
 read_si7_matrix <- function(filename) {
   data <- utils::read.delim(
@@ -77,13 +55,13 @@ si7_panels <- list(
 
 for (panel_name in names(si7_panels)) {
   panel <- si7_panels[[panel_name]]
-  heatmap <- helper_environment$build_heatmap(
+  heatmap <- helper_environment$shared_context_build_heatmap(
     panel$matrix,
     paste("SI7", panel_name),
     panel$diverging,
     panel_name
   )
-  repeated_heatmap <- helper_environment$build_heatmap(
+  repeated_heatmap <- helper_environment$shared_context_build_heatmap(
     panel$matrix,
     paste("SI7", panel_name),
     panel$diverging,
@@ -110,7 +88,7 @@ for (panel_name in names(si7_panels)) {
     stop("SI7", panel_name, " column dendrogram is not visible", call. = FALSE)
   }
 
-  plot <- helper_environment$heatmap_plot(
+  plot <- helper_environment$shared_context_heatmap_plot(
     panel$matrix,
     paste("SI7", panel_name),
     panel$diverging,
@@ -133,5 +111,43 @@ for (panel_name in names(si7_panels)) {
     )
   }
 }
+
+si7_built <- helper_environment$shared_context_build_si7_heatmap_panels(
+  ora_matrix = si7_panels$A$matrix,
+  gsea_matrix = si7_panels$B$matrix
+)
+stopifnot(
+  identical(names(si7_built), "plots"),
+  identical(names(si7_built$plots), c("ora", "gsea")),
+  all(vapply(si7_built$plots, inherits, logical(1L), what = "ggplot"))
+)
+
+# Empty display tags are supported for reuse in a compositor that supplies its
+# own uniform A-K labels. They must not leave an embedded title prefix.
+untagged <- helper_environment$shared_context_build_heatmap(
+  si7_panels$B$matrix,
+  "Cluster Hallmark GSEA NES",
+  TRUE,
+  ""
+)
+main_grob <- untagged$gtable$grobs[[
+  which(untagged$gtable$layout$name == "main")
+]]
+stopifnot(
+  identical(main_grob$label, "Cluster Hallmark GSEA NES"),
+  inherits(untagged$tree_row, "hclust"),
+  inherits(untagged$tree_col, "hclust")
+)
+
+generator_text <- paste(readLines(file.path(
+  repo_root,
+  "Code", "in-vivo", "SI_figures", "generate_supplementary_figures.R"
+), warn = FALSE), collapse = "\n")
+stopifnot(
+  grepl("sys.source(shared_context_helper_path", generator_text, fixed = TRUE),
+  grepl("shared_context_build_si7_heatmap_panels(", generator_text, fixed = TRUE),
+  !grepl("build_heatmap <- function", generator_text, fixed = TRUE),
+  !grepl("heatmap_plot <- function", generator_text, fixed = TRUE)
+)
 
 message("SI7 row/column heatmap clustering tests passed.")

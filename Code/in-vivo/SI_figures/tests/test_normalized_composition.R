@@ -347,9 +347,9 @@ mouse_build <- ggplot2::ggplot_build(mouse_result$plot)
 observed_dose_order <- unique(as.character(mouse_build$layout$layout$dose))
 stopifnot(identical(observed_dose_order, dose_levels))
 
-# The production generator must route exactly the requested six panels through
-# the shared implementation; no panel-specific composition calculation remains
-# at those call sites.
+# The production renderer must route SI4E through the shared context-panel
+# builder, while the other five normalized panels continue to call the generic
+# normalized-composition implementation directly.
 generator <- readLines(
   file.path(
     repo_root,
@@ -358,14 +358,39 @@ generator <- readLines(
   warn = FALSE
 )
 generator_text <- paste(generator, collapse = "\n")
-call_count <- lengths(regmatches(
+shared_helper <- readLines(
+  file.path(
+    repo_root,
+    "Code", "in-vivo", "SI_figures", "shared_context_panels.R"
+  ),
+  warn = FALSE
+)
+shared_helper_text <- paste(shared_helper, collapse = "\n")
+generator_call_count <- lengths(regmatches(
   generator_text,
   gregexpr("make_normalized_composition_plot\\(", generator_text)
 ))
-stopifnot(call_count == 6L)
+shared_call_count <- lengths(regmatches(
+  shared_helper_text,
+  gregexpr("composition_builder\\(", shared_helper_text)
+))
+stopifnot(
+  generator_call_count == 5L,
+  shared_call_count == 1L,
+  grepl(
+    "composition_builder = make_normalized_composition_plot",
+    shared_helper_text,
+    fixed = TRUE
+  ),
+  grepl(
+    "shared_context_build_si4_panels(",
+    generator_text,
+    fixed = TRUE
+  ),
+  !grepl("s4e_result <- make_normalized_composition_plot(", generator_text, fixed = TRUE)
+)
 for (result_name in c(
-  "s4e_result", "s4g_result", "s5f_result",
-  "s5g_result", "s5h_result", "s5i_result"
+  "s4g_result", "s5f_result", "s5g_result", "s5h_result", "s5i_result"
 )) {
   pattern <- paste0(
     result_name,
@@ -381,7 +406,6 @@ extract_production_call <- function(result_name) {
   paste(generator[start:(start + relative_end - 1L)], collapse = "\n")
 }
 expected_call_contracts <- list(
-  s4e_result = 'strata_cols = "initial_ploidy"',
   s4g_result = 'strata_cols = "context"',
   s5f_result = c(
     'test_mode = "descriptive"',
@@ -401,6 +425,29 @@ for (result_name in names(expected_call_contracts)) {
     fixed = TRUE
   )))
 }
+
+shared_composition_start <- grep(
+  "^  composition_result <- composition_builder\\($",
+  shared_helper
+)
+stopifnot(length(shared_composition_start) == 1L)
+shared_relative_end <- which(grepl(
+  "^  \\)$",
+  shared_helper[shared_composition_start:length(shared_helper)]
+))[[1L]]
+shared_composition_call <- paste(
+  shared_helper[
+    shared_composition_start:
+      (shared_composition_start + shared_relative_end - 1L)
+  ],
+  collapse = "\n"
+)
+stopifnot(
+  grepl('strata_cols = "initial_ploidy"', shared_composition_call, fixed = TRUE),
+  grepl('unit_col = "mouse"', shared_composition_call, fixed = TRUE),
+  grepl('group_col = "context"', shared_composition_call, fixed = TRUE),
+  grepl('bar_axis = "cluster"', shared_composition_call, fixed = TRUE)
+)
 
 # Production metadata must retain the intended biological sample counts at all
 # six call boundaries.

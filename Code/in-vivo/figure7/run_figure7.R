@@ -8,7 +8,7 @@ for (file in c(
   "common_io.R", "feature_species_policy.R", "input_preflight.R",
   "seurat_upstream_selection.R",
   "tgi_data.R", "tgi_statistics.R",
-  "tgi_panels.R", "state_pathway_panel.R",
+  "tgi_panels.R", "context_panels.R", "state_pathway_panel.R",
   "generated_state_pathway_reference.R", "state_pathway_analysis.R"
 )) {
   sys.source(file.path(script_dir, "src", file), envir = .GlobalEnv)
@@ -18,26 +18,130 @@ args <- figure7_parse_args(commandArgs(trailingOnly = TRUE))
 mode <- figure7_arg(args, "mode", "standard")
 allowed_modes <- c("standard", "full-analysis", "full-workflow", "render-only")
 if (!mode %in% allowed_modes) figure7_stop("Unknown Figure 7 mode: ", mode)
-if (!requireNamespace("ggplot2", quietly = TRUE) ||
-    !requireNamespace("ggrepel", quietly = TRUE)) {
-  figure7_stop("R packages 'ggplot2' and 'ggrepel' are required")
-}
 panel_set <- figure7_arg(args, "panel-set", "a-f")
-if (!panel_set %in% c("a-f", "a-e")) figure7_stop("Unknown Figure 7 panel set: ", panel_set)
-include_panel_f <- identical(panel_set, "a-f")
-if (identical(mode, "full-analysis") && !include_panel_f) {
+if (!panel_set %in% c("a-f", "a-e")) {
+  figure7_stop("Unknown Figure 7 panel set: ", panel_set)
+}
+include_state_pathway <- identical(panel_set, "a-f")
+required_packages <- c("ggplot2", "ggrepel", "yaml")
+if (include_state_pathway) {
+  required_packages <- c(required_packages, "patchwork", "pheatmap")
+}
+missing_packages <- required_packages[!vapply(
+  required_packages,
+  requireNamespace,
+  logical(1L),
+  quietly = TRUE
+)]
+if (length(missing_packages)) {
+  figure7_stop(
+    "Missing required R package(s): ",
+    paste(missing_packages, collapse = ", ")
+  )
+}
+if (identical(mode, "full-analysis") && !include_state_pathway) {
   figure7_stop("Full analysis is incompatible with --panel-set=a-e")
 }
-panel_ids <- figure7_panel_ids(include_panel_f)
+panel_ids <- figure7_panel_ids(include_state_pathway)
 config_path <- normalizePath(figure7_arg(args, "config", file.path(script_dir, "figure7_config.yaml")), mustWork = FALSE)
 tgi_day_arg <- figure7_arg(args, "tgi-day", "")
 config <- figure7_read_config(config_path, if (nzchar(tgi_day_arg)) tgi_day_arg else NULL)
 output_dir <- normalizePath(figure7_arg(args, "output-dir", required = TRUE), mustWork = FALSE)
+si_cache_dir <- ""
+si_cache_policy <- "not_applicable"
+si_cache_upstream_input_manifest <- ""
+si_cache_source_run_config <- ""
+si_cache_source_provenance <- ""
+if (include_state_pathway) {
+  normalized_composition_path <- file.path(
+    repo_root,
+    "Code",
+    "in-vivo",
+    "SI_figures",
+    "normalized_composition.R"
+  )
+  shared_context_path <- file.path(
+    repo_root,
+    "Code",
+    "in-vivo",
+    "SI_figures",
+    "shared_context_panels.R"
+  )
+  if (!file.exists(normalized_composition_path) ||
+      !file.exists(shared_context_path)) {
+    figure7_stop("Main Figure 7 shared SI panel helpers are unavailable")
+  }
+  sys.source(normalized_composition_path, envir = .GlobalEnv)
+  sys.source(shared_context_path, envir = .GlobalEnv)
+  si_cache_policy <- figure7_arg(args, "si-cache-policy", "reviewed")
+  if (!si_cache_policy %in% c("reviewed", "generated-human-only")) {
+    figure7_stop("Unknown --si-cache-policy: ", si_cache_policy)
+  }
+  if (identical(mode, "full-workflow") &&
+      !identical(si_cache_policy, "generated-human-only")) {
+    figure7_stop(
+      "Full-workflow Figure 7 requires a generated-human-only SI context cache"
+    )
+  }
+  if (!mode %in% c("full-workflow", "render-only") &&
+      !identical(si_cache_policy, "reviewed")) {
+    figure7_stop(
+      "Standard/full-analysis Figure 7 requires the reviewed SI context cache"
+    )
+  }
+  si_cache_dir <- normalizePath(
+    figure7_arg(
+      args,
+      "si-table-cache-dir",
+      as.character(config$si_figures$cache_root)
+    ),
+    mustWork = TRUE
+  )
+  if (identical(si_cache_policy, "generated-human-only")) {
+    si_cache_upstream_input_manifest <- normalizePath(
+      figure7_arg(args, "si-cache-upstream-input-manifest", required = TRUE),
+      mustWork = TRUE
+    )
+    si_cache_source_run_config <- normalizePath(
+      figure7_arg(args, "si-cache-source-run-config", required = TRUE),
+      mustWork = TRUE
+    )
+    si_cache_source_provenance <- normalizePath(
+      figure7_arg(args, "si-cache-source-provenance", required = TRUE),
+      mustWork = TRUE
+    )
+  }
+  invisible(figure7_validate_si_cache(
+    si_cache_dir,
+    repo_root,
+    config,
+    si_cache_policy,
+    si_cache_upstream_input_manifest,
+    si_cache_source_run_config,
+    si_cache_source_provenance
+  ))
+}
 state_pathway_results_root_arg <- figure7_arg(args, "state-pathway-results-root", "")
 state_pathway_results_root <- if (nzchar(state_pathway_results_root_arg) && !identical(mode, "full-workflow")) {
   normalizePath(state_pathway_results_root_arg, mustWork = TRUE)
 } else {
   ""
+}
+
+figure7_metadata_locator <- function(path) {
+  if (is.null(path) || length(path) != 1L || is.na(path) || !nzchar(path)) {
+    return("not_recorded")
+  }
+  if (startsWith(path, "external:") || identical(path, "not_recorded")) {
+    return(path)
+  }
+  normalized <- normalizePath(path, mustWork = FALSE)
+  prefix <- paste0(repo_root, .Platform$file.sep)
+  if (startsWith(normalized, prefix)) {
+    substring(normalized, nchar(prefix) + 1L)
+  } else {
+    paste0("external:", basename(normalized))
+  }
 }
 
 write_metadata <- function(
@@ -48,7 +152,12 @@ write_metadata <- function(
   panel_ids,
   state_pathway_results_root = "",
   workflow = NULL,
-  reference_identity = NULL
+  reference_identity = NULL,
+  context_cache = NULL,
+  cellcycle_input = "",
+  cellcycle_sha256 = "",
+  noncellcycle_input = "",
+  noncellcycle_sha256 = ""
 ) {
   tgi_day <- figure7_tgi_day(config)
   tgi_measure <- figure7_tgi_measure(config)
@@ -60,7 +169,7 @@ write_metadata <- function(
         canonical_publication_allowed =
           workflow$canonical_publication_allowed
       )
-    } else if (include_panel_f) {
+    } else if (include_state_pathway) {
       list(
         id = as.character(config$state_pathways$reviewed_reference_id),
         kind = as.character(config$state_pathways$reviewed_reference_kind),
@@ -77,26 +186,102 @@ write_metadata <- function(
       )
     }
   }
+  overall_canonical <- isTRUE(
+    reference_identity$canonical_publication_allowed
+  ) && (
+    !include_state_pathway ||
+      (!is.null(context_cache) &&
+        isTRUE(context_cache$cache_canonical_publication_allowed))
+  )
   run_config <- data.frame(
     key = c("module", "mode", "panel_set", "tgi_outcome", "tgi_day", "tgi_measure",
             "matched_control_summary", "matched_control_group", "etp_method", "etp_threshold",
             "state_pathway_reference_id", "state_pathway_reference_kind",
             "canonical_publication_allowed",
             "state_interval_start", "state_interval_end",
-            "state_pathway_source_results_root", "config_sha256"),
+            "state_pathway_source_results_root", "config_sha256",
+            "cellcycle_input", "cellcycle_sha256",
+            "noncellcycle_input", "noncellcycle_sha256"),
     value = c("in_vivo_figure7", mode, panel_set, "day", as.character(tgi_day), tgi_measure, "mean", "initial_ploidy",
               config$etp$method, as.character(config$etp$threshold),
               reference_identity$id,
               reference_identity$kind,
-              tolower(as.character(
-                reference_identity$canonical_publication_allowed
-              )),
+              tolower(as.character(overall_canonical)),
               as.character(config$state_pathways$accumulated_interval$start),
               as.character(config$state_pathways$accumulated_interval$end),
               if (nzchar(state_pathway_results_root)) state_pathway_results_root else "not_recorded",
-              figure7_sha256(config_path)),
+              figure7_sha256(config_path),
+              figure7_metadata_locator(cellcycle_input),
+              if (nzchar(cellcycle_sha256)) cellcycle_sha256 else "not_recorded",
+              figure7_metadata_locator(noncellcycle_input),
+              if (nzchar(noncellcycle_sha256)) noncellcycle_sha256 else "not_recorded"),
     stringsAsFactors = FALSE
   )
+  if (include_state_pathway) {
+    if (is.null(context_cache)) {
+      figure7_stop("Full Figure 7 metadata requires an SI context cache")
+    }
+    mapping <- unlist(
+      config$panels$main_composite$panel_order,
+      use.names = TRUE
+    )
+    run_config <- rbind(
+      run_config,
+      data.frame(
+        key = c(
+          "main_composite_panel_set",
+          "main_composite_filename",
+          "main_composite_panel_order",
+          "si_context_cache_policy",
+          "si_context_cache_kind",
+          "si_context_cache_manifest",
+          "si_context_cache_manifest_sha256",
+          "si_context_cache_canonical_publication_allowed",
+          "si_context_upstream_input_manifest",
+          "si_context_upstream_input_manifest_sha256",
+          "si_context_source_run_config",
+          "si_context_source_run_config_sha256",
+          "si_context_source_provenance",
+          "si_context_source_provenance_sha256"
+        ),
+        value = c(
+          "a-k",
+          context_cache$composite_filename,
+          paste(paste(names(mapping), mapping, sep = "="), collapse = ";"),
+          context_cache$cache_policy,
+          context_cache$cache_kind,
+          figure7_metadata_locator(context_cache$cache_manifest_path),
+          context_cache$cache_manifest_sha256,
+          tolower(as.character(
+            context_cache$cache_canonical_publication_allowed
+          )),
+          figure7_metadata_locator(context_cache$upstream_input_manifest),
+          context_cache$upstream_input_manifest_sha256,
+          figure7_metadata_locator(context_cache$source_run_config),
+          context_cache$source_run_config_sha256,
+          figure7_metadata_locator(context_cache$source_provenance),
+          context_cache$source_provenance_sha256
+        ),
+        stringsAsFactors = FALSE
+      )
+    )
+    if (identical(context_cache$cache_policy, "reviewed")) {
+      run_config <- rbind(
+        run_config,
+        data.frame(
+          key = c(
+            "reviewed_si_cache_manifest",
+            "reviewed_si_cache_manifest_sha256"
+          ),
+          value = c(
+            figure7_metadata_locator(context_cache$cache_manifest_path),
+            context_cache$cache_manifest_sha256
+          ),
+          stringsAsFactors = FALSE
+        )
+      )
+    }
+  }
   if (!is.null(workflow)) {
     workflow_loom_files <- if (dir.exists(workflow$loom_root)) {
       list.files(workflow$loom_root, pattern = "[.]loom$", recursive = TRUE, full.names = TRUE)
@@ -249,20 +434,34 @@ write_metadata <- function(
     )
     run_config <- rbind(run_config, lineage_config)
   }
-  contract <- data.frame(
-    panel_id = panel_ids,
-    filename = figure7_panel_filenames(config, panel_ids),
-    tgi_outcome = "day", tgi_day = tgi_day, tgi_measure = tgi_measure,
-    matched_control_summary = "mean", matched_control_group = "initial_ploidy",
-    stringsAsFactors = FALSE
+  contract <- figure7_panel_contract(
+    config,
+    panel_ids,
+    if (include_state_pathway) {
+      context_cache$composite_filename
+    } else {
+      figure7_main_composite_filename(config)
+    }
   )
+  contract$tgi_outcome <- "day"
+  contract$tgi_day <- tgi_day
+  contract$tgi_measure <- tgi_measure
+  contract$matched_control_summary <- "mean"
+  contract$matched_control_group <- "initial_ploidy"
   figure7_write_tsv(run_config, file.path(output_dir, "metadata", "run_config.tsv"))
   figure7_write_tsv(contract, file.path(output_dir, "metadata", "panel_contract.tsv"))
   session_info <- sub("[[:space:]]+$", "", utils::capture.output(sessionInfo()))
   writeLines(session_info, file.path(output_dir, "metadata", "session_info.txt"), useBytes = TRUE)
 }
 
-render_from_run <- function(source_dir, output_dir, config, config_path, panel_ids, include_panel_f) {
+render_from_run <- function(
+  source_dir,
+  output_dir,
+  config,
+  config_path,
+  panel_ids,
+  include_state_pathway
+) {
   tgi_day <- figure7_tgi_day(config)
   tgi_measure <- figure7_tgi_measure(config)
   source_dir <- normalizePath(source_dir, mustWork = TRUE)
@@ -277,6 +476,37 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
     as.character(source_run_config$value),
     source_run_config$key
   )
+  source_scalar <- function(key, default = "") {
+    value <- source_value[[key]]
+    if (is.null(value) || length(value) != 1L || is.na(value)) {
+      default
+    } else {
+      as.character(value)
+    }
+  }
+  context_cache <- if (include_state_pathway) {
+    figure7_build_context_panels(
+      si_cache_dir,
+      repo_root,
+      config,
+      policy = si_cache_policy,
+      upstream_input_manifest = si_cache_upstream_input_manifest,
+      source_run_config = si_cache_source_run_config,
+      source_provenance = si_cache_source_provenance
+    )
+  } else {
+    NULL
+  }
+  if (include_state_pathway &&
+      (!identical(source_scalar("si_context_cache_policy"), si_cache_policy) ||
+        !identical(
+          source_scalar("si_context_cache_manifest_sha256"),
+          context_cache$cache_manifest_sha256
+        ))) {
+    figure7_stop(
+      "render-only source run does not bind the selected SI context cache"
+    )
+  }
   source_contract <- figure7_read_tsv(file.path(source_dir, "metadata", "panel_contract.tsv"),
                                       c("panel_id", "filename", "tgi_outcome", "tgi_day", "tgi_measure",
                                         "matched_control_summary", "matched_control_group"))
@@ -284,8 +514,15 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
   if (is.na(config_hash) || !identical(config_hash, figure7_sha256(config_path))) {
     figure7_stop("render-only source run was produced with a different Figure 7 config")
   }
-  expected_contract <- data.frame(panel_id = panel_ids,
-                                  filename = figure7_panel_filenames(config, panel_ids), stringsAsFactors = FALSE)
+  expected_contract <- figure7_panel_contract(
+    config,
+    panel_ids,
+    if (include_state_pathway) {
+      context_cache$composite_filename
+    } else {
+      figure7_main_composite_filename(config)
+    }
+  )
   observed_contract <- source_contract[, c("panel_id", "filename")]
   rownames(observed_contract) <- NULL
   if (!identical(observed_contract, expected_contract)) {
@@ -328,7 +565,7 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
     kind = "not_applicable",
     canonical_publication_allowed = FALSE
   )
-  if (include_panel_f) {
+  if (include_state_pathway) {
     f <- figure7_read_tsv(table_path("panel_7F_pathway_activity_plot_data.tsv"),
       c("collection_id", "collection_label", "collection_display_order", "pathway_id", "pathway_label",
         "pathway_display_order", "selected_direction", "selected_rank_within_direction",
@@ -582,22 +819,74 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
   for (file in list.files(file.path(source_dir, "tables"), full.names = TRUE)) {
     figure7_copy_file(file, file.path(output_dir, "tables", basename(file)))
   }
-  if (include_panel_f) figure7_copy_file(provenance, file.path(output_dir, "metadata", basename(provenance)))
-  filenames <- stats::setNames(figure7_panel_filenames(config), figure7_panel_ids(TRUE))
-  figure7_save_panel(figure7_panel_a_plot(a, config), file.path(output_dir, "figures", filenames[["7A"]]), 10, 6.5)
-  figure7_save_panel(figure7_panel_b_plot(b, bt), file.path(output_dir, "figures", filenames[["7B"]]), 15, 5.5)
-  figure7_save_panel(figure7_panel_c_plot(cdata, ct, config), file.path(output_dir, "figures", filenames[["7C"]]), 6.8, 6.4)
-  figure7_save_panel(figure7_scatter_plot(d, "shift_centered", "tgi_centered", dt,
-    "CellCycle TGI association after within-dose centering", "Dose-centered ECDF RMSE",
-    paste("Dose-centered Day", tgi_day, "TGI (%)")) +
-      ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.35),
-    file.path(output_dir, "figures", filenames[["7D"]]), 6.6, 6.6)
-  figure7_save_panel(figure7_scatter_plot(e, "sample_mean_endpoint_ploidy", tgi_measure, et,
-    paste("Cell-cycle-associated tumor cells: Day", tgi_day, "TGI vs sample mean ETP"),
-    "Sample mean ETP", paste("Day", tgi_day, "TGI (%)")),
-    file.path(output_dir, "figures", filenames[["7E"]]), 6.8, 6.8)
-  if (include_panel_f) {
-    figure7_save_panel(figure7_panel_f_plot(f, config), file.path(output_dir, "figures", filenames[["7F"]]), 9, 8)
+  if (include_state_pathway) {
+    figure7_copy_file(
+      provenance,
+      file.path(output_dir, "metadata", basename(provenance))
+    )
+  }
+  filenames <- stats::setNames(
+    figure7_panel_filenames(config),
+    figure7_panel_ids(TRUE)
+  )
+  legacy_plots <- list(
+    A = figure7_panel_a_plot(a, config),
+    B = figure7_panel_b_plot(b, bt),
+    C = figure7_panel_c_plot(cdata, ct, config),
+    D = figure7_scatter_plot(
+      d,
+      "shift_centered",
+      "tgi_centered",
+      dt,
+      "CellCycle TGI association after within-dose centering",
+      "Dose-centered ECDF RMSE",
+      paste("Dose-centered Day", tgi_day, "TGI (%)")
+    ) + ggplot2::geom_vline(
+      xintercept = 0,
+      color = "grey75",
+      linewidth = 0.35
+    ),
+    E = figure7_scatter_plot(
+      e,
+      "sample_mean_endpoint_ploidy",
+      tgi_measure,
+      et,
+      paste(
+        "Cell-cycle-associated tumor cells: Day",
+        tgi_day,
+        "TGI vs sample mean ETP"
+      ),
+      "Sample mean ETP",
+      paste("Day", tgi_day, "TGI (%)")
+    )
+  )
+  sizes <- list(
+    A = c(10, 6.5), B = c(15, 5.5), C = c(6.8, 6.4),
+    D = c(6.6, 6.6), E = c(6.8, 6.8)
+  )
+  for (panel in names(legacy_plots)) {
+    dimensions <- sizes[[panel]]
+    figure7_save_panel(
+      legacy_plots[[panel]],
+      file.path(output_dir, "figures", filenames[[paste0("7", panel)]]),
+      dimensions[[1L]],
+      dimensions[[2L]]
+    )
+  }
+  if (include_state_pathway) {
+    legacy_plots$F <- figure7_panel_f_plot(f, config)
+    figure7_save_panel(legacy_plots$F, file.path(output_dir, "figures", filenames[["7F"]]), 9, 8)
+    figure7_save_main_composite(
+      figure7_main_composite_plots(
+        legacy_plots[LETTERS[1:5]],
+        context_cache$plots,
+        legacy_plots$F,
+        config
+      ),
+      output_dir,
+      config,
+      context_cache$composite_filename
+    )
   }
   source_results_root <- source_run_config$value[match("state_pathway_source_results_root", source_run_config$key)]
   if (length(source_results_root) != 1L || is.na(source_results_root) || identical(source_results_root, "not_recorded")) {
@@ -610,14 +899,28 @@ render_from_run <- function(source_dir, output_dir, config, config_path, panel_i
     config_path,
     panel_ids,
     source_results_root,
-    reference_identity = reference_identity
+    reference_identity = reference_identity,
+    context_cache = context_cache,
+    cellcycle_input = source_scalar("cellcycle_input"),
+    cellcycle_sha256 = source_scalar("cellcycle_sha256"),
+    noncellcycle_input = source_scalar("noncellcycle_input"),
+    noncellcycle_sha256 = source_scalar("noncellcycle_sha256")
   )
-  figure7_validate_figure_inventory(output_dir, config, panel_ids)
+  figure7_validate_figure_inventory(
+    output_dir,
+    config,
+    panel_ids,
+    if (include_state_pathway) {
+      context_cache$composite_filename
+    } else {
+      figure7_main_composite_filename(config)
+    }
+  )
 }
 
 if (identical(mode, "render-only")) {
   render_from_run(figure7_arg(args, "source-run-dir", required = TRUE), output_dir, config, config_path,
-                  panel_ids, include_panel_f)
+                  panel_ids, include_state_pathway)
   message("Rendered ", length(panel_ids), " Figure 7 panels from immutable plotting tables: ", output_dir)
   quit(save = "no", status = 0L)
 }
@@ -630,7 +933,7 @@ if (identical(mode, "full-workflow")) {
     workflow_paths,
     config_path,
     config,
-    include_panel_f = include_panel_f,
+    include_panel_f = include_state_pathway,
     overwrite_intermediates = overwrite_intermediates
   )
   if (figure7_flag(args, "preflight-only", FALSE)) {
@@ -667,7 +970,7 @@ if (identical(mode, "full-workflow")) {
     script_dir = script_dir,
     config_path = config_path,
     config = config,
-    include_panel_f = include_panel_f,
+    include_panel_f = include_state_pathway,
     overwrite_intermediates = overwrite_intermediates
   )
   cellcycle_path <- workflow$cellcycle
@@ -687,7 +990,7 @@ if (identical(mode, "full-workflow")) {
 }
 reference <- NULL
 reference_identity <- NULL
-if (include_panel_f) {
+if (include_state_pathway) {
   saved_dir <- if (identical(mode, "full-workflow")) {
     workflow$saved_reference
   } else {
@@ -760,14 +1063,50 @@ cellcycle <- figure7_read_cell_table(cellcycle_path, "CellCycle", config)
 noncellcycle <- figure7_read_cell_table(noncellcycle_path, "NonCellCycle", config)
 samples <- figure7_sample_table(cellcycle, noncellcycle, config)
 data <- figure7_prepare_cellcycle(cellcycle, samples, config)
+context_cache <- if (include_state_pathway) {
+  figure7_build_context_panels(
+    si_cache_dir,
+    repo_root,
+    config,
+    policy = si_cache_policy,
+    upstream_input_manifest = si_cache_upstream_input_manifest,
+    source_run_config = si_cache_source_run_config,
+    source_provenance = si_cache_source_provenance
+  )
+} else {
+  NULL
+}
 figure7_prepare_output(output_dir)
-figure7_build_ae(cellcycle, data, samples, output_dir, config)
-if (include_panel_f) {
-  if (identical(mode, "full-workflow")) {
+ae <- figure7_build_ae(cellcycle, data, samples, output_dir, config)
+if (include_state_pathway) {
+  plot_f <- if (identical(mode, "full-workflow")) {
     figure7_build_generated_f(reference, output_dir, config)
   } else {
     figure7_build_f(reference, output_dir, config)
   }
+  figure7_write_tsv(
+    context_cache$composition_result$plot_data,
+    file.path(output_dir, "tables", "main_composite_panel_F_plot_data.tsv")
+  )
+  figure7_write_tsv(
+    context_cache$composition_result$tests,
+    file.path(
+      output_dir,
+      "tables",
+      "main_composite_panel_F_enrichment_tests.tsv"
+    )
+  )
+  figure7_save_main_composite(
+    figure7_main_composite_plots(
+      ae$plots,
+      context_cache$plots,
+      plot_f,
+      config
+    ),
+    output_dir,
+    config,
+    context_cache$composite_filename
+  )
 }
 write_metadata(
   output_dir,
@@ -777,7 +1116,28 @@ write_metadata(
   panel_ids,
   state_pathway_results_root,
   workflow,
-  reference_identity
+  reference_identity,
+  context_cache,
+  cellcycle_path,
+  figure7_sha256(cellcycle_path),
+  noncellcycle_path,
+  figure7_sha256(noncellcycle_path)
 )
-figure7_validate_figure_inventory(output_dir, config, panel_ids)
-message("Generated exactly ", length(panel_ids), " Figure 7 source panels: ", output_dir)
+figure7_validate_figure_inventory(
+  output_dir,
+  config,
+  panel_ids,
+  if (include_state_pathway) {
+    context_cache$composite_filename
+  } else {
+    figure7_main_composite_filename(config)
+  }
+)
+message(
+  "Generated exactly ",
+  length(panel_ids),
+  " Figure 7 source panels",
+  if (include_state_pathway) " and the assembled A-K main composite" else "",
+  ": ",
+  output_dir
+)

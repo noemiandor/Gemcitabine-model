@@ -214,20 +214,56 @@ testthat::test_that("entire-run image inventory is exact", {
   testthat::expect_error(figure7_validate_figure_inventory(out, config), "Figure inventory mismatch")
 })
 
-testthat::test_that("A-E plus a validated fixture F satisfy six exact PDF/PNG pairs", {
+testthat::test_that("full source panels plus the A-K composite satisfy the exact inventory", {
   input <- figure7_test_inputs(); fixture <- figure7_test_state_reference()
   reference <- figure7_validate_historical_state_reference(
     fixture$path,
     fixture$config
   )
   out <- tempfile("figure7_six_"); figure7_prepare_output(out)
-  figure7_build_ae(input$cellcycle, input$data, input$samples, out, fixture$config)
-  figure7_build_f(reference, out, fixture$config)
+  ae <- figure7_build_ae(
+    input$cellcycle,
+    input$data,
+    input$samples,
+    out,
+    fixture$config
+  )
+  plot_f <- figure7_build_f(reference, out, fixture$config)
+  context <- figure7_build_context_panels(
+    file.path(repo_root, "Data/in-vivo/SIfigures"),
+    repo_root,
+    fixture$config
+  )
+  figure7_save_main_composite(
+    list(
+      A = ae$plots$A,
+      B = ae$plots$C,
+      C = context$plots$C,
+      D = context$plots$D,
+      E = context$plots$E,
+      F = context$plots$F,
+      G = context$plots$G,
+      H = ae$plots$B,
+      I = plot_f,
+      J = ae$plots$D,
+      K = ae$plots$E
+    ),
+    out,
+    fixture$config,
+    width = 12,
+    height = 14,
+    png_dpi = 72
+  )
   testthat::expect_silent(figure7_validate_figure_inventory(out, fixture$config))
   pdfs <- list.files(file.path(out, "figures"), pattern = "[.]pdf$", full.names = TRUE)
   pngs <- list.files(file.path(out, "figures"), pattern = "[.]png$", full.names = TRUE)
   testthat::expect_length(pdfs, 6L)
-  testthat::expect_length(pngs, 6L)
+  testthat::expect_length(pngs, 7L)
+  testthat::expect_true(file.exists(file.path(
+    out,
+    "figures",
+    "Figure7_reviewed_GRCh.png"
+  )))
   testthat::expect_true(all(file.info(pngs)$size > 0))
   if (nzchar(Sys.which("pdfinfo"))) {
     statuses <- vapply(pdfs, function(file) system2("pdfinfo", file, stdout = FALSE, stderr = FALSE), integer(1L))
