@@ -1,0 +1,17 @@
+filename	bytes	sha256	notes
+SUM159-2N-0-O_harvest.sps.cbs	68453	4c57c16ebbf77bafacc5c1fec9a40941874169aa0c45deaaadb2f4f0ffd868f3	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-2N-0-RL_harvest.sps.cbs	62069	114437c4c436ec0d76f5a9d5265a0880cbe6abba3d7c7d5ee6b7b9d92558504d	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-2N-0-RR_harvest.sps.cbs	255493	9e8d1e2902b94cb97592c09f24e659bf5403d40462a39ccb0d8de4fe634b8f8a	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-2N-0-R_harvest.sps.cbs	35044	2774d4778e9a1fe06b3f61eb37162f0dd32d758a0efefdfbaef8855a173c7197	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-2N-120-RL_harvest.sps.cbs	191653	4ce761d4cc177d0565c9a5f0f11f4830fdaadae538b0c7bbc74f32056a45bec7	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-2N-120-R_harvest.sps.cbs	58821	65444b465b7746dfab26ef69db360629168acc28bdf06b5efcf3062788f82a5b	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-2N-30-0_harvest.sps.cbs	49077	cc31ce86b41160a14157dfe233609583b6d207b8b6b5ba4a1e700e126eeedfd0	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-2N-30-L_harvest.sps.cbs	91077	5c83ffe335912cf10142b0e92857d76c16d3d2d6d9d72ab1668859a28cd3a024	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-4N-0-0_harvest.sps.cbs	105998	b8c7357346864fd6e8694e869c6ea73896c8eadc34959daccaac47cd555ac111	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-4N-0-L_harvest.sps.cbs	61742	3c66aee9a24da83fc5ff738e192e9adf5eeaaa88b7ba67a3f4d2c6262667bc59	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-4N-0-RR_harvest.sps.cbs	51470	04c7f06879eb5b2d9611afc3e204dce1dd564d131c3c4d8a8f0d412df95f8c36	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-4N-0-R_harvest.sps.cbs	49838	193407fd5f6abe32060f1a1969132bb1329b4df87d6b1d8a8d43280a72ddf9fe	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-4N-120-RL_harvest.sps.cbs	237134	679afefa6b64cc15aa445d2ce5666d51000dd7f60f3ab53cd604657f1cea5932	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-4N-120-RR_harvest.sps.cbs	39662	c30076f719c6335fd037fe7872f9cc35523e433ea64d096d8cb545bf8e26b986	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-4N-30-0_harvest.sps.cbs	32174	5d545001f978ee76ebcfdd970745b0311a8dd903466360a2489d5ac7f8e44294	reviewed downstream NUMBAT-derived CBS matrix
+SUM159-4N-30-RR_harvest.sps.cbs	93518	1b532b1f38b604bd636b310bd5cc9b54d4659082f9a1321323ac879992e8ea80	reviewed downstream NUMBAT-derived CBS matrix
