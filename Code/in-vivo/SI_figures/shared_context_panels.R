@@ -74,6 +74,7 @@ shared_context_make_umap_discrete <- function(
   plot_seed,
   subtitle = NULL,
   labels = FALSE,
+  repel_labels = FALSE,
   shuffle_key = tag
 ) {
   data <- shared_context_shuffle_cells(
@@ -105,17 +106,45 @@ shared_context_make_umap_discrete <- function(
     shared_context_umap_theme(10)
   if (labels) {
     centers <- aggregate(cbind(UMAP_1, UMAP_2) ~ cluster, data = data, FUN = median)
-    plot <- plot + ggplot2::geom_label(
-      data = centers,
-      ggplot2::aes(UMAP_1, UMAP_2, label = cluster),
-      inherit.aes = FALSE,
-      size = 2.5,
-      linewidth = 0.2,
-      fill = "white",
-      color = "#222222",
-      alpha = 0.86,
-      label.padding = grid::unit(0.10, "lines")
-    )
+    if (repel_labels) {
+      if (!requireNamespace("ggrepel", quietly = TRUE)) {
+        stop("Repelled UMAP labels require package: ggrepel", call. = FALSE)
+      }
+      plot <- plot + ggrepel::geom_label_repel(
+        data = centers,
+        ggplot2::aes(UMAP_1, UMAP_2, label = cluster),
+        inherit.aes = FALSE,
+        size = 2.5,
+        label.size = 0.2,
+        fill = "white",
+        color = "#222222",
+        alpha = 0.86,
+        label.padding = grid::unit(0.10, "lines"),
+        seed = as.integer(plot_seed) + shared_context_shuffle_offset(shuffle_key),
+        box.padding = 0.20,
+        point.padding = 0.05,
+        force = 2,
+        force_pull = 0.25,
+        min.segment.length = 0,
+        segment.color = "grey45",
+        segment.size = 0.20,
+        max.time = Inf,
+        max.iter = 50000,
+        max.overlaps = Inf
+      )
+    } else {
+      plot <- plot + ggplot2::geom_label(
+        data = centers,
+        ggplot2::aes(UMAP_1, UMAP_2, label = cluster),
+        inherit.aes = FALSE,
+        size = 2.5,
+        linewidth = 0.2,
+        fill = "white",
+        color = "#222222",
+        alpha = 0.86,
+        label.padding = grid::unit(0.10, "lines")
+      )
+    }
   }
   shared_context_add_tag(plot, tag)
 }
@@ -200,6 +229,7 @@ shared_context_build_si4_panels <- function(
     context = "C",
     composition = "E"
   ),
+  repel_cluster_labels = FALSE,
   composition_builder = make_normalized_composition_plot
 ) {
   tags <- shared_context_validate_tags(
@@ -232,6 +262,7 @@ shared_context_build_si4_panels <- function(
         format(nrow(data), big.mark = ",")
       ),
       labels = TRUE,
+      repel_labels = repel_cluster_labels,
       shuffle_key = "A"
     ),
     initial_ploidy = shared_context_make_umap_discrete(
@@ -293,7 +324,40 @@ shared_context_build_si4_panels <- function(
   )
 }
 
-shared_context_build_heatmap <- function(matrix_data, title, diverging, tag) {
+shared_context_reader_pathway_labels <- function(labels) {
+  replacements <- c(
+    "E2f Targets" = "E2F targets",
+    "G2m Checkpoint" = "G2/M checkpoint",
+    "Myc Targets V1" = "MYC targets V1",
+    "Oxidative Phosphorylation" = "Oxidative phosphorylation",
+    "Mitotic Spindle" = "Mitotic spindle",
+    "Tnfa Signaling via Nfkb" = "TNF-alpha signaling via NF-kB",
+    "Unfolded Protein Response" = "Unfolded protein response",
+    "Interferon Gamma Response" = "Interferon-gamma response",
+    "Uv Response Dn" = "UV response down",
+    "Epithelial Mesenchymal Transition" = "Epithelial-mesenchymal transition",
+    "Mtorc1 Signaling" = "mTORC1 signaling",
+    "Interferon Alpha Response" = "Interferon-alpha response",
+    "Xenobiotic Metabolism" = "Xenobiotic metabolism"
+  )
+  output <- as.character(labels)
+  matched <- match(output, names(replacements))
+  output[!is.na(matched)] <- unname(replacements[matched[!is.na(matched)]])
+  output
+}
+
+shared_context_build_heatmap <- function(
+  matrix_data,
+  title,
+  diverging,
+  tag,
+  fontsize_row = 8,
+  fontsize_col = 7,
+  reader_labels = FALSE,
+  mark_zero_missing = FALSE,
+  treeheight_row = 50,
+  treeheight_col = 50
+) {
   tag_prefix <- if (shared_context_tag_is_empty(tag)) {
     ""
   } else {
@@ -304,12 +368,25 @@ shared_context_build_heatmap <- function(matrix_data, title, diverging, tag) {
     cluster_rows = TRUE,
     cluster_cols = TRUE,
     border_color = NA,
-    fontsize_row = 8,
-    fontsize_col = 7,
+    fontsize_row = fontsize_row,
+    fontsize_col = fontsize_col,
     angle_col = 45,
-    main = paste0(tag_prefix, title),
+    treeheight_row = treeheight_row,
+    treeheight_col = treeheight_col,
+    labels_row = if (reader_labels) {
+      shared_context_reader_pathway_labels(rownames(matrix_data))
+    } else {
+      rownames(matrix_data)
+    },
     silent = TRUE
   )
+  display_title <- paste0(tag_prefix, title)
+  if (nzchar(display_title)) arguments$main <- display_title
+  if (mark_zero_missing) {
+    arguments$display_numbers <- ifelse(matrix_data == 0, "x", "")
+    arguments$number_color <- "#777777"
+    arguments$fontsize_number <- 7
+  }
   if (diverging) {
     max_abs <- max(abs(matrix_data))
     arguments$color <- grDevices::colorRampPalette(
@@ -324,12 +401,29 @@ shared_context_build_heatmap <- function(matrix_data, title, diverging, tag) {
   do.call(pheatmap::pheatmap, arguments)
 }
 
-shared_context_heatmap_plot <- function(matrix_data, title, diverging, tag) {
+shared_context_heatmap_plot <- function(
+  matrix_data,
+  title,
+  diverging,
+  tag,
+  fontsize_row = 8,
+  fontsize_col = 7,
+  reader_labels = FALSE,
+  mark_zero_missing = FALSE,
+  treeheight_row = 50,
+  treeheight_col = 50
+) {
   heatmap <- shared_context_build_heatmap(
     matrix_data,
     title,
     diverging,
-    tag
+    tag,
+    fontsize_row = fontsize_row,
+    fontsize_col = fontsize_col,
+    reader_labels = reader_labels,
+    mark_zero_missing = mark_zero_missing,
+    treeheight_row = treeheight_row,
+    treeheight_col = treeheight_col
   )
   patchwork::wrap_elements(full = heatmap$gtable)
 }

@@ -1,10 +1,13 @@
 # Figure 7 reproducibility module
 
-This module generates six scientific source panels as matched PDF and 300-DPI
-PNG files and can assemble the manuscript-facing A-K composite
-`Figure7_reviewed_GRCh.png`. The composite reuses Supplementary Figure 4A-C/E
-and Supplementary Figure 7B through the shared production plotting helper;
-their supplementary copies are retained. The former human-only panel-7F v2
+This module generates six scientific source panels as matched vector PDF and
+300-DPI PNG files and assembles the manuscript-facing A-K composite as
+`Figure7_reviewed_GRCh.{pdf,png}`. The composite is built natively at the
+7.1 x 9.7 inch full-page target rather than by shrinking a large-format
+canvas. Its fixed six-row layout is A/B; C/D/E; F/G; H; I; J/K. The composite
+reuses Supplementary Figure 4A-C/E and Supplementary Figure 7B through the
+shared production plotting helper; their supplementary copies are retained.
+The former human-only panel-7F v2
 reference is retained for audit but is superseded because its model adjusted
 for a run-confounded endpoint-CN-score group. The reviewed v3 reference instead
 adjusts for injected initial ploidy and is the canonical panel-7F source. Panel
@@ -44,7 +47,9 @@ used as a nuisance covariate in the state-pathway model.
   evidence for an independent or causal terminal-ploidy effect.
 - The A-K manuscript composite binds the exact reviewed 11-table SI cache and
   displays, in first-citation order: source 7A, source 7C, SI4A-C, SI4E, SI7B,
-  source 7B, source 7F, and source 7D-E.
+  source 7B, source 7F, and source 7D-E. Publication styling changes only
+  layout, typography, reader-facing labels, and legend placement; it does not
+  change the panel identities, source tables, fitted models, tests, or values.
 
 The eight reviewed v3 panel-7F files retain exact `GRCh38-` features before
 expression filtering, symbol resolution, model fitting, and Homo sapiens GSEA.
@@ -105,8 +110,9 @@ figure-facing stages:
 
 The generated-cache handoff is required in `full-refit`: Figure 7 will not
 silently fall back to the reviewed supplementary cache. The resulting
-`Figure7_generated_GRCh_candidate.png` is explicitly noncanonical. Only the
-exact reviewed cache may produce `Figure7_reviewed_GRCh.png` in routine mode.
+`Figure7_generated_GRCh_candidate.{pdf,png}` pair is explicitly noncanonical.
+Only the exact reviewed cache may produce `Figure7_reviewed_GRCh.{pdf,png}` in
+routine mode.
 
 The upstream Seurat reconstruction is the exact narrow sequence needed from
 Tao's `01_data.R`, `01a_cell_cycle.R`, `02b_cluster_refine.R`,
@@ -287,6 +293,39 @@ explicit guard that directs callers to the corrected workflow. Manager's
 MSigDB release, applies the exact human-only feature policy, and keeps its
 generated reference noncanonical until scientific review.
 
+## Publication-scale composite and visual-QC package
+
+The normal Figure 7 renderer is the authoritative compositor. It rebuilds the
+A-K figure directly from live ggplot and heatmap grob objects at 7.1 x 9.7
+inches, writing a 300-DPI PNG and a vector PDF. It never assembles the final
+figure from exported panel rasters. The fixed six rows allocate extra display
+area to the two heatmaps and the two mouse-level association panels while
+preserving the enforced panel identity and first-citation order:
+
+1. A/B
+2. C/D/E
+3. F/G
+4. H
+5. I
+6. J/K
+
+The presentation-only audit package under `figures/Figure7/polishing/` can be
+rebuilt independently with:
+
+```bash
+scripts/agentRrunner.sh \
+  figures/Figure7/polishing/scripts/polish_figures.R --phase all
+```
+
+This command invokes the same scientific panel builders and frozen inputs as
+the normal renderer; it does not refit models or define an alternative
+scientific analysis. The package records the explicit A-K identity map, target
+dimensions, adopted layout, optimizer diagnostic, rebuild command, input and
+output hashes, byte-identity report, and print-size visual-QC assessment.
+Audit subpanel PNGs are inspection artifacts only. Canonical manuscript
+materialization remains the responsibility of `Manager.sh` and its recorded
+run contract.
+
 ## Output contract
 
 Each successful run has `figures/`, `tables/`, `metadata/`, and `logs/`. The
@@ -299,13 +338,14 @@ default six-panel source contract contains these PDF/PNG pairs:
 5. `panel_7E_day17_tgi_vs_mean_etp.{pdf,png}`
 6. `panel_7F_pseudotime_state_pathway_activity.{pdf,png}`
 
-It additionally contains `Figure7_reviewed_GRCh.png`, whose panel contract is:
-A=7A, B=7C, C=SI4A, D=SI4B, E=SI4C, F=SI4E, G=SI7B, H=7B, I=7F, J=7D,
-and K=7E. The reviewed SI manifest hash and this ordered mapping are recorded in
-run metadata and enforced during materialization.
+It additionally contains the publication-scale
+`Figure7_reviewed_GRCh.{pdf,png}` pair, whose panel contract is: A=7A, B=7C,
+C=SI4A, D=SI4B, E=SI4C, F=SI4E, G=SI7B, H=7B, I=7F, J=7D, and K=7E. The
+reviewed SI manifest hash, target dimensions, and ordered mapping are recorded
+in run metadata and enforced during materialization.
 
 A full-refit run has the same scientific panel mapping but writes
-`Figure7_generated_GRCh_candidate.png`. Its generated supplementary-cache
+`Figure7_generated_GRCh_candidate.{pdf,png}`. Its generated supplementary-cache
 manifest, analysis-input manifest, run configuration, and provenance are all
 hash-bound in Figure 7 metadata; `canonical_publication_allowed=false` prevents
 the candidate from being materialized as a manuscript asset.

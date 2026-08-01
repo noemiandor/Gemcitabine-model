@@ -144,7 +144,13 @@ class Figure7MaterializationTest(unittest.TestCase):
         ]
         for spec in self.figure7_specs:
             source = self.run_root / str(spec["source"])
-            source.write_bytes(f"fake PDF for {spec['panel']}\n".encode())
+            if str(spec["panel"]) == "7A-7K_composite":
+                shutil.copy2(
+                    REPO_ROOT / "figures/Figure7/Figure7_reviewed_GRCh.png",
+                    source,
+                )
+            else:
+                source.write_bytes(f"fake asset for {spec['panel']}\n".encode())
         self._write_run_metadata(include_f=True)
         self._write_state_provenance(canonical_publication_allowed="true")
         self._write_input_manifest()
@@ -162,7 +168,7 @@ class Figure7MaterializationTest(unittest.TestCase):
                 include_f
                 or (
                     not str(spec["panel"]).startswith("7F")
-                    and str(spec["panel"]) != "7A-7K_composite"
+                    and not str(spec["panel"]).startswith("7A-7K_composite")
                 )
             )
         ]
@@ -253,6 +259,13 @@ class Figure7MaterializationTest(unittest.TestCase):
                             "A=7A;B=7C;C=SI4A;D=SI4B;E=SI4C;F=SI4E;"
                             "G=SI7B;H=7B;I=7F;J=7D;K=7E"
                         ),
+                    },
+                    {"key": "main_composite_width_in", "value": "7.1"},
+                    {"key": "main_composite_height_in", "value": "9.7"},
+                    {"key": "main_composite_png_dpi", "value": "300"},
+                    {
+                        "key": "main_composite_layout_rows",
+                        "value": "A/B;C/D/E;F/G;H;I;J/K",
                     },
                     {
                         "key": "reviewed_si_cache_manifest",
@@ -969,7 +982,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             spec
             for spec in self.figure7_specs
             if str(spec["panel"]).startswith("7F")
-            or str(spec["panel"]) == "7A-7K_composite"
+            or str(spec["panel"]).startswith("7A-7K_composite")
         ]
         for spec in full_only:
             (self.run_root / str(spec["source"])).unlink()
@@ -978,7 +991,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             rows = [
                 row for row in csv.DictReader(handle, delimiter="\t")
                 if not row["panel"].startswith("7F")
-                and row["panel"] != "7A-7K_composite"
+                and not row["panel"].startswith("7A-7K_composite")
             ]
         write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
         self._write_run_metadata(include_f=False)
@@ -996,7 +1009,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             spec
             for spec in self.figure7_specs
             if str(spec["panel"]).startswith("7F")
-            or str(spec["panel"]) == "7A-7K_composite"
+            or str(spec["panel"]).startswith("7A-7K_composite")
         ]
         for spec in full_only:
             (self.run_root / str(spec["source"])).unlink()
@@ -1005,7 +1018,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             rows = [
                 row for row in csv.DictReader(handle, delimiter="\t")
                 if not row["panel"].startswith("7F")
-                and row["panel"] != "7A-7K_composite"
+                and not row["panel"].startswith("7A-7K_composite")
             ]
         write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
         result = self._run_materializer()

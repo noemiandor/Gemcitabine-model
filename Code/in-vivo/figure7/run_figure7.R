@@ -245,6 +245,7 @@ write_metadata <- function(
       config$panels$main_composite$panel_order,
       use.names = TRUE
     )
+    publication_spec <- figure7_publication_spec()
     run_config <- rbind(
       run_config,
       data.frame(
@@ -252,6 +253,10 @@ write_metadata <- function(
           "main_composite_panel_set",
           "main_composite_filename",
           "main_composite_panel_order",
+          "main_composite_width_in",
+          "main_composite_height_in",
+          "main_composite_png_dpi",
+          "main_composite_layout_rows",
           "si_context_cache_policy",
           "si_context_cache_kind",
           "si_context_cache_manifest",
@@ -268,6 +273,10 @@ write_metadata <- function(
           "a-k",
           context_cache$composite_filename,
           paste(paste(names(mapping), mapping, sep = "="), collapse = ";"),
+          format(publication_spec$width_in, trim = TRUE, scientific = FALSE),
+          format(publication_spec$height_in, trim = TRUE, scientific = FALSE),
+          as.character(publication_spec$png_dpi),
+          "A/B;C/D/E;F/G;H;I;J/K",
           context_cache$cache_policy,
           context_cache$cache_kind,
           figure7_metadata_locator(context_cache$cache_manifest_path),
@@ -594,7 +603,13 @@ render_from_run <- function(
   a$is_highlight_day <- as.character(a$is_highlight_day) %in% c("TRUE", "T", "1")
   b <- figure7_read_tsv(table_path("panel_7B_plot_data.tsv"),
     c("comparison_id", "panel", "pseudotime", "mean_ecdf", "color_group", "curve_label", "line_group"))
-  bt <- figure7_read_tsv(table_path("panel_7B_tests.tsv"), c("comparison_id", "panel", "annotation"))
+  bt <- figure7_read_tsv(
+    table_path("panel_7B_tests.tsv"),
+    c(
+      "comparison_id", "panel", "observed_ecdf_rmse",
+      "p_ecdf_rmse", "annotation"
+    )
+  )
   cdata <- figure7_read_tsv(table_path("panel_7C_plot_data.tsv"), c("sample_id", "initial_ploidy", "dose", tgi_measure))
   ct <- figure7_read_tsv(table_path("panel_7C_test.tsv"),
     c("dose_adjusted_difference_high_minus_low", "permutation_p_two_sided", "n_group_low", "n_group_high"))
@@ -933,7 +948,8 @@ render_from_run <- function(
       "CellCycle TGI association using injected-origin-matched controls",
       "Dose-centered ECDF RMSE (origin-matched untreated reference)",
       paste("Dose-centered Day", tgi_day, "TGI (%)"),
-      "Exact within-dose permutation P"
+      "Exact within-dose permutation P",
+      annotation_corner = "top-left"
     ) + ggplot2::geom_vline(
       xintercept = 0,
       color = "grey75",

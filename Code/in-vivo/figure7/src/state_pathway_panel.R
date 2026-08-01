@@ -441,11 +441,38 @@ figure7_panel_f_plot <- function(activity, config) {
     activity$pathway_plot_key,
     levels = rev(path_order$pathway_plot_key)
   )
+  reader_pathway_labels <- c(
+    "Class a 1 Rhodopsin Like Receptors" = "Class A/1 rhodopsin-like receptors",
+    "Dna Repair" = "DNA repair",
+    "Dna Replication" = "DNA replication",
+    "E2f Targets" = "E2F targets",
+    "Gpcr Ligand Binding" = "GPCR ligand binding",
+    "Kras Signaling Dn" = "KRAS signaling down",
+    "Myc Targets V1" = "MYC targets V1",
+    "Oxidative Phosphorylation" = "Oxidative phosphorylation",
+    "Processing of Capped Intron Containing Pre Mrna" =
+      "Processing of capped intron-containing pre-mRNA",
+    "Ribonucleoprotein Complex Biogenesis" =
+      "Ribonucleoprotein-complex biogenesis",
+    "Ribosome Biogenesis" = "Ribosome biogenesis",
+    "Rrna Metabolic Process" = "rRNA metabolic process",
+    "Rrna Processing" = "rRNA processing"
+  )
+  display_labels <- as.character(path_order$pathway_label)
+  reader_match <- match(display_labels, names(reader_pathway_labels))
+  display_labels[!is.na(reader_match)] <- unname(
+    reader_pathway_labels[reader_match[!is.na(reader_match)]]
+  )
   pathway_axis_labels <- stats::setNames(
-    path_order$pathway_label,
+    display_labels,
     path_order$pathway_plot_key
   )
   activity$collection_label <- factor(activity$collection_label, levels = collection_order$collection_label)
+  activity$collection_label <- factor(
+    as.character(activity$collection_label),
+    levels = c("Hallmark", "Reactome", "GO biological process"),
+    labels = c("Hallmark", "Reactome", "GO BP")
+  )
   bounds <- c(as.numeric(config$state_pathways$accumulated_interval$start),
               as.numeric(config$state_pathways$accumulated_interval$end))
   ggplot2::ggplot(activity, ggplot2::aes(pseudotime, pathway_plot_key, fill = standardized_activity)) +
@@ -454,7 +481,10 @@ figure7_panel_f_plot <- function(activity, config) {
     ggplot2::facet_grid(collection_label ~ ., scales = "free_y", space = "free_y") +
     ggplot2::scale_fill_gradient2(low = "#4575b4", mid = "white", high = "#d73027", midpoint = 0) +
     ggplot2::scale_y_discrete(labels = pathway_axis_labels) +
-    ggplot2::labs(title = "Pathway activity over CellCycle pseudotime", x = "Pseudotime", y = NULL, fill = "Activity") +
+    ggplot2::labs(
+      title = "Pathway activity over CellCycle pseudotime",
+      x = "Pseudotime", y = NULL, fill = "Mean gene z score"
+    ) +
     ggplot2::theme_bw(base_size = 9)
 }
 

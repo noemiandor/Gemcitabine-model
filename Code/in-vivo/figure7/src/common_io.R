@@ -1158,9 +1158,259 @@ figure7_panel_asset_filenames <- function(
   pdfs <- figure7_panel_filenames(config, panel_ids)
   assets <- c(pdfs, sub("[.]pdf$", ".png", pdfs, ignore.case = TRUE))
   if (identical(panel_ids, figure7_panel_ids(TRUE))) {
-    assets <- c(assets, composite_filename)
+    assets <- c(
+      assets,
+      composite_filename,
+      figure7_main_composite_pdf_filename(composite_filename)
+    )
   }
   assets
+}
+
+figure7_main_composite_pdf_filename <- function(composite_filename) {
+  if (length(composite_filename) != 1L || is.na(composite_filename) ||
+      !grepl("[.]png$", composite_filename, ignore.case = TRUE)) {
+    figure7_stop("Main Figure 7 composite filename must end in .png")
+  }
+  sub("[.]png$", ".pdf", composite_filename, ignore.case = TRUE)
+}
+
+figure7_publication_spec <- function() {
+  list(
+    width_in = 7.1,
+    height_in = 9.7,
+    png_dpi = 300,
+    panel_tag_pt = 11.5,
+    axis_title_pt = 8.25,
+    axis_text_pt = 7.25,
+    legend_text_pt = 7.25,
+    annotation_pt = 7.0,
+    design = paste(
+      paste0(strrep("A", 18L), strrep("B", 10L)),
+      paste0(strrep("C", 9L), strrep("D", 10L), strrep("E", 9L)),
+      paste0(strrep("F", 10L), strrep("G", 18L)),
+      strrep("H", 28L),
+      strrep("I", 28L),
+      paste0(strrep("J", 14L), strrep("K", 14L)),
+      sep = "\n"
+    ),
+    row_heights = c(1.25, 0.95, 2.60, 0.95, 2.50, 1.45),
+    content_left_npc = 0.020,
+    content_right_npc = 0.005
+  )
+}
+
+figure7_publication_clean_plots <- function(plots, config) {
+  expected <- LETTERS[1:11]
+  if (!identical(names(plots), expected)) {
+    figure7_stop("Publication styling requires named Figure 7 plot objects A-K")
+  }
+  spec <- figure7_publication_spec()
+  drop_scale <- function(plot, aesthetic) {
+    plot$scales$scales <- Filter(
+      function(scale) !aesthetic %in% scale$aesthetics,
+      plot$scales$scales
+    )
+    plot
+  }
+  is_ggplot <- vapply(plots, inherits, logical(1L), what = "ggplot")
+  for (panel in names(plots)[is_ggplot]) {
+    plots[[panel]] <- plots[[panel]] +
+      ggplot2::labs(title = NULL, subtitle = NULL, caption = NULL, tag = NULL) +
+      ggplot2::theme(
+        text = ggplot2::element_text(
+          family = "sans", size = spec$axis_text_pt, color = "#222222"
+        ),
+        axis.title = ggplot2::element_text(size = spec$axis_title_pt),
+        axis.text = ggplot2::element_text(size = spec$axis_text_pt),
+        legend.title = ggplot2::element_text(
+          size = spec$legend_text_pt, face = "bold"
+        ),
+        legend.text = ggplot2::element_text(size = spec$legend_text_pt),
+        strip.text = ggplot2::element_text(size = spec$axis_text_pt, face = "bold"),
+        plot.margin = ggplot2::margin(3, 4, 3, 4, unit = "pt"),
+        legend.key.height = grid::unit(0.75, "lines"),
+        legend.key.width = grid::unit(0.90, "lines")
+      )
+  }
+
+  plots$A <- drop_scale(plots$A, "colour")
+  plots$A <- drop_scale(plots$A, "x")
+  plots$A <- plots$A +
+    ggplot2::labs(
+      x = "Days since first treatment",
+      y = expression("Volume change (mm"^3 * ")"),
+      color = "Gemcitabine dose"
+    ) +
+    ggplot2::scale_color_manual(
+      values = figure7_dose_colors(),
+      breaks = c("0mg/kg", "30mg/kg", "120mg/kg"),
+      labels = c("Vehicle", "30 mg/kg", "120 mg/kg"),
+      name = "Gemcitabine dose"
+    ) +
+    ggplot2::scale_x_continuous(
+      breaks = c(0, 7, 17, 24, 31, 38), minor_breaks = NULL
+    ) +
+    ggplot2::theme(
+      legend.position = "none",
+      axis.text.x = ggplot2::element_text(angle = 0, hjust = 0.5)
+    )
+  plots$B$layers <- Filter(
+    function(layer) !inherits(layer$geom, "GeomText"),
+    plots$B$layers
+  )
+  plots$B <- plots$B +
+    ggplot2::labs(x = "Injected origin", y = paste0("Day-", figure7_tgi_day(config), " TGI (%)")) +
+    ggplot2::theme(legend.position = "none")
+  plots$C <- plots$C +
+    ggplot2::labs(x = NULL, y = NULL) +
+    ggplot2::theme(
+      legend.position = "none", axis.text = ggplot2::element_blank(),
+      axis.ticks = ggplot2::element_blank()
+    )
+  plots$D <- plots$D +
+    ggplot2::labs(x = NULL, y = NULL, color = "Ploidy") +
+    ggplot2::theme(
+      legend.position = "none", axis.text = ggplot2::element_blank(),
+      axis.ticks = ggplot2::element_blank()
+    )
+  plots$E <- plots$E +
+    ggplot2::labs(x = NULL, y = NULL) +
+    ggplot2::theme(
+      legend.position = "none", axis.text = ggplot2::element_blank(),
+      axis.ticks = ggplot2::element_blank()
+    )
+  plots$F <- drop_scale(plots$F, "fill")
+  plots$F <- plots$F +
+    ggplot2::labs(
+      x = "Cluster", y = "Mean proportion per sample", fill = "Source"
+    ) +
+    ggplot2::scale_fill_manual(
+      values = c("Tumor" = "#4C78A8", "CellLine" = "#F2CF5B"),
+      labels = c("Tumor" = "Xenograft tumor", "CellLine" = "Cultured reference"),
+      name = "Source",
+      drop = FALSE
+    ) +
+    ggplot2::theme(legend.position = "none")
+  plots$H$layers <- Filter(
+    function(layer) !inherits(layer$geom, "GeomText"),
+    plots$H$layers
+  )
+  plots$H <- drop_scale(plots$H, "colour")
+  plots$H <- drop_scale(plots$H, "y")
+  plots$H <- plots$H +
+    ggplot2::labs(
+      x = "Cell-cycle pseudotime", y = "Mean ECDF",
+      color = "Treatment", linetype = NULL
+    ) +
+    ggplot2::scale_color_manual(
+      values = figure7_dose_colors(),
+      breaks = c("0mg/kg", "treated"),
+      labels = c("Vehicle", "Gemcitabine"),
+      name = "Treatment"
+    ) +
+    ggplot2::scale_y_continuous(
+      breaks = c(0, 0.5, 1), limits = c(0, 1.05),
+      expand = ggplot2::expansion(mult = c(0, 0))
+    ) +
+    ggplot2::guides(linetype = "none") +
+    ggplot2::theme(legend.position = "none")
+  plots$I <- plots$I +
+    ggplot2::labs(
+      x = "Cell-cycle pseudotime", y = NULL,
+      fill = "Mean gene z score"
+    ) +
+    ggplot2::theme(
+      legend.position = "right",
+      axis.text.y = ggplot2::element_text(size = spec$annotation_pt)
+    )
+  plots$J <- plots$J +
+    ggplot2::labs(
+      x = "Pseudotime-distribution shift\n(dose-centered ECDF RMSE)",
+      y = "TGI centered within dose (%)"
+    ) +
+    ggplot2::theme(legend.position = "none")
+  plots$K <- plots$K +
+    ggplot2::labs(
+      x = "Mean endpoint tumor-cell ploidy",
+      y = paste0("Day-", figure7_tgi_day(config), " TGI (%)")
+    ) +
+    ggplot2::theme(legend.position = "none")
+  plots
+}
+
+figure7_main_composite_object <- function(plots, config) {
+  if (!requireNamespace("patchwork", quietly = TRUE)) {
+    figure7_stop("R package 'patchwork' is required to assemble main Figure 7")
+  }
+  spec <- figure7_publication_spec()
+  plots <- figure7_publication_clean_plots(plots, config)
+  row_ab <- patchwork::wrap_plots(plots[c("A", "B")], nrow = 1, widths = c(18, 10))
+  row_cde <- patchwork::wrap_plots(
+    plots[c("C", "D", "E")], nrow = 1, widths = c(9, 10, 9)
+  )
+  row_fg <- patchwork::wrap_plots(plots[c("F", "G")], nrow = 1, widths = c(10, 18))
+  row_h <- patchwork::wrap_plots(plots["H"])
+  row_i <- patchwork::wrap_plots(plots["I"])
+  row_jk <- patchwork::wrap_plots(plots[c("J", "K")], nrow = 1, widths = c(1, 1))
+  row_plots <- list(row_ab, row_cde, row_fg, row_h, row_i, row_jk)
+  row_grobs <- lapply(row_plots, patchwork::patchworkGrob)
+  total_height <- sum(spec$row_heights)
+  top_edges <- 1 - c(0, head(cumsum(spec$row_heights), -1L)) / total_height
+  centers <- top_edges - spec$row_heights / (2 * total_height)
+  # Reserve a true outer gutter for rotated y-axis labels.  The row grobs use
+  # clip = "off", but text outside the device is still lost at export time.
+  content_left <- spec$content_left_npc
+  content_right <- spec$content_right_npc
+  content_width <- 1 - content_left - content_right
+  positioned <- lapply(seq_along(row_grobs), function(index) {
+    grid::grobTree(
+      row_grobs[[index]],
+      name = paste0("figure7_row_", index),
+      vp = grid::viewport(
+        x = content_left + content_width / 2,
+        y = centers[[index]],
+        width = content_width,
+        height = spec$row_heights[[index]] / total_height,
+        just = c("center", "center"),
+        clip = "off"
+      )
+    )
+  })
+  row_index <- c(A = 1L, B = 1L, C = 2L, D = 2L, E = 2L,
+                 F = 3L, G = 3L, H = 4L, I = 5L, J = 6L, K = 6L)
+  panel_start <- c(
+    A = 0, B = 18 / 28,
+    C = 0, D = 9 / 28, E = 19 / 28,
+    F = 0, G = 10 / 28,
+    H = 0, I = 0, J = 0, K = 0.5
+  )
+  tag_grobs <- lapply(names(row_index), function(panel) {
+    start <- content_left + panel_start[[panel]] * content_width
+    grid::textGrob(
+      panel,
+      x = grid::unit(max(0.004, start - 0.020), "npc"),
+      y = grid::unit(top_edges[[row_index[[panel]]]] - 0.004, "npc"),
+      just = c("left", "top"),
+      gp = grid::gpar(
+        fontfamily = "sans", fontface = "bold",
+        fontsize = spec$panel_tag_pt, col = "#111111"
+      ),
+      name = paste0("figure7_tag_", panel)
+    )
+  })
+  nes_label <- grid::textGrob(
+    "NES",
+    x = grid::unit(0.944, "npc"),
+    y = grid::unit(top_edges[[3L]] - 0.018, "npc"),
+    just = c("center", "top"),
+    gp = grid::gpar(
+      fontfamily = "sans", fontface = "bold",
+      fontsize = spec$legend_text_pt, col = "#222222"
+    ),
+    name = "figure7_g_nes_label"
+  )
+  do.call(grid::grobTree, c(positioned, tag_grobs, list(nes_label)))
 }
 
 figure7_save_main_composite <- function(
@@ -1168,9 +1418,9 @@ figure7_save_main_composite <- function(
   output_dir,
   config,
   composite_filename = figure7_main_composite_filename(config),
-  width = 24,
-  height = 28,
-  png_dpi = 300
+  width = figure7_publication_spec()$width_in,
+  height = figure7_publication_spec()$height_in,
+  png_dpi = figure7_publication_spec()$png_dpi
 ) {
   expected <- LETTERS[1:11]
   if (!identical(names(plots), expected)) {
@@ -1184,28 +1434,15 @@ figure7_save_main_composite <- function(
   if (!all(valid_plot)) {
     figure7_stop("Every main Figure 7 component must be a ggplot/patchwork object")
   }
-  if (!requireNamespace("patchwork", quietly = TRUE)) {
-    figure7_stop("R package 'patchwork' is required to assemble main Figure 7")
-  }
-
-  design <- paste(
-    "AAAAABBB",
-    "CCDDEEFF",
-    "GGGGHHHH",
-    "IIIIJJKK",
-    sep = "\n"
-  )
-  composite <- patchwork::wrap_plots(plots, design = design) +
-    patchwork::plot_layout(heights = c(6.5, 6.2, 7.0, 8.3)) +
-    patchwork::plot_annotation(tag_levels = "A") &
-    ggplot2::theme(
-      plot.tag = ggplot2::element_text(face = "bold", size = 16),
-      plot.tag.position = c(0, 1)
-    )
+  composite <- figure7_main_composite_object(plots, config)
   figure_dir <- file.path(output_dir, "figures")
   png_path <- file.path(
     figure_dir,
     composite_filename
+  )
+  pdf_path <- file.path(
+    figure_dir,
+    figure7_main_composite_pdf_filename(composite_filename)
   )
   ggplot2::ggsave(
     png_path,
@@ -1218,10 +1455,22 @@ figure7_save_main_composite <- function(
     bg = "white",
     limitsize = FALSE
   )
-  if (!file.exists(png_path) || file.info(png_path)$size <= 0) {
+  pdf_device <- if (capabilities("cairo")) grDevices::cairo_pdf else "pdf"
+  ggplot2::ggsave(
+    pdf_path,
+    plot = composite,
+    device = pdf_device,
+    width = width,
+    height = height,
+    units = "in",
+    bg = "white",
+    limitsize = FALSE
+  )
+  if (!file.exists(png_path) || file.info(png_path)$size <= 0 ||
+      !file.exists(pdf_path) || file.info(pdf_path)$size <= 0) {
     figure7_stop("Failed to write assembled main Figure 7")
   }
-  invisible(png_path)
+  invisible(c(png = png_path, pdf = pdf_path))
 }
 
 figure7_validate_figure_inventory <- function(

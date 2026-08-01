@@ -10,6 +10,7 @@ import math
 import os
 import shutil
 import statistics
+import struct
 from collections import Counter
 from pathlib import Path
 
@@ -392,6 +393,19 @@ PANEL_SPECS = [
         "optional": True,
         "contract": True,
     },
+    {
+        "module": "in_vivo_figure7",
+        "source": "figures/Figure7_reviewed_GRCh.pdf",
+        "figure": "Figure7",
+        "panel": "7A-7K_composite_pdf",
+        "asset": "Figure7_reviewed_GRCh.pdf",
+        "caption_role": (
+            "Vector PDF of the publication-scale main Figure 7 A-K composite"
+        ),
+        "variant": "pdf",
+        "optional": True,
+        "contract": False,
+    },
 ]
 
 STRICT_FIGURE_MODULES = {"in_vivo_figure7", "si_figures"}
@@ -402,6 +416,41 @@ FIGURE7_REVIEWED_REFERENCE_ID = (
 FIGURE7_REVIEWED_REFERENCE_KIND = (
     "reviewed_human_only_initial_ploidy_frozen"
 )
+
+
+def read_png_geometry(path: Path) -> tuple[int, int, float | None, float | None]:
+    """Return PNG width, height, and optional x/y DPI from its pHYs chunk."""
+    with path.open("rb") as handle:
+        if handle.read(8) != b"\x89PNG\r\n\x1a\n":
+            raise ValueError(f"Invalid PNG signature: {path}")
+        width = height = None
+        dpi_x = dpi_y = None
+        while True:
+            length_bytes = handle.read(4)
+            if not length_bytes:
+                break
+            if len(length_bytes) != 4:
+                raise ValueError(f"Truncated PNG chunk length: {path}")
+            length = struct.unpack(">I", length_bytes)[0]
+            chunk_type = handle.read(4)
+            payload = handle.read(length)
+            checksum = handle.read(4)
+            if len(chunk_type) != 4 or len(payload) != length or len(checksum) != 4:
+                raise ValueError(f"Truncated PNG chunk: {path}")
+            if chunk_type == b"IHDR":
+                if length != 13:
+                    raise ValueError(f"Invalid PNG IHDR length: {path}")
+                width, height = struct.unpack(">II", payload[:8])
+            elif chunk_type == b"pHYs" and length == 9:
+                pixels_x, pixels_y, unit = struct.unpack(">IIB", payload)
+                if unit == 1:
+                    dpi_x = pixels_x * 0.0254
+                    dpi_y = pixels_y * 0.0254
+            elif chunk_type == b"IEND":
+                break
+    if width is None or height is None:
+        raise ValueError(f"PNG has no IHDR geometry: {path}")
+    return width, height, dpi_x, dpi_y
 FIGURE7_REVIEWED_REFERENCE_ROOT = (
     Path("Data/in-vivo/figure7/saved_state_pathway")
     / FIGURE7_REVIEWED_REFERENCE_ID
@@ -2108,6 +2157,36 @@ def validate_strict_source_run(
                 "Source Figure 7 A-K composite must be "
                 f"{requirement} exactly when panel F is present"
             )
+        composite_pdf_specs = [
+            spec
+            for spec in selected_specs
+            if str(spec["module"]) == module
+            and str(spec["panel"]) == "7A-7K_composite_pdf"
+        ]
+        if len(composite_pdf_specs) != 1:
+            raise ValueError("Figure 7 must define one vector A-K composite")
+        composite_pdf_path = (
+            run_root / str(composite_pdf_specs[0]["source"])
+        ).resolve()
+        if composite_pdf_path.is_file() != has_panel_f:
+            requirement = "present" if has_panel_f else "absent"
+            raise ValueError(
+                "Source Figure 7 vector A-K composite must be "
+                f"{requirement} exactly when panel F is present"
+            )
+        if has_panel_f:
+            width_px, height_px, dpi_x, dpi_y = read_png_geometry(composite_path)
+            if (
+                (width_px, height_px) != (2130, 2910)
+                or dpi_x is None
+                or dpi_y is None
+                or abs(dpi_x - 300.0) > 0.5
+                or abs(dpi_y - 300.0) > 0.5
+            ):
+                raise ValueError(
+                    "Source Figure 7 A-K PNG must be exactly 2130x2910 pixels "
+                    "with 300-DPI metadata (7.1x9.7 inches)"
+                )
         expected_panel_set = "a-f" if has_panel_f else "a-e"
         run_config = read_unique_key_values(
             run_root / "metadata" / "run_config.tsv",
@@ -2271,6 +2350,10 @@ def validate_strict_source_run(
                     "A=7A;B=7C;C=SI4A;D=SI4B;E=SI4C;F=SI4E;"
                     "G=SI7B;H=7B;I=7F;J=7D;K=7E"
                 ),
+                "main_composite_width_in": "7.1",
+                "main_composite_height_in": "9.7",
+                "main_composite_png_dpi": "300",
+                "main_composite_layout_rows": "A/B;C/D/E;F/G;H;I;J/K",
                 "reviewed_si_cache_manifest": (
                     "Data/in-vivo/SIfigures/manifest.tsv"
                 ),

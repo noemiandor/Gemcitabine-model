@@ -82,14 +82,27 @@ figure7_panel_a_plot <- function(data, config) {
 
 figure7_panel_b_plot <- function(data, tests) {
   levels <- c("1. 0 vs treated", "8. 4N: 0 vs treated", "9. 2N: 0 vs treated")
+  display_levels <- c(
+    "1. 0 vs treated" = "All tumors",
+    "8. 4N: 0 vs treated" = "4N-origin tumors",
+    "9. 2N: 0 vs treated" = "2N-origin tumors"
+  )
   data$panel <- factor(data$panel, levels = levels); tests$panel <- factor(tests$panel, levels = levels)
   data$line_group <- factor(data$line_group, levels = c("All", "2N", "4N"))
+  tests$display_annotation <- sprintf(
+    "RMSE %.3f; P = %.3g",
+    tests$observed_ecdf_rmse,
+    tests$p_ecdf_rmse
+  )
   ggplot2::ggplot(data, ggplot2::aes(pseudotime, mean_ecdf, color = color_group,
                                      linetype = line_group, group = curve_label)) +
     ggplot2::geom_line(linewidth = 0.8) +
-    ggplot2::geom_text(data = tests, ggplot2::aes(x = 0.98, y = 0.05, label = annotation),
-      inherit.aes = FALSE, hjust = 1, vjust = 0, size = 2.35, lineheight = 0.92) +
-    ggplot2::facet_wrap(~panel, ncol = 3, drop = FALSE) +
+    ggplot2::geom_text(data = tests, ggplot2::aes(x = 0.98, y = 0.04, label = display_annotation),
+      inherit.aes = FALSE, hjust = 1, vjust = 0, size = 2.5, lineheight = 0.95) +
+    ggplot2::facet_wrap(
+      ~panel, ncol = 3, drop = FALSE,
+      labeller = ggplot2::as_labeller(display_levels)
+    ) +
     ggplot2::scale_color_manual(values = figure7_dose_colors(), name = "Group") +
     ggplot2::scale_linetype_manual(values = c("All" = "solid", "2N" = "solid", "4N" = "22"),
                                    name = "Initial ploidy") +
@@ -103,12 +116,11 @@ figure7_panel_c_plot <- function(data, test, config) {
   tgi_measure <- figure7_tgi_measure(config)
   data$initial_ploidy <- factor(data$initial_ploidy, levels = c("2N", "4N"))
   data$dose <- factor(data$dose, levels = c("30mg/kg", "120mg/kg"))
-  label <- sprintf(paste0(
-    "Independent tumors; no one-to-one mouse pairing\nExact dose-stratified permutation\n",
-    "Adjusted delta (4N - 2N) = %.3f percentage points; P = %.3g\n",
-    "n = %d (2N) and %d (4N)"),
-    test$dose_adjusted_difference_high_minus_low, test$permutation_p_two_sided,
-    test$n_group_low, test$n_group_high)
+  label <- sprintf(
+    "4N - 2N: %.1f percentage points\nP = %.3g",
+    test$dose_adjusted_difference_high_minus_low,
+    test$permutation_p_two_sided
+  )
   ggplot2::ggplot(data, ggplot2::aes(initial_ploidy, .data[[tgi_measure]], fill = initial_ploidy)) +
     ggplot2::geom_hline(yintercept = 0, color = "grey75", linewidth = 0.35) +
     ggplot2::geom_boxplot(width = 0.58, alpha = 0.35, outlier.shape = NA) +
@@ -118,9 +130,12 @@ figure7_panel_c_plot <- function(data, test, config) {
     ggplot2::scale_color_manual(values = figure7_dose_colors(), breaks = c("30mg/kg", "120mg/kg"), name = "Dose") +
     ggplot2::scale_shape_manual(values = c("30mg/kg" = 16, "120mg/kg" = 17),
                                 breaks = c("30mg/kg", "120mg/kg"), name = "Dose") +
+    ggplot2::annotate(
+      "text", x = -Inf, y = Inf, label = label,
+      hjust = -0.05, vjust = 1.1, size = 2.5, lineheight = 0.95
+    ) +
     ggplot2::labs(title = paste("Treated CellCycle tumors: Day", tgi_day, "TGI by Initial ploidy"),
-                  subtitle = label, x = "Initial ploidy", y = paste("Day", tgi_day, "TGI (%)")) + figure7_theme() +
-    ggplot2::theme(plot.subtitle = ggplot2::element_text(size = 9, color = "grey25", lineheight = 1.05))
+                  x = "Initial ploidy", y = paste("Day", tgi_day, "TGI (%)")) + figure7_theme()
 }
 
 figure7_scatter_plot <- function(
@@ -131,16 +146,16 @@ figure7_scatter_plot <- function(
   title,
   x_label,
   y_label,
-  annotation_p_label = "Permutation P"
+  annotation_p_label = "Permutation P",
+  annotation_corner = c("top-right", "top-left")
 ) {
+  annotation_corner <- match.arg(annotation_corner)
   data$initial_ploidy <- factor(data$initial_ploidy, levels = c("2N", "4N"))
   data$dose <- factor(data$dose, levels = c("30mg/kg", "120mg/kg"))
   annotation <- sprintf(
-    "Pearson r = %.3f\n%s = %.3g\nn = %d",
+    "r = %.3f; P = %.3g",
     test$estimate,
-    annotation_p_label,
-    test$permutation_p_two_sided,
-    test$n
+    test$permutation_p_two_sided
   )
   ggplot2::ggplot(
     data,
@@ -153,9 +168,21 @@ figure7_scatter_plot <- function(
     ggplot2::geom_smooth(data = data, ggplot2::aes(x = .data[[x]], y = .data[[y]], group = 1),
                          inherit.aes = FALSE, method = "lm", se = TRUE, color = "black", linewidth = 0.55) +
     ggplot2::geom_point(size = 2.9) +
-    ggrepel::geom_text_repel(ggplot2::aes(label = sample_id), size = 2.4, seed = 1,
-      min.segment.length = 0, segment.color = "grey65", max.overlaps = Inf, show.legend = FALSE) +
-    ggplot2::annotate("label", x = Inf, y = Inf, label = annotation, hjust = 1.05, vjust = 1.1, size = 3) +
+    ggrepel::geom_text_repel(
+      ggplot2::aes(label = sample_id),
+      size = 2.5, seed = 1, box.padding = 0.28, point.padding = 0.18,
+      force = 1.4, force_pull = 0.8, max.time = Inf, max.iter = 50000,
+      min.segment.length = 0, segment.color = "grey55",
+      segment.size = 0.25, max.overlaps = Inf, show.legend = FALSE
+    ) +
+    ggplot2::annotate(
+      "label",
+      x = if (identical(annotation_corner, "top-left")) -Inf else Inf,
+      y = Inf,
+      label = annotation,
+      hjust = if (identical(annotation_corner, "top-left")) -0.05 else 1.05,
+      vjust = 1.1, size = 2.5, linewidth = 0.15
+    ) +
     ggplot2::scale_color_manual(values = figure7_dose_colors(), name = "Dose") +
     ggplot2::scale_shape_manual(
       values = c("2N" = 16, "4N" = 17),
@@ -168,7 +195,10 @@ figure7_scatter_plot <- function(
       shape = "Injected origin"
     ) +
     ggplot2::coord_cartesian(clip = "off") + figure7_theme() +
-    ggplot2::theme(legend.position = "right")
+    ggplot2::theme(
+      legend.position = "right",
+      plot.margin = ggplot2::margin(7, 9, 7, 9, unit = "pt")
+    )
 }
 
 figure7_endpoint_ploidy_plot <- function(data, test, config) {
@@ -305,7 +335,8 @@ figure7_build_ae <- function(cellcycle, data, samples, output_dir, config) {
       "CellCycle TGI association using injected-origin-matched controls",
       "Dose-centered ECDF RMSE (origin-matched untreated reference)",
       paste("Dose-centered Day", tgi_day, "TGI (%)"),
-      "Exact within-dose permutation P"
+      "Exact within-dose permutation P",
+      annotation_corner = "top-left"
     ) +
       ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.35),
     E = figure7_endpoint_ploidy_plot(panel_e$data, panel_e$test, config)

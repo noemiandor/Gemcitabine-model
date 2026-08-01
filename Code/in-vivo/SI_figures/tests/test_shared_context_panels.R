@@ -137,6 +137,18 @@ for (panel_name in c("cluster", "initial_ploidy", "context")) {
   )
 }
 stopifnot(is.null(untagged$plots$composition$labels$tag))
+stopifnot(
+  sum(vapply(
+    supplement$plots$cluster$layers,
+    function(layer) identical(class(layer$geom)[[1L]], "GeomLabel"),
+    logical(1L)
+  )) == 1L,
+  !any(vapply(
+    supplement$plots$cluster$layers,
+    function(layer) inherits(layer$geom, "GeomLabelRepel"),
+    logical(1L)
+  ))
+)
 
 # SI4E remains an equal-sample, initial-ploidy-stratified exact permutation
 # analysis. The reviewed cache has 16 Tumor and 2 CellLine samples and 81 exact

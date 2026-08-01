@@ -1,0 +1,53 @@
+{
+  "wp_id": "FIGURE7_PUBLICATION_POLISH",
+  "project_root": ".",
+  "polish_root": "figures/Figure7/polishing",
+  "feedback_manager_context": "figures/Figure7/polishing/feedback_manager_context.md",
+  "require_feedback_context": true,
+  "panel_map": "figures/Figure7/polishing/panel_map.csv",
+  "source_files": [
+    "Code/in-vivo/figure7/figure7_config.yaml",
+    "Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
+    "Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
+    "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv",
+    "Data/in-vivo/SIfigures/manifest.tsv",
+    "Data/in-vivo/figure7/saved_state_pathway/state_pathway_grch_human_only_initial_ploidy_day17_v3/panel_7F_pathway_activity_plot_data.tsv"
+  ],
+  "source_pngs": [
+    "figures/Figure7/Figure7_reviewed_GRCh.png"
+  ],
+  "figure_script": "figures/Figure7/polishing/scripts/polish_figures.R",
+  "subpanel_dimensions": "figures/Figure7/polishing/layout/subpanel_dimensions.csv",
+  "layout_optimizer_script": "figures/Figure7/polishing/scripts/optimize_panel_layout.R",
+  "layout_optimizer_command": "scripts/agentRrunner.sh figures/Figure7/polishing/scripts/optimize_panel_layout.R --input figures/Figure7/polishing/layout/layout_optimizer_groups.csv --output-dir figures/Figure7/polishing/layout --target-width 7.1 --max-height 9.7 --layout-out figures/Figure7/polishing/layout/layout_optimizer_candidate.csv --report-out figures/Figure7/polishing/layout/layout_optimizer_report.md --preview true",
+  "layout_plan": "figures/Figure7/polishing/layout/layout_plan.csv",
+  "layout_report": "figures/Figure7/polishing/layout/layout_report.md",
+  "layout_qc_files": [
+    "figures/Figure7/polishing/layout/Figure_7_layout_preview.png",
+    "figures/Figure7/polishing/layout/Figure_7_adopted_layout_preview.png"
+  ],
+  "expected_outputs": [
+    "figures/Figure7/polishing/final_images/Figure7_reviewed_GRCh.png"
+  ],
+  "optional_outputs": [
+    "figures/Figure7/polishing/final_images/Figure7_reviewed_GRCh.pdf",
+    "figures/Figure7/polishing/figure_byte_identity_report.tsv"
+  ],
+  "provenance_table": "figures/Figure7/polishing/provenance.csv",
+  "output_manifest": "figures/Figure7/polishing/manifest.csv",
+  "rebuild_manifest": "figures/Figure7/polishing/figure_rebuild_manifest.tsv",
+  "byte_identity_report": "figures/Figure7/polishing/figure_byte_identity_report.tsv",
+  "polishing_notes": "figures/Figure7/polishing/notes.md",
+  "visual_qc_file": "figures/Figure7/polishing/visual_qc.md",
+  "validation_report": "figures/Figure7/polishing/validation_report.json",
+  "report_dir": "figures/Figure7/polishing",
+  "output_dir": "figures/Figure7/polishing/final_images",
+  "require_regenerated_subpanels": true,
+  "require_panel_contract": true,
+  "allow_split_scripts": false,
+  "allow_in_figure_titles": false,
+  "require_layout_qc": true,
+  "require_visual_qc": true,
+  "require_project_map_decision": true,
+  "check_manifest_paths": true
+}

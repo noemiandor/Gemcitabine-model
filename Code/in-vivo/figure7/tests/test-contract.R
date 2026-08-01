@@ -324,6 +324,134 @@ testthat::test_that("entire-run image inventory is exact", {
   testthat::expect_error(figure7_validate_figure_inventory(out, config), "Figure inventory mismatch")
 })
 
+testthat::test_that("publication compositor pins dimensions, mapping, and vector asset names", {
+  config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
+  spec <- figure7_publication_spec()
+  expected_mapping <- c(
+    A = "7A", B = "7C", C = "SI4A", D = "SI4B", E = "SI4C",
+    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7D", K = "7E"
+  )
+  configured_mapping <- unlist(
+    config$panels$main_composite$panel_order,
+    use.names = TRUE
+  )
+
+  testthat::expect_identical(spec$width_in, 7.1)
+  testthat::expect_identical(spec$height_in, 9.7)
+  testthat::expect_length(spec$row_heights, 6L)
+  testthat::expect_true(all(spec$row_heights > 0))
+  testthat::expect_equal(sum(spec$row_heights), spec$height_in, tolerance = 0)
+  testthat::expect_identical(
+    strsplit(spec$design, "\n", fixed = TRUE)[[1L]],
+    c(
+      paste0(strrep("A", 18L), strrep("B", 10L)),
+      paste0(strrep("C", 9L), strrep("D", 10L), strrep("E", 9L)),
+      paste0(strrep("F", 10L), strrep("G", 18L)),
+      strrep("H", 28L),
+      strrep("I", 28L),
+      paste0(strrep("J", 14L), strrep("K", 14L))
+    )
+  )
+  testthat::expect_identical(spec$content_left_npc, 0.020)
+  testthat::expect_identical(spec$content_right_npc, 0.005)
+  testthat::expect_equal(
+    spec$width_in * (1 - spec$content_left_npc - spec$content_right_npc),
+    6.9225,
+    tolerance = 1e-12
+  )
+  testthat::expect_identical(configured_mapping, expected_mapping)
+
+  make_plot <- function(tag) {
+    ggplot2::ggplot(
+      data.frame(x = 1, y = 1),
+      ggplot2::aes(x = x, y = y)
+    ) +
+      ggplot2::geom_point() +
+      ggplot2::labs(tag = tag)
+  }
+  source_plots <- stats::setNames(
+    lapply(paste0("source-", LETTERS[1:5]), make_plot),
+    LETTERS[1:5]
+  )
+  context_plots <- stats::setNames(
+    lapply(paste0("context-", LETTERS[3:7]), make_plot),
+    LETTERS[3:7]
+  )
+  mapped <- figure7_main_composite_plots(
+    source_plots,
+    context_plots,
+    make_plot("state-pathway"),
+    config
+  )
+  testthat::expect_identical(names(mapped), LETTERS[1:11])
+  testthat::expect_identical(
+    vapply(mapped, function(plot) plot$labels$tag, character(1L)),
+    c(
+      A = "source-A", B = "source-C", C = "context-C",
+      D = "context-D", E = "context-E", F = "context-F",
+      G = "context-G", H = "source-B", I = "state-pathway",
+      J = "source-D", K = "source-E"
+    )
+  )
+
+  composite_png <- figure7_main_composite_filename(config)
+  composite_pdf <- figure7_main_composite_pdf_filename(composite_png)
+  assets <- figure7_panel_asset_filenames(config)
+  testthat::expect_identical(composite_png, "Figure7_reviewed_GRCh.png")
+  testthat::expect_identical(composite_pdf, "Figure7_reviewed_GRCh.pdf")
+  testthat::expect_true(all(c(composite_png, composite_pdf) %in% assets))
+  testthat::expect_equal(sum(assets == composite_png), 1L)
+  testthat::expect_equal(sum(assets == composite_pdf), 1L)
+  testthat::expect_error(
+    figure7_main_composite_pdf_filename("Figure7_reviewed_GRCh.tiff"),
+    "must end in .png"
+  )
+})
+
+testthat::test_that("publication styling removes internal prose and uses reader-facing labels", {
+  config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
+  plots <- stats::setNames(lapply(LETTERS[1:11], function(panel) {
+    ggplot2::ggplot(
+      data.frame(x = 1:2, y = 1:2),
+      ggplot2::aes(x = x, y = y)
+    ) +
+      ggplot2::geom_point() +
+      ggplot2::labs(
+        title = paste("code-facing title", panel),
+        subtitle = "implementation formula",
+        caption = "methodological prose",
+        tag = panel
+      )
+  }), LETTERS[1:11])
+
+  styled <- figure7_publication_clean_plots(plots, config)
+  for (panel in names(styled)) {
+    testthat::expect_null(styled[[panel]]$labels$title, info = panel)
+    testthat::expect_null(styled[[panel]]$labels$subtitle, info = panel)
+    testthat::expect_null(styled[[panel]]$labels$caption, info = panel)
+    testthat::expect_null(styled[[panel]]$labels$tag, info = panel)
+  }
+  testthat::expect_identical(styled$A$labels$x, "Days since first treatment")
+  testthat::expect_identical(styled$B$labels$x, "Injected origin")
+  testthat::expect_identical(styled$F$labels$y, "Mean proportion per sample")
+  testthat::expect_identical(styled$H$labels$y, "Mean ECDF")
+  testthat::expect_identical(styled$I$labels$fill, "Mean gene z score")
+  testthat::expect_identical(
+    styled$J$labels$x,
+    "Pseudotime-distribution shift\n(dose-centered ECDF RMSE)"
+  )
+  testthat::expect_identical(
+    styled$K$labels$x,
+    "Mean endpoint tumor-cell ploidy"
+  )
+
+  composite <- suppressWarnings(figure7_main_composite_object(plots, config))
+  testthat::expect_s3_class(composite, "gTree")
+  testthat::expect_true(all(
+    paste0("figure7_tag_", LETTERS[1:11]) %in% names(composite$children)
+  ))
+})
+
 testthat::test_that("full source panels plus the A-K composite satisfy the exact inventory", {
   input <- figure7_test_inputs()
   fixture <- figure7_test_reviewed_state_reference()
@@ -344,6 +472,14 @@ testthat::test_that("full source panels plus the A-K composite satisfy the exact
     file.path(repo_root, "Data/in-vivo/SIfigures"),
     repo_root,
     fixture$config
+  )
+  testthat::expect_equal(
+    sum(vapply(
+      context$plots$C$layers,
+      function(layer) inherits(layer$geom, "GeomLabelRepel"),
+      logical(1L)
+    )),
+    1L
   )
   figure7_save_main_composite(
     list(
@@ -368,12 +504,17 @@ testthat::test_that("full source panels plus the A-K composite satisfy the exact
   testthat::expect_silent(figure7_validate_figure_inventory(out, fixture$config))
   pdfs <- list.files(file.path(out, "figures"), pattern = "[.]pdf$", full.names = TRUE)
   pngs <- list.files(file.path(out, "figures"), pattern = "[.]png$", full.names = TRUE)
-  testthat::expect_length(pdfs, 6L)
+  testthat::expect_length(pdfs, 7L)
   testthat::expect_length(pngs, 7L)
   testthat::expect_true(file.exists(file.path(
     out,
     "figures",
     "Figure7_reviewed_GRCh.png"
+  )))
+  testthat::expect_true(file.exists(file.path(
+    out,
+    "figures",
+    "Figure7_reviewed_GRCh.pdf"
   )))
   testthat::expect_true(all(file.info(pngs)$size > 0))
   if (nzchar(Sys.which("pdfinfo"))) {

@@ -401,8 +401,24 @@ figure7_build_context_panels <- function(
       initial_ploidy = "",
       context = "",
       composition = ""
-    )
+    ),
+    repel_cluster_labels = TRUE
   )
+  significance_layers <- which(vapply(
+    si4$plots$composition$layers,
+    function(layer) {
+      label_mapping <- rlang::as_label(layer$mapping$label)
+      identical(label_mapping, "significance")
+    },
+    logical(1L)
+  ))
+  if (length(significance_layers) != 1L) {
+    figure7_stop("Main Figure 7 composition plot lacks one significance layer")
+  }
+  star_layer <- si4$plots$composition$layers[[significance_layers[[1L]]]]
+  star_layer$aes_params$size <- 3.8
+  star_layer$aes_params$fontface <- "bold"
+  si4$plots$composition$layers[[significance_layers[[1L]]]] <- star_layer
   gsea_matrix <- figure7_context_matrix(
     cache$root,
     "si_figure7_cluster_Hallmark_GSEA_NES_heatmap_top20_matrix.tsv",
@@ -411,9 +427,15 @@ figure7_build_context_panels <- function(
   )
   gsea <- shared_context_heatmap_plot(
     gsea_matrix,
-    "Cluster Hallmark GSEA NES",
+    "",
     TRUE,
-    ""
+    "",
+    fontsize_row = 7.25,
+    fontsize_col = 7,
+    reader_labels = TRUE,
+    mark_zero_missing = FALSE,
+    treeheight_row = 20,
+    treeheight_col = 20
   )
 
   if (!is.null(output_dir)) {
@@ -481,42 +503,17 @@ figure7_main_composite_plots <- function(
     figure7_stop("Main Figure 7 panel mapping is not the reviewed A-K order")
   }
 
-  composition <- context_plots$F +
-    ggplot2::labs(
-      title = "Equal-sample cluster composition by context",
-      subtitle = paste0(
-        "Equal sample weights; stars: context enrichment\n",
-        "within initial-ploidy strata (BH FDR <= 0.05)"
-      )
-    ) +
-    ggplot2::theme(legend.position = "bottom")
-  tgi_shift <- source_plots$D +
-    ggplot2::labs(title = paste("Day", figure7_tgi_day(config), "TGI vs centered ECDF shift")) +
-    ggplot2::theme(legend.position = "bottom")
-  tgi_ploidy <- source_plots$E +
-    ggplot2::labs(
-      title = paste(
-        "Day", figure7_tgi_day(config),
-        "TGI vs mean endpoint tumor-cell ploidy"
-      ),
-      subtitle = paste0(
-        "5,335 QC-passed treated-tumor cells; ",
-        "unadjusted mouse-level Pearson association"
-      )
-    ) +
-    ggplot2::theme(legend.position = "bottom")
-
   list(
     A = source_plots$A,
     B = source_plots$C,
     C = context_plots$C,
     D = context_plots$D,
     E = context_plots$E,
-    F = composition,
+    F = context_plots$F,
     G = context_plots$G,
     H = source_plots$B,
     I = state_pathway_plot,
-    J = tgi_shift,
-    K = tgi_ploidy
+    J = source_plots$D,
+    K = source_plots$E
   )
 }
