@@ -55,10 +55,8 @@ figure7_growth_curve_input="Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx"
 figure7_download_missing_raw=true
 si_figures_intermediate_dir=""
 si_figures_cbs_dir="Data/in-vivo/scRNAseq_Numbat"
-figure7_historical_reference_id="taoli_04i_etp2_24_day17_v1"
 figure7_reviewed_reference_id="state_pathway_grch_human_only_initial_ploidy_day17_v3"
 figure7_reviewed_reference_kind="reviewed_human_only_initial_ploidy_frozen"
-figure7_state_pathway_results_root=""
 figure7_canonical_reference_root="${FIGURE7_CANONICAL_REFERENCE_ROOT:-Data/in-vivo/figure7/saved_state_pathway/${figure7_reviewed_reference_id}}"
 figure7_reference_root="${figure7_canonical_reference_root}"
 skip_analysis_loop=false
@@ -115,8 +113,6 @@ Module options:
   --figure7-no-download-missing-raw Do not download missing deposited raw files
   --si-figures-intermediate-dir DIR Reusable SI4-7 raw-analysis intermediates
   --si-figures-cbs-dir DIR       Tracked downstream NUMBAT/CBS matrices for SI6E
-  --figure7-state-pathway-results-root PATH
-                                  Export the historical mixed-v1 panel-7F audit reference from this 04i result tree
 EOF
 }
 
@@ -174,7 +170,6 @@ while [[ $# -gt 0 ]]; do
     --figure7-no-download-missing-raw) figure7_download_missing_raw=false; shift ;;
     --si-figures-intermediate-dir) si_figures_intermediate_dir="$2"; shift 2 ;;
     --si-figures-cbs-dir) si_figures_cbs_dir="$2"; shift 2 ;;
-    --figure7-state-pathway-results-root) figure7_state_pathway_results_root="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -275,34 +270,6 @@ if [[ "${mode}" == "full-refit" &&
     done
     module_list=("${reordered_modules[@]}")
   fi
-fi
-if [[ -n "${figure7_state_pathway_results_root}" ]]; then
-  if [[ "${mode}" == "panels-only" ]]; then
-    echo "--figure7-state-pathway-results-root cannot be used with --mode panels-only" >&2
-    exit 2
-  fi
-  if [[ "${figure7_panels_ae_only}" == true ]]; then
-    echo "--figure7-state-pathway-results-root cannot be used with --figure7-panels-ae-only" >&2
-    exit 2
-  fi
-  figure7_module_selected=false
-  for module in "${module_list[@]}"; do
-    if [[ "${module}" == "in_vivo_figure7" ]]; then
-      figure7_module_selected=true
-      break
-    fi
-  done
-  if [[ "${figure7_module_selected}" != true ]]; then
-    echo "--figure7-state-pathway-results-root requires --modules to include in_vivo_figure7" >&2
-    exit 2
-  fi
-  if [[ ! -d "${figure7_state_pathway_results_root}" ]]; then
-    echo "Missing Figure 7 state-pathway results directory: ${figure7_state_pathway_results_root}" >&2
-    exit 1
-  fi
-  figure7_state_pathway_results_root="$(
-    python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${figure7_state_pathway_results_root}"
-  )"
 fi
 
 quote_args() {
@@ -810,10 +777,6 @@ input_paths_for_module() {
       if [[ "${figure7_full_analysis}" == true ]]; then
         printf "%s\n" "${figure7_seurat_rds}" "${figure7_gene_set_artifact}"
       fi
-      if [[ -n "${figure7_state_pathway_results_root}" ]]; then
-        printf "%s\n" \
-          Code/in-vivo/figure7/export_04i_state_pathway_reference.R
-      fi
 
       local recorded_upstream_manifest_hash=""
       local recorded_upstream_manifest=""
@@ -1174,12 +1137,6 @@ required_input_paths_for_module() {
           "${figure7_cell_ploidy_input}" \
           "${figure7_sample_info_input}" \
           "${figure7_growth_curve_input}"
-        if [[ -n "${figure7_state_pathway_results_root}" &&
-              "${phase}" != "pre-export" ]]; then
-          while IFS= read -r filename; do
-            printf "%s\n" "${figure7_reference_root}/${filename}"
-          done < <(figure7_reference_filenames)
-        fi
       else
         printf "%s\n" \
           Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
@@ -1236,11 +1193,6 @@ check_module_inputs() {
   local module="$1"
   local phase="${2:-final}"
   local path
-  if [[ "${module}" == "in_vivo_figure7" &&
-        -n "${figure7_state_pathway_results_root}" ]]; then
-    require_dir "${figure7_state_pathway_results_root}"
-    require_file Code/in-vivo/figure7/export_04i_state_pathway_reference.R
-  fi
   while IFS= read -r path; do
     [[ -z "${path}" ]] && continue
     if [[ "${endpoint_ploidy_will_be_derived}" == true &&
@@ -1351,12 +1303,6 @@ command_for_module() {
           "--output-dir=${run_dir}"
         )
       elif [[ "${mode}" == "full-refit" ]]; then
-        if [[ -n "${figure7_state_pathway_results_root}" ]]; then
-          echo \
-            "--figure7-state-pathway-results-root is a historical mixed-v1 input and cannot be used by corrected full-refit" \
-            >&2
-          return 1
-        fi
         figure7_args=(
           Rscript Code/in-vivo/figure7/run_figure7.R
           --mode=full-workflow
@@ -1396,11 +1342,6 @@ command_for_module() {
         )
         if [[ "${figure7_panels_ae_only}" != true ]]; then
           figure7_args+=("--saved-state-pathway-dir=${figure7_reference_root}")
-        fi
-        if [[ -n "${figure7_state_pathway_results_root}" ]]; then
-          figure7_args+=(
-            "--state-pathway-results-root=${figure7_state_pathway_results_root}"
-          )
         fi
       fi
       if [[ "${figure7_panels_ae_only}" == true ]]; then
@@ -1570,51 +1511,6 @@ module_is_publishable_run() {
   esac
 }
 
-figure7_reference_export_command() {
-  quote_args Rscript Code/in-vivo/figure7/export_04i_state_pathway_reference.R \
-    "--results-root=${figure7_state_pathway_results_root}" \
-    "--output-dir=${figure7_reference_root}"
-}
-
-record_figure7_reference_export() {
-  local status="$1" command_string="$2" stdout_log="$3" stderr_log="$4" started_at="$5" finished_at="$6"
-  local metadata_path="${manager_run_dir}/metadata/figure7_state_pathway_export.tsv"
-  mkdir -p "$(dirname "${metadata_path}")"
-  {
-    printf "key\tvalue\n"
-    printf "status\t%s\n" "${status}"
-    printf "source_results_root\t%s\n" "${figure7_state_pathway_results_root}"
-    printf "source_report_html\t%s\n" "${figure7_state_pathway_results_root}/report/04i_pseudotime_state_pathways_report.html"
-    printf "historical_reference_id\t%s\n" "${figure7_historical_reference_id}"
-    printf "exported_audit_reference_dir\t%s\n" "${figure7_reference_root}"
-    printf "canonical_data_materialization\tprohibited\n"
-    printf "exporter_script\t%s\n" "Code/in-vivo/figure7/export_04i_state_pathway_reference.R"
-    printf "command\t%s\n" "${command_string}"
-    printf "stdout_log\t%s\n" "${stdout_log}"
-    printf "stderr_log\t%s\n" "${stderr_log}"
-    printf "started_at\t%s\n" "${started_at}"
-    printf "finished_at\t%s\n" "${finished_at}"
-  } > "${metadata_path}"
-}
-
-prepare_figure7_reference() {
-  local command_string stdout_log stderr_log started_at finished_at status
-  command_string="$(figure7_reference_export_command)"
-  stdout_log="${manager_run_dir}/logs/figure7_state_pathway_export.stdout.log"
-  stderr_log="${manager_run_dir}/logs/figure7_state_pathway_export.stderr.log"
-  mkdir -p "${manager_run_dir}/logs" "$(dirname "${figure7_reference_root}")"
-  started_at="$(date -Iseconds)"
-  status=0
-  bash -c "${command_string}" >"${stdout_log}" 2>"${stderr_log}" || status=$?
-  finished_at="$(date -Iseconds)"
-  if [[ "${status}" -eq 0 ]]; then
-    record_figure7_reference_export "ok" "${command_string}" "${stdout_log}" "${stderr_log}" "${started_at}" "${finished_at}"
-  else
-    record_figure7_reference_export "failed" "${command_string}" "${stdout_log}" "${stderr_log}" "${started_at}" "${finished_at}"
-  fi
-  return "${status}"
-}
-
 figure7_reference_filenames() {
   printf "%s\n" \
     panel_7F_pathway_activity_plot_data.tsv \
@@ -1637,19 +1533,9 @@ run_module() {
     module_notes="tgi_day=${figure7_tgi_day};figure_name=${figure7_figure_name}"
   fi
 
-  local input_check_phase="final"
-  if [[ "${module}" == "in_vivo_figure7" &&
-        -n "${figure7_state_pathway_results_root}" ]]; then
-    input_check_phase="pre-export"
-  fi
-  check_module_inputs "${module}" "${input_check_phase}"
+  check_module_inputs "${module}" "final"
 
   if [[ "${dry_run}" == true || "${mode}" == "check-only" ]]; then
-    if [[ "${module}" == "in_vivo_figure7" &&
-          -n "${figure7_state_pathway_results_root}" ]]; then
-      printf "[in_vivo_figure7_export] %s\n" \
-        "$(figure7_reference_export_command)"
-    fi
     printf "[%s] %s\n" "${module}" "${command_string}"
     return 0
   fi
@@ -1662,26 +1548,6 @@ run_module() {
     rm -rf "${run_dir}"
   fi
   mkdir -p "${run_dir}/metadata" "${run_dir}/logs"
-
-  if [[ "${module}" == "in_vivo_figure7" &&
-        -n "${figure7_state_pathway_results_root}" ]]; then
-    local export_status=0
-    prepare_figure7_reference || export_status=$?
-    if [[ "${export_status}" -ne 0 ]]; then
-      local export_finished_at
-      export_finished_at="$(date -Iseconds)"
-      record_module_run \
-        "${module}" "failed" "${command_string}" "${run_dir}" \
-        "${manager_run_dir}/logs/figure7_state_pathway_export.stdout.log" \
-        "${manager_run_dir}/logs/figure7_state_pathway_export.stderr.log" \
-        "state_pathway_export_failed;state_pathway_source_results_root=${figure7_state_pathway_results_root}" \
-        "${export_finished_at}" "${export_finished_at}"
-      echo "Figure 7 state-pathway export failed; see ${manager_run_dir}/logs/figure7_state_pathway_export.stderr.log" >&2
-      return "${export_status}"
-    fi
-    check_module_inputs "${module}" "post-export"
-    module_notes="${module_notes};state_pathway_source_results_root=${figure7_state_pathway_results_root};state_pathway_reference_dir=${figure7_reference_root}"
-  fi
 
   local stdout_log="${run_dir}/logs/stdout.log"
   local stderr_log="${run_dir}/logs/stderr.log"
@@ -1739,11 +1605,6 @@ run_module() {
   python3 Code/tools/validate_manifest.py "${run_dir}/metadata/output_manifest.tsv" \
     --output-root "${run_dir}" --repo-root "${repo_root}"
 
-  if [[ "${module}" == "in_vivo_figure7" &&
-        -n "${figure7_state_pathway_results_root}" ]]; then
-    module_notes="${module_notes};historical_mixed_v1_audit_only=true;canonical_data_materialization=prohibited"
-  fi
-
   local recorded_status="ok"
   if ! module_is_publishable_run "${module}" "${run_dir}"; then
     last_module_publishable=false
@@ -1762,9 +1623,6 @@ run_module() {
 
 manager_run_dir="${output_root}/manager/runs/${run_id}"
 module_runs_file="${manager_run_dir}/metadata/module_runs.tsv"
-if [[ -n "${figure7_state_pathway_results_root}" ]]; then
-  figure7_reference_root="${manager_run_dir}/artifacts/figure7_state_pathway_reference/${figure7_historical_reference_id}"
-fi
 
 validate_module_registry "${module_list[@]}"
 

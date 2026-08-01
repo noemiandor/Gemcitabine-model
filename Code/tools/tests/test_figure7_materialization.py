@@ -964,61 +964,6 @@ class Figure7MaterializationTest(unittest.TestCase):
         )
         self.assertFalse((self.repo / "figures").exists())
 
-    def test_rejects_historical_mixed_v1_spoofed_as_reviewed_v3(
-        self,
-    ) -> None:
-        historical = (
-            REPO_ROOT
-            / "Data/in-vivo/figure7/saved_state_pathway"
-            / "taoli_04i_etp2_24_day17_v1"
-        )
-        reviewed_filenames = {
-            path.name for path in self.reviewed_reference_root.glob("*.tsv")
-            if path.name != "state_pathway_provenance.tsv"
-        }
-        for target in self.run_root.joinpath("tables").glob("*.tsv"):
-            if target.name in reviewed_filenames:
-                target.unlink()
-        (self.run_root / "metadata/state_pathway_provenance.tsv").unlink()
-        for source in historical.glob("*.tsv"):
-            destination = (
-                self.run_root / "metadata" / source.name
-                if source.name == "state_pathway_provenance.tsv"
-                else self.run_root / "tables" / source.name
-            )
-            shutil.copy2(source, destination)
-        result = self._run_materializer()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn(
-            "Canonical Figure 7 materialization is prohibited",
-            result.stderr,
-        )
-        self.assertFalse((self.repo / "figures").exists())
-
-    def test_rejects_explicit_historical_mixed_v1_for_af(self) -> None:
-        run_config_path = self.run_root / "metadata/run_config.tsv"
-        with run_config_path.open(newline="") as handle:
-            rows = list(csv.DictReader(handle, delimiter="\t"))
-        replacements = {
-            "state_pathway_reference_id": "taoli_04i_etp2_24_day17_v1",
-            "state_pathway_reference_kind": "historical_mixed_frozen",
-            "canonical_publication_allowed": "false",
-        }
-        for row in rows:
-            if row["key"] in replacements:
-                row["value"] = replacements[row["key"]]
-        write_tsv(run_config_path, rows, ["key", "value"])
-        self._write_state_provenance(
-            canonical_publication_allowed="false"
-        )
-        result = self._run_materializer()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn(
-            "Canonical Figure 7 materialization is prohibited",
-            result.stderr,
-        )
-        self.assertFalse((self.repo / "figures").exists())
-
     def test_materializes_explicit_ae_run_without_optional_panel_f(self) -> None:
         full_only = [
             spec
@@ -1099,17 +1044,17 @@ class Figure7MaterializationTest(unittest.TestCase):
         )
         self.assertFalse((self.repo / "figures").exists())
 
-    def test_rejects_spoofed_legacy_canonical_identity(self) -> None:
+    def test_rejects_spoofed_canonical_identity(self) -> None:
         write_tsv(
             self.run_root / "metadata/state_pathway_provenance.tsv",
             [
                 {
                     "key": "canonical_reference_id",
-                    "value": "taoli_04i_etp2_24_day17_v1",
+                    "value": "unexpected_reference_id",
                 },
                 {
-                    "key": "code_revision_04i",
-                    "value": "spoof",
+                    "key": "reference_kind",
+                    "value": "unexpected_reference_kind",
                 },
             ],
             ["key", "value"],

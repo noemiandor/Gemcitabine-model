@@ -414,7 +414,7 @@ FIGURE7_REVIEWED_FILES = {
     "state_pathway_gsea_complete.tsv": "639d79ce9d9116d4c93fc2a5108a8973dd8e7416f826de29c92479e5445912df",
     "state_pathway_sample_bin_coverage.tsv": "0ef5470eca70272bacdbbd0d416b21a9ad4f9e448ac172cad4ba06cb7f2719aa",
     "state_pathway_design_qc.tsv": "8c039ed4ec4e986f2e5f917a88dfade395556b17c31132d889fbbf3a83b44ce6",
-    "state_pathway_provenance.tsv": "da394f469a4c3777b33adbfa90d890115a04de05d8cde09c604d34664ca03c47",
+    "state_pathway_provenance.tsv": "6223465704473a326cdc55d6fded7532d9ab041589117d24702df352df3f05d3",
 }
 SI7_REVIEWED_FEATURE_POLICY = (
     "Human tumor/cell-line analysis: retain exact GRCh38-prefixed features "

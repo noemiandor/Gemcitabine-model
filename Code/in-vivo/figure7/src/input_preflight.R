@@ -219,19 +219,6 @@ figure7_workflow_paths <- function(args, repo_root, output_dir, config) {
     saved_reference = saved_reference,
     saved_reference_explicit =
       !is.null(args[["saved_state_pathway_dir"]]),
-    frozen_reference = figure7_workflow_path(
-      figure7_arg(
-        args,
-        "frozen-state-pathway-dir",
-        file.path(
-          as.character(config$state_pathways$reference_root),
-          as.character(config$state_pathways$reference_id)
-        )
-      ),
-      repo_root
-    ),
-    frozen_reference_explicit =
-      !is.null(args[["frozen_state_pathway_dir"]]),
     state_stage_manifest = file.path(
       state_pathway_root,
       "00_manifest",
@@ -1378,17 +1365,6 @@ figure7_cell_pair_has_canonical_hashes <- function(paths, config) {
     )
 }
 
-figure7_historical_reference_valid <- function(path, config) {
-  !is.null(tryCatch(
-    figure7_validate_historical_state_reference(
-      path,
-      config,
-      verify_checksums = TRUE
-    ),
-    error = function(error) NULL
-  ))
-}
-
 figure7_select_cell_pair <- function(
   paths,
   config_path,
@@ -1473,20 +1449,6 @@ figure7_preflight_workflow <- function(
   paths <- selection$paths
   cell_pair_ready <- isTRUE(selection$ready)
 
-  historical_reference_ready <- isTRUE(include_panel_f) &&
-    figure7_historical_reference_valid(paths$frozen_reference, config)
-  if (isTRUE(include_panel_f) &&
-      isTRUE(paths$frozen_reference_explicit)) {
-    figure7_stop(
-      "Full-workflow panel 7F cannot use an explicit frozen publication ",
-      "reference; omit --frozen-state-pathway-dir so a generated ",
-      "GRCh-only v2 reference is built or reused"
-    )
-  }
-  # Full-workflow is the corrected recomputation path. The byte-pinned v1
-  # reference remains renderable for historical audit, but it must never
-  # short-circuit GRCh-only model generation.
-  frozen_reference_ready <- FALSE
   scvelo_bundle_paths <- c(
     paths$scvelo_metrics,
     paths$scvelo_stage_manifest
@@ -1530,7 +1492,6 @@ figure7_preflight_workflow <- function(
   }
 
   saved_reference_ready <- isTRUE(include_panel_f) &&
-    !frozen_reference_ready &&
     !isTRUE(overwrite_intermediates) &&
     figure7_saved_reference_match_inputs(
       paths$saved_reference,
@@ -1539,18 +1500,15 @@ figure7_preflight_workflow <- function(
       config_path
     )
   state_results_ready <- isTRUE(include_panel_f) &&
-    !frozen_reference_ready &&
     !saved_reference_ready &&
     !isTRUE(overwrite_intermediates) &&
     figure7_state_results_match_inputs(paths, config_path, config)
   needs_scvelo <- !cell_pair_ready && !has_scvelo
   needs_cell_tables <- !cell_pair_ready
   needs_state <- isTRUE(include_panel_f) &&
-    !frozen_reference_ready &&
     !saved_reference_ready &&
     !state_results_ready
   needs_export <- isTRUE(include_panel_f) &&
-    !frozen_reference_ready &&
     !saved_reference_ready
   needs_loom <- needs_scvelo
   needs_seurat <- needs_scvelo || needs_state
@@ -1697,8 +1655,6 @@ figure7_preflight_workflow <- function(
 
   f_state <- if (!isTRUE(include_panel_f)) {
     ""
-  } else if (frozen_reference_ready) {
-    "frozen_reference_ready"
   } else if (saved_reference_ready) {
     "generated_reference_ready"
   } else if (state_results_ready) {
@@ -1730,8 +1686,6 @@ figure7_preflight_workflow <- function(
     seurat_selection = seurat_selection,
     needs_scvelo = needs_scvelo,
     needs_cell_tables = needs_cell_tables,
-    frozen_reference_ready = frozen_reference_ready,
-    historical_reference_ready = historical_reference_ready,
     saved_reference_ready = saved_reference_ready,
     state_results_ready = state_results_ready,
     needs_state = needs_state,

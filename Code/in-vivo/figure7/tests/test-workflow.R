@@ -177,7 +177,6 @@ testthat::test_that("missing raw inputs fail before creating output when downloa
   # those are intentionally read-only and must not trigger regeneration.
   paths$frozen_cellcycle <- tempfile("figure7_missing_cellcycle_")
   paths$frozen_noncellcycle <- tempfile("figure7_missing_noncellcycle_")
-  paths$frozen_reference <- tempfile("figure7_missing_state_reference_")
   testthat::expect_error(
     figure7_preflight_workflow(
       paths,
@@ -724,7 +723,11 @@ testthat::test_that("scVelo and state caches attest absent Seurat ancestors", {
 testthat::test_that("generated references attest a removed state tree", {
   config_path <- file.path(module_dir, "figure7_config.yaml")
   config <- figure7_read_config(config_path)
-  reviewed <- figure7_test_state_reference()
+  source <- file.path(
+    repo_root,
+    config$state_pathways$reviewed_reference_root,
+    config$state_pathways$generated_reference_id
+  )
   root <- tempfile("figure7_generated_reference_")
   dir.create(root)
   reference <- file.path(
@@ -737,144 +740,20 @@ testthat::test_that("generated references attest a removed state tree", {
     "state_pathway_provenance.tsv"
   )
   testthat::expect_true(all(file.copy(
-    file.path(reviewed$path, compact_files),
+    file.path(source, compact_files),
     file.path(reference, compact_files)
   )))
   complete_gsea_path <- file.path(
     reference,
     "state_pathway_gsea_complete.tsv"
   )
-  complete_gsea <- figure7_read_tsv(complete_gsea_path)
-  nonsignificant_hallmark <- complete_gsea$collection_id == "H" &
-    complete_gsea$pathway_id %in% paste0("H_positive_", 2:4)
-  complete_gsea$pval[nonsignificant_hallmark] <- c(0.6, 0.7, 0.8)
-  complete_gsea$padj <- ave(
-    complete_gsea$pval,
-    complete_gsea$collection_id,
-    FUN = function(pvalue) stats::p.adjust(pvalue, method = "BH")
-  )
-  complete_gsea$model_id <- as.character(config$state_pathways$model)
-  figure7_write_tsv(complete_gsea, complete_gsea_path)
-
-  complete_keys <- paste(
-    complete_gsea$collection_id,
-    complete_gsea$pathway_id,
-    sep = "\r"
-  )
-  removed_keys <- paste(
-    "H",
-    paste0("H_positive_", 2:4),
-    sep = "\r"
-  )
   selected_path <- file.path(
     reference,
     "panel_7F_selected_pathway_gsea.tsv"
   )
-  selected <- figure7_read_tsv(selected_path)
-  selected_keys <- paste(
-    selected$collection_id,
-    selected$pathway_id,
-    sep = "\r"
-  )
-  selected <- selected[!selected_keys %in% removed_keys, , drop = FALSE]
-  selected_keys <- paste(
-    selected$collection_id,
-    selected$pathway_id,
-    sep = "\r"
-  )
-  selected$padj <- complete_gsea$padj[
-    match(selected_keys, complete_keys)
-  ]
-  expected_selection <- figure7_select_generated_pathways(
-    complete_gsea,
-    config
-  )
-  expected_keys <- paste(
-    expected_selection$collection_id,
-    expected_selection$pathway_id,
-    sep = "\r"
-  )
-  selected <- selected[
-    match(expected_keys, selected_keys),
-    ,
-    drop = FALSE
-  ]
-  selected_keys <- expected_keys
-  selected$pathway_display_order <- seq_len(nrow(selected))
-  figure7_write_tsv(selected, selected_path)
-
   activity_path <- file.path(
     reference,
     "panel_7F_pathway_activity_plot_data.tsv"
-  )
-  activity <- figure7_read_tsv(activity_path)
-  activity_keys <- paste(
-    activity$collection_id,
-    activity$pathway_id,
-    sep = "\r"
-  )
-  activity <- activity[!activity_keys %in% removed_keys, , drop = FALSE]
-  activity_keys <- paste(
-    activity$collection_id,
-    activity$pathway_id,
-    sep = "\r"
-  )
-  activity$pathway_display_order <- selected$pathway_display_order[
-    match(activity_keys, selected_keys)
-  ]
-  activity <- activity[
-    order(activity$pathway_display_order, activity$pseudotime),
-    ,
-    drop = FALSE
-  ]
-  figure7_write_tsv(activity, activity_path)
-
-  leading_path <- file.path(
-    reference,
-    "panel_7F_leading_edge_genes.tsv"
-  )
-  leading <- figure7_read_tsv(leading_path)
-  leading_keys <- paste(
-    leading$collection_id,
-    leading$pathway_id,
-    sep = "\r"
-  )
-  leading <- leading[!leading_keys %in% removed_keys, , drop = FALSE]
-  figure7_write_tsv(leading, leading_path)
-
-  ranking_path <- file.path(
-    reference,
-    "state_pathway_gene_ranking_complete.tsv"
-  )
-  ranking_rows <- seq_len(10001L)
-  figure7_write_tsv(
-    data.frame(
-      rank = ranking_rows,
-      gene_id = paste0("GRCh38-GENE", ranking_rows),
-      gene_symbol = paste0("GENE", ranking_rows),
-      moderated_t = seq(5, -5, length.out = length(ranking_rows)),
-      model_id = as.character(config$state_pathways$model),
-      stringsAsFactors = FALSE
-    ),
-    ranking_path
-  )
-  figure7_write_tsv(
-    data.frame(
-      model_id = as.character(config$state_pathways$model),
-      covariate_mode = "initial_ploidy",
-      initial_ploidy_levels = "2N;4N",
-      retained_design_columns = paste(
-        c(
-          "(Intercept)", paste0("pt_spline", 1:5),
-          "dose_mg_factor30", "dose_mg_factor120",
-          "initial_ploidy_factor4N"
-        ),
-        collapse = ";"
-      ),
-      rank_deficient = FALSE,
-      stringsAsFactors = FALSE
-    ),
-    file.path(reference, "state_pathway_design_qc.tsv")
   )
 
   cellcycle <- file.path(root, "cellcycle.csv")
@@ -892,14 +771,15 @@ testthat::test_that("generated references attest a removed state tree", {
     sub("[.]tsv$", "", compact_files),
     "_sha256"
   )
-  provenance <- c(
-    reference_kind =
-      as.character(config$state_pathways$generated_reference_kind),
-    canonical_publication_allowed = "false",
-    generated_reference_id =
-      as.character(config$state_pathways$generated_reference_id),
-    source_code_revision =
-      paste0("sha256:", paste(rep("a", 64L), collapse = "")),
+  provenance <- figure7_read_tsv(
+    file.path(source, "state_pathway_provenance.tsv"),
+    c("key", "value")
+  )
+  provenance_value <- stats::setNames(
+    as.character(provenance$value),
+    provenance$key
+  )
+  updated_values <- c(
     exporter_script_sha256 = figure7_sha256(file.path(
       module_dir,
       "export_state_pathway_reference.R"
@@ -912,90 +792,22 @@ testthat::test_that("generated references attest a removed state tree", {
     seurat_rds_sha256 = figure7_sha256(seurat_rds),
     cellcycle_metadata_sha256 = figure7_sha256(cellcycle),
     noncellcycle_metadata_sha256 = figure7_sha256(noncellcycle),
-    assay = as.character(config$state_pathways$assay),
-    counts_layer = as.character(config$state_pathways$counts_layer),
-    nuisance_policy = "injected_initial_ploidy_only_no_endpoint_cn_score",
-    initial_ploidy_levels = "2N,4N",
-    endpoint_cn_score_covariate_prohibited = "true",
-    nuisance_terms = paste(
-      as.character(unlist(config$state_pathways$nuisance_terms)),
-      collapse = ","
-    ),
-    model_id = as.character(config$state_pathways$model),
-    spline_df = as.character(config$state_pathways$spline_df),
-    pseudotime_bins = as.character(config$state_pathways$pseudotime_bins),
-    minimum_cells_per_sample_bin = as.character(
-      config$state_pathways$minimum_cells_per_sample_bin
-    ),
-    grid_size = as.character(config$state_pathways$grid_size),
-    seed = as.character(config$statistics$seed),
-    gene_set_source = "msigdbr",
-    gene_set_species = "Homo sapiens",
-    gene_set_collections = paste(
-      as.character(unlist(config$state_pathways$collections)),
-      collapse = ","
-    ),
-    gene_set_release = as.character(config$gene_sets$database_release),
-    msigdbr_package_version =
-      as.character(config$gene_sets$package_version),
-    gene_set_membership_sha256 = paste(rep("b", 64L), collapse = ""),
     figure7_config_sha256 = figure7_sha256(config_path),
     figure7_config_contract_sha256 =
       figure7_state_config_contract_sha256(config),
-    feature_species_policy_id =
-      as.character(config$feature_species$policy_id),
-    feature_species_policy =
-      as.character(config$state_pathways$generated_feature_species_policy),
-    human_feature_prefix =
-      as.character(config$feature_species$human_prefix),
-    mouse_feature_prefix =
-      as.character(config$feature_species$mouse_prefix),
-    unknown_feature_policy =
-      as.character(config$feature_species$unknown_feature_policy),
-    n_input_features = "13001",
-    n_human_features_retained = "10001",
-    n_mouse_features_excluded = "3000",
-    n_ambiguous_features = "0",
-    feature_species_audit_sha256 = paste(rep("c", 64L), collapse = ""),
     feature_species_policy_code_sha256 = figure7_sha256(file.path(
       module_dir,
       "src",
       "feature_species_policy.R"
     )),
-    gsea_nperm_simple =
-      as.character(config$state_pathways$gsea_nperm_simple),
-    gsea_nperm_simple_max =
-      as.character(config$state_pathways$gsea_nperm_simple_max),
-    gsea_nperm_simple_multiplier =
-      as.character(config$state_pathways$gsea_nperm_simple_multiplier),
-    gsea_nperm_simple_usage = paste0(
-      config$state_pathways$gsea_nperm_simple,
-      ":",
-      nrow(figure7_read_tsv(file.path(
-        reference,
-        "state_pathway_gsea_complete.tsv"
-      )))
-    ),
-    gsea_adaptive_retry_rule = paste(
-      "retry only unresolved pathways at geometric nPermSimple",
-      "increments; merge by pathway; recompute collection-wide BH;",
-      "fail closed at cap"
-    ),
-    pathway_selection_fdr_threshold =
-      as.character(figure7_generated_pathway_fdr_threshold()),
-    pathway_selection_rule = figure7_generated_pathway_selection_rule(),
-    activity_table_sha256 = figure7_sha256(file.path(
-      reference,
-      "panel_7F_pathway_activity_plot_data.tsv"
-    )),
+    activity_table_sha256 = figure7_sha256(activity_path),
     stats::setNames(compact_hashes, compact_hash_keys)
   )
+  testthat::expect_true(all(names(updated_values) %in% names(provenance_value)))
+  provenance_value[names(updated_values)] <- updated_values
+  provenance$value <- unname(provenance_value[provenance$key])
   figure7_write_tsv(
-    data.frame(
-      key = names(provenance),
-      value = unname(provenance),
-      stringsAsFactors = FALSE
-    ),
+    provenance,
     file.path(reference, "state_pathway_provenance.tsv")
   )
 

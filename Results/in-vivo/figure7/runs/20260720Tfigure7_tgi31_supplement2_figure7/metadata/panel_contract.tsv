@@ -1,7 +1,0 @@
-panel_id	filename	tgi_outcome	tgi_day	tgi_measure	matched_control_summary	matched_control_group
-7A	panel_7A_day31_tgi_calculation.pdf	day	31	TGI_percent_Day_31	mean	initial_ploidy
-7B	panel_7B_cellcycle_selected_ecdf_comparisons.pdf	day	31	TGI_percent_Day_31	mean	initial_ploidy
-7C	panel_7C_day31_tgi_by_initial_ploidy.pdf	day	31	TGI_percent_Day_31	mean	initial_ploidy
-7D	panel_7D_day31_tgi_vs_centered_ecdf_shift.pdf	day	31	TGI_percent_Day_31	mean	initial_ploidy
-7E	panel_7E_day31_tgi_vs_mean_etp.pdf	day	31	TGI_percent_Day_31	mean	initial_ploidy
-7F	panel_7F_pseudotime_state_pathway_activity.pdf	day	31	TGI_percent_Day_31	mean	initial_ploidy

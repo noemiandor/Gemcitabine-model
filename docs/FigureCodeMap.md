@@ -119,8 +119,7 @@ human-only reference
 exact `GRCh38-` features before expression filtering and modeling, uses Homo
 sapiens MSigDB 2026.1.Hs collections, and displays only
 pathways with collection-wide BH-FDR <= 0.05, up to four per direction without
-nonsignificant backfill. The historical mixed-feature v1 reference remains
-audit-only. The module also validates the reviewed 11-table SI cache and uses
+nonsignificant backfill. The module also validates the reviewed 11-table SI cache and uses
 `shared_context_panels.R` to promote SI4A-C/E and SI7B into
 `Figure7_reviewed_GRCh.png`. The A-K display order is frozen to first citation:
 A=source 7A, B=source 7C, C-E=SI4A-C, F=SI4E, G=SI7B, H=source 7B,

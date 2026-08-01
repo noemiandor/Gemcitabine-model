@@ -1,16 +1,21 @@
 testthat::test_that("panel-F compact reference contract validates and selector is audited", {
-  fixture <- figure7_test_state_reference()
-  reference <- figure7_validate_historical_state_reference(
+  fixture <- figure7_test_reviewed_state_reference()
+  reference <- figure7_validate_reviewed_state_reference(
     fixture$path,
     fixture$config
   )
-  testthat::expect_equal(nrow(reference$pathways), 24L)
+  testthat::expect_equal(nrow(reference$pathways), 21L)
   testthat::expect_s3_class(figure7_panel_f_plot(reference$activity, fixture$config), "ggplot")
+  collision_keys <- unlist(lapply(
+    c("H", "C2:CP:REACTOME"),
+    function(collection) {
+      reference$pathways$pathway_id[
+        match(collection, reference$pathways$collection_id)
+      ]
+    }
+  ))
   collision_activity <- reference$activity[
-    reference$activity$pathway_id %in% c(
-      "H_positive_1",
-      "C2:CP:REACTOME_positive_1"
-    ),
+    reference$activity$pathway_id %in% collision_keys,
     ,
     drop = FALSE
   ]
@@ -24,43 +29,16 @@ testthat::test_that("panel-F compact reference contract validates and selector i
     nlevels(collision_plot$data$pathway_plot_key),
     2L
   )
-  bad <- reference$selected; bad$selected_rank_within_direction[[1L]] <- 4L
+  bad <- reference$selected
+  bad$selected_rank_within_direction[[1L]] <- 99L
   figure7_write_tsv(bad, file.path(fixture$path, "panel_7F_selected_pathway_gsea.tsv"))
-  testthat::expect_error(figure7_validate_historical_state_reference(fixture$path, fixture$config, verify_checksums = FALSE),
-                         "metadata/order|top-four")
-})
-
-testthat::test_that("tracked historical 04i reference validates exact report lineage", {
-  input <- figure7_test_inputs()
-  reference_path <- file.path(
-    repo_root,
-    input$config$state_pathways$reference_root,
-    input$config$state_pathways$reference_id
-  )
-  reference <- figure7_validate_historical_state_reference(
-    reference_path,
-    input$config
-  )
-  provenance <- stats::setNames(as.character(reference$provenance$value), reference$provenance$key)
-
-  testthat::expect_equal(nrow(reference$activity), 24L * 501L)
-  testthat::expect_equal(nrow(reference$selected), 24L)
-  testthat::expect_identical(provenance[["canonical_reference_id"]], "taoli_04i_etp2_24_day17_v1")
-  testthat::expect_identical(provenance[["workflow_id"]], "binning")
-  testthat::expect_identical(provenance[["model_id"]], "ETP_reference_balanced_threshold_2_24")
-  testthat::expect_identical(provenance[["accumulated_interval"]], "[0.30,0.49]")
-  testthat::expect_identical(
-    provenance[["report_html_sha256"]],
-    "b9644b1da0399043a6aba28178a2b61375b661780c4fb08a148c7724da00bfa1"
-  )
-  testthat::expect_identical(
-    provenance[["code_revision_04i"]],
-    "dc751eab928bc40f3edb063baec447fe32a69d73"
-  )
-  testthat::expect_false(any(c("report_html_path", "export_source_results_root") %in% names(provenance)))
-  testthat::expect_identical(
-    provenance[["source_primary_coverage_sha256"]],
-    "9fecc5339a86cf2e072dccfb05358580fc0db25fd3a8e9f71af301a8ea423141"
+  testthat::expect_error(
+    figure7_validate_reviewed_state_reference(
+      fixture$path,
+      fixture$config,
+      verify_checksums = FALSE
+    ),
+    "metadata/order|configured selector"
   )
 })
 
@@ -115,7 +93,7 @@ testthat::test_that("tracked v3 candidate uses injected initial ploidy and GRCh-
   input <- figure7_test_inputs()
   reference_path <- file.path(
     repo_root,
-    input$config$state_pathways$reference_root,
+    input$config$state_pathways$reviewed_reference_root,
     input$config$state_pathways$generated_reference_id
   )
   reference <- figure7_validate_generated_state_reference(
@@ -193,7 +171,7 @@ testthat::test_that("reviewed v3 is the exact promoted initial-ploidy-adjusted r
   )
   candidate_path <- file.path(
     repo_root,
-    input$config$state_pathways$reference_root,
+    input$config$state_pathways$reviewed_reference_root,
     input$config$state_pathways$generated_reference_id
   )
   reviewed <- figure7_validate_reviewed_state_reference(
@@ -273,24 +251,28 @@ testthat::test_that("reviewed v3 rejects provenance or selected-table tampering"
 })
 
 testthat::test_that("canonical provenance is location-independent and always checksummed", {
-  fixture <- figure7_test_state_reference()
+  fixture <- figure7_test_reviewed_state_reference()
   provenance_path <- file.path(fixture$path, "state_pathway_provenance.tsv")
   provenance <- figure7_read_tsv(provenance_path, c("key", "value"))
   provenance <- rbind(
     provenance,
-    data.frame(key = "export_source_results_root", value = "/runtime/04i/results", stringsAsFactors = FALSE)
+    data.frame(
+      key = "runtime_source_root",
+      value = "/runtime/generated/results",
+      stringsAsFactors = FALSE
+    )
   )
   figure7_write_tsv(provenance, provenance_path)
 
   testthat::expect_error(
-    figure7_validate_historical_state_reference(
+    figure7_validate_reviewed_state_reference(
       fixture$path,
       fixture$config
     ),
     "SHA-256 mismatch"
   )
   testthat::expect_error(
-    figure7_validate_historical_state_reference(
+    figure7_validate_reviewed_state_reference(
       fixture$path,
       fixture$config,
       verify_checksums = FALSE
@@ -320,10 +302,13 @@ testthat::test_that("TSV helpers round-trip multiline annotations without malfor
 
 testthat::test_that("missing F, wrong checksums, and nonempty outputs fail clearly", {
   input <- figure7_test_inputs()
-  missing <- file.path(tempdir(), input$config$state_pathways$reference_id)
+  missing <- file.path(
+    tempdir(),
+    input$config$state_pathways$reviewed_reference_id
+  )
   testthat::expect_error(
-    figure7_validate_historical_state_reference(missing, input$config),
-    "Missing historical panel-7F"
+    figure7_validate_reviewed_state_reference(missing, input$config),
+    "Missing reviewed human-only panel-7F"
   )
   wrong <- tempfile(); writeLines("wrong", wrong)
   testthat::expect_error(figure7_verify_checksum(wrong, paste(rep("0", 64), collapse = "")), "SHA-256 mismatch")
@@ -340,8 +325,9 @@ testthat::test_that("entire-run image inventory is exact", {
 })
 
 testthat::test_that("full source panels plus the A-K composite satisfy the exact inventory", {
-  input <- figure7_test_inputs(); fixture <- figure7_test_state_reference()
-  reference <- figure7_validate_historical_state_reference(
+  input <- figure7_test_inputs()
+  fixture <- figure7_test_reviewed_state_reference()
+  reference <- figure7_validate_reviewed_state_reference(
     fixture$path,
     fixture$config
   )
@@ -402,7 +388,13 @@ testthat::test_that("entrypoint fails before output when canonical F is unavaila
     paste0("--config=", file.path(module_dir, "figure7_config.yaml")),
     paste0("--cellcycle-input=", file.path(repo_root, "Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv")),
     paste0("--non-cellcycle-input=", file.path(repo_root, "Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv")),
-    paste0("--saved-state-pathway-dir=", file.path(tempdir(), input$config$state_pathways$reference_id)),
+    paste0(
+      "--saved-state-pathway-dir=",
+      file.path(
+        tempdir(),
+        input$config$state_pathways$reviewed_reference_id
+      )
+    ),
     paste0("--output-dir=", out))
   status <- suppressWarnings(system2(file.path(R.home("bin"), "Rscript"), args, stdout = TRUE, stderr = TRUE))
   testthat::expect_true(!is.null(attr(status, "status")) && attr(status, "status") != 0L)

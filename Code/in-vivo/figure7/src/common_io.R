@@ -642,10 +642,6 @@ figure7_read_config <- function(path, tgi_day = NULL) {
     )
   }
   state_identity <- c(
-    reference_id = as.character(state$reference_id),
-    reference_kind = as.character(state$reference_kind),
-    reference_canonical_publication_allowed =
-      tolower(as.character(state$reference_canonical_publication_allowed)),
     reviewed_reference_id =
       as.character(state$reviewed_reference_id),
     reviewed_reference_kind =
@@ -662,9 +658,6 @@ figure7_read_config <- function(path, tgi_day = NULL) {
       tolower(as.character(state$generated_canonical_publication_allowed))
   )
   expected_state_identity <- c(
-    reference_id = "taoli_04i_etp2_24_day17_v1",
-    reference_kind = "historical_mixed_frozen",
-    reference_canonical_publication_allowed = "false",
     reviewed_reference_id =
       "state_pathway_grch_human_only_initial_ploidy_day17_v3",
     reviewed_reference_kind =
@@ -678,7 +671,7 @@ figure7_read_config <- function(path, tgi_day = NULL) {
   )
   if (!identical(state_identity, expected_state_identity)) {
     figure7_stop(
-      "Panel-7F historical/reviewed/generated publication identity is invalid"
+      "Panel-7F reviewed/generated publication identity is invalid"
     )
   }
   if (!identical(
@@ -875,7 +868,6 @@ figure7_state_config_contract_sha256 <- function(config) {
     setdiff(
       names(config$state_pathways),
       c(
-        "reference_id", "reference_root", "expected_files",
         "comparison_tolerances", "generated_reference_id",
         "generated_reference_kind",
         "generated_canonical_publication_allowed",

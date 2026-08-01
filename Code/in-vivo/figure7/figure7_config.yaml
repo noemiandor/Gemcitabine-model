@@ -119,9 +119,6 @@ intervals:
     include_end: true
     source: "equal-width state immediately after the primary interval"
 state_pathways:
-  reference_id: taoli_04i_etp2_24_day17_v1
-  reference_kind: historical_mixed_frozen
-  reference_canonical_publication_allowed: false
   reviewed_reference_id: state_pathway_grch_human_only_initial_ploidy_day17_v3
   reviewed_reference_kind: reviewed_human_only_initial_ploidy_frozen
   reviewed_reference_canonical_publication_allowed: true
@@ -130,7 +127,6 @@ state_pathways:
   generated_reference_kind: generated_human_only_initial_ploidy_frozen_candidate
   generated_canonical_publication_allowed: false
   generated_feature_species_policy: "Retain exact GRCh38-prefixed counts and exclude exact GRCm39-prefixed counts before pseudobulk construction, expression filtering, model fitting, symbol cleanup, duplicate resolution, and Homo sapiens GSEA; reject unrecognized feature prefixes."
-  reference_root: Data/in-vivo/figure7/saved_state_pathway
   model: initial_ploidy_adjusted_grch_human_only_v3
   accumulated_interval: {start: 0.30, end: 0.49, include_start: true, include_end: true}
   left_neighbor: {start: 0.11, end: 0.30, include_start: true, include_end: false}
@@ -157,17 +153,7 @@ state_pathways:
   collections: [H, "C2:CP:REACTOME", "C5:GO:BP"]
   top_positive_per_collection: 4
   top_negative_per_collection: 4
-  pathway_selector: "finite adjusted P; no FDR cutoff; top four per sign and collection"
   reviewed_pathway_selector: "BH-adjusted P <= 0.05; up to top four per sign and collection; no nonsignificant backfill"
-  expected_files:
-    panel_7F_pathway_activity_plot_data.tsv: 0ab4631d00126b7ad3c8e8f653102c0ed69f03d6db0a6db605198bc0b993ee3c
-    panel_7F_selected_pathway_gsea.tsv: eed1418505ff120f2212b59d337833bb42e5cdeaadeff053b7fb94e66ea062e0
-    panel_7F_leading_edge_genes.tsv: 270e352e506664d44f61ebea3af5d36270c33f9806baaf224580a8e5c8342a41
-    state_pathway_gene_ranking_complete.tsv: fc8f1f8a24915e91c108e026b71d61ab1222dee2ce9469e48984d53a295e4738
-    state_pathway_gsea_complete.tsv: 0439be2fc152e7a3f0a070410bfa0cfdc01a30624b09d453e9511b031c065e36
-    state_pathway_sample_bin_coverage.tsv: b42694cd910b5faf6a5b9e5add8a90b06f5207317df98f2969cf57887027e8d8
-    state_pathway_design_qc.tsv: 156cc8b7aaeb56866c258c6d6433635b881040691ab816fc7c5edc7cd5048b4c
-    state_pathway_provenance.tsv: bb8f08f9afd0786216babcd5c38d577caa6fd41c4f1d52f28e54d8558c66b424
   reviewed_expected_files:
     panel_7F_pathway_activity_plot_data.tsv: 9913d66a911275fe5c347a6048e0eabc39ec57ff8298eedb18b4b4f4c43c7932
     panel_7F_selected_pathway_gsea.tsv: 39a1e243725b70f7d8dd907584a5d6f5049d3e84149678b11f985783178a99f0
@@ -176,7 +162,7 @@ state_pathways:
     state_pathway_gsea_complete.tsv: 639d79ce9d9116d4c93fc2a5108a8973dd8e7416f826de29c92479e5445912df
     state_pathway_sample_bin_coverage.tsv: 0ef5470eca70272bacdbbd0d416b21a9ad4f9e448ac172cad4ba06cb7f2719aa
     state_pathway_design_qc.tsv: 8c039ed4ec4e986f2e5f917a88dfade395556b17c31132d889fbbf3a83b44ce6
-    state_pathway_provenance.tsv: da394f469a4c3777b33adbfa90d890115a04de05d8cde09c604d34664ca03c47
+    state_pathway_provenance.tsv: 6223465704473a326cdc55d6fded7532d9ab041589117d24702df352df3f05d3
   comparison_tolerances:
     absolute: 1.0e-10
     relative: 1.0e-6

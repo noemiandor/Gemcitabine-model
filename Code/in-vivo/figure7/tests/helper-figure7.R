@@ -43,141 +43,20 @@ figure7_test_inputs <- local({
   }
 })
 
-figure7_test_state_reference <- function() {
+figure7_test_reviewed_state_reference <- function() {
   config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
-  parent <- tempfile("figure7_state_fixture_"); dir.create(parent)
-  path <- file.path(parent, config$state_pathways$reference_id); dir.create(path)
-  collections <- as.character(unlist(config$state_pathways$collections))
-  collection_labels <- c("Hallmark", "Reactome", "GO biological process")
-  grid <- seq(0, 1, length.out = 501)
-  selected_rows <- list(); activity_rows <- list(); leading_rows <- list(); complete_rows <- list()
-  display <- 0L
-  for (i in seq_along(collections)) {
-    collection <- collections[[i]]
-    for (rank in 1:4) {
-      for (direction in c("positive", "negative")) {
-        display <- display + 1L
-        pathway <- paste(collection, direction, rank, sep = "_")
-        nes <- if (direction == "positive") 5 - rank else -(5 - rank)
-        padj <- rank / 100
-        meta <- data.frame(
-          collection_id = collection, collection_label = collection_labels[[i]], collection_display_order = i,
-          pathway_id = pathway, pathway_label = pathway, pathway_display_order = display,
-          NES = nes, padj = padj, selected_direction = direction,
-          selected_rank_within_direction = rank, stringsAsFactors = FALSE
-        )
-        selected_rows[[length(selected_rows) + 1L]] <- meta
-        leading_rows[[length(leading_rows) + 1L]] <- data.frame(
-          collection_id = collection, pathway_id = pathway, leading_edge_gene_id = paste0("GENE", display))
-        activity_rows[[length(activity_rows) + 1L]] <- cbind(meta[, setdiff(names(meta), c("NES", "padj"))],
-          pseudotime = grid, standardized_activity = sin(2 * pi * grid) + display / 100)
-        complete_rows[[length(complete_rows) + 1L]] <- data.frame(
-          meta[, c("collection_id", "pathway_id", "NES", "padj")],
-          pval = padj / 2,
-          ES = nes / 2,
-          size = 50L,
-          nPermSimple =
-            as.integer(config$state_pathways$gsea_nperm_simple),
-          retry_round = 0L,
-          stringsAsFactors = FALSE
-        )
-      }
-    }
-    complete_rows[[length(complete_rows) + 1L]] <- data.frame(
-      collection_id = collection,
-      pathway_id = paste0(collection, "_extra"),
-      NES = 0.1,
-      padj = 0.9,
-      pval = 0.8,
-      ES = 0.05,
-      size = 50L,
-      nPermSimple =
-        as.integer(config$state_pathways$gsea_nperm_simple),
-      retry_round = 0L,
-      stringsAsFactors = FALSE
-    )
-  }
-  selected <- do.call(rbind, selected_rows)
-  activity <- do.call(rbind, activity_rows)
-  complete <- do.call(rbind, complete_rows)
-  complete$padj <- ave(
-    complete$pval,
-    complete$collection_id,
-    FUN = function(pvalue) stats::p.adjust(pvalue, method = "BH")
+  source <- file.path(
+    repo_root,
+    config$state_pathways$reviewed_reference_root,
+    config$state_pathways$reviewed_reference_id
   )
-  complete_keys <- paste(
-    complete$collection_id,
-    complete$pathway_id,
-    sep = "\r"
-  )
-  selected_keys <- paste(
-    selected$collection_id,
-    selected$pathway_id,
-    sep = "\r"
-  )
-  selected$padj <- complete$padj[match(selected_keys, complete_keys)]
-  figure7_write_tsv(activity, file.path(path, "panel_7F_pathway_activity_plot_data.tsv"))
-  figure7_write_tsv(selected, file.path(path, "panel_7F_selected_pathway_gsea.tsv"))
-  figure7_write_tsv(do.call(rbind, leading_rows), file.path(path, "panel_7F_leading_edge_genes.tsv"))
-  figure7_write_tsv(data.frame(gene_id = c("G1", "G2"), moderated_t = c(2, -2)),
-                    file.path(path, "state_pathway_gene_ranking_complete.tsv"))
-  figure7_write_tsv(
-    complete,
-    file.path(path, "state_pathway_gsea_complete.tsv")
-  )
-  figure7_write_tsv(data.frame(sample_id = "mouse1", pseudotime_bin = 1, n_cells = 20),
-                    file.path(path, "state_pathway_sample_bin_coverage.tsv"))
-  figure7_write_tsv(data.frame(metric = "design_rank", value = 8),
-                    file.path(path, "state_pathway_design_qc.tsv"))
-  activity_hash <- figure7_sha256(file.path(path, "panel_7F_pathway_activity_plot_data.tsv"))
-  provenance_keys <- c(
-    "full_analysis_run_dir", "report_identifier", "code_revision_04i", "seurat_rds_sha256",
-    "cellcycle_metadata_sha256", "noncellcycle_metadata_sha256", "interval_config_sha256",
-    "assay", "counts_layer", "etp_method", "etp_threshold", "spline_df", "pseudotime_bins",
-    "minimum_cells_per_sample_bin", "grid_size", "seed", "gene_set_source", "gene_set_release",
-    "gene_set_species", "gene_set_collections", "gene_set_min_size", "gene_set_max_size",
-    "expression_filter", "normalization", "observation_model", "mouse_block", "nuisance_terms",
-    "treatment_by_pseudotime_interaction", "empirical_bayes", "contrast", "gsea_rank_statistic",
-    "pathway_activity", "feature_species_policy", "gsea_ranking_rule", "pathway_selection_rule",
-    "activity_table_sha256", "canonical_reference_id", "workflow_id", "model_id",
-    "accumulated_interval", "left_neighbor_interval", "right_neighbor_interval",
-    "report_html_sha256", "report_html_relative_path", "source_results_id",
-    "source_activity_sha256", "source_primary_gsea_sha256", "source_leading_edge_sha256",
-    "source_gene_contrast_sha256", "source_gene_resolution_sha256",
-    "source_sample_bin_metadata_sha256", "source_design_audit_sha256",
-    "source_primary_coverage_sha256"
-  )
-  values <- rep("fixture", length(provenance_keys)); names(values) <- provenance_keys
-  values[c("assay", "counts_layer", "expression_filter", "normalization", "observation_model", "mouse_block",
-           "empirical_bayes", "contrast", "gsea_rank_statistic", "pathway_activity")] <- vapply(
-    c("assay", "counts_layer", "expression_filter", "normalization", "observation_model", "mouse_block",
-      "empirical_bayes", "contrast", "gsea_rank_statistic", "pathway_activity"),
-    function(key) as.character(config$state_pathways[[key]]), character(1L))
-  values["etp_method"] <- as.character(config$etp$method); values["etp_threshold"] <- as.character(config$etp$threshold)
-  values[c("spline_df", "pseudotime_bins", "minimum_cells_per_sample_bin", "grid_size")] <- vapply(
-    c("spline_df", "pseudotime_bins", "minimum_cells_per_sample_bin", "grid_size"),
-    function(key) as.character(config$state_pathways[[key]]), character(1L))
-  values["seed"] <- as.character(config$statistics$seed)
-  values["nuisance_terms"] <- "dose_mg_factor,ETP_reference_balanced_threshold_2_24_factor"
-  values["gene_set_collections"] <- paste(unlist(config$state_pathways$collections), collapse = ",")
-  values["treatment_by_pseudotime_interaction"] <- as.character(config$state_pathways$treatment_by_pseudotime_interaction)
-  values["pathway_selection_rule"] <- as.character(config$state_pathways$pathway_selector)
-  values["activity_table_sha256"] <- activity_hash
-  values["canonical_reference_id"] <- as.character(config$state_pathways$reference_id)
-  values["workflow_id"] <- "binning"
-  values["model_id"] <- "ETP_reference_balanced_threshold_2_24"
-  values["accumulated_interval"] <- "[0.30,0.49]"
-  values["left_neighbor_interval"] <- "[0.11,0.30)"
-  values["right_neighbor_interval"] <- "(0.49,0.68]"
-  values["report_html_sha256"] <- paste(rep("a", 64L), collapse = "")
-  values["report_html_relative_path"] <- "report/04i_pseudotime_state_pathways_report.html"
-  values["source_results_id"] <- "04i_pseudotime_state_pathways"
-  source_hash_keys <- grep("^source_.*_sha256$", provenance_keys, value = TRUE)
-  values[source_hash_keys] <- paste(rep("b", 64L), collapse = "")
-  figure7_write_tsv(data.frame(key = provenance_keys, value = values),
-                    file.path(path, "state_pathway_provenance.tsv"))
-  for (file in figure7_state_required_files()) {
-    config$state_pathways$expected_files[[file]] <- figure7_sha256(file.path(path, file))
+  parent <- tempfile("figure7_reviewed_state_fixture_")
+  path <- file.path(parent, config$state_pathways$reviewed_reference_id)
+  dir.create(path, recursive = TRUE)
+  files <- figure7_state_required_files()
+  copied <- file.copy(file.path(source, files), file.path(path, files))
+  if (!all(copied)) {
+    stop("Could not stage the reviewed panel-7F test fixture", call. = FALSE)
   }
   list(path = path, config = config)
 }

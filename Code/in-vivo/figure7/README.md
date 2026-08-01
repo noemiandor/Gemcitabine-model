@@ -70,8 +70,8 @@ bash Manager.sh \
 With those two modules selected, Manager does not run Figures 1-6. When the
 full A-K figure is requested, Manager automatically schedules `si_figures`
 before `in_vivo_figure7`, even if only the latter was listed. It first validates
-corrected generated caches; the historical panel-7F reference and reviewed SI
-plot-only cache do not satisfy an explicit full refit. A complete,
+corrected generated caches; the reviewed frozen panel-7F reference and reviewed
+SI plot-only cache do not satisfy an explicit full refit. A complete,
 lineage-valid generated cache avoids raw-data access. When a missing downstream
 stage needs the final Seurat object, there are two supported source boundaries:
 
@@ -158,12 +158,9 @@ managed caches are preserved with a `.stale.<timestamp>` suffix before
 regeneration; explicit external paths are never modified. To require an
 already-populated raw cache, add `--figure7-no-download-missing-raw`.
 
-The byte-pinned v1 panel-7F reference is retained only for historical audit
-because it was fitted from mixed human/mouse features. It can still be rendered
-for comparison by explicitly supplying its directory, but that A-F run is
-never publication eligible. The previously approved human-only v2 reference is
-also superseded for inference because its nuisance term was derived from the
-run-confounded endpoint CN score. The corrected full-workflow path retains
+The previously approved human-only v2 reference is superseded for inference
+because its nuisance term was derived from the run-confounded endpoint CN
+score. The corrected full-workflow path retains
 exact `GRCh38-` count rows before expression filtering, symbol resolution,
 modeling, and GSEA. It writes a separate generated human-only,
 initial-ploidy-adjusted reference with
@@ -176,9 +173,9 @@ still lacks finite statistics at the configured cap. The generated human-only
 panel displays only pathways with collection-wide BH-adjusted P <= 0.05, then
 takes up to four pathways in each direction and collection. It never backfills
 a direction with nonsignificant pathways, so generated collection and panel row
-counts may be smaller than the historical frozen 8/24-pathway layout. Panel K
+counts therefore vary with the significant results. Panel K
 must use only the checksum-pinned endpoint table and the recorded raw
-mouse-level Pearson/unrestricted-permutation contract; temporary historical
+mouse-level Pearson/unrestricted-permutation contract; temporary unreviewed
 reconstructions are not publication inputs.
 
 ## Commands
@@ -255,30 +252,6 @@ Full-workflow instead writes a separately identified
 `state_pathway_grch_human_only_initial_ploidy_day17_v3_candidate` generated reference below the run
 intermediates and marks it noncanonical.
 
-To strictly re-export the historical mixed-feature panel-7F reference from the
-completed 04i result tree for audit and comparison:
-
-```bash
-bash Manager.sh \
-  --mode standard \
-  --modules in_vivo_figure7 \
-  --run-id <run_id> \
-  --figure7-state-pathway-results-root /path/to/04i_pseudotime_state_pathways
-```
-
-This explicit option runs
-`Code/in-vivo/figure7/export_04i_state_pathway_reference.R`. The exporter
-requires the reviewed report hash, source revision, source input/config
-checksums, and exact hashes of all eight scientific source tables. It records
-the normalized runtime source root only in run metadata; the portable artifact
-provenance uses stable identifiers and checksums.
-
-The verified export is retained only under the Manager run's
-`artifacts/figure7_state_pathway_reference/` directory. Manager labels the A-F
-result noncanonical, does not publish it to `figures/Figure7/`, and never copies
-the eight TSVs into tracked `Data/`. This option preserves the original v1
-audit chain; it is not a substitute for the reviewed human-only v3 reference.
-
 To explicitly generate and materialize only 7A-7E:
 
 ```bash
@@ -306,8 +279,7 @@ Rscript Code/in-vivo/figure7/run_figure7.R \
 
 The manager's `panels-only` mode does not invoke this R script. For Figure 7 it
 materializes the exact recorded A-K composite/source-panel or explicit A-E
-contract from an explicit `--source-run-id`. Historical and generated/
-noncanonical runs are rejected.
+contract from an explicit `--source-run-id`. Noncanonical runs are rejected.
 
 The older artifact-driven `full-analysis` entrypoint remains only as an
 explicit guard that directs callers to the corrected workflow. Manager's
@@ -352,8 +324,8 @@ Rscript Code/in-vivo/figure7/tests/testthat.R
 ```
 
 The tests parse all module files, reproduce the frozen A-E numerical results,
-enforce treated-only outcomes and selected ECDF IDs 1/8/9, validate the tracked
-historical 04i reference and its lineage, exercise the strict panel-F
+enforce treated-only outcomes and selected ECDF IDs 1/8/9, validate the
+reviewed-v3 reference and its lineage, exercise the strict panel-F
 reviewed-v2 publication guard and generated human-only contract, verify cached-stage
 fingerprints and tamper rejection, validate the complete Zenodo manifest, and
 confirm that missing raw inputs fail before output is created when downloading
