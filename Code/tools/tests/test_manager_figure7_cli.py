@@ -767,17 +767,6 @@ exit 7
                 statistics.mean(curated_scores_by_sample[sample_id])
                 for sample_id, *_ in design
             ]
-            z_scores = []
-            for origin in ("2N", "4N"):
-                indices = [
-                    index
-                    for index, row in enumerate(design)
-                    if row[1] == origin
-                ]
-                local = [scores[index] for index in indices]
-                center = statistics.mean(local)
-                spread = statistics.stdev(local)
-                z_scores.extend((value - center) / spread for value in local)
             panel_k_plot = run_root / "tables/panel_7E_plot_data.tsv"
             plot_rows = []
             for index, (
@@ -787,7 +776,6 @@ exit 7
                 dose_mg,
                 endpoint_file,
             ) in enumerate(design):
-                score_z = z_scores[index]
                 score = scores[index]
                 plot_rows.append(
                     {
@@ -816,11 +804,6 @@ exit 7
                             "file_cell_and_value;score_universe=reviewed_final_"
                             "seurat_tumor_cells"
                         ),
-                        "terminal_postprocessed_cn_score": score,
-                        "terminal_cn_score_within_origin_z": score_z,
-                        "permutation_stratum": f"{origin}|{dose_mg}",
-                        "terminal_cn_score_nuisance_residual": "pending",
-                        "tgi_origin_dose_residual": "pending",
                         "TGI_percent_Day_17": tgi_by_sample[sample_id],
                         "tgi_outcome": "day",
                         "tgi_day": "17",
@@ -830,57 +813,17 @@ exit 7
                     }
                 )
 
-            def additive_residual(column: str) -> list[float]:
-                values = [float(row[column]) for row in plot_rows]
-                grand = statistics.mean(values)
-                origin_means = {
-                    origin: statistics.mean(
-                        value
-                        for value, row in zip(values, plot_rows)
-                        if row["initial_ploidy"] == origin
-                    )
-                    for origin in ("2N", "4N")
-                }
-                dose_means = {
-                    dose_mg: statistics.mean(
-                        value
-                        for value, row in zip(values, plot_rows)
-                        if row["dose_mg"] == dose_mg
-                    )
-                    for dose_mg in ("30", "120")
-                }
-                return [
-                    value
-                    - origin_means[row["initial_ploidy"]]
-                    - dose_means[row["dose_mg"]]
-                    + grand
-                    for value, row in zip(values, plot_rows)
-                ]
-
-            x_residual = additive_residual(
-                "terminal_cn_score_within_origin_z"
-            )
-            y_residual = additive_residual("TGI_percent_Day_17")
-            for row, x_value, y_value in zip(
-                plot_rows,
-                x_residual,
-                y_residual,
-            ):
-                row["terminal_cn_score_nuisance_residual"] = x_value
-                row["tgi_origin_dose_residual"] = y_value
             write_tsv(panel_k_plot, plot_rows, list(plot_rows[0]))
             panel_k_test = run_root / "tables/panel_7E_test.tsv"
             test_row = {
                 "n": "8",
-                "estimate": "-0.3431355546551816",
-                "partial_correlation": "-0.3431355546551816",
-                "effect_per_within_origin_sd": "-8.792298734079608",
-                "permutation_p_two_sided": "0.75",
-                "n_permutations": "16",
-                "permutation_mode": (
-                    "exact_TGI_label_enumeration_within_initial_ploidy_x_dose"
-                ),
-                "permutation_strata": "initial_ploidy:dose_mg",
+                "estimate": "-0.698401019253014",
+                "asymptotic_p": "0.0540069781511847",
+                "permutation_p_two_sided": "0.0591269841269841",
+                "n_permutations": "40320",
+                "permutation_mode": "exact_TGI_label_enumeration",
+                "permutation_strata": "none",
+                "association_type": "unadjusted_mouse_level_pearson",
                 "score_variable": (
                     "sample_mean_qc_passed_curated_cbs_cell_ploidy"
                 ),
@@ -899,11 +842,11 @@ exit 7
                     "file_cell_and_value;score_universe=reviewed_final_"
                     "seurat_tumor_cells"
                 ),
-                "score_standardization": "z_score_within_initial_ploidy",
-                "adjustment_terms": "initial_ploidy+dose_mg",
+                "score_standardization": "none",
+                "adjustment_terms": "none",
                 "outcome_variable": "TGI_percent_Day_17",
-                "plot_x": "terminal_cn_score_nuisance_residual",
-                "plot_y": "tgi_origin_dose_residual",
+                "plot_x": "sample_mean_endpoint_ploidy",
+                "plot_y": "TGI_percent_Day_17",
                 "tgi_outcome": "day",
                 "tgi_day": "17",
                 "tgi_measure": "TGI_percent_Day_17",

@@ -4,11 +4,10 @@
 
 Drafted on 2026-07-16 for promotion to `main` after implementation and
 validation. This is a historical design record, not the current scientific
-contract. The implemented 2026-07-31 workflow supersedes its ETP-threshold and
-pooled endpoint-ploidy specifications: panel J uses injected-origin-matched
-untreated ECDF references, panel K uses a within-origin-standardized terminal
-postprocessed CN score with injected-origin and dose adjustment plus exact
-origin-by-dose permutations, and panel I uses the reviewed human-only
+contract. The implemented workflow supersedes its ETP-threshold specification:
+panel J uses injected-origin-matched untreated ECDF references, panel K restores
+the descriptive raw mouse-level mean endpoint-ploidy versus TGI Pearson
+association with all 8! unrestricted label permutations, and panel I uses the reviewed human-only
 initial-ploidy-adjusted v3 state-pathway reference. The module README, pinned
 configuration, and executable tests are authoritative where this plan differs
 from the final implementation.
@@ -45,7 +44,7 @@ The screenshot `Screenshot 2026-07-16 at 5.18.38 PM.png` is the visual reference
 | 7B | Selected CellCycle mean-ECDF comparisons | initial-ploidy `CellCycle_direct_group_ecdf_comparisons_selected_3panel.pdf` | original panel IDs 1, 8, and 9, corresponding to grid positions `(1,1)`, `(3,2)`, and `(3,3)` | `figures/panel_7B_cellcycle_selected_ecdf_comparisons.pdf` |
 | 7C | Day-17 TGI in initial 2N versus 4N treated tumors | initial-ploidy `CellCycle_TGI_group_boxplot.pdf` | independent tumors; dose-stratified group-label permutation; not a paired-mouse test | `figures/panel_7C_day17_tgi_by_initial_ploidy.pdf` |
 | 7D | Within-dose-centered TGI/ECDF-shift association | injected-origin-matched `CellCycle_TGI_association_within_dose_centered.pdf` | injected-origin-matched untreated ECDF reference; Day-17 mean-control TGI | `figures/panel_7D_day17_tgi_vs_centered_ecdf_shift.pdf` |
-| 7E | Day-17 TGI versus adjusted terminal CN score | confound-safe replacement of pooled `CellCycle_TGI_AUC_vs_mean_ETP.pdf` | score standardized within injected origin; association adjusted for origin and dose; exact origin-by-dose permutations | `figures/panel_7E_day17_tgi_vs_mean_etp.pdf` |
+| 7E | Day-17 TGI versus mean endpoint tumor-cell ploidy | restored descriptive definition of `CellCycle_TGI_AUC_vs_mean_ETP.pdf` | raw mouse-level Pearson association; exact unrestricted enumeration of all 8! TGI-label permutations | `figures/panel_7E_day17_tgi_vs_mean_etp.pdf` |
 | 7F | Pathway activity across the accumulated CellCycle pseudotime state | TaoLi `04i` reference-balanced ETP 2.24 `primary_state_pathway_activity_heatmap.pdf` | accumulated interval `[0.30, 0.49]`; ETP group threshold 2.24; top positive and negative pathways per collection using the approved activity table | `figures/panel_7F_pseudotime_state_pathway_activity.pdf` |
 
 The misleading legacy `AUC` token in the source filename for panel 7E must not appear in the manuscript-facing asset name or caption. The plotted endpoint is Day-17 TGI, not AUC TGI.
@@ -330,9 +329,9 @@ Panel-specific rules:
 - 7B: compute the full internal direct-comparison object if required by the test code, but add a numeric `comparison_id` and retain only IDs 1, 8, and 9 with labels `1. 0 vs treated`, `8. 4N: 0 vs treated`, and `9. 2N: 0 vs treated` in that order. Do not write the full 11-panel PDF.
 - 7C: compare treated initial-2N and initial-4N tumors as independent groups. Use a dose-stratified label permutation. Do not describe or implement this as a paired boxplot.
 - 7D: build equal-sample untreated references within injected origin and correlate dose-centered ECDF RMSE with dose-centered Day-17 TGI.
-- 7E: standardize the terminal postprocessed CN score within injected origin, adjust both score and Day-17 TGI for origin and dose, and test the partial association by exact TGI-label permutations within origin-by-dose strata. Use injected origin, not an endpoint-derived group, for point shapes.
+- 7E: correlate the raw per-mouse mean endpoint tumor-cell ploidy with raw Day-17 TGI and test the descriptive Pearson association by exact unrestricted enumeration of all 8! TGI-label permutations. Use injected origin, not an endpoint-derived group, for point shapes, and retain dose as the point color.
 
-Exact enumeration supersedes the nominal 10,000 Monte Carlo permutations when the finite assignment space can be enumerated. The approved panels currently use 36 arrangements for 7C, 576 within-stratum assignments for 7D, and 16 TGI-label assignments within the four two-tumor origin-by-dose strata for 7E.
+Exact enumeration supersedes the nominal 10,000 Monte Carlo permutations when the finite assignment space can be enumerated. The approved panels currently use 36 arrangements for 7C, 576 within-stratum assignments for 7D, and all 40,320 unrestricted TGI-label assignments for 7E.
 
 Do not trust the embedded `TGI_percent_Day_17` column without verification. At runtime, recompute each treated mouse's value as:
 
@@ -508,10 +507,9 @@ At minimum, assert the currently approved values within explicit numerical toler
 - final panel K/source panel 7E validates the checksum-pinned 14,125-cell,
   16-file CBS inventory, then uses per-mouse means from the exact 9,832-cell
   QC-passed final-Seurat tumor union (5,335 cells in the eight treated tumors),
-  standardized within injected origin and adjusted for injected origin and
-  dose: slope `-8.7922987341` TGI percentage points per within-origin standard
-  deviation, partial `r = -0.3431355547`, and exact origin-by-dose permutation
-  `P = 0.75`;
+  without standardization or covariate adjustment: Pearson `r =
+  -0.6984010193`, asymptotic `P = 0.0540069782`, and exact unrestricted
+  permutation `P = 0.0591269841` across 40,320 assignments;
 - all A–E metadata report `TGI_percent_Day_17`, outcome `day`, matched-control summary `mean`, and Day 17;
 - panel 7F contains the approved collection labels and pathway order, exactly 21 selected pathways split 5/8/8 across Hallmark/Reactome/GO biological process, and no adjusted P above 0.05;
 - panel 7F vertical boundaries are exactly 0.30 and 0.49.

@@ -8,10 +8,10 @@ their supplementary copies are retained. The former human-only panel-7F v2
 reference is retained for audit but is superseded because its model adjusted
 for a run-confounded endpoint-CN-score group. The reviewed v3 reference instead
 adjusts for injected initial ploidy and is the canonical panel-7F source. Panel
-K standardizes the checksum-pinned terminal postprocessed CN score within
-injected origin, adjusts for origin and dose, and permutes TGI within
-origin-by-dose strata; it is not used as a nuisance covariate in the
-state-pathway model.
+K shows the unadjusted mouse-level Pearson association between the
+checksum-pinned mean endpoint tumor-cell ploidy and TGI, with unrestricted
+exact enumeration of all 8! TGI-label permutations; endpoint ploidy is not
+used as a nuisance covariate in the state-pathway model.
 
 ## Frozen routine analysis
 
@@ -37,10 +37,11 @@ state-pathway model.
   `initial_ploidy_adjusted_grch_human_only_v3`; its nuisance terms are dose and
   injected initial ploidy, never endpoint CN score or an endpoint-derived
   threshold group.
-- Panel 7E (main panel K) estimates -8.7923 Day-17 TGI percentage points per
-  within-origin CN-score SD (partial r = -0.3431; exact origin-by-dose
-  permutation P = 0.75; 16 assignments). It is a confound-safe sensitivity
-  analysis, not evidence for an independent terminal-ploidy effect.
+- Panel 7E (main panel K) reports the descriptive mouse-level association
+  between mean endpoint tumor-cell ploidy and Day-17 TGI (Pearson r =
+  -0.6984010; asymptotic P = 0.0540070; exact unrestricted permutation P =
+  0.0591270; 40,320 assignments). It is an unadjusted association, not
+  evidence for an independent or causal terminal-ploidy effect.
 - The A-K manuscript composite binds the exact reviewed 11-table SI cache and
   displays, in first-citation order: source 7A, source 7C, SI4A-C, SI4E, SI7B,
   source 7B, source 7F, and source 7D-E.
@@ -176,9 +177,9 @@ panel displays only pathways with collection-wide BH-adjusted P <= 0.05, then
 takes up to four pathways in each direction and collection. It never backfills
 a direction with nonsignificant pathways, so generated collection and panel row
 counts may be smaller than the historical frozen 8/24-pathway layout. Panel K
-must use only the checksum-pinned endpoint table, within-origin
-standardization, and the recorded sample-level adjustment/permutation
-contract; temporary historical reconstructions are not publication inputs.
+must use only the checksum-pinned endpoint table and the recorded raw
+mouse-level Pearson/unrestricted-permutation contract; temporary historical
+reconstructions are not publication inputs.
 
 ## Commands
 
@@ -217,13 +218,14 @@ bash Manager.sh \
 
 After scientific review, the exact five consumed files per endpoint (7A plot,
 7C plot/test, and 7E plot/test) plus the two run configs are frozen in
-`Data/in-vivo/figure7/saved_tgi_sensitivity/tgi_day24_day31_curated_cbs_v2/`.
+`Data/in-vivo/figure7/saved_tgi_sensitivity/tgi_day24_day31_curated_cbs_v3_raw_pearson/`.
 Canonical SI8 assembly reads that compact tracked bundle by default; the full
 40-file result runs are not publication dependencies.
 
 The earlier `tgi_day24_day31_all_cbs_v1` bundle was removed because it
 summarized cells outside the final QC tumor universe. The assembler rejects
-that obsolete policy and accepts only the curated v2 publication source.
+that obsolete policy and accepts only the curated raw-Pearson v3 publication
+source.
 
 Assemble the reviewed composite with:
 
@@ -232,8 +234,8 @@ Rscript Code/in-vivo/figure7/assemble_tgi_sensitivity.R \
   --output-dir=figures/Figure7_Supplement
 ```
 
-The assembler validates the reviewed v3 identity and the confound-safe panel-K
-contract in both runs, then creates a five-panel Day-24/Day-31 composite plus a
+The assembler validates the reviewed raw mouse-level panel-K contract in both
+runs, then creates a five-panel Day-24/Day-31 composite plus a
 portable checksum provenance table. It also writes the separate standard-schema
 `si8_manifest.tsv` for the final SI8 PDF/PNG. The pre-existing 13-row
 `manifest.tsv` remains the Day-24 Figure 7 source-panel contract; mixing SI8

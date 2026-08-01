@@ -307,8 +307,8 @@ PANEL_SPECS = [
         "panel": "7E",
         "asset": "panel_7E_day17_tgi_vs_mean_etp.pdf",
         "caption_role": (
-            "Day-17 TGI versus within-origin standardized terminal "
-            "postprocessed CN score, adjusted for origin and dose"
+            "Day-17 TGI versus mean endpoint tumor-cell ploidy using the "
+            "unadjusted mouse-level Pearson association"
         ),
         "variant": "pdf",
     },
@@ -365,7 +365,7 @@ PANEL_SPECS = [
         "panel": "7E_png",
         "asset": "panel_7E_day17_tgi_vs_mean_etp.png",
         "caption_role": (
-            "PNG derivative of the adjusted terminal CN-score association panel"
+            "PNG derivative of the raw endpoint-ploidy association panel"
         ),
         "variant": "png",
     },
@@ -463,19 +463,19 @@ FIGURE7_PANEL_K_SOURCE_INPUTS = (
 )
 FIGURE7_PANEL_K_RESULTS = {
     17: {
-        "effect_per_within_origin_sd": -8.792298734079608,
-        "partial_correlation": -0.3431355546551816,
-        "permutation_p_two_sided": 0.75,
+        "estimate": -0.6984010192530142,
+        "asymptotic_p": 0.0540069781511847,
+        "permutation_p_two_sided": 0.059126984126984125,
     },
     24: {
-        "effect_per_within_origin_sd": -6.683928279063553,
-        "partial_correlation": -0.3022214862100653,
-        "permutation_p_two_sided": 0.625,
+        "estimate": -0.387348978978662,
+        "asymptotic_p": 0.343097626516948,
+        "permutation_p_two_sided": 0.34692460317460316,
     },
     31: {
-        "effect_per_within_origin_sd": -2.955883758578773,
-        "partial_correlation": -0.1847098257830974,
-        "permutation_p_two_sided": 0.625,
+        "estimate": -0.2969484557892882,
+        "asymptotic_p": 0.475086351653848,
+        "permutation_p_two_sided": 0.4857142857142857,
     },
 }
 FIGURE7_PANEL_K_SAMPLE_DESIGN = {
@@ -1212,11 +1212,6 @@ def validate_figure7_panel_k_contract(
         "endpoint_ploidy_source_sha256",
         "endpoint_ploidy_score_policy",
         "endpoint_ploidy_mapping_policy",
-        "terminal_postprocessed_cn_score",
-        "terminal_cn_score_within_origin_z",
-        "permutation_stratum",
-        "terminal_cn_score_nuisance_residual",
-        "tgi_origin_dose_residual",
         tgi_measure,
         "tgi_outcome",
         "tgi_day",
@@ -1227,12 +1222,12 @@ def validate_figure7_panel_k_contract(
     required_test_headers = {
         "n",
         "estimate",
-        "partial_correlation",
-        "effect_per_within_origin_sd",
+        "asymptotic_p",
         "permutation_p_two_sided",
         "n_permutations",
         "permutation_mode",
         "permutation_strata",
+        "association_type",
         "score_variable",
         "score_source_sha256",
         "score_source_n_cells",
@@ -1252,16 +1247,29 @@ def validate_figure7_panel_k_contract(
         "matched_control_summary",
         "matched_control_group",
     }
+    adjusted_plot_headers = {
+        "terminal_postprocessed_cn_score",
+        "terminal_cn_score_within_origin_z",
+        "permutation_stratum",
+        "terminal_cn_score_nuisance_residual",
+        "tgi_origin_dose_residual",
+    }
+    adjusted_test_headers = {
+        "partial_correlation",
+        "effect_per_within_origin_sd",
+    }
     if (
         len(plot_rows) != 8
         or len(test_rows) != 1
         or not required_plot_headers.issubset(plot_headers)
         or not required_test_headers.issubset(test_headers)
+        or adjusted_plot_headers.intersection(plot_headers)
+        or adjusted_test_headers.intersection(test_headers)
         or "etp_group" in plot_headers
         or "etp_group" in test_headers
     ):
         raise ValueError(
-            "Figure 7 panel K tables do not have the reviewed adjusted-analysis "
+            "Figure 7 panel K tables do not have the reviewed raw-analysis "
             "schema and eight-tumor scope"
         )
 
@@ -1297,66 +1305,29 @@ def validate_figure7_panel_k_contract(
             "initial-ploidy-matched control contract"
         )
 
-    z_by_origin: dict[str, list[float]] = {}
-    strata_counts: Counter[str] = Counter()
     treated_endpoint_cell_count = 0
-    canonical_score_by_sample = {
-        sample_id: statistics.mean(curated_scores_by_sample[sample_id])
-        for sample_id in FIGURE7_PANEL_K_SAMPLE_FILES
-    }
-    expected_z_by_sample: dict[str, float] = {}
-    design_origin_by_sample = {
-        sample_id: origin
-        for sample_id, origin, _dose, _dose_mg in FIGURE7_PANEL_K_SAMPLE_DESIGN
-    }
-    for origin in ("2N", "4N"):
-        sample_ids = sorted(
-            sample_id
-            for sample_id, sample_origin in design_origin_by_sample.items()
-            if sample_origin == origin
-        )
-        values = [canonical_score_by_sample[sample_id] for sample_id in sample_ids]
-        center = statistics.mean(values)
-        spread = statistics.stdev(values)
-        expected_z_by_sample.update(
-            {
-                sample_id: (value - center) / spread
-                for sample_id, value in zip(sample_ids, values)
-            }
-        )
+    raw_scores: list[float] = []
+    outcome: list[float] = []
     for row in plot_rows:
-        score = finite_float(
-            row["terminal_postprocessed_cn_score"],
-            "panel K terminal CN score",
-        )
         source_score = finite_float(
             row["sample_mean_endpoint_ploidy"],
             "panel K source terminal CN score",
         )
-        z_score = finite_float(
-            row["terminal_cn_score_within_origin_z"],
-            "panel K within-origin z score",
+        outcome_value = finite_float(
+            row[tgi_measure],
+            f"panel K {tgi_measure}",
         )
-        finite_float(
-            row["terminal_cn_score_nuisance_residual"],
-            "panel K score residual",
-        )
-        finite_float(
-            row["tgi_origin_dose_residual"],
-            "panel K TGI residual",
-        )
-        finite_float(row[tgi_measure], f"panel K {tgi_measure}")
         expected_file = FIGURE7_PANEL_K_SAMPLE_FILES.get(row["sample_id"])
         file_scores = curated_scores_by_sample.get(row["sample_id"], [])
-        endpoint_cell_count = int(
-            finite_float(
-                row["n_endpoint_ploidy_cells"],
-                "panel K endpoint CBS cell count",
-            )
+        endpoint_cell_count_value = finite_float(
+            row["n_endpoint_ploidy_cells"],
+            "panel K endpoint CBS cell count",
         )
+        endpoint_cell_count = int(endpoint_cell_count_value)
         if (
             row["endpoint_ploidy_file"] != expected_file
             or curated_file_by_sample.get(row["sample_id"]) != expected_file
+            or endpoint_cell_count_value != endpoint_cell_count
             or endpoint_cell_count != len(file_scores)
             or not file_scores
             or not math.isclose(
@@ -1374,178 +1345,54 @@ def validate_figure7_panel_k_contract(
             != expected_endpoint_metadata["endpoint_ploidy_score_policy"]
             or row["endpoint_ploidy_mapping_policy"]
             != expected_endpoint_metadata["endpoint_ploidy_mapping_policy"]
-            or not math.isclose(
-                z_score,
-                expected_z_by_sample[row["sample_id"]],
-                rel_tol=0.0,
-                abs_tol=1e-12,
-            )
         ):
             raise ValueError(
                 "Figure 7 panel K score is not the per-mouse mean over the "
                 "exact QC-passed curated cells from its mapped CBS file"
             )
         treated_endpoint_cell_count += endpoint_cell_count
-        if not math.isclose(score, source_score, rel_tol=0.0, abs_tol=1e-12):
-            raise ValueError(
-                "Figure 7 panel K terminal CN score differs from its frozen "
-                "postprocessed endpoint score"
-            )
-        expected_stratum = f"{row['initial_ploidy']}|{row['dose_mg']}"
-        if row["permutation_stratum"] != expected_stratum:
-            raise ValueError(
-                "Figure 7 panel K permutation strata are not injected "
-                "origin by dose"
-            )
-        z_by_origin.setdefault(row["initial_ploidy"], []).append(z_score)
-        strata_counts[expected_stratum] += 1
-    if set(z_by_origin) != {"2N", "4N"} or any(
-        len(values) != 4
-        or abs(sum(values) / len(values)) > 1e-10
-        or abs(
-            math.sqrt(
-                sum(
-                    (value - sum(values) / len(values)) ** 2
-                    for value in values
-                )
-                / (len(values) - 1)
-            )
-            - 1.0
-        )
-        > 1e-10
-        for values in z_by_origin.values()
-    ):
-        raise ValueError(
-            "Figure 7 panel K CN scores are not standardized separately "
-            "within 2N and 4N injected origins"
-        )
-    if set(strata_counts.values()) != {2} or len(strata_counts) != 4:
-        raise ValueError(
-            "Figure 7 panel K does not have the four two-tumor origin-by-dose "
-            "permutation strata underlying 16 exact assignments"
-        )
+        raw_scores.append(source_score)
+        outcome.append(outcome_value)
     if treated_endpoint_cell_count != 5335:
         raise ValueError(
             "Figure 7 panel K must use the exact 5,335 QC-passed curated "
             "CBS cells from the eight treated tumors"
         )
 
-    origins = [row["initial_ploidy"] for row in plot_rows]
-    doses = [row["dose_mg"] for row in plot_rows]
-
-    def additive_residual(values: list[float]) -> list[float]:
-        grand_mean = statistics.mean(values)
-        origin_means = {
-            origin: statistics.mean(
-                value
-                for value, row_origin in zip(values, origins)
-                if row_origin == origin
+    def pearson(left: list[float], right: list[float]) -> float:
+        left_mean = statistics.mean(left)
+        right_mean = statistics.mean(right)
+        left_centered = [value - left_mean for value in left]
+        right_centered = [value - right_mean for value in right]
+        left_sum_squares = sum(value * value for value in left_centered)
+        right_sum_squares = sum(value * value for value in right_centered)
+        denominator = math.sqrt(left_sum_squares * right_sum_squares)
+        if denominator <= 0 or not math.isfinite(denominator):
+            raise ValueError(
+                "Figure 7 panel K raw Pearson association is not estimable"
             )
-            for origin in ("2N", "4N")
-        }
-        dose_means = {
-            dose: statistics.mean(
-                value
-                for value, row_dose in zip(values, doses)
-                if row_dose == dose
-            )
-            for dose in ("30", "120")
-        }
-        return [
-            value - origin_means[origin] - dose_means[dose] + grand_mean
-            for value, origin, dose in zip(values, origins, doses)
-        ]
+        return sum(
+            left_value * right_value
+            for left_value, right_value in zip(left_centered, right_centered)
+        ) / denominator
 
-    expected_z = [expected_z_by_sample[row["sample_id"]] for row in plot_rows]
-    outcome = [
-        finite_float(row[tgi_measure], f"panel K {tgi_measure}")
-        for row in plot_rows
-    ]
-    expected_x_residual = additive_residual(expected_z)
-    expected_y_residual = additive_residual(outcome)
-    observed_x_residual = [
-        finite_float(
-            row["terminal_cn_score_nuisance_residual"],
-            "panel K score residual",
-        )
-        for row in plot_rows
-    ]
-    observed_y_residual = [
-        finite_float(
-            row["tgi_origin_dose_residual"],
-            "panel K TGI residual",
-        )
-        for row in plot_rows
-    ]
-    if any(
-        not math.isclose(observed, expected, rel_tol=0.0, abs_tol=1e-12)
-        for observed, expected in zip(
-            [*observed_x_residual, *observed_y_residual],
-            [*expected_x_residual, *expected_y_residual],
-        )
-    ):
-        raise ValueError(
-            "Figure 7 panel K plotted residuals do not reproduce the "
-            "origin-and-dose nuisance adjustment"
-        )
-
-    x_sum_squares = sum(value * value for value in expected_x_residual)
-    y_sum_squares = sum(value * value for value in expected_y_residual)
-    recomputed_effect = sum(
-        x_value * y_value
-        for x_value, y_value in zip(
-            expected_x_residual,
-            expected_y_residual,
-        )
-    ) / x_sum_squares
-    recomputed_partial_r = sum(
-        x_value * y_value
-        for x_value, y_value in zip(
-            expected_x_residual,
-            expected_y_residual,
-        )
-    ) / math.sqrt(x_sum_squares * y_sum_squares)
-
-    stratum_indices: dict[str, list[int]] = {}
-    for index, row in enumerate(plot_rows):
-        stratum_indices.setdefault(row["permutation_stratum"], []).append(index)
-    permuted_effects: list[float] = []
-    for swaps in itertools.product((False, True), repeat=4):
-        permuted_outcome = list(outcome)
-        for swap, indices in zip(
-            swaps,
-            [stratum_indices[key] for key in sorted(stratum_indices)],
-        ):
-            if swap:
-                first, second = indices
-                permuted_outcome[first], permuted_outcome[second] = (
-                    permuted_outcome[second],
-                    permuted_outcome[first],
-                )
-        permuted_y_residual = additive_residual(permuted_outcome)
-        permuted_effects.append(
-            sum(
-                x_value * y_value
-                for x_value, y_value in zip(
-                    expected_x_residual,
-                    permuted_y_residual,
-                )
-            )
-            / x_sum_squares
-        )
-    recomputed_permutation_p = sum(
-        abs(value) >= abs(recomputed_effect) - 1e-15
-        for value in permuted_effects
-    ) / len(permuted_effects)
+    recomputed_r = pearson(raw_scores, outcome)
+    n_permutations = math.factorial(len(outcome))
+    extreme_permutations = 0
+    for permutation in itertools.permutations(range(len(outcome))):
+        permuted_outcome = [outcome[index] for index in permutation]
+        permuted_r = pearson(raw_scores, permuted_outcome)
+        if abs(permuted_r) >= abs(recomputed_r) - 1e-15:
+            extreme_permutations += 1
+    recomputed_permutation_p = extreme_permutations / n_permutations
 
     test = test_rows[0]
     expected_method = {
         "n": "8",
-        "n_permutations": "16",
-        "permutation_mode": (
-            "exact_TGI_label_enumeration_within_initial_ploidy_x_dose"
-        ),
-        "permutation_strata": "initial_ploidy:dose_mg",
+        "n_permutations": "40320",
+        "permutation_mode": "exact_TGI_label_enumeration",
+        "permutation_strata": "none",
+        "association_type": "unadjusted_mouse_level_pearson",
         "score_variable": "sample_mean_qc_passed_curated_cbs_cell_ploidy",
         "score_source_sha256": FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256,
         "score_source_n_cells": "9832",
@@ -1558,22 +1405,20 @@ def validate_figure7_panel_k_contract(
         "sample_mapping_policy": expected_endpoint_metadata[
             "endpoint_ploidy_mapping_policy"
         ],
-        "score_standardization": "z_score_within_initial_ploidy",
-        "adjustment_terms": "initial_ploidy+dose_mg",
+        "score_standardization": "none",
+        "adjustment_terms": "none",
         "outcome_variable": tgi_measure,
-        "plot_x": "terminal_cn_score_nuisance_residual",
-        "plot_y": "tgi_origin_dose_residual",
+        "plot_x": "sample_mean_endpoint_ploidy",
+        "plot_y": tgi_measure,
     }
     if any(test.get(key) != value for key, value in expected_method.items()):
         raise ValueError(
-            "Figure 7 panel K does not use the reviewed within-origin "
-            "standardization, origin-and-dose adjustment, and exact "
-            "origin-by-dose permutation method"
+            "Figure 7 panel K does not use the reviewed raw mouse-level "
+            "Pearson and exact unrestricted permutation method"
         )
     numeric_results = {
-        "effect_per_within_origin_sd": recomputed_effect,
-        "partial_correlation": recomputed_partial_r,
-        "estimate": recomputed_partial_r,
+        "estimate": recomputed_r,
+        "asymptotic_p": expected_result["asymptotic_p"],
         "permutation_p_two_sided": recomputed_permutation_p,
     }
     if any(
@@ -1587,11 +1432,10 @@ def validate_figure7_panel_k_contract(
     ):
         raise ValueError(
             "Figure 7 panel K does not reproduce the exact reviewed "
-            f"Day-{tgi_day} adjusted beta, partial correlation, and exact P"
+            f"Day-{tgi_day} raw Pearson correlation and exact P"
         )
     recomputed_reviewed = {
-        "effect_per_within_origin_sd": recomputed_effect,
-        "partial_correlation": recomputed_partial_r,
+        "estimate": recomputed_r,
         "permutation_p_two_sided": recomputed_permutation_p,
     }
     if any(
@@ -1605,7 +1449,7 @@ def validate_figure7_panel_k_contract(
     ):
         raise ValueError(
             "Figure 7 panel K curated-CBS inputs no longer reproduce the "
-            f"reviewed Day-{tgi_day} regression contract"
+            f"reviewed Day-{tgi_day} raw Pearson contract"
         )
 
 

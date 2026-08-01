@@ -13,18 +13,21 @@ testthat::test_that("A-E frozen numerical results and treated scope are reproduc
   testthat::expect_identical(d$test$ecdf_reference_group_column, "initial_ploidy")
   e <- figure7_panel_e(input$samples, input$config)
   testthat::expect_equal(
-    e$test$effect_per_within_origin_sd,
-    -8.792298734079608,
+    e$test$estimate,
+    -0.698401019253014,
     tolerance = 1e-12
   )
   testthat::expect_equal(
-    e$test$partial_correlation,
-    -0.3431355546551816,
+    e$test$asymptotic_p,
+    0.0540069781511847,
     tolerance = 1e-12
   )
-  testthat::expect_equal(e$test$estimate, e$test$partial_correlation)
-  testthat::expect_equal(e$test$permutation_p_two_sided, 0.75, tolerance = 1e-12)
-  testthat::expect_equal(e$test$n_permutations, 16L)
+  testthat::expect_equal(
+    e$test$permutation_p_two_sided,
+    0.0591269841269841,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(e$test$n_permutations, factorial(8L))
 })
 
 testthat::test_that("panel 7D/J uses only injected-origin-matched untreated ECDF references", {
@@ -53,24 +56,9 @@ testthat::test_that("panel 7D/J uses only injected-origin-matched untreated ECDF
   )
 })
 
-testthat::test_that("panel 7E/K is standardized within origin and adjusted without endpoint grouping", {
+testthat::test_that("panel 7E/K restores the raw mouse-level Pearson definition on the QC universe", {
   input <- figure7_test_inputs()
   e <- figure7_panel_e(input$samples, input$config)
-  standardized <- split(
-    e$data$terminal_cn_score_within_origin_z,
-    e$data$initial_ploidy
-  )
-  testthat::expect_true(all(vapply(
-    standardized,
-    function(values) abs(mean(values)) <= 1e-12 &&
-      abs(stats::sd(values) - 1) <= 1e-12,
-    logical(1L)
-  )))
-  testthat::expect_equal(
-    e$data$terminal_postprocessed_cn_score,
-    e$data$sample_mean_endpoint_ploidy,
-    tolerance = 1e-12
-  )
   testthat::expect_identical(
     unique(e$data$endpoint_ploidy_source_total_cells),
     14125L
@@ -102,14 +90,14 @@ testthat::test_that("panel 7E/K is standardized within origin and adjusted witho
     "n_endpoint_ploidy_cells_excluded_from_score"
   ) %in% names(input$samples)))
   testthat::expect_identical(
-    e$data$permutation_stratum,
-    paste(e$data$initial_ploidy, e$data$dose_mg, sep = "|")
-  )
-  testthat::expect_identical(
     e$test$permutation_mode,
-    "exact_TGI_label_enumeration_within_initial_ploidy_x_dose"
+    "exact_TGI_label_enumeration"
   )
-  testthat::expect_identical(e$test$permutation_strata, "initial_ploidy:dose_mg")
+  testthat::expect_identical(e$test$permutation_strata, "none")
+  testthat::expect_identical(
+    e$test$association_type,
+    "unadjusted_mouse_level_pearson"
+  )
   testthat::expect_identical(
     e$test$score_variable,
     "sample_mean_qc_passed_curated_cbs_cell_ploidy"
@@ -118,16 +106,26 @@ testthat::test_that("panel 7E/K is standardized within origin and adjusted witho
   testthat::expect_identical(e$test$score_inventory_n_cells, 14125L)
   testthat::expect_identical(e$test$score_source_n_files, 16L)
   testthat::expect_identical(e$test$treated_score_n_cells, 5335L)
-  testthat::expect_identical(e$test$score_standardization, "z_score_within_initial_ploidy")
-  testthat::expect_identical(e$test$adjustment_terms, "initial_ploidy+dose_mg")
+  testthat::expect_identical(e$test$score_standardization, "none")
+  testthat::expect_identical(e$test$adjustment_terms, "none")
   testthat::expect_identical(e$test$outcome_variable, "TGI_percent_Day_17")
+  testthat::expect_identical(e$test$plot_x, "sample_mean_endpoint_ploidy")
+  testthat::expect_identical(e$test$plot_y, "TGI_percent_Day_17")
+  testthat::expect_equal(e$test$n_permutations, factorial(8L))
+  testthat::expect_false(any(c(
+    "terminal_postprocessed_cn_score",
+    "terminal_cn_score_within_origin_z",
+    "terminal_cn_score_nuisance_residual",
+    "tgi_origin_dose_residual",
+    "permutation_stratum"
+  ) %in% names(e$data)))
   testthat::expect_false(any(grepl("etp_group", names(e$data), fixed = TRUE)))
 
-  plot <- figure7_adjusted_cn_plot(e$data, e$test, input$config)
-  testthat::expect_match(plot$labels$title, "QC-passed terminal postprocessed CN score", fixed = TRUE)
-  testthat::expect_match(plot$labels$subtitle, "adjusted for injected origin", fixed = TRUE)
-  testthat::expect_match(plot$labels$x, "within-origin z score", fixed = TRUE)
-  testthat::expect_match(plot$labels$y, "origin- and dose-adjusted", fixed = TRUE)
+  plot <- figure7_endpoint_ploidy_plot(e$data, e$test, input$config)
+  testthat::expect_match(plot$labels$title, "mean endpoint tumor-cell ploidy", fixed = TRUE)
+  testthat::expect_match(plot$labels$subtitle, "unadjusted mouse-level", fixed = TRUE)
+  testthat::expect_identical(plot$labels$x, "Mean endpoint tumor-cell ploidy")
+  testthat::expect_identical(plot$labels$y, "Day 17 TGI (%)")
   testthat::expect_match(deparse(plot$mapping$shape), "initial_ploidy", fixed = TRUE)
   testthat::expect_match(deparse(plot$mapping$colour), "dose", fixed = TRUE)
 })
@@ -135,17 +133,21 @@ testthat::test_that("panel 7E/K is standardized within origin and adjusted witho
 testthat::test_that("panel 7E/K exposes the frozen Day-17/24/31 sensitivity results", {
   expected <- data.frame(
     day = c(17L, 24L, 31L),
-    effect = c(
-      -8.792298734079608,
-      -6.683928279063553,
-      -2.955883758578773
+    estimate = c(
+      -0.698401019253014,
+      -0.387348978978662,
+      -0.296948455789288
     ),
-    partial_correlation = c(
-      -0.3431355546551816,
-      -0.3022214862100653,
-      -0.1847098257830974
+    asymptotic_p = c(
+      0.0540069781511847,
+      0.343097626516948,
+      0.475086351653848
     ),
-    permutation_p = c(0.75, 0.625, 0.625)
+    permutation_p = c(
+      0.0591269841269841,
+      0.346924603174603,
+      0.485714285714286
+    )
   )
   for (i in seq_len(nrow(expected))) {
     day <- expected$day[[i]]
@@ -173,13 +175,13 @@ testthat::test_that("panel 7E/K exposes the frozen Day-17/24/31 sensitivity resu
     )
     result <- figure7_panel_e(samples, config)$test
     testthat::expect_equal(
-      result$effect_per_within_origin_sd,
-      expected$effect[[i]],
+      result$estimate,
+      expected$estimate[[i]],
       tolerance = 1e-12
     )
     testthat::expect_equal(
-      result$partial_correlation,
-      expected$partial_correlation[[i]],
+      result$asymptotic_p,
+      expected$asymptotic_p[[i]],
       tolerance = 1e-12
     )
     testthat::expect_equal(
@@ -187,7 +189,7 @@ testthat::test_that("panel 7E/K exposes the frozen Day-17/24/31 sensitivity resu
       expected$permutation_p[[i]],
       tolerance = 1e-12
     )
-    testthat::expect_equal(result$n_permutations, 16L)
+    testthat::expect_equal(result$n_permutations, factorial(8L))
     testthat::expect_identical(
       result$outcome_variable,
       paste0("TGI_percent_Day_", day)

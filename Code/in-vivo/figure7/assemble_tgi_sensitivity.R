@@ -15,7 +15,9 @@ repo_root <- normalizePath(
   file.path(script_dir, "..", "..", ".."),
   mustWork = TRUE
 )
-for (file in c("common_io.R", "tgi_data.R", "tgi_panels.R")) {
+for (file in c(
+  "common_io.R", "tgi_data.R", "tgi_statistics.R", "tgi_panels.R"
+)) {
   sys.source(file.path(script_dir, "src", file), envir = .GlobalEnv)
 }
 
@@ -34,7 +36,7 @@ if (length(missing_packages)) {
 }
 
 args <- figure7_parse_args(commandArgs(trailingOnly = TRUE))
-source_bundle_id <- "tgi_day24_day31_curated_cbs_v2"
+source_bundle_id <- "tgi_day24_day31_curated_cbs_v3_raw_pearson"
 default_source_bundle_dir <- file.path(
   repo_root,
   "Data", "in-vivo", "figure7", "saved_tgi_sensitivity",
@@ -307,18 +309,16 @@ read_endpoint_run <- function(run_dir, day) {
       "endpoint_ploidy_score_universe_total_cells",
       "endpoint_ploidy_source_file_count", "endpoint_ploidy_source_sha256",
       "endpoint_ploidy_score_policy", "endpoint_ploidy_mapping_policy",
-      "terminal_postprocessed_cn_score",
-      "terminal_cn_score_within_origin_z",
-      "terminal_cn_score_nuisance_residual", "tgi_origin_dose_residual",
-      "permutation_stratum", figure7_tgi_measure(config)
+      figure7_tgi_measure(config)
     )
   )
   etest <- figure7_read_tsv(
     table_path("panel_7E_test.tsv"),
     c(
-      "n", "partial_correlation", "effect_per_within_origin_sd",
+      "n", "estimate", "asymptotic_p",
       "permutation_p_two_sided", "n_permutations", "permutation_mode",
-      "permutation_strata", "score_variable", "score_source_sha256",
+      "permutation_strata", "association_type", "score_variable",
+      "score_source_sha256",
       "score_source_n_cells", "score_inventory_n_cells",
       "score_source_n_files",
       "treated_score_n_cells", "score_aggregation_policy",
@@ -347,14 +347,6 @@ read_endpoint_run <- function(run_dir, day) {
     )
   }
 
-  z_contract <- vapply(
-    split(edata$terminal_cn_score_within_origin_z, edata$initial_ploidy),
-    function(values) {
-      values <- figure7_numeric(values)
-      abs(mean(values)) <= 1e-10 && abs(stats::sd(values) - 1) <= 1e-10
-    },
-    logical(1L)
-  )
   expected_treated <- expected_treated[
     match(edata$sample_id, expected_treated$sample_id),
     ,
@@ -365,24 +357,30 @@ read_endpoint_run <- function(run_dir, day) {
   mapped_counts <- expected_treated$n_endpoint_ploidy_cells
   expected_results <- list(
     `24` = c(
-      effect = -6.683928279063553,
-      partial_r = -0.3022214862100653,
-      permutation_p = 0.625
+      estimate = -0.387348978978662,
+      asymptotic_p = 0.343097626516948,
+      permutation_p = 0.346924603174603
     ),
     `31` = c(
-      effect = -2.955883758578773,
-      partial_r = -0.1847098257830974,
-      permutation_p = 0.625
+      estimate = -0.296948455789288,
+      asymptotic_p = 0.475086351653848,
+      permutation_p = 0.485714285714286
     )
   )[[as.character(day)]]
-  if (nrow(edata) != 8L || nrow(etest) != 1L || !all(z_contract) ||
-      anyNA(mapped_files) ||
+  if (nrow(edata) != 8L || nrow(etest) != 1L) {
+    figure7_stop(
+      "Day-", day,
+      " panel K must contain exactly eight treated tumors and one test row"
+    )
+  }
+  recomputed <- figure7_exact_cor(
+    figure7_numeric(edata$sample_mean_endpoint_ploidy),
+    figure7_numeric(edata[[figure7_tgi_measure(config)]])
+  )
+  if (anyNA(mapped_files) ||
       any(edata$endpoint_ploidy_file != mapped_files) ||
       any(abs(
         figure7_numeric(edata$sample_mean_endpoint_ploidy) - mapped_scores
-      ) > 1e-12) ||
-      any(abs(
-        figure7_numeric(edata$terminal_postprocessed_cn_score) - mapped_scores
       ) > 1e-12) ||
       any(figure7_numeric(edata$n_endpoint_ploidy_cells) != mapped_counts) ||
       sum(figure7_numeric(edata$n_endpoint_ploidy_cells)) != 5335L ||
@@ -394,18 +392,17 @@ read_endpoint_run <- function(run_dir, day) {
         run_config[["endpoint_ploidy_score_policy"]]) ||
       any(edata$endpoint_ploidy_mapping_policy !=
         run_config[["endpoint_ploidy_mapping_policy"]]) ||
-      any(edata$permutation_stratum != paste(
-        edata$initial_ploidy,
-        edata$dose_mg,
-        sep = "|"
-      )) ||
       !identical(
         as.character(etest$permutation_mode),
-        "exact_TGI_label_enumeration_within_initial_ploidy_x_dose"
+        "exact_TGI_label_enumeration"
       ) ||
       !identical(
         as.character(etest$permutation_strata),
-        "initial_ploidy:dose_mg"
+        "none"
+      ) ||
+      !identical(
+        as.character(etest$association_type),
+        "unadjusted_mouse_level_pearson"
       ) ||
       !identical(
         as.character(etest$score_variable),
@@ -429,27 +426,35 @@ read_endpoint_run <- function(run_dir, day) {
       ) ||
       !identical(
         as.character(etest$score_standardization),
-        "z_score_within_initial_ploidy"
+        "none"
       ) ||
       !identical(
         as.character(etest$adjustment_terms),
-        "initial_ploidy+dose_mg"
+        "none"
       ) ||
       !identical(
         as.character(etest$plot_x),
-        "terminal_cn_score_nuisance_residual"
+        "sample_mean_endpoint_ploidy"
       ) ||
-      !identical(as.character(etest$plot_y), "tgi_origin_dose_residual") ||
-      figure7_numeric(etest$n_permutations) != 16L ||
-      abs(figure7_numeric(etest$effect_per_within_origin_sd) -
-        expected_results[["effect"]]) > 1e-12 ||
-      abs(figure7_numeric(etest$partial_correlation) -
-        expected_results[["partial_r"]]) > 1e-12 ||
+      !identical(
+        as.character(etest$plot_y),
+        figure7_tgi_measure(config)
+      ) ||
+      figure7_numeric(etest$n_permutations) != factorial(8L) ||
+      abs(figure7_numeric(etest$estimate) - recomputed$estimate) > 1e-12 ||
+      abs(figure7_numeric(etest$asymptotic_p) -
+        recomputed$asymptotic_p) > 1e-12 ||
+      abs(figure7_numeric(etest$permutation_p_two_sided) -
+        recomputed$permutation_p_two_sided) > 1e-12 ||
+      abs(figure7_numeric(etest$estimate) -
+        expected_results[["estimate"]]) > 1e-12 ||
+      abs(figure7_numeric(etest$asymptotic_p) -
+        expected_results[["asymptotic_p"]]) > 1e-12 ||
       abs(figure7_numeric(etest$permutation_p_two_sided) -
         expected_results[["permutation_p"]]) > 1e-12) {
     figure7_stop(
       "Day-", day,
-      " panel K lacks the reviewed confound-safe analysis contract"
+      " panel K lacks the reviewed raw endpoint-ploidy association contract"
     )
   }
 
@@ -607,9 +612,9 @@ figure7_sensitivity_growth_plot <- function(data) {
 plots <- list(
   A = figure7_sensitivity_growth_plot(growth24),
   B = figure7_panel_c_plot(day24$cdata, day24$ctest, day24$config),
-  C = figure7_adjusted_cn_plot(day24$edata, day24$etest, day24$config),
+  C = figure7_endpoint_ploidy_plot(day24$edata, day24$etest, day24$config),
   D = figure7_panel_c_plot(day31$cdata, day31$ctest, day31$config),
-  E = figure7_adjusted_cn_plot(day31$edata, day31$etest, day31$config)
+  E = figure7_endpoint_ploidy_plot(day31$edata, day31$etest, day31$config)
 )
 design <- paste("AAAA", "BBCC", "DDEE", sep = "\n")
 composite <- patchwork::wrap_plots(plots, design = design) +
@@ -712,9 +717,9 @@ provenance <- data.frame(
     "endpoint_ploidy_score_policy",
     paste0("source_file:", names(source_files)),
     paste0("source_sha256:", names(source_files)),
-    "day24_adjusted_slope_per_origin_sd", "day24_partial_r",
-    "day24_exact_permutation_p", "day31_adjusted_slope_per_origin_sd",
-    "day31_partial_r", "day31_exact_permutation_p",
+    "day24_pearson_r", "day24_asymptotic_p",
+    "day24_exact_unrestricted_permutation_p", "day31_pearson_r",
+    "day31_asymptotic_p", "day31_exact_unrestricted_permutation_p",
     "png", "png_sha256", "pdf", "pdf_sha256"
   ),
   value = c(
@@ -735,11 +740,11 @@ provenance <- data.frame(
     ),
     vapply(source_files, repo_locator, character(1L)),
     vapply(source_files, figure7_sha256, character(1L)),
-    as.character(day24$etest$effect_per_within_origin_sd),
-    as.character(day24$etest$partial_correlation),
+    as.character(day24$etest$estimate),
+    as.character(day24$etest$asymptotic_p),
     as.character(day24$etest$permutation_p_two_sided),
-    as.character(day31$etest$effect_per_within_origin_sd),
-    as.character(day31$etest$partial_correlation),
+    as.character(day31$etest$estimate),
+    as.character(day31$etest$asymptotic_p),
     as.character(day31$etest$permutation_p_two_sided),
     repo_locator(png_path),
     figure7_sha256(png_path),

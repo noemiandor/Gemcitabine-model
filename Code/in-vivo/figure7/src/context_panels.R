@@ -497,9 +497,12 @@ figure7_main_composite_plots <- function(
     ggplot2::labs(
       title = paste(
         "Day", figure7_tgi_day(config),
-        "TGI vs adjusted terminal CN score"
+        "TGI vs mean endpoint tumor-cell ploidy"
       ),
-      subtitle = "Within-origin z score; origin- and dose-adjusted"
+      subtitle = paste0(
+        "5,335 QC-passed treated-tumor cells; ",
+        "unadjusted mouse-level Pearson association"
+      )
     ) +
     ggplot2::theme(legend.position = "bottom")
 

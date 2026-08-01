@@ -22,7 +22,29 @@ from figure_output_contract import (  # noqa: E402
     validate_module_manifest,
     write_tsv,
 )
-from materialize_figure_assets import PANEL_SPECS  # noqa: E402
+from materialize_figure_assets import (  # noqa: E402
+    FIGURE7_PANEL_K_RESULTS,
+    PANEL_SPECS,
+)
+
+
+RAW_FIGURE7_PANEL_K_RESULTS = {
+    17: {
+        "estimate": -0.6984010192530142,
+        "asymptotic_p": 0.0540069781511847,
+        "permutation_p_two_sided": 0.059126984126984125,
+    },
+    24: {
+        "estimate": -0.387348978978662,
+        "asymptotic_p": 0.343097626516948,
+        "permutation_p_two_sided": 0.34692460317460316,
+    },
+    31: {
+        "estimate": -0.2969484557892882,
+        "asymptotic_p": 0.475086351653848,
+        "permutation_p_two_sided": 0.4857142857142857,
+    },
+}
 
 
 class Figure7MaterializationTest(unittest.TestCase):
@@ -366,11 +388,6 @@ class Figure7MaterializationTest(unittest.TestCase):
             "endpoint_ploidy_source_sha256",
             "endpoint_ploidy_score_policy",
             "endpoint_ploidy_mapping_policy",
-            "terminal_postprocessed_cn_score",
-            "terminal_cn_score_within_origin_z",
-            "permutation_stratum",
-            "terminal_cn_score_nuisance_residual",
-            "tgi_origin_dose_residual",
             "TGI_percent_Day_17",
             "tgi_outcome",
             "tgi_day",
@@ -443,20 +460,6 @@ class Figure7MaterializationTest(unittest.TestCase):
             statistics.mean(curated_scores_by_sample[sample_id])
             for sample_id, *_ in design
         ]
-        z_scores: list[float] = []
-        for origin in ("2N", "4N"):
-            indices = [
-                index
-                for index, row in enumerate(design)
-                if row[1] == origin
-            ]
-            local_scores = [terminal_scores[index] for index in indices]
-            local_mean = statistics.mean(local_scores)
-            local_sd = statistics.stdev(local_scores)
-            local_z = [
-                (score - local_mean) / local_sd for score in local_scores
-            ]
-            z_scores.extend(local_z)
         tgi_by_sample: dict[str, float] = {}
         with self.processed_inputs[0].open(newline="") as handle:
             for row in csv.DictReader(handle):
@@ -473,7 +476,6 @@ class Figure7MaterializationTest(unittest.TestCase):
             dose_mg,
             endpoint_file,
         ) in enumerate(design):
-            z_score = z_scores[index]
             terminal_score = terminal_scores[index]
             plot_rows.append(
                 {
@@ -500,11 +502,6 @@ class Figure7MaterializationTest(unittest.TestCase):
                         "exact_processed_sample_barcode_to_canonical_cbs_file_"
                         "cell_and_value;score_universe=reviewed_final_seurat_tumor_cells"
                     ),
-                    "terminal_postprocessed_cn_score": terminal_score,
-                    "terminal_cn_score_within_origin_z": z_score,
-                    "permutation_stratum": f"{origin}|{dose_mg}",
-                    "terminal_cn_score_nuisance_residual": "pending",
-                    "tgi_origin_dose_residual": "pending",
                     "TGI_percent_Day_17": tgi_by_sample[sample_id],
                     "tgi_outcome": "day",
                     "tgi_day": "17",
@@ -514,42 +511,6 @@ class Figure7MaterializationTest(unittest.TestCase):
                 }
             )
 
-        def additive_residual(column: str) -> list[float]:
-            values = [float(row[column]) for row in plot_rows]
-            grand_mean = statistics.mean(values)
-            origin_means = {
-                origin: statistics.mean(
-                    value
-                    for value, row in zip(values, plot_rows)
-                    if row["initial_ploidy"] == origin
-                )
-                for origin in ("2N", "4N")
-            }
-            dose_means = {
-                dose_mg: statistics.mean(
-                    value
-                    for value, row in zip(values, plot_rows)
-                    if row["dose_mg"] == dose_mg
-                )
-                for dose_mg in ("30", "120")
-            }
-            return [
-                value
-                - origin_means[row["initial_ploidy"]]
-                - dose_means[row["dose_mg"]]
-                + grand_mean
-                for value, row in zip(values, plot_rows)
-            ]
-
-        x_residual = additive_residual("terminal_cn_score_within_origin_z")
-        y_residual = additive_residual("TGI_percent_Day_17")
-        for row, x_value, y_value in zip(
-            plot_rows,
-            x_residual,
-            y_residual,
-        ):
-            row["terminal_cn_score_nuisance_residual"] = x_value
-            row["tgi_origin_dose_residual"] = y_value
         write_tsv(
             self.run_root / "tables/panel_7E_plot_data.tsv",
             plot_rows,
@@ -557,15 +518,13 @@ class Figure7MaterializationTest(unittest.TestCase):
         )
         test_row = {
             "n": "8",
-            "estimate": "-0.3431355546551816",
-            "partial_correlation": "-0.3431355546551816",
-            "effect_per_within_origin_sd": "-8.792298734079608",
-            "permutation_p_two_sided": "0.75",
-            "n_permutations": "16",
-            "permutation_mode": (
-                "exact_TGI_label_enumeration_within_initial_ploidy_x_dose"
-            ),
-            "permutation_strata": "initial_ploidy:dose_mg",
+            "estimate": "-0.698401019253014",
+            "asymptotic_p": "0.0540069781511847",
+            "permutation_p_two_sided": "0.0591269841269841",
+            "n_permutations": "40320",
+            "permutation_mode": "exact_TGI_label_enumeration",
+            "permutation_strata": "none",
+            "association_type": "unadjusted_mouse_level_pearson",
             "score_variable": "sample_mean_qc_passed_curated_cbs_cell_ploidy",
             "score_source_sha256": sha256_file(self.endpoint_ploidy),
             "score_source_n_cells": "9832",
@@ -580,11 +539,11 @@ class Figure7MaterializationTest(unittest.TestCase):
                 "exact_processed_sample_barcode_to_canonical_cbs_file_"
                 "cell_and_value;score_universe=reviewed_final_seurat_tumor_cells"
             ),
-            "score_standardization": "z_score_within_initial_ploidy",
-            "adjustment_terms": "initial_ploidy+dose_mg",
+            "score_standardization": "none",
+            "adjustment_terms": "none",
             "outcome_variable": "TGI_percent_Day_17",
-            "plot_x": "terminal_cn_score_nuisance_residual",
-            "plot_y": "tgi_origin_dose_residual",
+            "plot_x": "sample_mean_endpoint_ploidy",
+            "plot_y": "TGI_percent_Day_17",
             "tgi_outcome": "day",
             "tgi_day": "17",
             "tgi_measure": "TGI_percent_Day_17",
@@ -685,7 +644,27 @@ class Figure7MaterializationTest(unittest.TestCase):
             ).is_file()
         )
 
-    def test_materialized_panel_7e_records_confound_safe_panel_7k_role(
+    def test_materializer_pins_original_raw_results_for_all_reviewed_days(
+        self,
+    ) -> None:
+        self.assertEqual(
+            set(FIGURE7_PANEL_K_RESULTS),
+            set(RAW_FIGURE7_PANEL_K_RESULTS),
+        )
+        for day, expected in RAW_FIGURE7_PANEL_K_RESULTS.items():
+            with self.subTest(day=day):
+                self.assertEqual(
+                    set(FIGURE7_PANEL_K_RESULTS[day]),
+                    set(expected),
+                )
+                for key, value in expected.items():
+                    self.assertAlmostEqual(
+                        FIGURE7_PANEL_K_RESULTS[day][key],
+                        value,
+                        places=14,
+                    )
+
+    def test_materialized_panel_7e_records_raw_panel_7k_role(
         self,
     ) -> None:
         result = self._run_materializer()
@@ -700,8 +679,8 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.assertEqual(
             rows["7E"]["caption_role"],
             (
-                "Day-17 TGI versus within-origin standardized terminal "
-                "postprocessed CN score, adjusted for origin and dose"
+                "Day-17 TGI versus mean endpoint tumor-cell ploidy using the "
+                "unadjusted mouse-level Pearson association"
             ),
         )
 
@@ -755,20 +734,23 @@ class Figure7MaterializationTest(unittest.TestCase):
             result.stderr,
         )
 
-    def test_rejects_pooled_confounded_panel_k_method(self) -> None:
+    def test_rejects_adjusted_residual_panel_k_method(self) -> None:
         table = self.run_root / "tables/panel_7E_test.tsv"
         with table.open(newline="") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
             columns = list(rows[0])
         rows[0].update(
             {
-                "n_permutations": "40320",
-                "permutation_mode": "exact_TGI_label_enumeration",
-                "permutation_strata": "",
-                "score_standardization": "none",
-                "adjustment_terms": "none",
-                "plot_x": "sample_mean_endpoint_ploidy",
-                "plot_y": "TGI_percent_Day_17",
+                "n_permutations": "16",
+                "permutation_mode": (
+                    "exact_TGI_label_enumeration_within_initial_ploidy_x_dose"
+                ),
+                "permutation_strata": "initial_ploidy:dose_mg",
+                "association_type": "adjusted_within_origin_partial_correlation",
+                "score_standardization": "z_score_within_initial_ploidy",
+                "adjustment_terms": "initial_ploidy+dose_mg",
+                "plot_x": "terminal_cn_score_nuisance_residual",
+                "plot_y": "tgi_origin_dose_residual",
             }
         )
         write_tsv(table, rows, columns)
@@ -777,7 +759,10 @@ class Figure7MaterializationTest(unittest.TestCase):
         result = self._run_materializer()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "does not use the reviewed within-origin standardization",
+            (
+                "does not use the reviewed raw mouse-level Pearson and exact "
+                "unrestricted permutation method"
+            ),
             result.stderr,
         )
 
@@ -786,32 +771,37 @@ class Figure7MaterializationTest(unittest.TestCase):
         with table.open(newline="") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
             columns = list(rows[0])
-        rows[0]["effect_per_within_origin_sd"] = "-8.7"
+        rows[0]["estimate"] = "-0.69"
         write_tsv(table, rows, columns)
         self._write_output_manifest()
 
         result = self._run_materializer()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "does not reproduce the exact reviewed Day-17 adjusted beta",
+            (
+                "does not reproduce the exact reviewed Day-17 raw Pearson "
+                "correlation and exact P"
+            ),
             result.stderr,
         )
 
-    def test_rejects_panel_k_scores_not_standardized_within_origin(
+    def test_rejects_adjusted_result_columns_in_panel_k_test_table(
         self,
     ) -> None:
-        table = self.run_root / "tables/panel_7E_plot_data.tsv"
+        table = self.run_root / "tables/panel_7E_test.tsv"
         with table.open(newline="") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
             columns = list(rows[0])
-        rows[0]["terminal_cn_score_within_origin_z"] = "0"
+        columns.extend(["partial_correlation", "effect_per_within_origin_sd"])
+        rows[0]["partial_correlation"] = rows[0]["estimate"]
+        rows[0]["effect_per_within_origin_sd"] = "-8.792298734079608"
         write_tsv(table, rows, columns)
         self._write_output_manifest()
 
         result = self._run_materializer()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "not the per-mouse mean over the exact QC-passed curated cells",
+            "reviewed raw-analysis schema and eight-tumor scope",
             result.stderr,
         )
 
@@ -837,6 +827,38 @@ class Figure7MaterializationTest(unittest.TestCase):
                 )
                 self.assertIn(omitted, result.stderr)
                 self.assertFalse((self.repo / "figures").exists())
+
+    def test_rejects_changed_curated_cell_identity_even_when_rehashed(
+        self,
+    ) -> None:
+        processed = self.processed_inputs[0]
+        with processed.open(newline="") as handle:
+            reader = csv.DictReader(handle)
+            columns = list(reader.fieldnames or [])
+            rows = list(reader)
+        sample_id = rows[0]["sample_id"]
+        rows[0]["cell_id"] = f"{sample_id}_tampered_cell_identity"
+        with processed.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=columns)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        changed_hash = sha256_file(processed)
+        run_config_path = self.run_root / "metadata/run_config.tsv"
+        with run_config_path.open(newline="") as handle:
+            run_config = list(csv.DictReader(handle, delimiter="\t"))
+        for row in run_config:
+            if row["key"] == "cellcycle_sha256":
+                row["value"] = changed_hash
+        write_tsv(run_config_path, run_config, ["key", "value"])
+        self._write_input_manifest()
+
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Figure 7 processed input differs from its reviewed hash",
+            result.stderr,
+        )
 
     def test_rejects_missing_complete_endpoint_ploidy_inventory_binding(self) -> None:
         manifest = self.run_root / "metadata/input_manifest.tsv"
@@ -878,21 +900,40 @@ class Figure7MaterializationTest(unittest.TestCase):
             result.stderr,
         )
 
-    def test_rejects_tampered_panel_k_adjusted_residual(self) -> None:
+    def test_rejects_adjusted_residual_columns_in_panel_k_plot_table(self) -> None:
         table = self.run_root / "tables/panel_7E_plot_data.tsv"
         with table.open(newline="") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
             columns = list(rows[0])
-        rows[0]["terminal_cn_score_nuisance_residual"] = str(
-            float(rows[0]["terminal_cn_score_nuisance_residual"]) + 0.01
-        )
+        adjusted_columns = [
+            "terminal_postprocessed_cn_score",
+            "terminal_cn_score_within_origin_z",
+            "permutation_stratum",
+            "terminal_cn_score_nuisance_residual",
+            "tgi_origin_dose_residual",
+        ]
+        columns.extend(adjusted_columns)
+        for row in rows:
+            row.update(
+                {
+                    "terminal_postprocessed_cn_score": row[
+                        "sample_mean_endpoint_ploidy"
+                    ],
+                    "terminal_cn_score_within_origin_z": "0",
+                    "permutation_stratum": (
+                        f"{row['initial_ploidy']}|{row['dose_mg']}"
+                    ),
+                    "terminal_cn_score_nuisance_residual": "0",
+                    "tgi_origin_dose_residual": "0",
+                }
+            )
         write_tsv(table, rows, columns)
         self._write_output_manifest()
 
         result = self._run_materializer()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "plotted residuals do not reproduce the origin-and-dose nuisance adjustment",
+            "reviewed raw-analysis schema and eight-tumor scope",
             result.stderr,
         )
 

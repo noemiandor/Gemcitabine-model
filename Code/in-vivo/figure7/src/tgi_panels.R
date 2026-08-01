@@ -171,26 +171,51 @@ figure7_scatter_plot <- function(
     ggplot2::theme(legend.position = "right")
 }
 
-figure7_adjusted_cn_plot <- function(data, test, config) {
+figure7_endpoint_ploidy_plot <- function(data, test, config) {
   required_data <- c(
     "sample_id", "initial_ploidy", "dose",
     "endpoint_ploidy_file", "n_endpoint_ploidy_cells",
     "endpoint_ploidy_source_total_cells",
-    "terminal_cn_score_nuisance_residual", "tgi_origin_dose_residual"
+    "endpoint_ploidy_score_universe_total_cells",
+    "endpoint_ploidy_source_file_count", "endpoint_ploidy_source_sha256",
+    "endpoint_ploidy_score_policy", "endpoint_ploidy_mapping_policy",
+    "sample_mean_endpoint_ploidy", figure7_tgi_measure(config)
   )
   required_test <- c(
-    "n", "partial_correlation", "effect_per_within_origin_sd",
-    "permutation_p_two_sided", "permutation_strata",
-    "score_variable", "score_source_n_cells", "score_inventory_n_cells",
-    "score_source_n_files",
+    "n", "estimate", "asymptotic_p", "permutation_p_two_sided",
+    "n_permutations", "permutation_mode", "permutation_strata",
+    "association_type",
+    "score_variable", "score_source_sha256", "score_source_n_cells",
+    "score_inventory_n_cells", "score_source_n_files",
     "treated_score_n_cells", "score_aggregation_policy",
-    "sample_mapping_policy", "score_standardization", "adjustment_terms"
+    "sample_mapping_policy", "score_standardization", "adjustment_terms",
+    "outcome_variable", "plot_x", "plot_y"
   )
   if (length(setdiff(required_data, names(data))) ||
       length(setdiff(required_test, names(test)))) {
-    figure7_stop("Panel 7E/K adjusted CN-score plot received an incomplete analysis contract")
+    figure7_stop(
+      "Panel 7E/K endpoint-ploidy plot received an incomplete analysis contract"
+    )
   }
-  if (!identical(as.character(test$permutation_strata[[1L]]), "initial_ploidy:dose_mg") ||
+  source_hash <- unique(as.character(data$endpoint_ploidy_source_sha256))
+  score_policy <- unique(as.character(data$endpoint_ploidy_score_policy))
+  mapping_policy <- unique(as.character(data$endpoint_ploidy_mapping_policy))
+  if (nrow(data) != 8L || nrow(test) != 1L ||
+      figure7_numeric(test$n[[1L]]) != 8L ||
+      sum(figure7_numeric(data$n_endpoint_ploidy_cells)) != 5335L ||
+      any(figure7_numeric(data$endpoint_ploidy_source_total_cells) != 14125L) ||
+      any(figure7_numeric(data$endpoint_ploidy_score_universe_total_cells) != 9832L) ||
+      any(figure7_numeric(data$endpoint_ploidy_source_file_count) != 16L) ||
+      length(source_hash) != 1L || !grepl("^[0-9a-f]{64}$", source_hash) ||
+      length(score_policy) != 1L || length(mapping_policy) != 1L ||
+      !identical(as.character(test$score_source_sha256[[1L]]), source_hash) ||
+      !identical(as.character(test$score_aggregation_policy[[1L]]), score_policy) ||
+      !identical(as.character(test$sample_mapping_policy[[1L]]), mapping_policy) ||
+      !identical(as.character(test$permutation_mode[[1L]]),
+        "exact_TGI_label_enumeration") ||
+      !identical(as.character(test$permutation_strata[[1L]]), "none") ||
+      !identical(as.character(test$association_type[[1L]]),
+        "unadjusted_mouse_level_pearson") ||
       !identical(
         as.character(test$score_variable[[1L]]),
         "sample_mean_qc_passed_curated_cbs_cell_ploidy"
@@ -199,83 +224,48 @@ figure7_adjusted_cn_plot <- function(data, test, config) {
       as.integer(test$score_inventory_n_cells[[1L]]) != 14125L ||
       as.integer(test$score_source_n_files[[1L]]) != 16L ||
       as.integer(test$treated_score_n_cells[[1L]]) != 5335L ||
-      !identical(as.character(test$score_standardization[[1L]]), "z_score_within_initial_ploidy") ||
-      !identical(as.character(test$adjustment_terms[[1L]]), "initial_ploidy+dose_mg")) {
-    figure7_stop("Panel 7E/K adjusted CN-score plot received an incompatible analysis contract")
-  }
-
-  data$initial_ploidy <- factor(data$initial_ploidy, levels = c("2N", "4N"))
-  data$dose <- factor(data$dose, levels = c("30mg/kg", "120mg/kg"))
-  annotation <- sprintf(
-    paste0(
-      "Adjusted slope = %.2f TGI points / score SD\n",
-      "Partial r = %.3f\n",
-      "Exact origin x dose permutation P = %.3g\n",
-      "n = %d"
-    ),
-    test$effect_per_within_origin_sd,
-    test$partial_correlation,
-    test$permutation_p_two_sided,
-    test$n
-  )
-  ggplot2::ggplot(
-    data,
-    ggplot2::aes(
-      x = terminal_cn_score_nuisance_residual,
-      y = tgi_origin_dose_residual,
-      color = dose,
-      shape = initial_ploidy
+      as.integer(test$n_permutations[[1L]]) != factorial(8L) ||
+      !identical(as.character(test$score_standardization[[1L]]), "none") ||
+      !identical(as.character(test$adjustment_terms[[1L]]), "none") ||
+      !identical(as.character(test$plot_x[[1L]]),
+        "sample_mean_endpoint_ploidy") ||
+      !identical(as.character(test$plot_y[[1L]]),
+        figure7_tgi_measure(config))) {
+    figure7_stop(
+      "Panel 7E/K endpoint-ploidy plot received an incompatible raw-analysis contract"
     )
+  }
+  recomputed <- figure7_exact_cor(
+    figure7_numeric(data$sample_mean_endpoint_ploidy),
+    figure7_numeric(data[[figure7_tgi_measure(config)]])
+  )
+  if (abs(recomputed$estimate - figure7_numeric(test$estimate)) > 1e-12 ||
+      abs(recomputed$asymptotic_p - figure7_numeric(test$asymptotic_p)) > 1e-12 ||
+      abs(recomputed$permutation_p_two_sided -
+        figure7_numeric(test$permutation_p_two_sided)) > 1e-12) {
+    figure7_stop(
+      "Panel 7E/K endpoint-ploidy plot does not reproduce its raw Pearson contract"
+    )
+  }
+  figure7_scatter_plot(
+    data,
+    "sample_mean_endpoint_ploidy",
+    figure7_tgi_measure(config),
+    test,
+    paste(
+      "Day", figure7_tgi_day(config),
+      "TGI vs mean endpoint tumor-cell ploidy"
+    ),
+    "Mean endpoint tumor-cell ploidy",
+    paste("Day", figure7_tgi_day(config), "TGI (%)"),
+    "Exact unrestricted permutation P"
   ) +
-    ggplot2::geom_hline(yintercept = 0, color = "grey75", linewidth = 0.35) +
-    ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.35) +
-    ggplot2::geom_smooth(
-      data = data,
-      ggplot2::aes(
-        x = terminal_cn_score_nuisance_residual,
-        y = tgi_origin_dose_residual,
-        group = 1
-      ),
-      inherit.aes = FALSE,
-      method = "lm", se = TRUE, color = "black", linewidth = 0.55
-    ) +
-    ggplot2::geom_point(size = 2.9) +
-    ggrepel::geom_text_repel(
-      ggplot2::aes(label = sample_id), size = 2.4, seed = 1,
-      min.segment.length = 0, segment.color = "grey65",
-      max.overlaps = Inf, show.legend = FALSE
-    ) +
-    ggplot2::annotate(
-      "label", x = Inf, y = Inf, label = annotation,
-      hjust = 1.05, vjust = 1.1, size = 2.8
-    ) +
-    ggplot2::scale_color_manual(values = figure7_dose_colors(), name = "Dose") +
-    ggplot2::scale_shape_manual(
-      values = c("2N" = 16, "4N" = 17),
-      name = "Injected origin"
-    ) +
     ggplot2::labs(
-      title = paste(
-        "Day", figure7_tgi_day(config),
-        "TGI vs QC-passed terminal postprocessed CN score"
-      ),
       subtitle = paste0(
-        "5,335 QC-passed treated-tumor CBS cells; within-origin z score;\n",
-        "association adjusted for injected origin and dose"
-      ),
-      x = paste0(
-        "Terminal CN-score residual\n",
-        "(within-origin z score; dose-adjusted)"
-      ),
-      y = paste0(
-        "Day ", figure7_tgi_day(config), " TGI residual (%)\n",
-        "(origin- and dose-adjusted)"
-      ),
-      shape = "Injected origin"
-    ) +
-    ggplot2::coord_cartesian(clip = "off") +
-    figure7_theme() +
-    ggplot2::theme(legend.position = "right")
+        "5,335 QC-passed treated-tumor CBS cells; ",
+        "unadjusted mouse-level association"
+      )
+    )
 }
 
 figure7_build_ae <- function(cellcycle, data, samples, output_dir, config) {
@@ -318,7 +308,7 @@ figure7_build_ae <- function(cellcycle, data, samples, output_dir, config) {
       "Exact within-dose permutation P"
     ) +
       ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.35),
-    E = figure7_adjusted_cn_plot(panel_e$data, panel_e$test, config)
+    E = figure7_endpoint_ploidy_plot(panel_e$data, panel_e$test, config)
   )
   sizes <- list(
     A = c(10, 6.5),

@@ -475,7 +475,7 @@ testthat::test_that("SI8 compact provenance is complete and relocatable", {
   keyed <- stats::setNames(as.character(provenance$value), provenance$key)
   bundle_locator <- paste0(
     "Data/in-vivo/figure7/saved_tgi_sensitivity/",
-    "tgi_day24_day31_curated_cbs_v2"
+    "tgi_day24_day31_curated_cbs_v3_raw_pearson"
   )
   expected_bundle_files <- unlist(lapply(c("day24", "day31"), function(day) {
     c(
@@ -497,7 +497,7 @@ testthat::test_that("SI8 compact provenance is complete and relocatable", {
 
   testthat::expect_identical(
     keyed[["source_bundle_id"]],
-    "tgi_day24_day31_curated_cbs_v2"
+    "tgi_day24_day31_curated_cbs_v3_raw_pearson"
   )
   testthat::expect_identical(keyed[["source_bundle"]], bundle_locator)
   testthat::expect_identical(keyed[["source_bundle_file_count"]], "12")
@@ -513,6 +513,30 @@ testthat::test_that("SI8 compact provenance is complete and relocatable", {
     keyed[["treated_endpoint_ploidy_n_cells"]],
     "5335"
   )
+  testthat::expect_equal(
+    as.numeric(keyed[["day24_pearson_r"]]),
+    -0.387348978978662,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    as.numeric(keyed[["day24_exact_unrestricted_permutation_p"]]),
+    0.346924603174603,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    as.numeric(keyed[["day31_pearson_r"]]),
+    -0.296948455789288,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    as.numeric(keyed[["day31_exact_unrestricted_permutation_p"]]),
+    0.485714285714286,
+    tolerance = 1e-12
+  )
+  testthat::expect_false(any(c(
+    "day24_adjusted_slope_per_origin_sd", "day24_partial_r",
+    "day31_adjusted_slope_per_origin_sd", "day31_partial_r"
+  ) %in% provenance$key))
   testthat::expect_setequal(
     list.files(bundle_path, recursive = TRUE, all.files = FALSE, no.. = TRUE),
     expected_bundle_files

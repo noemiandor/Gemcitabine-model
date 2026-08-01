@@ -618,15 +618,12 @@ render_from_run <- function(
     "endpoint_ploidy_score_universe_total_cells",
     "endpoint_ploidy_source_file_count", "endpoint_ploidy_source_sha256",
     "endpoint_ploidy_score_policy", "endpoint_ploidy_mapping_policy",
-    "terminal_postprocessed_cn_score",
-    "terminal_cn_score_within_origin_z",
-    "terminal_cn_score_nuisance_residual", "tgi_origin_dose_residual",
-    "permutation_stratum", tgi_measure
+    tgi_measure
   ))
   et <- figure7_read_tsv(table_path("panel_7E_test.tsv"), c(
-    "n", "estimate", "partial_correlation",
-    "effect_per_within_origin_sd", "permutation_p_two_sided",
+    "n", "estimate", "asymptotic_p", "permutation_p_two_sided",
     "n_permutations", "permutation_mode", "permutation_strata",
+    "association_type",
     "score_variable", "score_source_sha256", "score_source_n_cells",
     "score_inventory_n_cells", "score_source_n_files",
     "treated_score_n_cells",
@@ -639,12 +636,17 @@ render_from_run <- function(
       !identical(unique(dt$ecdf_reference_group_column), "initial_ploidy")) {
     figure7_stop("render-only panel 7D/J does not use injected-origin-matched untreated ECDF references")
   }
-  e_z_contract <- vapply(split(e$terminal_cn_score_within_origin_z, e$initial_ploidy), function(values) {
-    abs(mean(values)) <= 1e-10 && abs(stats::sd(values) - 1) <= 1e-10
-  }, logical(1L))
-  if (nrow(e) != 8L || nrow(et) != 1L || !all(e_z_contract) ||
-      any(abs(e$terminal_postprocessed_cn_score - e$sample_mean_endpoint_ploidy) > 1e-12) ||
-      sum(figure7_numeric(e$n_endpoint_ploidy_cells)) != 5335L ||
+  if (nrow(e) != 8L || nrow(et) != 1L) {
+    figure7_stop(
+      "render-only panel 7E/K must contain exactly eight treated tumors ",
+      "and one test row"
+    )
+  }
+  e_recomputed <- figure7_exact_cor(
+    figure7_numeric(e$sample_mean_endpoint_ploidy),
+    figure7_numeric(e[[tgi_measure]])
+  )
+  if (sum(figure7_numeric(e$n_endpoint_ploidy_cells)) != 5335L ||
       any(figure7_numeric(e$endpoint_ploidy_source_total_cells) != 14125L) ||
       any(figure7_numeric(e$endpoint_ploidy_score_universe_total_cells) != 9832L) ||
       any(figure7_numeric(e$endpoint_ploidy_source_file_count) != 16L) ||
@@ -658,17 +660,24 @@ render_from_run <- function(
         as.character(et$score_variable),
         "sample_mean_qc_passed_curated_cbs_cell_ploidy"
       ) ||
-      any(e$permutation_stratum != paste(e$initial_ploidy, e$dose_mg, sep = "|")) ||
-      !identical(as.character(et$permutation_strata), "initial_ploidy:dose_mg") ||
-      !identical(as.character(et$score_standardization), "z_score_within_initial_ploidy") ||
-      !identical(as.character(et$adjustment_terms), "initial_ploidy+dose_mg") ||
+      !identical(as.character(et$permutation_mode), "exact_TGI_label_enumeration") ||
+      !identical(as.character(et$permutation_strata), "none") ||
+      !identical(as.character(et$association_type),
+        "unadjusted_mouse_level_pearson") ||
+      !identical(as.character(et$score_standardization), "none") ||
+      !identical(as.character(et$adjustment_terms), "none") ||
       !identical(as.character(et$outcome_variable), tgi_measure) ||
-      !identical(as.character(et$plot_x), "terminal_cn_score_nuisance_residual") ||
-      !identical(as.character(et$plot_y), "tgi_origin_dose_residual") ||
-      figure7_numeric(et$n_permutations) != 16L) {
+      !identical(as.character(et$plot_x), "sample_mean_endpoint_ploidy") ||
+      !identical(as.character(et$plot_y), tgi_measure) ||
+      figure7_numeric(et$n) != 8L ||
+      figure7_numeric(et$n_permutations) != factorial(8L) ||
+      abs(figure7_numeric(et$estimate) - e_recomputed$estimate) > 1e-12 ||
+      abs(figure7_numeric(et$asymptotic_p) - e_recomputed$asymptotic_p) > 1e-12 ||
+      abs(figure7_numeric(et$permutation_p_two_sided) -
+        e_recomputed$permutation_p_two_sided) > 1e-12) {
     figure7_stop(
-      "render-only panel 7E/K does not satisfy the within-origin standardized, ",
-      "origin- and dose-adjusted CN-score contract"
+      "render-only panel 7E/K does not satisfy the reviewed raw mouse-level ",
+      "endpoint-ploidy Pearson contract"
     )
   }
   for (tab in list(a, b, bt, cdata, ct, d, dt, e, et)) {
@@ -973,7 +982,7 @@ render_from_run <- function(
       color = "grey75",
       linewidth = 0.35
     ),
-    E = figure7_adjusted_cn_plot(e, et, config)
+    E = figure7_endpoint_ploidy_plot(e, et, config)
   )
   sizes <- list(
     A = c(10, 6.5), B = c(15, 5.5), C = c(6.8, 6.4),
