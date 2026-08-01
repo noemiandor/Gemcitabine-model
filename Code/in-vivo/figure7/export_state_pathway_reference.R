@@ -50,7 +50,7 @@ output_dir <- normalizePath(
 
 reference_id <- as.character(config$state_pathways$generated_reference_id)
 workflow_id <- "binning"
-model_id <- "ETP_reference_balanced_threshold_2_24"
+model_id <- as.character(config$state_pathways$model)
 recorded_source_code_revision <- paste0(
   "sha256:",
   figure7_sha256(
@@ -239,10 +239,12 @@ if (anyNA(species_counts) ||
       species_counts[["human"]] + species_counts[["mouse"]]) {
   figure7_stop("Generated feature-species audit counts are invalid")
 }
-if (!identical(parameter_value(model_parameters, "model_id", "model parameters"), model_id) ||
-    !identical(parameter_value(model_parameters, "covariate_mode", "model parameters"), "etp_group") ||
-    !isTRUE(all.equal(as.numeric(parameter_value(model_parameters, "etp_threshold", "model parameters")), 2.24, tolerance = 0))) {
-  figure7_stop("Unexpected state-pathway ETP model parameters")
+if (!identical(model_id, "initial_ploidy_adjusted_grch_human_only_v3") ||
+    !identical(parameter_value(model_parameters, "model_id", "model parameters"), model_id) ||
+    !identical(parameter_value(model_parameters, "covariate_mode", "model parameters"), "initial_ploidy") ||
+    !identical(parameter_value(model_parameters, "covariate_terms", "model parameters"), "initial_ploidy_factor") ||
+    !identical(parameter_value(model_parameters, "initial_ploidy_levels", "model parameters"), "2N;4N")) {
+  figure7_stop("Unexpected state-pathway injected-initial-ploidy model parameters")
 }
 
 expected_intervals <- data.frame(
@@ -272,7 +274,7 @@ assert_columns(
   "primary-adjacent GSEA"
 )
 if (!nrow(gsea) || any(gsea$ranking_id != "primary_adjacent_state") || any(gsea$model_id != model_id)) {
-  figure7_stop("Primary-adjacent GSEA does not match the reviewed ETP model")
+  figure7_stop("Primary-adjacent GSEA does not match the initial-ploidy model")
 }
 if (nrow(gsea) < 100L) {
   figure7_stop("Generated primary-adjacent GSEA table is implausibly small")
@@ -380,7 +382,7 @@ activity <- do.call(rbind, activity_pieces)
 activity_key <- paste(activity$collection, activity$pathway, sep = "\r")
 metadata_index <- match(activity_key, selected_keys)
 if (anyNA(metadata_index) || any(activity$ranking_id != "primary_adjacent_state") || any(activity$model_id != model_id)) {
-  figure7_stop("Activity rows do not match the selected primary-adjacent ETP model")
+  figure7_stop("Activity rows do not match the selected initial-ploidy model")
 }
 activity_export <- cbind(
   selected_export[metadata_index, c(
@@ -517,8 +519,7 @@ sample_bins <- read_csv(sample_bins_path)
 assert_columns(
   sample_bins,
   c("sample_id", "bin_id", "sample_bin_id", "cell_count", "bin_start", "bin_end", "bin_midpoint",
-    "dose", "dose_mg", "initial_ploidy", "retained_for_model", "exclusion_reason", "library_size",
-    "ETP_reference_balanced_threshold_2_24_group"),
+    "dose", "dose_mg", "initial_ploidy", "retained_for_model", "exclusion_reason", "library_size"),
   "sample-bin metadata"
 )
 if (nrow(sample_bins) != 320L) figure7_stop("Unexpected sample-bin metadata row count")
@@ -531,7 +532,7 @@ design <- read_csv(design_path)
 coverage <- read_csv(coverage_path)
 assert_columns(
   design,
-  c("model_id", "covariate_mode", "etp_method", "etp_threshold", "include_dose", "n_observations",
+  c("model_id", "covariate_mode", "initial_ploidy_levels", "include_dose", "n_observations",
     "n_design_columns_original", "design_rank", "rank_deficient", "retained_design_columns",
     "dropped_design_columns", "duplicate_correlation"),
   "design audit"
@@ -541,6 +542,21 @@ assert_columns(coverage, c("n_contributing_mice", "has_control", "has_treated", 
 if (nrow(design) != 1L || nrow(coverage) != 1L || design$n_observations[[1L]] != 211L ||
     coverage$n_contributing_mice[[1L]] != 14L || !isTRUE(as.logical(coverage$passes[[1L]]))) {
   figure7_stop("Design or primary-coverage audit does not match the reviewed run")
+}
+retained_design_columns <- strsplit(
+  as.character(design$retained_design_columns[[1L]]),
+  ";",
+  fixed = TRUE
+)[[1L]]
+if (!identical(as.character(design$model_id[[1L]]), model_id) ||
+    !identical(as.character(design$covariate_mode[[1L]]), "initial_ploidy") ||
+    !identical(as.character(design$initial_ploidy_levels[[1L]]), "2N;4N") ||
+    !"initial_ploidy_factor4N" %in% retained_design_columns ||
+    any(grepl("ETP|endpoint|copy.number|cn_score", retained_design_columns,
+              ignore.case = TRUE))) {
+  figure7_stop(
+    "Design audit must include injected initial ploidy and prohibit endpoint-CN-score covariates"
+  )
 }
 design_qc_export <- cbind(
   design,
@@ -655,8 +671,9 @@ provenance <- c(
   interval_config_sha256 = figure7_sha256(file.path(manifest_root, "frozen_interval_definition.csv")),
   assay = "RNA",
   counts_layer = "counts",
-  etp_method = "reference_balanced",
-  etp_threshold = "2.24",
+  nuisance_policy = "injected_initial_ploidy_only_no_endpoint_cn_score",
+  initial_ploidy_levels = "2N,4N",
+  endpoint_cn_score_covariate_prohibited = "true",
   spline_df = "5",
   pseudotime_bins = "20",
   minimum_cells_per_sample_bin = "5",
@@ -673,7 +690,7 @@ provenance <- c(
   normalization = "TMM",
   observation_model = "voom",
   mouse_block = "duplicateCorrelation",
-  nuisance_terms = "dose_mg_factor,ETP_reference_balanced_threshold_2_24_factor",
+  nuisance_terms = "dose_mg_factor,initial_ploidy_factor",
   treatment_by_pseudotime_interaction = "false",
   empirical_bayes = "robust",
   contrast = "mean(primary grid) - 0.5 * mean(left grid) - 0.5 * mean(right grid)",

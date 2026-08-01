@@ -3,12 +3,22 @@
 ## Status
 
 Drafted on 2026-07-16 for promotion to `main` after implementation and
-validation. Updated on 2026-07-30 to record the implemented matched PDF/PNG
-contract and the promoted reviewed human-only panel-7F v2 reference. The module
-README and pinned configuration are authoritative where the original plan
-differs from the final implementation.
+validation. This is a historical design record, not the current scientific
+contract. The implemented 2026-07-31 workflow supersedes its ETP-threshold and
+pooled endpoint-ploidy specifications: panel J uses injected-origin-matched
+untreated ECDF references, panel K uses a within-origin-standardized terminal
+postprocessed CN score with injected-origin and dose adjustment plus exact
+origin-by-dose permutations, and panel I uses the reviewed human-only
+initial-ploidy-adjusted v3 state-pathway reference. The module README, pinned
+configuration, and executable tests are authoritative where this plan differs
+from the final implementation.
 
-This plan defines a narrow manuscript workflow for the six approved Figure 7 source panels. It follows the `main`-branch Figure 1–6 pattern: a manager-controlled module writes an immutable result run, input/output manifests record provenance, selected source panels are materialized under `figures/Figure7/`, and the figure manifest is validated. It does not automate final composite assembly because the existing Figure 1–6 workflow does not assemble the Overleaf composites either.
+This plan defines a narrow manuscript workflow for the six approved Figure 7
+source panels. A manager-controlled module writes an immutable result run,
+input/output manifests record provenance, selected source panels are
+materialized under `figures/Figure7/`, and the figure manifest is validated.
+The implemented module also assembles the manuscript-facing A–K composite from
+those sources and the checksum-pinned shared supplementary panels.
 
 ## Objective
 
@@ -34,8 +44,8 @@ The screenshot `Screenshot 2026-07-16 at 5.18.38 PM.png` is the visual reference
 | 7A | Tumor-growth trajectories explaining the Day-17 TGI calculation | `04h_tgi_calculation_plots_util.R`; current `TGI_calculation_growth_trajectories.pdf` | endpoint Day 17; mean of initial-ploidy-matched untreated controls | `figures/panel_7A_day17_tgi_calculation.pdf` |
 | 7B | Selected CellCycle mean-ECDF comparisons | initial-ploidy `CellCycle_direct_group_ecdf_comparisons_selected_3panel.pdf` | original panel IDs 1, 8, and 9, corresponding to grid positions `(1,1)`, `(3,2)`, and `(3,3)` | `figures/panel_7B_cellcycle_selected_ecdf_comparisons.pdf` |
 | 7C | Day-17 TGI in initial 2N versus 4N treated tumors | initial-ploidy `CellCycle_TGI_group_boxplot.pdf` | independent tumors; dose-stratified group-label permutation; not a paired-mouse test | `figures/panel_7C_day17_tgi_by_initial_ploidy.pdf` |
-| 7D | Within-dose-centered TGI/ECDF-shift association | ETP reference-balanced `CellCycle_TGI_association_within_dose_centered.pdf` | ETP threshold 2.24; Day-17 mean-control TGI | `figures/panel_7D_day17_tgi_vs_centered_ecdf_shift.pdf` |
-| 7E | Day-17 TGI versus sample mean ETP | ETP reference-balanced `CellCycle_TGI_AUC_vs_mean_ETP.pdf` | ETP threshold 2.24; Day-17 mean-control TGI | `figures/panel_7E_day17_tgi_vs_mean_etp.pdf` |
+| 7D | Within-dose-centered TGI/ECDF-shift association | injected-origin-matched `CellCycle_TGI_association_within_dose_centered.pdf` | injected-origin-matched untreated ECDF reference; Day-17 mean-control TGI | `figures/panel_7D_day17_tgi_vs_centered_ecdf_shift.pdf` |
+| 7E | Day-17 TGI versus adjusted terminal CN score | confound-safe replacement of pooled `CellCycle_TGI_AUC_vs_mean_ETP.pdf` | score standardized within injected origin; association adjusted for origin and dose; exact origin-by-dose permutations | `figures/panel_7E_day17_tgi_vs_mean_etp.pdf` |
 | 7F | Pathway activity across the accumulated CellCycle pseudotime state | TaoLi `04i` reference-balanced ETP 2.24 `primary_state_pathway_activity_heatmap.pdf` | accumulated interval `[0.30, 0.49]`; ETP group threshold 2.24; top positive and negative pathways per collection using the approved activity table | `figures/panel_7F_pseudotime_state_pathway_activity.pdf` |
 
 The misleading legacy `AUC` token in the source filename for panel 7E must not appear in the manuscript-facing asset name or caption. The plotted endpoint is Day-17 TGI, not AUC TGI.
@@ -99,12 +109,15 @@ The two stages must not invoke the current broad `04h` or `04i` entrypoints beca
 The module needs two manager-driven analysis modes and one standalone rendering mode:
 
 1. `standard`:
-   - recompute panels 7A–7E from the two tracked cell-level analysis tables;
+   - recompute panels 7A–7D from the two tracked plot-facing cell-level
+     analysis tables; source panel 7E/main panel K additionally uses the exact
+     six-column, checksum-pinned 14,125-cell CBS ploidy table;
    - render panel 7F from a frozen, tracked pathway-activity plotting table produced by the approved full `04i` run;
    - verify that all frozen settings and table checksums match the config;
    - this is the routine manuscript mode and must not require the large external Seurat object.
 2. `full-analysis`:
-   - recompute panels 7A–7E as in `standard`;
+   - recompute panels 7A–7E from the same inputs and contracts as in
+     `standard`;
    - recompute the panel 7F gene model, GSEA, fitted trajectory, pathway selection, and activity table from raw RNA counts in an explicitly supplied Seurat RDS;
    - compare the newly generated activity table and pathway ordering with the frozen reference before replacing any canonical result;
    - record the RDS checksum, package versions, gene-set release, feature/species policy, and all model parameters.
@@ -131,8 +144,8 @@ Define Figure 7 behavior for every existing global manager mode:
 | Manager mode | Figure 7 behavior |
 |---|---|
 | `check-only` | Validate routine inputs; validate the RDS and pinned gene sets as well when both full-analysis flags are supplied. Do not run analysis. |
-| `saved-fit` | Same Figure 7 behavior as `standard`: recompute 7A–7E and render 7F from the frozen compact state-pathway analysis. |
-| `standard` | Recompute 7A–7E and render 7F from the frozen compact state-pathway analysis. |
+| `saved-fit` | Same Figure 7 behavior as `standard`: recompute 7A–7D from the plot-facing tables, recompute 7E from the complete canonical CBS table plus sample/TGI metadata, and render 7F from the frozen compact state-pathway analysis. |
+| `standard` | Recompute 7A–7D from the plot-facing tables, recompute 7E from the complete canonical CBS table plus sample/TGI metadata, and render 7F from the frozen compact state-pathway analysis. |
 | `full-refit` without both Figure 7 full-analysis flags | Same Figure 7 behavior as `standard`; do not require the RDS. |
 | `full-refit` with both Figure 7 full-analysis flags | Recompute 7F from the RDS, write the full compact audit chain, and compare against the frozen reference. |
 | `panels-only` | Run no Figure 7 code; materialize the six existing PDF/PNG pairs from `--source-run-id`. |
@@ -203,6 +216,7 @@ Promote these compact analysis inputs to `main` if they are not already there:
 ```text
 Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
 Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
+Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv
 Data/in-vivo/figure7/saved_state_pathway/<reference_id>/panel_7F_pathway_activity_plot_data.tsv
 Data/in-vivo/figure7/saved_state_pathway/<reference_id>/panel_7F_selected_pathway_gsea.tsv
 Data/in-vivo/figure7/saved_state_pathway/<reference_id>/panel_7F_leading_edge_genes.tsv
@@ -213,7 +227,19 @@ Data/in-vivo/figure7/saved_state_pathway/<reference_id>/state_pathway_design_qc.
 Data/in-vivo/figure7/saved_state_pathway/<reference_id>/state_pathway_provenance.tsv
 ```
 
-The two cell-level tables are approximately 2.7 MB and 6.4 MB in the current branch and are sufficient for routine reconstruction of panels 7A–7E. Promote reviewed copies into the Figure 7 `processed/` namespace rather than making the module depend on feature-branch locations. The full pathway-activity table for panel 7F was written by the `04i` workflow but was not committed in `ea9e669b`; it must be exported from the canonical TaoLi/HPC result before implementation can be considered complete.
+The two cell-level tables are approximately 2.7 MB and 6.4 MB in the current
+branch and are sufficient for routine reconstruction of panels 7A–7D. Source
+panel 7E/main panel K additionally requires the exact six-column
+`scRNAseq_Numbat/all_ploidy.csv` (14,125 cells in 16 files); the eight treated
+files contain 7,623 cells. The module verifies the 9,832 plot-table cells
+against that source, then computes each mouse's score from every cell in its
+canonical CBS file. In `full-refit`, Manager derives the same table from the 16
+manifest-pinned CBS matrices and requires the canonical checksum. Promote
+reviewed copies of plot-facing inputs into the Figure 7 `processed/` namespace
+rather than making the module depend on feature-branch locations. The full
+pathway-activity table for panel 7F was written by the `04i` workflow but was
+not committed in `ea9e669b`; it must be exported from the canonical TaoLi/HPC
+result before implementation can be considered complete.
 
 Use an immutable, versioned `<reference_id>` directory for the saved state-pathway analysis, analogous to the saved-fit directories used by the PKPD module. Freeze that ID in `figure7_config.yaml`; do not select the reference through a mutable `latest` pointer.
 
@@ -235,7 +261,12 @@ The complete compact gene ranking and all candidate GSEA rows are mandatory froz
 - the GSEA ranking and pathway-selection rule;
 - the activity-table SHA-256.
 
-`Manager.sh::input_paths_for_module()` must enumerate `figure7_config.yaml`, both cell-level CSVs, every tracked panel-F table above, and `state_pathway_provenance.tsv`. Full-analysis mode must additionally enumerate the external RDS and pinned gene-set artifact. These are the exact files passed to the shared input-manifest writer; no scientifically relevant input may exist only in a command comment or README.
+`Manager.sh::input_paths_for_module()` must enumerate `figure7_config.yaml`,
+both cell-level CSVs, the complete six-column CBS ploidy source, every tracked
+panel-F table above, and `state_pathway_provenance.tsv`. Full-analysis mode must
+additionally enumerate the external RDS and pinned gene-set artifact. These are
+the exact files passed to the shared input-manifest writer; no scientifically
+relevant input may exist only in a command comment or README.
 
 The module must fail if the observed inputs disagree with `figure7_config.yaml` or the provenance table.
 
@@ -297,10 +328,10 @@ Panel-specific rules:
 - 7A: show individual mouse baseline-adjusted growth trajectories, facet by initial ploidy, overlay the mean matched untreated-control trajectory, and highlight Day 17.
 - 7B: compute the full internal direct-comparison object if required by the test code, but add a numeric `comparison_id` and retain only IDs 1, 8, and 9 with labels `1. 0 vs treated`, `8. 4N: 0 vs treated`, and `9. 2N: 0 vs treated` in that order. Do not write the full 11-panel PDF.
 - 7C: compare treated initial-2N and initial-4N tumors as independent groups. Use a dose-stratified label permutation. Do not describe or implement this as a paired boxplot.
-- 7D: use the ETP reference-balanced 2.24 grouping to build equal-sample untreated references and correlate dose-centered ECDF RMSE with dose-centered Day-17 TGI.
-- 7E: correlate sample mean endpoint ploidy with Day-17 TGI and retain the 2.24 ETP grouping only for shape/display metadata.
+- 7D: build equal-sample untreated references within injected origin and correlate dose-centered ECDF RMSE with dose-centered Day-17 TGI.
+- 7E: standardize the terminal postprocessed CN score within injected origin, adjust both score and Day-17 TGI for origin and dose, and test the partial association by exact TGI-label permutations within origin-by-dose strata. Use injected origin, not an endpoint-derived group, for point shapes.
 
-Exact enumeration supersedes the nominal 10,000 Monte Carlo permutations when the finite assignment space can be enumerated. The approved panels currently use 36 arrangements for 7C, 576 within-stratum assignments for 7D, and 40,320 TGI-label assignments for 7E.
+Exact enumeration supersedes the nominal 10,000 Monte Carlo permutations when the finite assignment space can be enumerated. The approved panels currently use 36 arrangements for 7C, 576 within-stratum assignments for 7D, and 16 TGI-label assignments within the four two-tumor origin-by-dose strata for 7E.
 
 Do not trust the embedded `TGI_percent_Day_17` column without verification. At runtime, recompute each treated mouse's value as:
 
@@ -438,13 +469,17 @@ Also make shared manifest validation portable across clean checkouts. When both 
 
 Update these main-branch documents during implementation:
 
-- `docs/FigureCodeMap.md`: add Figure 7 panels A–F, source functions, inputs, canonical result run, and manuscript-facing assets;
+- `docs/FigureCodeMap.md`: add Figure 7 source panels A–F and the assembled A–K
+  composite, with source functions, inputs, canonical result run, and
+  manuscript-facing assets;
 - `docs/manuscript_figure_module_registry.tsv`: add `in_vivo_figure7`;
 - `docs/manuscript_figure_output_standardization_plan.md`: record Figure 7 as implemented and note the saved-analysis/full-analysis distinction;
 - `figures/Figure7/manifest.tsv`: generated by the materializer, never handwritten;
 - a module README under `Code/in-vivo/figure7/README.md`: exact commands, modes, dependencies, output inventory, and interpretation caveats.
 
-The documentation must state that the pipeline materializes six source panels and does not assemble the final A–F composite, matching the Figure 1–6 behavior.
+The documentation must distinguish the six source panels from the assembled
+A–K manuscript composite and record the supplementary-panel cache identity
+used in that assembly.
 
 ## Validation and regression tests
 
@@ -466,8 +501,15 @@ At minimum, assert the currently approved values within explicit numerical toler
 
 - panel 7B numeric `comparison_id` values are exactly `1`, `8`, and `9`, with the approved string labels, in that display order;
 - panel 7C adjusted difference `(4N - 2N)` is approximately `-39.5232168` percentage points and exact dose-stratified permutation `P = 0.0555556`;
-- panel 7D Pearson `r = 0.8105173` and exact permutation `P = 0.0104167`;
-- panel 7E Pearson `r = -0.6984010` and exact permutation `P = 0.0591270`;
+- final panel J/source panel 7D uses an injected-origin-matched untreated ECDF
+  reference and within-dose centering: Pearson `r = 0.7399455` and exact
+  permutation `P = 0.0173611`;
+- final panel K/source panel 7E uses per-mouse means from all 14,125 cells in
+  the checksum-pinned 16-file CBS source (7,623 cells in the eight treated
+  files), standardized within injected origin and adjusted for injected origin
+  and dose: slope `-8.8374975584` TGI percentage points per within-origin
+  standard deviation, partial `r = -0.3446593079`, and exact origin-by-dose
+  permutation `P = 0.6875`;
 - all A–E metadata report `TGI_percent_Day_17`, outcome `day`, matched-control summary `mean`, and Day 17;
 - panel 7F contains the approved collection labels and pathway order, exactly 21 selected pathways split 5/8/8 across Hallmark/Reactome/GO biological process, and no adjusted P above 0.05;
 - panel 7F vertical boundaries are exactly 0.30 and 0.49.

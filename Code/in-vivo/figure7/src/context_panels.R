@@ -494,7 +494,13 @@ figure7_main_composite_plots <- function(
     ggplot2::labs(title = paste("Day", figure7_tgi_day(config), "TGI vs centered ECDF shift")) +
     ggplot2::theme(legend.position = "bottom")
   tgi_ploidy <- source_plots$E +
-    ggplot2::labs(title = paste("Day", figure7_tgi_day(config), "TGI vs mean endpoint ploidy")) +
+    ggplot2::labs(
+      title = paste(
+        "Day", figure7_tgi_day(config),
+        "TGI vs adjusted terminal CN score"
+      ),
+      subtitle = "Within-origin z score; origin- and dose-adjusted"
+    ) +
     ggplot2::theme(legend.position = "bottom")
 
   list(

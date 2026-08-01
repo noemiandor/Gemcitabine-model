@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import os
+import statistics
 import subprocess
 import tempfile
 import unittest
@@ -62,6 +63,9 @@ figure7_raw_seurat_rds=""
 figure7_raw_data_dir="$2"
 figure7_loom_root=""
 figure7_cell_ploidy_input=cell_ploidy.tsv
+figure7_endpoint_cbs_score_input=Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv
+figure7_endpoint_cbs_score_will_be_derived=false
+si_figures_cbs_dir=Data/in-vivo/scRNAseq_Numbat
 figure7_sample_info_input=sample_info.xlsx
 figure7_growth_curve_input=growth_curve.xlsx
 input_paths_for_module in_vivo_figure7 "$1"
@@ -146,6 +150,11 @@ input_paths_for_module in_vivo_figure7 "$1"
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--panel-set=a-e", result.stdout)
+        self.assertIn(
+            "--endpoint-cbs-score-input="
+            "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv",
+            result.stdout,
+        )
         self.assertNotIn("--saved-state-pathway-dir", result.stdout)
 
     def test_tgi24_and_supplement_destination_are_forwarded(self) -> None:
@@ -257,6 +266,13 @@ input_paths_for_module in_vivo_figure7 "$1"
 
             self.assertEqual(paths.count(str(cellcycle)), 1)
             self.assertEqual(paths.count(str(noncellcycle)), 1)
+            self.assertEqual(
+                paths.count(
+                    "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv"
+                ),
+                1,
+            )
+            self.assertNotIn("cell_ploidy.tsv", paths)
             self.assertNotIn(str(legacy_cellcycle), paths)
             self.assertNotIn(str(legacy_noncellcycle), paths)
 
@@ -606,6 +622,7 @@ exit 7
             run_root = output_root / "in-vivo/figure7/runs" / f"{source_id}_figure7"
             (run_root / "figures").mkdir(parents=True)
             (run_root / "metadata").mkdir()
+            (run_root / "tables").mkdir()
             self._copy_reviewed_reference(run_root)
 
             rows = []
@@ -637,6 +654,197 @@ exit 7
                         "notes": "fixture",
                     }
                 )
+            design = [
+                ("2N-A2-0", "2N", "30mg/kg", "30", "SUM159-2N-30-0_harvest.sps.cbs"),
+                ("2N-A2-L", "2N", "30mg/kg", "30", "SUM159-2N-30-L_harvest.sps.cbs"),
+                ("2N-A4-R", "2N", "120mg/kg", "120", "SUM159-2N-120-R_harvest.sps.cbs"),
+                ("2N-A4-RL", "2N", "120mg/kg", "120", "SUM159-2N-120-RL_harvest.sps.cbs"),
+                ("A6-4N-O", "4N", "30mg/kg", "30", "SUM159-4N-30-0_harvest.sps.cbs"),
+                ("A6-4N-RR", "4N", "30mg/kg", "30", "SUM159-4N-30-RR_harvest.sps.cbs"),
+                ("4N-A8-RL", "4N", "120mg/kg", "120", "SUM159-4N-120-RL_harvest.sps.cbs"),
+                ("4N-A8-RR", "4N", "120mg/kg", "120", "SUM159-4N-120-RR_harvest.sps.cbs"),
+            ]
+            endpoint_path = Path(
+                "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv"
+            )
+            endpoint_scores: dict[str, list[float]] = {}
+            with (REPO_ROOT / endpoint_path).open(newline="") as handle:
+                for row in csv.DictReader(handle, delimiter="\t"):
+                    endpoint_scores.setdefault(row["file"], []).append(
+                        float(row["ploidy"])
+                    )
+            scores = [
+                statistics.mean(endpoint_scores[file_name])
+                for *_, file_name in design
+            ]
+            z_scores = []
+            for origin in ("2N", "4N"):
+                indices = [
+                    index
+                    for index, row in enumerate(design)
+                    if row[1] == origin
+                ]
+                local = [scores[index] for index in indices]
+                center = statistics.mean(local)
+                spread = statistics.stdev(local)
+                z_scores.extend((value - center) / spread for value in local)
+            tgi_by_sample: dict[str, float] = {}
+            with (
+                REPO_ROOT
+                / "Data/in-vivo/figure7/processed/"
+                "CellCycleCells_pseudotime_distribution_per_sample_"
+                "cell_level_with_ploidy_dose_tgi.csv"
+            ).open(newline="") as handle:
+                for row in csv.DictReader(handle):
+                    tgi_by_sample.setdefault(
+                        row["sample_id"],
+                        float(row["TGI_percent_Day_17"]),
+                    )
+            panel_k_plot = run_root / "tables/panel_7E_plot_data.tsv"
+            plot_rows = []
+            for index, (
+                sample_id,
+                origin,
+                dose,
+                dose_mg,
+                endpoint_file,
+            ) in enumerate(design):
+                score_z = z_scores[index]
+                score = scores[index]
+                plot_rows.append(
+                    {
+                        "sample_id": sample_id,
+                        "initial_ploidy": origin,
+                        "dose": dose,
+                        "dose_mg": dose_mg,
+                        "endpoint_ploidy_file": endpoint_file,
+                        "sample_mean_endpoint_ploidy": score,
+                        "n_endpoint_ploidy_cells": len(
+                            endpoint_scores[endpoint_file]
+                        ),
+                        "endpoint_ploidy_source_total_cells": "14125",
+                        "endpoint_ploidy_source_file_count": "16",
+                        "endpoint_ploidy_source_sha256": sha256_file(
+                            REPO_ROOT / endpoint_path
+                        ),
+                        "endpoint_ploidy_score_policy": (
+                            "arithmetic_mean_of_all_finite_postprocessed_"
+                            "cell_ploidy_per_cbs_file"
+                        ),
+                        "endpoint_ploidy_mapping_policy": (
+                            "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+                        ),
+                        "terminal_postprocessed_cn_score": score,
+                        "terminal_cn_score_within_origin_z": score_z,
+                        "permutation_stratum": f"{origin}|{dose_mg}",
+                        "terminal_cn_score_nuisance_residual": "pending",
+                        "tgi_origin_dose_residual": "pending",
+                        "TGI_percent_Day_17": tgi_by_sample[sample_id],
+                        "tgi_outcome": "day",
+                        "tgi_day": "17",
+                        "tgi_measure": "TGI_percent_Day_17",
+                        "matched_control_summary": "mean",
+                        "matched_control_group": "initial_ploidy",
+                    }
+                )
+
+            def additive_residual(column: str) -> list[float]:
+                values = [float(row[column]) for row in plot_rows]
+                grand = statistics.mean(values)
+                origin_means = {
+                    origin: statistics.mean(
+                        value
+                        for value, row in zip(values, plot_rows)
+                        if row["initial_ploidy"] == origin
+                    )
+                    for origin in ("2N", "4N")
+                }
+                dose_means = {
+                    dose_mg: statistics.mean(
+                        value
+                        for value, row in zip(values, plot_rows)
+                        if row["dose_mg"] == dose_mg
+                    )
+                    for dose_mg in ("30", "120")
+                }
+                return [
+                    value
+                    - origin_means[row["initial_ploidy"]]
+                    - dose_means[row["dose_mg"]]
+                    + grand
+                    for value, row in zip(values, plot_rows)
+                ]
+
+            x_residual = additive_residual(
+                "terminal_cn_score_within_origin_z"
+            )
+            y_residual = additive_residual("TGI_percent_Day_17")
+            for row, x_value, y_value in zip(
+                plot_rows,
+                x_residual,
+                y_residual,
+            ):
+                row["terminal_cn_score_nuisance_residual"] = x_value
+                row["tgi_origin_dose_residual"] = y_value
+            write_tsv(panel_k_plot, plot_rows, list(plot_rows[0]))
+            panel_k_test = run_root / "tables/panel_7E_test.tsv"
+            test_row = {
+                "n": "8",
+                "estimate": "-0.344659307863932",
+                "partial_correlation": "-0.344659307863932",
+                "effect_per_within_origin_sd": "-8.8374975584089",
+                "permutation_p_two_sided": "0.6875",
+                "n_permutations": "16",
+                "permutation_mode": (
+                    "exact_TGI_label_enumeration_within_initial_ploidy_x_dose"
+                ),
+                "permutation_strata": "initial_ploidy:dose_mg",
+                "score_variable": (
+                    "sample_mean_all_canonical_cbs_cell_ploidy"
+                ),
+                "score_source_sha256": sha256_file(REPO_ROOT / endpoint_path),
+                "score_source_n_cells": "14125",
+                "score_source_n_files": "16",
+                "treated_score_n_cells": "7623",
+                "score_aggregation_policy": (
+                    "arithmetic_mean_of_all_finite_postprocessed_"
+                    "cell_ploidy_per_cbs_file"
+                ),
+                "sample_mapping_policy": (
+                    "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+                ),
+                "score_standardization": "z_score_within_initial_ploidy",
+                "adjustment_terms": "initial_ploidy+dose_mg",
+                "outcome_variable": "TGI_percent_Day_17",
+                "plot_x": "terminal_cn_score_nuisance_residual",
+                "plot_y": "tgi_origin_dose_residual",
+                "tgi_outcome": "day",
+                "tgi_day": "17",
+                "tgi_measure": "TGI_percent_Day_17",
+                "matched_control_summary": "mean",
+                "matched_control_group": "initial_ploidy",
+            }
+            write_tsv(panel_k_test, [test_row], list(test_row))
+            for source in (panel_k_plot, panel_k_test):
+                rows.append(
+                    {
+                        "path": str(source),
+                        "repo_relative_path": "",
+                        "absolute_path": str(source),
+                        "role": "output_table",
+                        "source_kind": "generated_table",
+                        "module": "in_vivo_figure7",
+                        "generated_by": "test",
+                        "command_id": source_id,
+                        "sha256": sha256_file(source),
+                        "checksum_unavailable_reason": "",
+                        "byte_size": source.stat().st_size,
+                        "mtime_utc": "2026-07-16T00:00:00+00:00",
+                        "figure": "",
+                        "panel": "",
+                        "notes": "panel K fixture",
+                    }
+                )
             write_tsv(run_root / "metadata/output_manifest.tsv", rows, MODULE_MANIFEST_COLUMNS)
             write_tsv(
                 run_root / "metadata/run_config.tsv",
@@ -658,6 +866,35 @@ exit 7
                             "Data/in-vivo/figure7/processed/"
                             "NonCellCycleCells_pseudotime_distribution_per_"
                             "sample_cell_level_with_ploidy_dose_tgi.csv"
+                        ),
+                    },
+                    {
+                        "key": "endpoint_ploidy_input",
+                        "value": str(endpoint_path),
+                    },
+                    {
+                        "key": "endpoint_ploidy_sha256",
+                        "value": sha256_file(REPO_ROOT / endpoint_path),
+                    },
+                    {
+                        "key": "endpoint_ploidy_n_cells",
+                        "value": "14125",
+                    },
+                    {
+                        "key": "endpoint_ploidy_n_files",
+                        "value": "16",
+                    },
+                    {
+                        "key": "endpoint_ploidy_score_policy",
+                        "value": (
+                            "arithmetic_mean_of_all_finite_postprocessed_"
+                            "cell_ploidy_per_cbs_file"
+                        ),
+                    },
+                    {
+                        "key": "endpoint_ploidy_mapping_policy",
+                        "value": (
+                            "exact_sample_growth_curve_harvest_plus_.sps.cbs"
                         ),
                     },
                 ],
@@ -686,6 +923,10 @@ exit 7
                     "NonCellCycleCells_pseudotime_distribution_per_sample_"
                     "cell_level_with_ploidy_dose_tgi.csv"
                 ),
+                endpoint_path,
+                Path("Code/in-vivo/figure7/src/tgi_data.R"),
+                Path("Code/in-vivo/figure7/src/tgi_statistics.R"),
+                Path("Code/in-vivo/figure7/src/tgi_panels.R"),
             ]
             write_tsv(
                 run_root / "metadata/input_manifest.tsv",

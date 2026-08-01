@@ -74,6 +74,54 @@ testthat::test_that(
   }
 )
 
+testthat::test_that(
+  "state-pathway v3 adjusts for injected initial ploidy and excludes endpoint CN score",
+  {
+    support_env <- new.env(parent = globalenv())
+    sys.source(
+      file.path(
+        module_dir,
+        "generate_pseudotime_state_pathways_support.R"
+      ),
+      envir = support_env
+    )
+    metadata <- data.frame(
+      bin_midpoint = seq(0.05, 0.95, length.out = 12L),
+      dose_mg = rep(c(0, 30, 120), each = 4L),
+      initial_ploidy = rep(c("2N", "4N"), 6L),
+      stringsAsFactors = FALSE
+    )
+    spec <- support_env$model_spec_initial_ploidy()
+    design <- support_env$prepare_design(
+      metadata,
+      spline_df = 5L,
+      model_spec = spec,
+      include_dose = TRUE
+    )
+
+    testthat::expect_identical(
+      spec$model_id,
+      "initial_ploidy_adjusted_grch_human_only_v3"
+    )
+    testthat::expect_identical(spec$covariate_mode, "initial_ploidy")
+    testthat::expect_identical(spec$covariate_terms, "initial_ploidy_factor")
+    testthat::expect_true("initial_ploidy_factor4N" %in% colnames(design$design))
+    testthat::expect_false(any(grepl(
+      "ETP|endpoint|copy.number|cn_score",
+      colnames(design$design),
+      ignore.case = TRUE
+    )))
+    testthat::expect_identical(
+      as.character(unlist(
+        figure7_read_config(
+          file.path(module_dir, "figure7_config.yaml")
+        )$state_pathways$nuisance_terms
+      )),
+      c("dose_mg_factor", "initial_ploidy_factor")
+    )
+  }
+)
+
 testthat::test_that("generated panel 7F renderer supports 5/8/8 pathway facets", {
   testthat::skip_if_not_installed("ggplot2")
   config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))

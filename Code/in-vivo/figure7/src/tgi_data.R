@@ -24,6 +24,7 @@ figure7_read_cell_table <- function(path, compartment, config) {
   required <- c(
     "cell_id", "sample_id", "initial_ploidy", "gemcitabine_dose",
     "gemcitabine_dose_mg_per_kg", "pseudotime", "cell_ploidy",
+    "growth_curve_harvest",
     "tumor_volume_baseline_day", "tumor_volume_baseline",
     delta_measure, tgi_measure
   )
@@ -42,12 +43,92 @@ figure7_read_cell_table <- function(path, compartment, config) {
   data
 }
 
-figure7_sample_table <- function(cellcycle, noncellcycle, config) {
+figure7_read_endpoint_ploidy_table <- function(path, config) {
+  if (!file.exists(path)) {
+    figure7_stop("Missing canonical endpoint-ploidy input: ", path)
+  }
+  expected_hash <- as.character(
+    config$versioned_source_artifacts$panel_k_endpoint_ploidy$sha256
+  )
+  figure7_verify_checksum(
+    path,
+    expected_hash,
+    "canonical 14,125-cell endpoint-ploidy input"
+  )
+  cells <- utils::read.delim(
+    path,
+    check.names = FALSE,
+    stringsAsFactors = FALSE,
+    quote = "",
+    comment.char = ""
+  )
+  expected_columns <- c(
+    "file", "cell_id", "ploidy", "total_chromosomes", "frac_covered",
+    "format"
+  )
+  if (!identical(names(cells), expected_columns)) {
+    figure7_stop(
+      "Canonical endpoint-ploidy input must have exactly these columns: ",
+      paste(expected_columns, collapse = ", ")
+    )
+  }
+  cells$file <- trimws(as.character(cells$file))
+  cells$cell_id <- trimws(as.character(cells$cell_id))
+  cells$ploidy <- figure7_numeric(cells$ploidy)
+  cells$total_chromosomes <- figure7_numeric(cells$total_chromosomes)
+  cells$frac_covered <- figure7_numeric(cells$frac_covered)
+  cells$format <- trimws(as.character(cells$format))
+  keys <- paste(cells$file, cells$cell_id, sep = "\r")
+  if (nrow(cells) != 14125L || length(unique(cells$file)) != 16L ||
+      anyNA(cells$file) || any(!nzchar(cells$file)) ||
+      any(basename(cells$file) != cells$file) ||
+      any(!grepl("[.]sps[.]cbs$", cells$file)) ||
+      anyNA(cells$cell_id) || any(!nzchar(cells$cell_id)) ||
+      anyDuplicated(keys) || any(!is.finite(cells$ploidy)) ||
+      any(cells$ploidy <= 0) ||
+      any(!is.finite(cells$total_chromosomes)) ||
+      any(cells$total_chromosomes <= 0) ||
+      any(!is.finite(cells$frac_covered)) ||
+      any(cells$frac_covered <= 0 | cells$frac_covered > 1) ||
+      any(cells$format != "wide")) {
+    figure7_stop(
+      "Canonical endpoint-ploidy input must contain the exact complete ",
+      "14,125-cell, 16-file reviewed wide-CBS collection"
+    )
+  }
+  list(
+    cells = cells,
+    path = normalizePath(path, mustWork = TRUE),
+    sha256 = expected_hash,
+    n_cells = nrow(cells),
+    n_files = length(unique(cells$file)),
+    score_policy =
+      "arithmetic_mean_of_all_finite_postprocessed_cell_ploidy_per_cbs_file",
+    mapping_policy =
+      "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+  )
+}
+
+figure7_sample_table <- function(
+  cellcycle,
+  noncellcycle,
+  config,
+  endpoint_ploidy
+) {
+  if (is.null(endpoint_ploidy$cells) ||
+      !identical(endpoint_ploidy$n_cells, 14125L) ||
+      !identical(endpoint_ploidy$n_files, 16L)) {
+    figure7_stop(
+      "Figure 7 sample preparation requires the validated complete ",
+      "14,125-cell endpoint-ploidy input"
+    )
+  }
   delta_measure <- figure7_tgi_delta_measure(config)
   tgi_measure <- figure7_tgi_measure(config)
   embedded_tgi_measure <- paste0("embedded_", tgi_measure)
   columns <- c("cell_id", "sample_id", "initial_ploidy", "gemcitabine_dose",
-               "gemcitabine_dose_mg_per_kg", "cell_ploidy")
+               "gemcitabine_dose_mg_per_kg", "growth_curve_harvest",
+               "cell_ploidy")
   union <- rbind(cellcycle[, columns], noncellcycle[, columns])
   union <- union[is.finite(union$cell_ploidy), , drop = FALSE]
   duplicate_ids <- unique(union$cell_id[duplicated(union$cell_id)])
@@ -58,18 +139,87 @@ figure7_sample_table <- function(cellcycle, noncellcycle, config) {
     }
   }
   union <- union[!duplicated(union$cell_id), , drop = FALSE]
+
+  # The plotting tables contain a 9,832-cell analysis subset.  They provide
+  # the reviewed sample-to-harvest mapping, but they must not define the
+  # terminal copy-number score.  Validate that every one of those cells maps
+  # back to the exact canonical CBS file and value, then summarize all 14,125
+  # canonical CBS cells independently by file.
+  prefix <- paste0(union$sample_id, "_")
+  prefix_matches <- startsWith(union$cell_id, prefix)
+  if (any(!prefix_matches)) {
+    figure7_stop(
+      "Processed Figure 7 cell IDs do not preserve the sample_id_barcode contract"
+    )
+  }
+  union$endpoint_cell_id <- substring(union$cell_id, nchar(prefix) + 1L)
+  union$endpoint_ploidy_file <- paste0(
+    trimws(as.character(union$growth_curve_harvest)),
+    ".sps.cbs"
+  )
+  endpoint_cells <- endpoint_ploidy$cells
+  endpoint_keys <- paste(
+    endpoint_cells$file,
+    endpoint_cells$cell_id,
+    sep = "\r"
+  )
+  union_keys <- paste(
+    union$endpoint_ploidy_file,
+    union$endpoint_cell_id,
+    sep = "\r"
+  )
+  endpoint_index <- match(union_keys, endpoint_keys)
+  if (anyNA(endpoint_index) ||
+      any(abs(union$cell_ploidy - endpoint_cells$ploidy[endpoint_index]) >
+        1e-12)) {
+    figure7_stop(
+      "Processed Figure 7 cells do not map exactly to the canonical ",
+      "sample-specific endpoint CBS values"
+    )
+  }
+
   rows <- lapply(sort(unique(union$sample_id)), function(id) {
     local <- union[union$sample_id == id, , drop = FALSE]
     cc <- cellcycle[cellcycle$sample_id == id, , drop = FALSE]
     if (!nrow(cc)) figure7_stop("Sample has no CellCycle cells: ", id)
+    harvest <- figure7_unique_sample_value(
+      local,
+      "growth_curve_harvest",
+      id
+    )
+    endpoint_file <- paste0(harvest, ".sps.cbs")
+    canonical <- endpoint_cells[
+      endpoint_cells$file == endpoint_file,
+      ,
+      drop = FALSE
+    ]
+    if (!nrow(canonical)) {
+      figure7_stop(
+        "No canonical endpoint CBS cells mapped to Figure 7 sample ",
+        id,
+        " via ",
+        endpoint_file
+      )
+    }
     row <- data.frame(
       sample_id = id,
       initial_ploidy = figure7_unique_sample_value(local, "initial_ploidy", id),
       dose = figure7_unique_sample_value(local, "gemcitabine_dose", id),
       dose_mg = figure7_unique_sample_value(local, "gemcitabine_dose_mg_per_kg", id, TRUE),
-      sample_mean_endpoint_ploidy = mean(local$cell_ploidy),
-      sample_median_endpoint_ploidy = stats::median(local$cell_ploidy),
-      n_endpoint_ploidy_cells = nrow(local), n_cellcycle_cells = nrow(cc),
+      growth_curve_harvest = harvest,
+      endpoint_ploidy_file = endpoint_file,
+      sample_mean_endpoint_ploidy = mean(canonical$ploidy),
+      sample_median_endpoint_ploidy = stats::median(canonical$ploidy),
+      n_endpoint_ploidy_cells = nrow(canonical),
+      sample_mean_plot_table_endpoint_ploidy = mean(local$cell_ploidy),
+      sample_median_plot_table_endpoint_ploidy = stats::median(local$cell_ploidy),
+      n_plot_table_endpoint_ploidy_cells = nrow(local),
+      endpoint_ploidy_source_total_cells = endpoint_ploidy$n_cells,
+      endpoint_ploidy_source_file_count = endpoint_ploidy$n_files,
+      endpoint_ploidy_source_sha256 = endpoint_ploidy$sha256,
+      endpoint_ploidy_score_policy = endpoint_ploidy$score_policy,
+      endpoint_ploidy_mapping_policy = endpoint_ploidy$mapping_policy,
+      n_cellcycle_cells = nrow(cc),
       mean_cellcycle_pseudotime = mean(cc$pseudotime, na.rm = TRUE),
       stringsAsFactors = FALSE
     )
@@ -78,6 +228,39 @@ figure7_sample_table <- function(cellcycle, noncellcycle, config) {
     row
   })
   samples <- do.call(rbind, rows)
+  file_match <- regexec(
+    "^SUM159-(2N|4N)-([0-9]+)-.+_harvest[.]sps[.]cbs$",
+    samples$endpoint_ploidy_file
+  )
+  file_parts <- regmatches(samples$endpoint_ploidy_file, file_match)
+  valid_file_parts <- lengths(file_parts) == 3L
+  encoded_origin <- rep(NA_character_, nrow(samples))
+  encoded_dose <- rep(NA_real_, nrow(samples))
+  encoded_origin[valid_file_parts] <- vapply(
+    file_parts[valid_file_parts],
+    `[[`,
+    character(1L),
+    2L
+  )
+  encoded_dose[valid_file_parts] <- figure7_numeric(vapply(
+    file_parts[valid_file_parts],
+    `[[`,
+    character(1L),
+    3L
+  ))
+  if (nrow(samples) != 16L || anyDuplicated(samples$endpoint_ploidy_file) ||
+      !setequal(samples$endpoint_ploidy_file, unique(endpoint_cells$file)) ||
+      sum(samples$n_endpoint_ploidy_cells) != endpoint_ploidy$n_cells ||
+      sum(samples$n_plot_table_endpoint_ploidy_cells) != nrow(union) ||
+      any(!valid_file_parts) ||
+      any(encoded_origin != samples$initial_ploidy) ||
+      any(encoded_dose != samples$dose_mg)) {
+    figure7_stop(
+      "Figure 7 sample-to-CBS mapping must cover all 16 files and all ",
+      "14,125 canonical cells exactly once with matching injected origin ",
+      "and dose"
+    )
+  }
   samples$matched_control_reference_delta <- NA_real_
   samples$matched_control_n <- NA_integer_
   samples$matched_control_sample_ids <- NA_character_

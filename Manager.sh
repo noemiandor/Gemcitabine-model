@@ -46,12 +46,18 @@ figure7_python="${FIGURE7_PYTHON:-$(command -v python3 || true)}"
 figure7_intermediate_dir=""
 figure7_raw_data_dir=""
 figure7_cell_ploidy_input="Data/in-vivo/all_ploidy.tsv"
+figure7_cell_ploidy_input_explicit=false
+figure7_endpoint_cbs_score_input="Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv"
+figure7_endpoint_cbs_score_input_explicit=false
+figure7_endpoint_cbs_score_will_be_derived=false
 figure7_sample_info_input="Data/in-vivo/sample_info.xlsx"
 figure7_growth_curve_input="Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx"
 figure7_download_missing_raw=true
 si_figures_intermediate_dir=""
+si_figures_cbs_dir="Data/in-vivo/scRNAseq_Numbat"
 figure7_historical_reference_id="taoli_04i_etp2_24_day17_v1"
-figure7_reviewed_reference_id="state_pathway_grch_human_only_etp2_24_day17_v2"
+figure7_reviewed_reference_id="state_pathway_grch_human_only_initial_ploidy_day17_v3"
+figure7_reviewed_reference_kind="reviewed_human_only_initial_ploidy_frozen"
 figure7_state_pathway_results_root=""
 figure7_canonical_reference_root="${FIGURE7_CANONICAL_REFERENCE_ROOT:-Data/in-vivo/figure7/saved_state_pathway/${figure7_reviewed_reference_id}}"
 figure7_reference_root="${figure7_canonical_reference_root}"
@@ -102,10 +108,13 @@ Module options:
   --figure7-raw-seurat-rds PATH     Explicit deposited Seurat RDS instead of Zenodo cache
   --figure7-python PATH             Python with scVelo dependencies
   --figure7-cell-ploidy-input PATH  Endpoint-ploidy input
+  --figure7-endpoint-cbs-score-input PATH
+                                  Canonical all-cell CBS table for Figure 7K/SI8
   --figure7-sample-info-input PATH  Sample metadata workbook
   --figure7-growth-curve-input PATH Tumor-volume workbook
   --figure7-no-download-missing-raw Do not download missing deposited raw files
   --si-figures-intermediate-dir DIR Reusable SI4-7 raw-analysis intermediates
+  --si-figures-cbs-dir DIR       Tracked downstream NUMBAT/CBS matrices for SI6E
   --figure7-state-pathway-results-root PATH
                                   Export the historical mixed-v1 panel-7F audit reference from this 04i result tree
 EOF
@@ -150,11 +159,21 @@ while [[ $# -gt 0 ]]; do
     --figure7-python) figure7_python="$2"; shift 2 ;;
     --figure7-intermediate-dir) figure7_intermediate_dir="$2"; shift 2 ;;
     --figure7-raw-data-dir) figure7_raw_data_dir="$2"; shift 2 ;;
-    --figure7-cell-ploidy-input) figure7_cell_ploidy_input="$2"; shift 2 ;;
+    --figure7-cell-ploidy-input)
+      figure7_cell_ploidy_input="$2"
+      figure7_cell_ploidy_input_explicit=true
+      shift 2
+      ;;
+    --figure7-endpoint-cbs-score-input)
+      figure7_endpoint_cbs_score_input="$2"
+      figure7_endpoint_cbs_score_input_explicit=true
+      shift 2
+      ;;
     --figure7-sample-info-input) figure7_sample_info_input="$2"; shift 2 ;;
     --figure7-growth-curve-input) figure7_growth_curve_input="$2"; shift 2 ;;
     --figure7-no-download-missing-raw) figure7_download_missing_raw=false; shift ;;
     --si-figures-intermediate-dir) si_figures_intermediate_dir="$2"; shift 2 ;;
+    --si-figures-cbs-dir) si_figures_cbs_dir="$2"; shift 2 ;;
     --figure7-state-pathway-results-root) figure7_state_pathway_results_root="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -312,6 +331,147 @@ require_dir() {
   fi
 }
 
+endpoint_ploidy_fallback_sha256="6db48ee5f196b37b58aa71d0472dd3deb06aaacb4b637070af1b27d9425db2b3"
+endpoint_ploidy_cbs_manifest_sha256="756c644df06c95f95ccd7a6a1d7bfbcc972b7873ebc1188aac7da5b72f1876f9"
+figure7_endpoint_cbs_score_sha256="80f4e6b78e7b6d8b73030da4889ecb5c09ee97c9f83fb771aec4d3908511b569"
+endpoint_ploidy_will_be_derived=false
+
+selected_modules_need_endpoint_ploidy() {
+  local selected_module
+  for selected_module in "${module_list[@]}"; do
+    case "${selected_module}" in
+      si_figures) return 0 ;;
+      in_vivo_figure7)
+        [[ "${mode}" == "full-refit" ]] && return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+prepare_endpoint_ploidy_if_missing() {
+  [[ -f "${figure7_cell_ploidy_input}" ]] && return 0
+  selected_modules_need_endpoint_ploidy || return 0
+
+  if [[ "${figure7_cell_ploidy_input_explicit}" == true ]]; then
+    echo "Missing explicitly selected endpoint-ploidy input: ${figure7_cell_ploidy_input}" >&2
+    return 1
+  fi
+  if [[ "${figure7_cell_ploidy_input}" != "Data/in-vivo/all_ploidy.tsv" ]]; then
+    echo "Automatic endpoint-ploidy reconstruction is restricted to the canonical default input" >&2
+    return 1
+  fi
+
+  local derivation_script="Data/in-vivo/weighted_ploidy.py"
+  local cbs_manifest="${si_figures_cbs_dir}/cbs_manifest.tsv"
+  local observed_cbs_manifest_sha256
+  require_file "${derivation_script}"
+  require_file "${cbs_manifest}"
+  observed_cbs_manifest_sha256="$(shasum -a 256 "${cbs_manifest}" | awk '{print $1}')"
+  if [[ "${observed_cbs_manifest_sha256}" != "${endpoint_ploidy_cbs_manifest_sha256}" ]]; then
+    echo "Endpoint-ploidy reconstruction requires the reviewed CBS manifest: ${cbs_manifest}" >&2
+    return 1
+  fi
+  if [[ -z "${figure7_python}" ]]; then
+    echo "Endpoint-ploidy reconstruction requires --figure7-python with pandas and numpy" >&2
+    return 1
+  fi
+
+  local derived_path="${manager_run_dir}/artifacts/endpoint_ploidy/all_ploidy.tsv"
+  local derivation_command=(
+    "${figure7_python}"
+    "${derivation_script}"
+    --manifest "${cbs_manifest}"
+    --omit-total-chromosomes
+    --out "${derived_path}"
+    --sep tsv
+    --expected-sha256 "${endpoint_ploidy_fallback_sha256}"
+  )
+  figure7_cell_ploidy_input="${derived_path}"
+  endpoint_ploidy_will_be_derived=true
+
+  if [[ "${mode}" == "check-only" || "${dry_run}" == true ]]; then
+    printf "[endpoint_ploidy_fallback] %s\n" "$(quote_args "${derivation_command[@]}")"
+    return 0
+  fi
+
+  mkdir -p "$(dirname "${derived_path}")"
+  "${derivation_command[@]}"
+  require_file "${derived_path}"
+}
+
+prepare_figure7_endpoint_cbs_score() {
+  local selected_module
+  local required=false
+  for selected_module in "${module_list[@]}"; do
+    if [[ "${selected_module}" == "in_vivo_figure7" ]]; then
+      required=true
+      break
+    fi
+  done
+  [[ "${required}" == true ]] || return 0
+
+  local derive=false
+  if [[ "${figure7_endpoint_cbs_score_input_explicit}" != true &&
+        ( "${mode}" == "full-refit" ||
+          ! -f "${figure7_endpoint_cbs_score_input}" ) ]]; then
+    derive=true
+  fi
+
+  if [[ "${derive}" == true ]]; then
+    local derivation_script="Data/in-vivo/weighted_ploidy.py"
+    local cbs_manifest="${si_figures_cbs_dir}/cbs_manifest.tsv"
+    require_file "${derivation_script}"
+    require_file "${cbs_manifest}"
+    local observed_manifest_sha256
+    observed_manifest_sha256="$(
+      shasum -a 256 "${cbs_manifest}" | awk '{print $1}'
+    )"
+    if [[ "${observed_manifest_sha256}" != "${endpoint_ploidy_cbs_manifest_sha256}" ]]; then
+      echo \
+        "Figure 7K/SI8 reconstruction requires the reviewed CBS manifest: ${cbs_manifest}" \
+        >&2
+      return 1
+    fi
+    if [[ -z "${figure7_python}" ]]; then
+      echo \
+        "Figure 7K/SI8 reconstruction requires --figure7-python with pandas and numpy" \
+        >&2
+      return 1
+    fi
+    local derived_path="${manager_run_dir}/artifacts/endpoint_ploidy/all_ploidy.csv"
+    local derivation_command=(
+      "${figure7_python}"
+      "${derivation_script}"
+      --manifest "${cbs_manifest}"
+      --out "${derived_path}"
+      --sep tsv
+      --expected-sha256 "${figure7_endpoint_cbs_score_sha256}"
+    )
+    figure7_endpoint_cbs_score_input="${derived_path}"
+    figure7_endpoint_cbs_score_will_be_derived=true
+    if [[ "${mode}" == "check-only" || "${dry_run}" == true ]]; then
+      printf "[figure7_endpoint_cbs_score] %s\n" \
+        "$(quote_args "${derivation_command[@]}")"
+      return 0
+    fi
+    mkdir -p "$(dirname "${derived_path}")"
+    "${derivation_command[@]}"
+  fi
+
+  require_file "${figure7_endpoint_cbs_score_input}"
+  local observed_sha256
+  observed_sha256="$(
+    shasum -a 256 "${figure7_endpoint_cbs_score_input}" | awk '{print $1}'
+  )"
+  if [[ "${observed_sha256}" != "${figure7_endpoint_cbs_score_sha256}" ]]; then
+    echo \
+      "Figure 7K/SI8 require the canonical 14,125-cell CBS table (SHA-256 ${figure7_endpoint_cbs_score_sha256}): ${figure7_endpoint_cbs_score_input}" \
+      >&2
+    return 1
+  fi
+}
+
 registry_module_name() {
   case "$1" in
     pkpd|pkpd_fit) printf "pkpd_live_dead_model" ;;
@@ -441,10 +601,18 @@ input_paths_for_module() {
     in_vivo)
       printf "%s\n" Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv ;;
     in_vivo_figure7)
+      local panel_k_endpoint_ploidy="${figure7_endpoint_cbs_score_input:-Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv}"
       printf "%s\n" \
         Code/in-vivo/figure7/run_figure7.R \
-        Code/in-vivo/figure7/figure7_config.yaml
+        Code/in-vivo/figure7/figure7_config.yaml \
+        "${panel_k_endpoint_ploidy}"
       figure7_runtime_source_paths
+      if [[ "${figure7_endpoint_cbs_score_will_be_derived:-false}" == true ]]; then
+        printf "%s\n" \
+          Data/in-vivo/weighted_ploidy.py \
+          "${si_figures_cbs_dir}/cbs_manifest.tsv"
+        printf "%s\n" "${si_figures_cbs_dir}"/*.sps.cbs
+      fi
       if [[ "${figure7_panels_ae_only}" != true ]]; then
         printf "%s\n" \
           Code/tools/validate_si_figures_table_cache.py \
@@ -778,12 +946,21 @@ input_paths_for_module() {
       fi
       ;;
     si_figures)
+      local si_endpoint_ploidy="${figure7_cell_ploidy_input:-Data/in-vivo/all_ploidy.tsv}"
+      local si_cbs_root="${si_figures_cbs_dir:-Data/in-vivo/scRNAseq_Numbat}"
       printf "%s\n" \
         Code/in-vivo/SI_figures/run_supplementary_figures.R \
         Code/in-vivo/SI_figures/generate_supplementary_figures.R \
         Code/in-vivo/SI_figures/shared_context_panels.R \
         Code/in-vivo/SI_figures/normalized_composition.R \
-        Code/tools/validate_si_figures_table_cache.py
+        Code/in-vivo/SI_figures/copy_number_heatmap.R \
+        Data/in-vivo/weighted_ploidy.py \
+        Code/tools/validate_si_figures_table_cache.py \
+        "${si_endpoint_ploidy}" \
+        "${si_cbs_root}/cbs_manifest.tsv" \
+        "${si_cbs_root}/injected_reference/reference_manifest.tsv"
+      printf "%s\n" "${si_cbs_root}"/*.sps.cbs
+      printf "%s\n" "${si_cbs_root}/injected_reference"/*.sps.cbs
       local rendered_input_manifest="${run_dir}/metadata/analysis_input_manifest.tsv"
       if [[ -n "${run_dir}" && -f "${rendered_input_manifest}" ]]; then
         printf "%s\n" "${rendered_input_manifest}"
@@ -799,7 +976,9 @@ input_paths_for_module() {
         if [[ "${si_allowed}" == "true" ]]; then
           local canonical_si_paths=""
           if ! canonical_si_paths="$(
-            awk -F '\t' '
+            awk -F '\t' \
+              -v endpoint_ploidy="${si_endpoint_ploidy}" \
+              -v cbs_root="${si_cbs_root}/" '
             NR == 1 {
               if (NF != 4 ||
                   $1 != "role" ||
@@ -829,6 +1008,43 @@ input_paths_for_module() {
                 role_count[role]++
                 next
               }
+              if (role == "copy_number_heatmap_helper") {
+                if (locator != "Code/in-vivo/SI_figures/copy_number_heatmap.R" ||
+                  seen_copy_number_helper++) {
+                  invalid = 1
+                }
+                role_count[role]++
+                next
+              }
+              if (role == "endpoint_ploidy_source") {
+                if (locator != endpoint_ploidy || seen[locator]++) {
+                  invalid = 1
+                } else {
+                  paths[++path_count] = locator
+                  role_count[role]++
+                }
+                next
+              }
+              if (role == "numbat_cbs_manifest") {
+                if (locator != cbs_root "cbs_manifest.tsv" || seen[locator]++) {
+                  invalid = 1
+                } else {
+                  paths[++path_count] = locator
+                  role_count[role]++
+                }
+                next
+              }
+              if (role ~ /^numbat_cbs_matrix_/) {
+                if (index(locator, cbs_root) != 1 ||
+                  locator !~ /[.]sps[.]cbs$/ ||
+                  seen[locator]++) {
+                  invalid = 1
+                } else {
+                  paths[++path_count] = locator
+                  role_count["numbat_cbs_matrix"]++
+                }
+                next
+              }
               if (role == "figure7_config" ||
                 role == "si_figures_cache_manifest" ||
                 role == "si_figures_frozen_table") {
@@ -851,9 +1067,13 @@ input_paths_for_module() {
                 role_count["figure7_config"] != 1 ||
                 role_count["normalized_composition_helper"] != 1 ||
                 role_count["shared_context_panels_helper"] != 1 ||
+                role_count["copy_number_heatmap_helper"] != 1 ||
+                role_count["endpoint_ploidy_source"] != 1 ||
+                role_count["numbat_cbs_manifest"] != 1 ||
+                role_count["numbat_cbs_matrix"] != 16 ||
                 role_count["si_figures_cache_manifest"] != 1 ||
                 role_count["si_figures_frozen_table"] != 11 ||
-                path_count != 13) {
+                path_count != 31) {
                 exit 1
               }
               for (i = 1; i <= path_count; i++) {
@@ -908,8 +1128,16 @@ required_input_paths_for_module() {
   local phase="${2:-final}"
   case "${module}" in
     in_vivo_figure7)
+      local panel_k_endpoint_ploidy="${figure7_endpoint_cbs_score_input:-Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv}"
       printf "%s\n" Code/in-vivo/figure7/run_figure7.R Code/in-vivo/figure7/figure7_config.yaml
       figure7_runtime_source_paths
+      printf "%s\n" "${panel_k_endpoint_ploidy}"
+      if [[ "${figure7_endpoint_cbs_score_will_be_derived:-false}" == true ]]; then
+        printf "%s\n" \
+          Data/in-vivo/weighted_ploidy.py \
+          "${si_figures_cbs_dir}/cbs_manifest.tsv"
+        printf "%s\n" "${si_figures_cbs_dir}"/*.sps.cbs
+      fi
       if [[ "${figure7_panels_ae_only}" != true ]]; then
         printf "%s\n" \
           Code/tools/validate_si_figures_table_cache.py \
@@ -965,13 +1193,22 @@ required_input_paths_for_module() {
       fi
       ;;
     si_figures)
+      local si_endpoint_ploidy="${figure7_cell_ploidy_input:-Data/in-vivo/all_ploidy.tsv}"
+      local si_cbs_root="${si_figures_cbs_dir:-Data/in-vivo/scRNAseq_Numbat}"
       printf "%s\n" \
         Code/in-vivo/figure7/figure7_config.yaml \
         Code/tools/validate_si_figures_table_cache.py \
         Code/in-vivo/SI_figures/run_supplementary_figures.R \
         Code/in-vivo/SI_figures/generate_supplementary_figures.R \
         Code/in-vivo/SI_figures/shared_context_panels.R \
-        Code/in-vivo/SI_figures/normalized_composition.R
+        Code/in-vivo/SI_figures/normalized_composition.R \
+        Code/in-vivo/SI_figures/copy_number_heatmap.R \
+        Data/in-vivo/weighted_ploidy.py \
+        "${si_endpoint_ploidy}" \
+        "${si_cbs_root}/cbs_manifest.tsv" \
+        "${si_cbs_root}/injected_reference/reference_manifest.tsv"
+      printf "%s\n" "${si_cbs_root}"/*.sps.cbs
+      printf "%s\n" "${si_cbs_root}/injected_reference"/*.sps.cbs
       if [[ "${mode}" == "full-refit" ]]; then
         printf "%s\n" \
           Code/in-vivo/figure7/environment_lock.tsv \
@@ -983,7 +1220,6 @@ required_input_paths_for_module() {
           Code/in-vivo/figure7/download_figure7_raw_data.R \
           Code/in-vivo/figure7/zenodo_required_files.tsv \
           Code/in-vivo/SI_figures/build_raw_supplementary_tables.R \
-          "${figure7_cell_ploidy_input}" \
           "${figure7_sample_info_input}"
         [[ -n "${figure7_raw_seurat_rds}" ]] && printf "%s\n" "${figure7_raw_seurat_rds}"
       else
@@ -1007,6 +1243,16 @@ check_module_inputs() {
   fi
   while IFS= read -r path; do
     [[ -z "${path}" ]] && continue
+    if [[ "${endpoint_ploidy_will_be_derived}" == true &&
+          ( "${mode}" == "check-only" || "${dry_run}" == true ) &&
+          "${path}" == "${figure7_cell_ploidy_input}" ]]; then
+      continue
+    fi
+    if [[ "${figure7_endpoint_cbs_score_will_be_derived}" == true &&
+          ( "${mode}" == "check-only" || "${dry_run}" == true ) &&
+          "${path}" == "${figure7_endpoint_cbs_score_input}" ]]; then
+      continue
+    fi
     if [[ "${module}" == "lci_overlays" ]]; then
       require_dir "${path}"
     else
@@ -1097,6 +1343,7 @@ command_for_module() {
           --config=Code/in-vivo/figure7/figure7_config.yaml
           --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
           --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
+          "--endpoint-cbs-score-input=${figure7_endpoint_cbs_score_input}"
           "--saved-state-pathway-dir=${figure7_reference_root}"
           "--seurat-rds=${figure7_seurat_rds}"
           "--gene-set-artifact=${figure7_gene_set_artifact}"
@@ -1118,6 +1365,7 @@ command_for_module() {
           "--seurat-upstream-dir=${figure7_seurat_upstream_dir}"
           "--raw-data-dir=${figure7_raw_data_dir}"
           "--cell-ploidy-input=${figure7_cell_ploidy_input}"
+          "--endpoint-cbs-score-input=${figure7_endpoint_cbs_score_input}"
           "--sample-info-input=${figure7_sample_info_input}"
           "--growth-curve-input=${figure7_growth_curve_input}"
           "--python=${figure7_python}"
@@ -1142,6 +1390,7 @@ command_for_module() {
           --config=Code/in-vivo/figure7/figure7_config.yaml
           --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
           --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv
+          "--endpoint-cbs-score-input=${figure7_endpoint_cbs_score_input}"
           "--tgi-day=${figure7_tgi_day}"
           "--output-dir=${run_dir}"
         )
@@ -1185,6 +1434,8 @@ command_for_module() {
         --table-cache-dir=Data/in-vivo/SIfigures
         --config=Code/in-vivo/figure7/figure7_config.yaml
         "--all-ploidy=${figure7_cell_ploidy_input}"
+        "--cbs-dir=${si_figures_cbs_dir}"
+        "--injected-reference-dir=${si_figures_cbs_dir}/injected_reference"
         "--sample-info=${figure7_sample_info_input}"
         "--intermediate-dir=${si_figures_intermediate_dir}"
         "--seurat-upstream-dir=${figure7_seurat_upstream_dir}"
@@ -1293,7 +1544,7 @@ module_is_publishable_run() {
         metadata_value "${run_config}" si_context_cache_policy
       )" || true
       if [[ "${reference_id}" == "${figure7_reviewed_reference_id}" &&
-            "${reference_kind}" == "reviewed_human_only_frozen" &&
+            "${reference_kind}" == "${figure7_reviewed_reference_kind}" &&
             "${allowed}" == "true" &&
             "${composite_set}" == "a-k" &&
             "${composite_file}" == "Figure7_reviewed_GRCh.png" &&
@@ -1579,6 +1830,11 @@ if [[ "${mode}" == "panels-only" ]]; then
 fi
 
 if [[ "${skip_analysis_loop}" != true ]]; then
+  prepare_endpoint_ploidy_if_missing
+  prepare_figure7_endpoint_cbs_score
+fi
+
+if [[ "${skip_analysis_loop}" != true ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
       gdsc|ccle|drug_response|pkpd|metabolomics|lci_overlays|in_vivo|in_vivo_figure7|si_figures) ;;
@@ -1662,7 +1918,10 @@ if [[ "${mode}" != "check-only" && "${dry_run}" != true ]]; then
     materialize_args+=(--module-run "${completed_modules[$i]}=${completed_run_dirs[$i]}")
   done
   "${materialize_args[@]}"
-  for manifest in "${figure_root}"/Figure*/manifest.tsv "${figure_root}"/Supplementary/manifest.tsv; do
+  for manifest in \
+    "${figure_root}"/Figure*/manifest.tsv \
+    "${figure_root}"/Figure*/si8_manifest.tsv \
+    "${figure_root}"/Supplementary/manifest.tsv; do
     [[ -f "${manifest}" ]] || continue
     python3 Code/tools/validate_figure_manifest.py "${manifest}" --repo-root "${repo_root}"
   done

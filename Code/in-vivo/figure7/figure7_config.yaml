@@ -22,6 +22,12 @@ versioned_source_artifacts:
   endpoint_ploidy:
     default_path: Data/in-vivo/all_ploidy.tsv
     sha256: 6db48ee5f196b37b58aa71d0472dd3deb06aaacb4b637070af1b27d9425db2b3
+    role: reduced_five_column_upstream_join_and_si_fallback
+  panel_k_endpoint_ploidy:
+    default_path: Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv
+    sha256: 80f4e6b78e7b6d8b73030da4889ecb5c09ee97c9f83fb771aec4d3908511b569
+    source_revision: dcdb62f2252ef05873404c8e45da42f4a5ec2c0d
+    role: complete_six_column_all_cbs_cell_score_source_for_figure7k_and_si8
   sample_info:
     default_path: Data/in-vivo/sample_info.xlsx
     sha256: 3e8a86b189a4ec61a7cbd3bbf1d0cb7cb30dd2ab3a326d91a67f83aaca63b784
@@ -116,16 +122,16 @@ state_pathways:
   reference_id: taoli_04i_etp2_24_day17_v1
   reference_kind: historical_mixed_frozen
   reference_canonical_publication_allowed: false
-  reviewed_reference_id: state_pathway_grch_human_only_etp2_24_day17_v2
-  reviewed_reference_kind: reviewed_human_only_frozen
+  reviewed_reference_id: state_pathway_grch_human_only_initial_ploidy_day17_v3
+  reviewed_reference_kind: reviewed_human_only_initial_ploidy_frozen
   reviewed_reference_canonical_publication_allowed: true
   reviewed_reference_root: Data/in-vivo/figure7/saved_state_pathway
-  generated_reference_id: runtime_state_pathway_grch_human_only_v2
-  generated_reference_kind: generated_human_only
+  generated_reference_id: state_pathway_grch_human_only_initial_ploidy_day17_v3_candidate
+  generated_reference_kind: generated_human_only_initial_ploidy_frozen_candidate
   generated_canonical_publication_allowed: false
   generated_feature_species_policy: "Retain exact GRCh38-prefixed counts and exclude exact GRCm39-prefixed counts before pseudobulk construction, expression filtering, model fitting, symbol cleanup, duplicate resolution, and Homo sapiens GSEA; reject unrecognized feature prefixes."
   reference_root: Data/in-vivo/figure7/saved_state_pathway
-  model: ETP_reference_balanced_threshold_2_24
+  model: initial_ploidy_adjusted_grch_human_only_v3
   accumulated_interval: {start: 0.30, end: 0.49, include_start: true, include_end: true}
   left_neighbor: {start: 0.11, end: 0.30, include_start: true, include_end: false}
   right_neighbor: {start: 0.49, end: 0.68, include_start: false, include_end: true}
@@ -138,7 +144,7 @@ state_pathways:
   observation_model: voom
   mouse_block: duplicateCorrelation
   spline_df: 5
-  nuisance_terms: [dose_mg_factor, ETP_reference_balanced_threshold_2_24_factor]
+  nuisance_terms: [dose_mg_factor, initial_ploidy_factor]
   treatment_by_pseudotime_interaction: false
   empirical_bayes: robust
   grid_size: 501
@@ -163,14 +169,14 @@ state_pathways:
     state_pathway_design_qc.tsv: 156cc8b7aaeb56866c258c6d6433635b881040691ab816fc7c5edc7cd5048b4c
     state_pathway_provenance.tsv: bb8f08f9afd0786216babcd5c38d577caa6fd41c4f1d52f28e54d8558c66b424
   reviewed_expected_files:
-    panel_7F_pathway_activity_plot_data.tsv: c2a6d455fd11c1d95bbc31441419953d4cc0d88eb8acf611fc3488f04af8d0f8
-    panel_7F_selected_pathway_gsea.tsv: ca86833bb6159cfde1e1218d897183809eba00a0cf096fc5c4951b5065767460
-    panel_7F_leading_edge_genes.tsv: 6e86e697b64565cf0281e8684d29001eed84c83e1a3b9e45f7ffd37b78fdf9dd
-    state_pathway_gene_ranking_complete.tsv: ac9ced0c9bb691b490b0197c9962a72a6d272781e6883631c76d7c9f2397d34c
-    state_pathway_gsea_complete.tsv: 4d1283e89b28e5100586a591621b5522b1698859d5d64b69054c4c470356a8d6
-    state_pathway_sample_bin_coverage.tsv: a0a408a91968f172ea7a30d9432c63571f74cea5fe27f4c5ad1c8f6044172a47
-    state_pathway_design_qc.tsv: 66a1cf1a5362539f50777ae482b37b5b30e4d92bd673eee9aa4c842e91160151
-    state_pathway_provenance.tsv: 406c4fa97b96dc001b1744e01658a533fc571897724a485080e8bbbc787293a4
+    panel_7F_pathway_activity_plot_data.tsv: 9913d66a911275fe5c347a6048e0eabc39ec57ff8298eedb18b4b4f4c43c7932
+    panel_7F_selected_pathway_gsea.tsv: 39a1e243725b70f7d8dd907584a5d6f5049d3e84149678b11f985783178a99f0
+    panel_7F_leading_edge_genes.tsv: 18346c2efe9a584c945963fb83d1169238cf8c98b30fe8b01603c9d9e56b710f
+    state_pathway_gene_ranking_complete.tsv: eec9a01d187e3d6fff5d2a83ac9971140404548fce7c488bb0fe631aa5902e15
+    state_pathway_gsea_complete.tsv: 639d79ce9d9116d4c93fc2a5108a8973dd8e7416f826de29c92479e5445912df
+    state_pathway_sample_bin_coverage.tsv: 0ef5470eca70272bacdbbd0d416b21a9ad4f9e448ac172cad4ba06cb7f2719aa
+    state_pathway_design_qc.tsv: 8c039ed4ec4e986f2e5f917a88dfade395556b17c31132d889fbbf3a83b44ce6
+    state_pathway_provenance.tsv: da394f469a4c3777b33adbfa90d890115a04de05d8cde09c604d34664ca03c47
   comparison_tolerances:
     absolute: 1.0e-10
     relative: 1.0e-6

@@ -73,7 +73,7 @@ figure7_panel_a_plot <- function(data, config) {
       title = paste("How Day", tgi_day, "TGI is calculated from tumor growth"),
       subtitle = paste0("TGI = 100 x (1 - treated Day-", tgi_day,
                         " growth delta / mean matched-control Day-", tgi_day, " growth delta)"),
-      x = "Study day", y = expression(Delta * " tumor volume from Day 0 (mm"^3 * ")"),
+      x = "Days since first treatment", y = expression(Delta * " tumor volume from Day 0 (mm"^3 * ")"),
       caption = paste0("Thin lines: individual mice. Dashed black: mean initial-ploidy-matched untreated controls. Red: Day ",
                        tgi_day, ".")
     ) + figure7_theme() +
@@ -123,12 +123,32 @@ figure7_panel_c_plot <- function(data, test, config) {
     ggplot2::theme(plot.subtitle = ggplot2::element_text(size = 9, color = "grey25", lineheight = 1.05))
 }
 
-figure7_scatter_plot <- function(data, x, y, test, title, x_label, y_label) {
-  data$etp_group <- factor(data$etp_group, levels = c("ETP-lower", "ETP-higher"))
+figure7_scatter_plot <- function(
+  data,
+  x,
+  y,
+  test,
+  title,
+  x_label,
+  y_label,
+  annotation_p_label = "Permutation P"
+) {
+  data$initial_ploidy <- factor(data$initial_ploidy, levels = c("2N", "4N"))
   data$dose <- factor(data$dose, levels = c("30mg/kg", "120mg/kg"))
-  annotation <- sprintf("Pearson r = %.3f\nPermutation P = %.3g\nn = %d",
-                        test$estimate, test$permutation_p_two_sided, test$n)
-  ggplot2::ggplot(data, ggplot2::aes(x = .data[[x]], y = .data[[y]], color = dose, shape = etp_group)) +
+  annotation <- sprintf(
+    "Pearson r = %.3f\n%s = %.3g\nn = %d",
+    test$estimate,
+    annotation_p_label,
+    test$permutation_p_two_sided,
+    test$n
+  )
+  ggplot2::ggplot(
+    data,
+    ggplot2::aes(
+      x = .data[[x]], y = .data[[y]], color = dose,
+      shape = initial_ploidy
+    )
+  ) +
     ggplot2::geom_hline(yintercept = 0, color = "grey75", linewidth = 0.35) +
     ggplot2::geom_smooth(data = data, ggplot2::aes(x = .data[[x]], y = .data[[y]], group = 1),
                          inherit.aes = FALSE, method = "lm", se = TRUE, color = "black", linewidth = 0.55) +
@@ -137,10 +157,122 @@ figure7_scatter_plot <- function(data, x, y, test, title, x_label, y_label) {
       min.segment.length = 0, segment.color = "grey65", max.overlaps = Inf, show.legend = FALSE) +
     ggplot2::annotate("label", x = Inf, y = Inf, label = annotation, hjust = 1.05, vjust = 1.1, size = 3) +
     ggplot2::scale_color_manual(values = figure7_dose_colors(), name = "Dose") +
-    ggplot2::scale_shape_manual(values = c("ETP-lower" = 16, "ETP-higher" = 17),
-                                name = "EndTimePoint ploidy") +
-    ggplot2::labs(title = title, x = x_label, y = y_label, shape = "EndTimePoint ploidy") +
+    ggplot2::scale_shape_manual(
+      values = c("2N" = 16, "4N" = 17),
+      name = "Injected origin"
+    ) +
+    ggplot2::labs(
+      title = title,
+      x = x_label,
+      y = y_label,
+      shape = "Injected origin"
+    ) +
     ggplot2::coord_cartesian(clip = "off") + figure7_theme() +
+    ggplot2::theme(legend.position = "right")
+}
+
+figure7_adjusted_cn_plot <- function(data, test, config) {
+  required_data <- c(
+    "sample_id", "initial_ploidy", "dose",
+    "endpoint_ploidy_file", "n_endpoint_ploidy_cells",
+    "endpoint_ploidy_source_total_cells",
+    "terminal_cn_score_nuisance_residual", "tgi_origin_dose_residual"
+  )
+  required_test <- c(
+    "n", "partial_correlation", "effect_per_within_origin_sd",
+    "permutation_p_two_sided", "permutation_strata",
+    "score_variable", "score_source_n_cells", "score_source_n_files",
+    "treated_score_n_cells", "score_aggregation_policy",
+    "sample_mapping_policy", "score_standardization", "adjustment_terms"
+  )
+  if (length(setdiff(required_data, names(data))) ||
+      length(setdiff(required_test, names(test)))) {
+    figure7_stop("Panel 7E/K adjusted CN-score plot received an incomplete analysis contract")
+  }
+  if (!identical(as.character(test$permutation_strata[[1L]]), "initial_ploidy:dose_mg") ||
+      !identical(
+        as.character(test$score_variable[[1L]]),
+        "sample_mean_all_canonical_cbs_cell_ploidy"
+      ) ||
+      as.integer(test$score_source_n_cells[[1L]]) != 14125L ||
+      as.integer(test$score_source_n_files[[1L]]) != 16L ||
+      as.integer(test$treated_score_n_cells[[1L]]) != 7623L ||
+      !identical(as.character(test$score_standardization[[1L]]), "z_score_within_initial_ploidy") ||
+      !identical(as.character(test$adjustment_terms[[1L]]), "initial_ploidy+dose_mg")) {
+    figure7_stop("Panel 7E/K adjusted CN-score plot received an incompatible analysis contract")
+  }
+
+  data$initial_ploidy <- factor(data$initial_ploidy, levels = c("2N", "4N"))
+  data$dose <- factor(data$dose, levels = c("30mg/kg", "120mg/kg"))
+  annotation <- sprintf(
+    paste0(
+      "Adjusted slope = %.2f TGI points / score SD\n",
+      "Partial r = %.3f\n",
+      "Exact origin x dose permutation P = %.3g\n",
+      "n = %d"
+    ),
+    test$effect_per_within_origin_sd,
+    test$partial_correlation,
+    test$permutation_p_two_sided,
+    test$n
+  )
+  ggplot2::ggplot(
+    data,
+    ggplot2::aes(
+      x = terminal_cn_score_nuisance_residual,
+      y = tgi_origin_dose_residual,
+      color = dose,
+      shape = initial_ploidy
+    )
+  ) +
+    ggplot2::geom_hline(yintercept = 0, color = "grey75", linewidth = 0.35) +
+    ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.35) +
+    ggplot2::geom_smooth(
+      data = data,
+      ggplot2::aes(
+        x = terminal_cn_score_nuisance_residual,
+        y = tgi_origin_dose_residual,
+        group = 1
+      ),
+      inherit.aes = FALSE,
+      method = "lm", se = TRUE, color = "black", linewidth = 0.55
+    ) +
+    ggplot2::geom_point(size = 2.9) +
+    ggrepel::geom_text_repel(
+      ggplot2::aes(label = sample_id), size = 2.4, seed = 1,
+      min.segment.length = 0, segment.color = "grey65",
+      max.overlaps = Inf, show.legend = FALSE
+    ) +
+    ggplot2::annotate(
+      "label", x = Inf, y = Inf, label = annotation,
+      hjust = 1.05, vjust = 1.1, size = 2.8
+    ) +
+    ggplot2::scale_color_manual(values = figure7_dose_colors(), name = "Dose") +
+    ggplot2::scale_shape_manual(
+      values = c("2N" = 16, "4N" = 17),
+      name = "Injected origin"
+    ) +
+    ggplot2::labs(
+      title = paste(
+        "Day", figure7_tgi_day(config),
+        "TGI vs all-cell terminal postprocessed CN score"
+      ),
+      subtitle = paste0(
+        "All 7,623 treated-tumor CBS cells; within-origin z score;\n",
+        "association adjusted for injected origin and dose"
+      ),
+      x = paste0(
+        "Terminal CN-score residual\n",
+        "(within-origin z score; dose-adjusted)"
+      ),
+      y = paste0(
+        "Day ", figure7_tgi_day(config), " TGI residual (%)\n",
+        "(origin- and dose-adjusted)"
+      ),
+      shape = "Injected origin"
+    ) +
+    ggplot2::coord_cartesian(clip = "off") +
+    figure7_theme() +
     ggplot2::theme(legend.position = "right")
 }
 
@@ -178,20 +310,13 @@ figure7_build_ae <- function(cellcycle, data, samples, output_dir, config) {
       "shift_centered",
       "tgi_centered",
       panel_d$test,
-      "CellCycle TGI association after within-dose centering",
-      "Dose-centered ECDF RMSE",
-      paste("Dose-centered Day", tgi_day, "TGI (%)")
+      "CellCycle TGI association using injected-origin-matched controls",
+      "Dose-centered ECDF RMSE (origin-matched untreated reference)",
+      paste("Dose-centered Day", tgi_day, "TGI (%)"),
+      "Exact within-dose permutation P"
     ) +
       ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.35),
-    E = figure7_scatter_plot(
-      panel_e$data,
-      "sample_mean_endpoint_ploidy",
-      tgi_measure,
-      panel_e$test,
-      paste("Cell-cycle-associated tumor cells: Day", tgi_day, "TGI vs sample mean ETP"),
-      "Sample mean ETP",
-      paste("Day", tgi_day, "TGI (%)")
-    )
+    E = figure7_adjusted_cn_plot(panel_e$data, panel_e$test, config)
   )
   sizes <- list(
     A = c(10, 6.5),

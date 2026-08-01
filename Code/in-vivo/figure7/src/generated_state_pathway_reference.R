@@ -194,13 +194,13 @@ figure7_validate_generated_state_reference <- function(
 
   ranking <- figure7_read_tsv(
     paths[["state_pathway_gene_ranking_complete.tsv"]],
-    c("gene_id", "gene_symbol")
+    c("gene_id", "gene_symbol", "model_id")
   )
   complete_gsea <- figure7_read_tsv(
     paths[["state_pathway_gsea_complete.tsv"]],
     c(
       "collection_id", "pathway_id", "pval", "padj", "ES", "NES",
-      "size", "nPermSimple", "retry_round"
+      "size", "nPermSimple", "retry_round", "model_id"
     )
   )
   coverage <- figure7_read_tsv(
@@ -209,6 +209,37 @@ figure7_validate_generated_state_reference <- function(
   design <- figure7_read_tsv(paths[["state_pathway_design_qc.tsv"]])
   if (!nrow(ranking) || !nrow(complete_gsea) || !nrow(coverage) || !nrow(design)) {
     figure7_stop("Generated panel-7F audit chain contains an empty table")
+  }
+  expected_model_id <- as.character(config$state_pathways$model)
+  if (any(ranking$model_id != expected_model_id) ||
+      any(complete_gsea$model_id != expected_model_id)) {
+    figure7_stop("Generated panel-7F compact tables use the wrong model ID")
+  }
+  required_design <- c(
+    "model_id", "covariate_mode", "initial_ploidy_levels",
+    "retained_design_columns", "rank_deficient"
+  )
+  if (!all(required_design %in% names(design)) || nrow(design) != 1L) {
+    figure7_stop("Generated panel-7F design audit is incomplete")
+  }
+  retained_design_columns <- strsplit(
+    as.character(design$retained_design_columns[[1L]]),
+    ";",
+    fixed = TRUE
+  )[[1L]]
+  if (!identical(as.character(design$model_id[[1L]]), expected_model_id) ||
+      !identical(as.character(design$covariate_mode[[1L]]), "initial_ploidy") ||
+      !identical(as.character(design$initial_ploidy_levels[[1L]]), "2N;4N") ||
+      !"initial_ploidy_factor4N" %in% retained_design_columns ||
+      any(grepl(
+        "ETP|endpoint|copy.number|cn_score",
+        retained_design_columns,
+        ignore.case = TRUE
+      ))) {
+    figure7_stop(
+      "Generated panel-7F must adjust for injected initial ploidy and ",
+      "must not use an endpoint-CN-score covariate"
+    )
   }
   if (nrow(ranking) < 10000L || anyDuplicated(ranking$gene_symbol)) {
     figure7_stop(
@@ -363,8 +394,10 @@ figure7_validate_generated_state_reference <- function(
     "generated_reference_id", "source_code_revision",
     "exporter_script_sha256", "exporter_common_io_sha256",
     "seurat_rds_sha256", "cellcycle_metadata_sha256",
-    "noncellcycle_metadata_sha256", "assay", "counts_layer", "etp_method",
-    "etp_threshold", "spline_df", "pseudotime_bins",
+    "noncellcycle_metadata_sha256", "assay", "counts_layer",
+    "nuisance_policy", "initial_ploidy_levels",
+    "endpoint_cn_score_covariate_prohibited", "nuisance_terms", "model_id",
+    "spline_df", "pseudotime_bins",
     "minimum_cells_per_sample_bin", "grid_size", "seed", "gene_set_source",
     "gene_set_species", "gene_set_collections", "gene_set_release",
     "msigdbr_package_version", "gene_set_membership_sha256",
@@ -408,7 +441,14 @@ figure7_validate_generated_state_reference <- function(
   expected_values <- c(
     assay = as.character(config$state_pathways$assay),
     counts_layer = as.character(config$state_pathways$counts_layer),
-    etp_method = as.character(config$etp$method),
+    nuisance_policy = "injected_initial_ploidy_only_no_endpoint_cn_score",
+    initial_ploidy_levels = "2N,4N",
+    endpoint_cn_score_covariate_prohibited = "true",
+    nuisance_terms = paste(
+      as.character(unlist(config$state_pathways$nuisance_terms)),
+      collapse = ","
+    ),
+    model_id = expected_model_id,
     gene_set_release = as.character(config$gene_sets$database_release),
     msigdbr_package_version = as.character(config$gene_sets$package_version),
     gene_set_species = "Homo sapiens",
@@ -457,7 +497,6 @@ figure7_validate_generated_state_reference <- function(
     figure7_stop("Generated panel-7F species-audit counts are invalid")
   }
   expected_numeric <- c(
-    etp_threshold = as.numeric(config$etp$threshold),
     spline_df = as.numeric(config$state_pathways$spline_df),
     pseudotime_bins = as.numeric(config$state_pathways$pseudotime_bins),
     minimum_cells_per_sample_bin = as.numeric(

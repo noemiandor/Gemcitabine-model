@@ -753,6 +753,7 @@ testthat::test_that("generated references attest a removed state tree", {
     complete_gsea$collection_id,
     FUN = function(pvalue) stats::p.adjust(pvalue, method = "BH")
   )
+  complete_gsea$model_id <- as.character(config$state_pathways$model)
   figure7_write_tsv(complete_gsea, complete_gsea_path)
 
   complete_keys <- paste(
@@ -852,9 +853,28 @@ testthat::test_that("generated references attest a removed state tree", {
       gene_id = paste0("GRCh38-GENE", ranking_rows),
       gene_symbol = paste0("GENE", ranking_rows),
       moderated_t = seq(5, -5, length.out = length(ranking_rows)),
+      model_id = as.character(config$state_pathways$model),
       stringsAsFactors = FALSE
     ),
     ranking_path
+  )
+  figure7_write_tsv(
+    data.frame(
+      model_id = as.character(config$state_pathways$model),
+      covariate_mode = "initial_ploidy",
+      initial_ploidy_levels = "2N;4N",
+      retained_design_columns = paste(
+        c(
+          "(Intercept)", paste0("pt_spline", 1:5),
+          "dose_mg_factor30", "dose_mg_factor120",
+          "initial_ploidy_factor4N"
+        ),
+        collapse = ";"
+      ),
+      rank_deficient = FALSE,
+      stringsAsFactors = FALSE
+    ),
+    file.path(reference, "state_pathway_design_qc.tsv")
   )
 
   cellcycle <- file.path(root, "cellcycle.csv")
@@ -894,8 +914,14 @@ testthat::test_that("generated references attest a removed state tree", {
     noncellcycle_metadata_sha256 = figure7_sha256(noncellcycle),
     assay = as.character(config$state_pathways$assay),
     counts_layer = as.character(config$state_pathways$counts_layer),
-    etp_method = as.character(config$etp$method),
-    etp_threshold = as.character(config$etp$threshold),
+    nuisance_policy = "injected_initial_ploidy_only_no_endpoint_cn_score",
+    initial_ploidy_levels = "2N,4N",
+    endpoint_cn_score_covariate_prohibited = "true",
+    nuisance_terms = paste(
+      as.character(unlist(config$state_pathways$nuisance_terms)),
+      collapse = ","
+    ),
+    model_id = as.character(config$state_pathways$model),
     spline_df = as.character(config$state_pathways$spline_df),
     pseudotime_bins = as.character(config$state_pathways$pseudotime_bins),
     minimum_cells_per_sample_bin = as.character(

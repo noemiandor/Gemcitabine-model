@@ -24,10 +24,18 @@ each selected chromosome and then summing those chromosome-level means across ch
 
 Example:
     python ../weighted_ploidy.py SUM159-2N-30-0_harvest.sps.cbs -o ploidy.csv --hist ploidy_hist.png
+
+For the reviewed in-vivo collection, use the checksum-pinned manifest rather
+than a shell glob.  Manifest row order is part of the output-byte contract::
+
+    python weighted_ploidy.py \
+      --manifest scRNAseq_Numbat/cbs_manifest.tsv \
+      --out scRNAseq_Numbat/all_ploidy.csv --sep tsv
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 from typing import Dict, List, Optional, Tuple
@@ -35,13 +43,53 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-# Use non-interactive backend for servers / headless environments.
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-
 
 _SEG_RE = re.compile(r'^(?P<chr>[^:]+):(?P<start>[^-]+)-(?P<end>.+)$')
+
+
+def _sha256_file(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def files_from_reviewed_manifest(manifest_path: str) -> List[str]:
+    """Return checksum-validated CBS files in the manifest's canonical order."""
+    manifest = pd.read_csv(manifest_path, sep="\t", dtype=str, keep_default_na=False)
+    required = ["filename", "bytes", "sha256", "notes"]
+    if list(manifest.columns) != required or len(manifest) != 16:
+        raise ValueError(
+            "Reviewed CBS manifest must contain exactly 16 rows with columns: "
+            + ", ".join(required)
+        )
+    if manifest["filename"].duplicated().any():
+        raise ValueError("Reviewed CBS manifest contains duplicate filenames")
+    if (manifest["notes"].str.strip() == "").any():
+        raise ValueError("Reviewed CBS manifest contains an empty notes field")
+    root = os.path.dirname(os.path.abspath(manifest_path))
+    paths: List[str] = []
+    for row in manifest.itertuples(index=False):
+        if os.path.basename(row.filename) != row.filename:
+            raise ValueError(f"Non-local CBS filename in manifest: {row.filename}")
+        path = os.path.join(root, row.filename)
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"Missing reviewed CBS matrix: {path}")
+        try:
+            expected_bytes = int(row.bytes)
+        except ValueError as error:
+            raise ValueError(
+                f"Invalid byte count for reviewed CBS matrix: {row.filename}"
+            ) from error
+        if os.path.getsize(path) != expected_bytes:
+            raise ValueError(f"Reviewed CBS matrix byte count changed: {row.filename}")
+        if not re.fullmatch(r"[0-9a-f]{64}", row.sha256):
+            raise ValueError(f"Invalid reviewed CBS checksum: {row.filename}")
+        if _sha256_file(path) != row.sha256:
+            raise ValueError(f"Reviewed CBS matrix checksum changed: {row.filename}")
+        paths.append(path)
+    return paths
 
 
 def _coerce_chr(ch: str) -> Optional[int]:
@@ -272,6 +320,13 @@ def ploidy_from_file(
 
 
 def plot_histogram(values: np.ndarray, out_png: str, bins: int = 60, title: str = "Ploidy distribution"):
+    # Matplotlib is optional for the canonical tabular derivation.  Importing
+    # it only when --hist is requested avoids an unnecessary GUI/font-cache
+    # dependency in headless pipeline runs.
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
     v = np.asarray(values, dtype=float)
     v = v[np.isfinite(v)]
     plt.figure(figsize=(6, 4))
@@ -287,7 +342,16 @@ def plot_histogram(values: np.ndarray, out_png: str, bins: int = 60, title: str 
 
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Compute chromosome-length–weighted ploidy per cell from *.sps.cbs files.")
-    ap.add_argument("files", nargs="+", help="One or more input files (e.g., *.sps.cbs).")
+    ap.add_argument("files", nargs="*", help="One or more input files (e.g., *.sps.cbs).")
+    ap.add_argument(
+        "--manifest",
+        default=None,
+        help=(
+            "Checksum-validate and process the 16 CBS matrices in the exact "
+            "row order of a reviewed cbs_manifest.tsv. Cannot be combined "
+            "with positional files."
+        ),
+    )
     ap.add_argument("-o", "--out", default=None, help="Output CSV/TSV path (default: print TSV to stdout).")
     ap.add_argument("--sep", default="\t", choices=["\t", ",", "tsv", "csv"], help="Output separator.")
     ap.add_argument("--include-sex", action="store_true", help="Include chr X/Y (23/24) in weighting.")
@@ -299,7 +363,30 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     ap.add_argument("--hist", default=None, help="If set, save a histogram PNG of ploidy (all files combined).")
     ap.add_argument("--bins", type=int, default=60, help="Histogram bins (if --hist is provided).")
+    ap.add_argument(
+        "--omit-total-chromosomes",
+        action="store_true",
+        help="Omit total_chromosomes for the reduced five-column endpoint table.",
+    )
+    ap.add_argument(
+        "--expected-sha256",
+        default=None,
+        help="Fail unless the written output has this exact SHA-256.",
+    )
     args = ap.parse_args(argv)
+
+    if args.manifest and args.files:
+        ap.error("--manifest cannot be combined with positional files")
+    if args.manifest:
+        input_files = files_from_reviewed_manifest(args.manifest)
+    elif args.files:
+        input_files = args.files
+    else:
+        ap.error("provide positional CBS files or --manifest")
+    if args.expected_sha256 and not re.fullmatch(
+        r"[0-9a-f]{64}", args.expected_sha256
+    ):
+        ap.error("--expected-sha256 must be 64 lowercase hexadecimal characters")
 
     sep = args.sep
     if sep == "tsv":
@@ -308,18 +395,29 @@ def main(argv: Optional[List[str]] = None) -> int:
         sep = ","
 
     rows: List[pd.DataFrame] = []
-    for f in args.files:
+    for f in input_files:
         df = ploidy_from_file(f, include_sex=args.include_sex, min_frac_covered=args.min_frac_covered)
         df.insert(0, "file", os.path.basename(f))
         rows.append(df)
 
     out = pd.concat(rows, ignore_index=True)
+    if args.omit_total_chromosomes:
+        out = out.drop(columns=["total_chromosomes"])
 
     if args.hist:
         plot_histogram(out["ploidy"].to_numpy(), args.hist, bins=args.bins, title="Ploidy distribution (chr-length weighted)")
 
     if args.out:
         out.to_csv(args.out, sep=sep, index=False)
+        if args.expected_sha256:
+            observed = _sha256_file(args.out)
+            if observed != args.expected_sha256:
+                raise ValueError(
+                    "Derived ploidy output checksum mismatch: "
+                    f"expected {args.expected_sha256}, observed {observed}"
+                )
+    elif args.expected_sha256:
+        ap.error("--expected-sha256 requires --out")
     else:
         print(out.to_csv(sep="\t", index=False), end="")
 

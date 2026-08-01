@@ -1,35 +1,54 @@
 # Figure 7 reproducibility module
 
-This module generates six reviewed scientific source panels as matched PDF and
-300-DPI PNG files and assembles the manuscript-facing A-K composite
+This module generates six scientific source panels as matched PDF and 300-DPI
+PNG files and can assemble the manuscript-facing A-K composite
 `Figure7_reviewed_GRCh.png`. The composite reuses Supplementary Figure 4A-C/E
 and Supplementary Figure 7B through the shared production plotting helper;
-their supplementary copies are retained. Routine A-F source runs are
-publication eligible and use the byte-pinned human-only panel-7F v2 reference.
-The historical mixed-feature v1 reference remains available only for audit,
-while newly generated raw-refit references remain noncanonical until
-separately reviewed.
+their supplementary copies are retained. The former human-only panel-7F v2
+reference is retained for audit but is superseded because its model adjusted
+for a run-confounded endpoint-CN-score group. The reviewed v3 reference instead
+adjusts for injected initial ploidy and is the canonical panel-7F source. Panel
+K standardizes the checksum-pinned terminal postprocessed CN score within
+injected origin, adjusts for origin and dose, and permutes TGI within
+origin-by-dose strata; it is not used as a nuisance covariate in the
+state-pathway model.
 
 ## Frozen routine analysis
 
-- Panels 7A-7E are recomputed from the two tracked cell-level tables under `Data/in-vivo/figure7/processed/`.
+- Panels 7A-7D are recomputed from the two tracked plot-facing cell-level
+  tables under `Data/in-vivo/figure7/processed/`. Source panel 7E (main panel
+  K) additionally reads the exact six-column, checksum-pinned
+  `Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv`: 14,125 cells across 16 CBS
+  files. Its treated-mouse score uses all 7,623 cells in the eight treated CBS
+  files, not only the 9,832-cell union represented in the plot-facing tables.
+  That newer artifact has its own source revision (`dcdb62f2252...`) in the
+  config; the surrounding legacy source revision does not claim it existed in
+  the earlier snapshot.
 - TGI is the Day-17 endpoint statistic, recalculated for each treated mouse using the mean Day-17 growth delta of untreated controls matched by initial ploidy.
 - Panels 7C-7E contain exactly eight treated mice at 30 or 120 mg/kg. Untreated mice contribute references only.
-- Panel 7D uses the reference-balanced ETP threshold 2.24 and equal-mouse untreated ECDF references.
-- Panel 7F is rendered from immutable compact tables in `Data/in-vivo/figure7/saved_state_pathway/state_pathway_grch_human_only_etp2_24_day17_v2/`.
+- Panel 7D (main panel J) uses equal-mouse untreated ECDF references matched by
+  injected initial ploidy. The treated-mouse association is Pearson r =
+  0.7399455 with exact within-dose permutation P = 0.0173611 (576 labelings).
+- Panel 7F (main panel I) uses model
+  `initial_ploidy_adjusted_grch_human_only_v3`; its nuisance terms are dose and
+  injected initial ploidy, never endpoint CN score or an endpoint-derived
+  threshold group.
+- Panel 7E (main panel K) estimates -8.8375 Day-17 TGI percentage points per
+  within-origin CN-score SD (partial r = -0.3447; exact origin-by-dose
+  permutation P = 0.6875; 16 assignments). It is a confound-safe sensitivity
+  analysis, not evidence for an independent terminal-ploidy effect.
 - The A-K manuscript composite binds the exact reviewed 11-table SI cache and
   displays, in first-citation order: source 7A, source 7C, SI4A-C, SI4E, SI7B,
   source 7B, source 7F, and source 7D-E.
 
-The eight reviewed panel-7F files retain exact `GRCh38-` features before
+The eight reviewed v3 panel-7F files retain exact `GRCh38-` features before
 expression filtering, symbol resolution, model fitting, and Homo sapiens GSEA.
-They use the `ETP_reference_balanced_threshold_2_24` analysis and accumulated
-pseudotime interval 0.30-0.49. The displayed selection contains 21
-FDR-significant pathways (Hallmark 5, Reactome 8, GO biological process 8):
-collection-wide BH-adjusted P <= 0.05, up to four per sign and collection, with
-no nonsignificant backfill. All eight SHA-256 values and the exact approved
-retry7 lineage are pinned in `figure7_config.yaml` and the reviewed provenance.
-An embedded report raster is not accepted as plotting data.
+They use the accumulated pseudotime interval 0.30-0.49. Displayed pathways must
+have collection-wide BH-adjusted P <= 0.05; the selector takes up to four per
+sign and collection and never backfills with nonsignificant pathways. The
+reviewed provenance authenticates all eight compact tables, the exact input
+hashes, model/design audit, feature-species boundary, MSigDB release, and
+selection rule. An embedded report raster is not accepted as plotting data.
 
 ## Raw-data fallback and intermediate reuse
 
@@ -58,7 +77,10 @@ stage needs the final Seurat object, there are two supported source boundaries:
 - omit that option to reuse or download the deposited final Seurat RDS pinned
   by `zenodo_required_files.tsv`.
 
-Figure 7A-7E additionally reuse or download the 18 deposited loom files. The
+Figure 7A-7D additionally reuse or download the 18 deposited loom files. Source
+panel 7E/main panel K instead binds the complete combined CBS table; in
+`full-refit`, Manager regenerates that run-scoped table from the manifest-pinned
+16 CBS matrices and requires it to reproduce the canonical checksum. The
 complete Zenodo fallback is about 10.61 GiB. Manager then runs only the missing
 figure-facing stages:
 
@@ -66,9 +88,11 @@ figure-facing stages:
 2. build the run-scoped, human-only 11-table supplementary cache and render
    Supplementary Figures 4-7;
 3. calculate scVelo pseudotime and derive the CellCycle and NonCellCycle
-   Day-17 TGI tables used by 7A-7E;
-4. fit the state-pathway model and export a compact generated reference for 7F;
-5. pass the generated supplementary cache and its complete raw-input lineage
+   Day-17 TGI tables used by 7A-7D and for sample/TGI metadata in 7E;
+4. regenerate and checksum-validate the complete six-column, 14,125-cell CBS
+   ploidy table used to calculate 7E's per-mouse scores;
+5. fit the state-pathway model and export a compact generated reference for 7F;
+6. pass the generated supplementary cache and its complete raw-input lineage
    into Figure 7 and assemble the A-K review candidate.
 
 The generated-cache handoff is required in `full-refit`: Figure 7 will not
@@ -86,15 +110,38 @@ but these reviewed Seurat stages always use one scientific worker.
 
 No FASTQ-to-Cell-Ranger invocation or FASTQ collection was available in the
 source work, so the 18 H5 matrices are the earliest executable expression-data
-boundary. Likewise, no complete Numbat/karyotyping workflow producing
-`all_ploidy.tsv` was available; that checksum-pinned table is therefore a
-versioned source artifact rather than a generated cache. The deposited final
-RDS remains the verified fallback when the external H5 boundary is unavailable.
+boundary. The 16 tracked downstream NUMBAT-derived CBS matrices reproduce the
+SI6E chromosome-state view and recompute every value in the canonical
+`scRNAseq_Numbat/all_ploidy.csv` (and its reduced `all_ploidy.tsv` projection).
+Two checksum-pinned, project-designated lineage-matched karyotype proxies
+provide the 2N-A7M and 4N-A5M reference distributions used by SI6F; they are
+not the same-passage A6M/A4M inocula. The reference calculation multiplies the
+autosomal length-weighted estimate by one plus the `chr999` unassigned-extra-
+DNA fraction, matching the recorded source-workflow policy. It gives a 4N
+proxy mean of 4.98623 and an eight-mouse terminal 4N-origin mean of 2.32156
+(53.44% lower); the corresponding 2N values are 2.29335 and 2.13534. This is a
+descriptive cross-assay comparison, not a formal test or evidence about when
+the reduction occurred. These downstream
+artifacts do not establish a complete, versioned upstream NUMBAT inference in
+this repository. External A03_Numbat storage contains additional upstream
+artifacts, but their completeness and exact correspondence to all 16 canonical
+CBS exports have not been established; no executable upstream NUMBAT workflow
+is retained here.
+The CBS filenames, byte sizes, and SHA-256 values are pinned in
+`scRNAseq_Numbat/cbs_manifest.tsv` and
+`scRNAseq_Numbat/injected_reference/reference_manifest.tsv`. Those matrices
+and the canonical combined table form the executable downstream boundary, not
+a reproducible raw NUMBAT run. The
+deposited final RDS remains the verified fallback when the external H5 boundary
+is unavailable.
 
 The endpoint-ploidy table, sample workbook, and growth-curve workbook are
 versioned source artifacts. Their revision and SHA-256 values are pinned in
 `figure7_config.yaml`. Raw downloads and generated intermediates stay below
 `Results/`; they are not publication inputs and are not committed.
+If the reduced endpoint-ploidy TSV is missing while the 16 reviewed CBS files
+are present, Manager regenerates the exact checksum-pinned table in the current
+run's artifact directory and reuses it without modifying tracked inputs.
 
 Every reusable stage has a dependency and output fingerprint. A subsequent run
 reuses a stage only when its source hashes, relevant configuration, code,
@@ -106,20 +153,25 @@ already-populated raw cache, add `--figure7-no-download-missing-raw`.
 The byte-pinned v1 panel-7F reference is retained only for historical audit
 because it was fitted from mixed human/mouse features. It can still be rendered
 for comparison by explicitly supplying its directory, but that A-F run is
-never publication eligible. Routine `standard` uses the reviewed human-only v2
-reference. The corrected full-workflow path retains exact `GRCh38-` count rows
-before expression filtering, symbol resolution, modeling, and GSEA. It writes
-a separate generated human-only reference with
+never publication eligible. The previously approved human-only v2 reference is
+also superseded for inference because its nuisance term was derived from the
+run-confounded endpoint CN score. The corrected full-workflow path retains
+exact `GRCh38-` count rows before expression filtering, symbol resolution,
+modeling, and GSEA. It writes a separate generated human-only,
+initial-ploidy-adjusted reference with
 `canonical_publication_allowed=false`; raw reruns do not inherit the approval
-of the exact frozen v2 bytes. GSEA starts with the configured simple-permutation budget,
+of the exact reviewed v3 bytes. GSEA starts with the configured
+simple-permutation budget,
 retries only unresolved pathways at increasing pinned budgets, recomputes BH
 adjustment across each complete collection, and fails closed if any pathway
 still lacks finite statistics at the configured cap. The generated human-only
 panel displays only pathways with collection-wide BH-adjusted P <= 0.05, then
 takes up to four pathways in each direction and collection. It never backfills
 a direction with nonsignificant pathways, so generated collection and panel row
-counts may be smaller than the historical frozen 8/24-pathway layout. A-E runs
-remain publication eligible.
+counts may be smaller than the historical frozen 8/24-pathway layout. Panel K
+must use only the checksum-pinned endpoint table, within-origin
+standardization, and the recorded sample-level adjustment/permutation
+contract; temporary historical reconstructions are not publication inputs.
 
 ## Commands
 
@@ -156,6 +208,28 @@ bash Manager.sh \
   --figure7-figure-name Figure7_Supplement2
 ```
 
+After scientific review, the exact five consumed files per endpoint (7A plot,
+7C plot/test, and 7E plot/test) plus the two run configs are frozen in
+`Data/in-vivo/figure7/saved_tgi_sensitivity/tgi_day24_day31_all_cbs_v1/`.
+Canonical SI8 assembly reads that compact tracked bundle by default; the full
+40-file result runs are not publication dependencies:
+
+```bash
+Rscript Code/in-vivo/figure7/assemble_tgi_sensitivity.R \
+  --output-dir=figures/Figure7_Supplement
+```
+
+The assembler validates the reviewed v3 identity and the confound-safe panel-K
+contract in both runs, then creates a five-panel Day-24/Day-31 composite plus a
+portable checksum provenance table. It also writes the separate standard-schema
+`si8_manifest.tsv` for the final SI8 PDF/PNG. The pre-existing 13-row
+`manifest.tsv` remains the Day-24 Figure 7 source-panel contract; mixing SI8
+rows into it would conflate two products and Manager would overwrite them. The
+assembler does not refit either endpoint.
+After a provenance-only code correction, pass `--provenance-only=true` to
+rebuild the provenance and SI8 manifest without rewriting the reviewed PNG or
+PDF bytes.
+
 The selected endpoint day is used consistently for the matched-control TGI
 calculation, plot labels, statistical tables, run metadata, panel contract, and
 day-bearing filenames. Panel 7B and panel 7F are scientifically independent of
@@ -163,7 +237,7 @@ the TGI endpoint and are regenerated unchanged into the selected destination.
 
 Routine and raw-fallback runs do not refresh either tracked frozen reference.
 Full-workflow instead writes a separately identified
-`runtime_state_pathway_grch_human_only_v2` generated reference below the run
+`state_pathway_grch_human_only_initial_ploidy_day17_v3_candidate` generated reference below the run
 intermediates and marks it noncanonical.
 
 To strictly re-export the historical mixed-feature panel-7F reference from the
@@ -188,7 +262,7 @@ The verified export is retained only under the Manager run's
 `artifacts/figure7_state_pathway_reference/` directory. Manager labels the A-F
 result noncanonical, does not publish it to `figures/Figure7/`, and never copies
 the eight TSVs into tracked `Data/`. This option preserves the original v1
-audit chain; it is not a substitute for a reviewed human-only v2 reference.
+audit chain; it is not a substitute for the reviewed human-only v3 reference.
 
 To explicitly generate and materialize only 7A-7E:
 
@@ -200,36 +274,10 @@ bash Manager.sh --mode standard --modules in_vivo_figure7 \
 This mode records a five-panel contract and does not read, validate, render, or
 materialize panel 7F. Each included panel is written in both PDF and PNG format.
 
-To run the standalone canonical Figure 7 workflow directly on the HPC and
-render all six panels:
-
-```bash
-module load Python/3.12.3-GCCcore-13.3.0
-module load R/4.4.2-gfbf-2024a
-
-cd /share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures
-
-figure7_output_dir="/share/lab_crd/lab_crd/taoli/Project/BreastCancerOrthotopicModels_figures/Results/in-vivo/figure7/runs/manual_$(date +%Y%m%d_%H%M%S)_figure7"
-
-Rscript Code/in-vivo/figure7/run_figure7.R \
-  --mode=standard \
-  --panel-set=a-f \
-  --config=Code/in-vivo/figure7/figure7_config.yaml \
-  --cellcycle-input=Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
-  --non-cellcycle-input=Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
-  --saved-state-pathway-dir=Data/in-vivo/figure7/saved_state_pathway/state_pathway_grch_human_only_etp2_24_day17_v2 \
-  --si-table-cache-dir=Data/in-vivo/SIfigures \
-  --output-dir="${figure7_output_dir}"
-
-echo "Figure 7 results: ${figure7_output_dir}"
-```
-
-Run this command in the HPC shell rather than at an interactive R prompt. The
-timestamp creates a new output directory for every run. The `standard` mode
-recomputes source panels 7A-7E, renders source panel 7F from the pinned reviewed
-human-only tables without refitting the model, and assembles the A-K main
-composite from those sources and the reviewed SI cache; the resulting run is
-canonical.
+The superseded v2 directory remains byte-pinned and is exercised by its
+dedicated audit validator and tests. Routine rendering intentionally refuses
+to substitute it for reviewed v3, preventing an endpoint-CN-score-adjusted
+panel from re-entering a canonical composite.
 
 Standalone rendering from an immutable completed run (does not rerun statistics):
 

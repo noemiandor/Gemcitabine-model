@@ -1116,12 +1116,18 @@ wrapper_env$render_cache <- function(
   output,
   generated,
   log_name = "00_render.log",
-  upstream_input_manifest = NULL
+  upstream_input_manifest = NULL,
+  all_ploidy = NULL,
+  cbs_dir = NULL,
+  injected_reference_dir = NULL
 ) {
   wrapper_env$rendered <- list(
     cache = cache,
     output = output,
-    generated = generated
+    generated = generated,
+    all_ploidy = all_ploidy,
+    cbs_dir = cbs_dir,
+    injected_reference_dir = injected_reference_dir
   )
   invisible(output)
 }
@@ -1136,6 +1142,30 @@ wrapper_env$main(list(
 stopifnot(
   !is.null(wrapper_env$rendered),
   identical(wrapper_env$rendered$generated, FALSE),
+  identical(
+    wrapper_env$rendered$all_ploidy,
+    normalizePath(
+      file.path(repo_root, "Data", "in-vivo", "all_ploidy.tsv"),
+      mustWork = TRUE
+    )
+  ),
+  identical(
+    wrapper_env$rendered$cbs_dir,
+    normalizePath(
+      file.path(repo_root, "Data", "in-vivo", "scRNAseq_Numbat"),
+      mustWork = TRUE
+    )
+  ),
+  identical(
+    wrapper_env$rendered$injected_reference_dir,
+    normalizePath(
+      file.path(
+        repo_root,
+        "Data", "in-vivo", "scRNAseq_Numbat", "injected_reference"
+      ),
+      mustWork = TRUE
+    )
+  ),
   identical(wrapper_env$rendered$output, normalizePath(
     output_dir,
     mustWork = FALSE

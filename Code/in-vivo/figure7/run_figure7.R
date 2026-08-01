@@ -157,7 +157,13 @@ write_metadata <- function(
   cellcycle_input = "",
   cellcycle_sha256 = "",
   noncellcycle_input = "",
-  noncellcycle_sha256 = ""
+  noncellcycle_sha256 = "",
+  endpoint_ploidy_input = "",
+  endpoint_ploidy_sha256 = "",
+  endpoint_ploidy_n_cells = "",
+  endpoint_ploidy_n_files = "",
+  endpoint_ploidy_score_policy = "",
+  endpoint_ploidy_mapping_policy = ""
 ) {
   tgi_day <- figure7_tgi_day(config)
   tgi_measure <- figure7_tgi_measure(config)
@@ -195,14 +201,21 @@ write_metadata <- function(
   )
   run_config <- data.frame(
     key = c("module", "mode", "panel_set", "tgi_outcome", "tgi_day", "tgi_measure",
-            "matched_control_summary", "matched_control_group", "etp_method", "etp_threshold",
+            "matched_control_summary", "matched_control_group",
+            "ecdf_reference_group_column", "ecdf_reference_definition",
+            "etp_method", "etp_threshold",
             "state_pathway_reference_id", "state_pathway_reference_kind",
             "canonical_publication_allowed",
             "state_interval_start", "state_interval_end",
             "state_pathway_source_results_root", "config_sha256",
             "cellcycle_input", "cellcycle_sha256",
-            "noncellcycle_input", "noncellcycle_sha256"),
+            "noncellcycle_input", "noncellcycle_sha256",
+            "endpoint_ploidy_input", "endpoint_ploidy_sha256",
+            "endpoint_ploidy_n_cells", "endpoint_ploidy_n_files",
+            "endpoint_ploidy_score_policy",
+            "endpoint_ploidy_mapping_policy"),
     value = c("in_vivo_figure7", mode, panel_set, "day", as.character(tgi_day), tgi_measure, "mean", "initial_ploidy",
+              "initial_ploidy", "untreated_equal_sample_mean_ecdf",
               config$etp$method, as.character(config$etp$threshold),
               reference_identity$id,
               reference_identity$kind,
@@ -214,7 +227,13 @@ write_metadata <- function(
               figure7_metadata_locator(cellcycle_input),
               if (nzchar(cellcycle_sha256)) cellcycle_sha256 else "not_recorded",
               figure7_metadata_locator(noncellcycle_input),
-              if (nzchar(noncellcycle_sha256)) noncellcycle_sha256 else "not_recorded"),
+              if (nzchar(noncellcycle_sha256)) noncellcycle_sha256 else "not_recorded",
+              figure7_metadata_locator(endpoint_ploidy_input),
+              if (nzchar(endpoint_ploidy_sha256)) endpoint_ploidy_sha256 else "not_recorded",
+              if (nzchar(endpoint_ploidy_n_cells)) endpoint_ploidy_n_cells else "not_recorded",
+              if (nzchar(endpoint_ploidy_n_files)) endpoint_ploidy_n_files else "not_recorded",
+              if (nzchar(endpoint_ploidy_score_policy)) endpoint_ploidy_score_policy else "not_recorded",
+              if (nzchar(endpoint_ploidy_mapping_policy)) endpoint_ploidy_mapping_policy else "not_recorded"),
     stringsAsFactors = FALSE
   )
   if (include_state_pathway) {
@@ -514,6 +533,25 @@ render_from_run <- function(
   if (is.na(config_hash) || !identical(config_hash, figure7_sha256(config_path))) {
     figure7_stop("render-only source run was produced with a different Figure 7 config")
   }
+  expected_endpoint_hash <- as.character(
+    config$versioned_source_artifacts$panel_k_endpoint_ploidy$sha256
+  )
+  if (!identical(source_scalar("endpoint_ploidy_sha256"), expected_endpoint_hash) ||
+      !identical(source_scalar("endpoint_ploidy_n_cells"), "14125") ||
+      !identical(source_scalar("endpoint_ploidy_n_files"), "16") ||
+      !identical(
+        source_scalar("endpoint_ploidy_score_policy"),
+        "arithmetic_mean_of_all_finite_postprocessed_cell_ploidy_per_cbs_file"
+      ) ||
+      !identical(
+        source_scalar("endpoint_ploidy_mapping_policy"),
+        "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+      )) {
+    figure7_stop(
+      "render-only source run does not bind the complete reviewed ",
+      "14,125-cell endpoint-CBS score contract"
+    )
+  }
   expected_contract <- figure7_panel_contract(
     config,
     panel_ids,
@@ -544,10 +582,70 @@ render_from_run <- function(
   cdata <- figure7_read_tsv(table_path("panel_7C_plot_data.tsv"), c("sample_id", "initial_ploidy", "dose", tgi_measure))
   ct <- figure7_read_tsv(table_path("panel_7C_test.tsv"),
     c("dose_adjusted_difference_high_minus_low", "permutation_p_two_sided", "n_group_low", "n_group_high"))
-  d <- figure7_read_tsv(table_path("panel_7D_plot_data.tsv"), c("sample_id", "shift_centered", "tgi_centered", "dose", "etp_group"))
-  dt <- figure7_read_tsv(table_path("panel_7D_test.tsv"), c("n", "estimate", "permutation_p_two_sided"))
-  e <- figure7_read_tsv(table_path("panel_7E_plot_data.tsv"), c("sample_id", "sample_mean_endpoint_ploidy", tgi_measure, "dose", "etp_group"))
-  et <- figure7_read_tsv(table_path("panel_7E_test.tsv"), c("n", "estimate", "permutation_p_two_sided"))
+  d <- figure7_read_tsv(table_path("panel_7D_plot_data.tsv"), c(
+    "sample_id", "initial_ploidy", "shift_centered", "tgi_centered", "dose",
+    "reference_group_column", "reference_group_value", "reference_sample_ids"
+  ))
+  dt <- figure7_read_tsv(table_path("panel_7D_test.tsv"), c(
+    "n", "estimate", "permutation_p_two_sided",
+    "ecdf_reference_group_column", "permutation_strata"
+  ))
+  e <- figure7_read_tsv(table_path("panel_7E_plot_data.tsv"), c(
+    "sample_id", "initial_ploidy", "dose", "dose_mg",
+    "endpoint_ploidy_file", "sample_mean_endpoint_ploidy",
+    "n_endpoint_ploidy_cells", "endpoint_ploidy_source_total_cells",
+    "endpoint_ploidy_source_file_count", "endpoint_ploidy_source_sha256",
+    "endpoint_ploidy_score_policy", "endpoint_ploidy_mapping_policy",
+    "terminal_postprocessed_cn_score",
+    "terminal_cn_score_within_origin_z",
+    "terminal_cn_score_nuisance_residual", "tgi_origin_dose_residual",
+    "permutation_stratum", tgi_measure
+  ))
+  et <- figure7_read_tsv(table_path("panel_7E_test.tsv"), c(
+    "n", "estimate", "partial_correlation",
+    "effect_per_within_origin_sd", "permutation_p_two_sided",
+    "n_permutations", "permutation_mode", "permutation_strata",
+    "score_variable", "score_source_sha256", "score_source_n_cells",
+    "score_source_n_files", "treated_score_n_cells",
+    "score_aggregation_policy", "sample_mapping_policy",
+    "score_standardization", "adjustment_terms",
+    "outcome_variable", "plot_x", "plot_y"
+  ))
+  if (any(d$reference_group_column != "initial_ploidy") ||
+      any(d$reference_group_value != d$initial_ploidy) ||
+      !identical(unique(dt$ecdf_reference_group_column), "initial_ploidy")) {
+    figure7_stop("render-only panel 7D/J does not use injected-origin-matched untreated ECDF references")
+  }
+  e_z_contract <- vapply(split(e$terminal_cn_score_within_origin_z, e$initial_ploidy), function(values) {
+    abs(mean(values)) <= 1e-10 && abs(stats::sd(values) - 1) <= 1e-10
+  }, logical(1L))
+  if (nrow(e) != 8L || nrow(et) != 1L || !all(e_z_contract) ||
+      any(abs(e$terminal_postprocessed_cn_score - e$sample_mean_endpoint_ploidy) > 1e-12) ||
+      sum(figure7_numeric(e$n_endpoint_ploidy_cells)) != 7623L ||
+      any(figure7_numeric(e$endpoint_ploidy_source_total_cells) != 14125L) ||
+      any(figure7_numeric(e$endpoint_ploidy_source_file_count) != 16L) ||
+      any(e$endpoint_ploidy_source_sha256 != source_scalar("endpoint_ploidy_sha256")) ||
+      !identical(as.character(et$score_source_sha256), source_scalar("endpoint_ploidy_sha256")) ||
+      figure7_numeric(et$score_source_n_cells) != 14125L ||
+      figure7_numeric(et$score_source_n_files) != 16L ||
+      figure7_numeric(et$treated_score_n_cells) != 7623L ||
+      !identical(
+        as.character(et$score_variable),
+        "sample_mean_all_canonical_cbs_cell_ploidy"
+      ) ||
+      any(e$permutation_stratum != paste(e$initial_ploidy, e$dose_mg, sep = "|")) ||
+      !identical(as.character(et$permutation_strata), "initial_ploidy:dose_mg") ||
+      !identical(as.character(et$score_standardization), "z_score_within_initial_ploidy") ||
+      !identical(as.character(et$adjustment_terms), "initial_ploidy+dose_mg") ||
+      !identical(as.character(et$outcome_variable), tgi_measure) ||
+      !identical(as.character(et$plot_x), "terminal_cn_score_nuisance_residual") ||
+      !identical(as.character(et$plot_y), "tgi_origin_dose_residual") ||
+      figure7_numeric(et$n_permutations) != 16L) {
+    figure7_stop(
+      "render-only panel 7E/K does not satisfy the within-origin standardized, ",
+      "origin- and dose-adjusted CN-score contract"
+    )
+  }
   for (tab in list(a, b, bt, cdata, ct, d, dt, e, et)) {
     required_metadata <- c("tgi_outcome", "tgi_day", "tgi_measure", "matched_control_summary", "matched_control_group")
     missing_metadata <- setdiff(required_metadata, names(tab))
@@ -644,7 +742,10 @@ render_from_run <- function(
         kind = as.character(
           config$state_pathways$reviewed_reference_kind
         ),
-        canonical_publication_allowed = TRUE
+        canonical_publication_allowed = isTRUE(
+          config$state_pathways$
+            reviewed_reference_canonical_publication_allowed
+        )
       )))
     )
     if (!historical_identity && !reviewed_identity && !generated_identity) {
@@ -838,27 +939,16 @@ render_from_run <- function(
       "shift_centered",
       "tgi_centered",
       dt,
-      "CellCycle TGI association after within-dose centering",
-      "Dose-centered ECDF RMSE",
-      paste("Dose-centered Day", tgi_day, "TGI (%)")
+      "CellCycle TGI association using injected-origin-matched controls",
+      "Dose-centered ECDF RMSE (origin-matched untreated reference)",
+      paste("Dose-centered Day", tgi_day, "TGI (%)"),
+      "Exact within-dose permutation P"
     ) + ggplot2::geom_vline(
       xintercept = 0,
       color = "grey75",
       linewidth = 0.35
     ),
-    E = figure7_scatter_plot(
-      e,
-      "sample_mean_endpoint_ploidy",
-      tgi_measure,
-      et,
-      paste(
-        "Cell-cycle-associated tumor cells: Day",
-        tgi_day,
-        "TGI vs sample mean ETP"
-      ),
-      "Sample mean ETP",
-      paste("Day", tgi_day, "TGI (%)")
-    )
+    E = figure7_adjusted_cn_plot(e, et, config)
   )
   sizes <- list(
     A = c(10, 6.5), B = c(15, 5.5), C = c(6.8, 6.4),
@@ -904,7 +994,15 @@ render_from_run <- function(
     cellcycle_input = source_scalar("cellcycle_input"),
     cellcycle_sha256 = source_scalar("cellcycle_sha256"),
     noncellcycle_input = source_scalar("noncellcycle_input"),
-    noncellcycle_sha256 = source_scalar("noncellcycle_sha256")
+    noncellcycle_sha256 = source_scalar("noncellcycle_sha256"),
+    endpoint_ploidy_input = source_scalar("endpoint_ploidy_input"),
+    endpoint_ploidy_sha256 = source_scalar("endpoint_ploidy_sha256"),
+    endpoint_ploidy_n_cells = source_scalar("endpoint_ploidy_n_cells"),
+    endpoint_ploidy_n_files = source_scalar("endpoint_ploidy_n_files"),
+    endpoint_ploidy_score_policy =
+      source_scalar("endpoint_ploidy_score_policy"),
+    endpoint_ploidy_mapping_policy =
+      source_scalar("endpoint_ploidy_mapping_policy")
   )
   figure7_validate_figure_inventory(
     output_dir,
@@ -924,6 +1022,24 @@ if (identical(mode, "render-only")) {
   message("Rendered ", length(panel_ids), " Figure 7 panels from immutable plotting tables: ", output_dir)
   quit(save = "no", status = 0L)
 }
+
+endpoint_cbs_score_path <- normalizePath(
+  figure7_arg(
+    args,
+    "endpoint-cbs-score-input",
+    file.path(
+      repo_root,
+      as.character(
+        config$versioned_source_artifacts$panel_k_endpoint_ploidy$default_path
+      )
+    )
+  ),
+  mustWork = FALSE
+)
+endpoint_ploidy <- figure7_read_endpoint_ploidy_table(
+  endpoint_cbs_score_path,
+  config
+)
 
 workflow <- NULL
 if (identical(mode, "full-workflow")) {
@@ -1036,10 +1152,21 @@ if (include_state_pathway) {
         config,
         verify_checksums = TRUE
       )
+    } else if (identical(
+          saved_id,
+          as.character(config$state_pathways$generated_reference_id)
+        )) {
+      figure7_validate_generated_state_reference(
+        saved_dir,
+        config,
+        expected_inputs = NULL,
+        config_path = config_path
+      )
     } else {
       figure7_stop(
-        "Standard panel-7F reference must be the reviewed human-only v2 ",
-        "or the explicit historical mixed-v1 audit reference"
+        "Standard panel-7F reference must be the reviewed reference, the ",
+        "explicit generated candidate, or the historical mixed-v1 audit ",
+        "reference"
       )
     }
   }
@@ -1061,7 +1188,12 @@ if (identical(mode, "full-analysis")) {
 
 cellcycle <- figure7_read_cell_table(cellcycle_path, "CellCycle", config)
 noncellcycle <- figure7_read_cell_table(noncellcycle_path, "NonCellCycle", config)
-samples <- figure7_sample_table(cellcycle, noncellcycle, config)
+samples <- figure7_sample_table(
+  cellcycle,
+  noncellcycle,
+  config,
+  endpoint_ploidy
+)
 data <- figure7_prepare_cellcycle(cellcycle, samples, config)
 context_cache <- if (include_state_pathway) {
   figure7_build_context_panels(
@@ -1076,10 +1208,19 @@ context_cache <- if (include_state_pathway) {
 } else {
   NULL
 }
+if (include_state_pathway &&
+    !isTRUE(reference_identity$canonical_publication_allowed)) {
+  context_cache$composite_filename <- as.character(
+    config$panels$main_composite$generated_candidate_filename
+  )
+}
 figure7_prepare_output(output_dir)
 ae <- figure7_build_ae(cellcycle, data, samples, output_dir, config)
 if (include_state_pathway) {
-  plot_f <- if (identical(mode, "full-workflow")) {
+  plot_f <- if (identical(mode, "full-workflow") || identical(
+      reference$reference_id,
+      as.character(config$state_pathways$generated_reference_id)
+    )) {
     figure7_build_generated_f(reference, output_dir, config)
   } else {
     figure7_build_f(reference, output_dir, config)
@@ -1121,7 +1262,13 @@ write_metadata(
   cellcycle_path,
   figure7_sha256(cellcycle_path),
   noncellcycle_path,
-  figure7_sha256(noncellcycle_path)
+  figure7_sha256(noncellcycle_path),
+  endpoint_ploidy$path,
+  endpoint_ploidy$sha256,
+  as.character(endpoint_ploidy$n_cells),
+  as.character(endpoint_ploidy$n_files),
+  endpoint_ploidy$score_policy,
+  endpoint_ploidy$mapping_policy
 )
 figure7_validate_figure_inventory(
   output_dir,

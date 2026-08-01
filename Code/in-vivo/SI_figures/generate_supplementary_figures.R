@@ -52,6 +52,12 @@ usage <- function() {
       "  Rscript Code/in-vivo/SI_figures/generate_supplementary_figures.R \\",
       "    [--table-cache-dir Data/in-vivo/SIfigures] \\",
       "    [--config Code/in-vivo/figure7/figure7_config.yaml] \\",
+      "    [--all-ploidy Data/in-vivo/all_ploidy.tsv] \\",
+      "    [--cbs-dir Data/in-vivo/scRNAseq_Numbat] \\",
+      paste(
+        "    [--injected-reference-dir",
+        "Data/in-vivo/scRNAseq_Numbat/injected_reference] \\",
+      ),
       "    --output-dir Results/in-vivo/SI_figures/runs/RUN_si_figures",
       "",
       "Options:",
@@ -262,6 +268,25 @@ if (!file.exists(shared_context_helper_path)) {
   stop("Missing shared context-panel helper: ", shared_context_helper_path, call. = FALSE)
 }
 sys.source(shared_context_helper_path, envir = environment())
+copy_number_helper_path <- file.path(
+  root,
+  "Code",
+  "in-vivo",
+  "SI_figures",
+  "copy_number_heatmap.R"
+)
+if (!file.exists(copy_number_helper_path)) {
+  stop("Missing copy-number heatmap helper: ", copy_number_helper_path,
+       call. = FALSE)
+}
+sys.source(copy_number_helper_path, envir = environment())
+weighted_ploidy_path <- file.path(
+  root, "Data", "in-vivo", "weighted_ploidy.py"
+)
+if (!file.exists(weighted_ploidy_path)) {
+  stop("Missing endpoint-ploidy derivation helper: ", weighted_ploidy_path,
+       call. = FALSE)
+}
 cache_dir <- resolve_path(
   arg_value(args, "table-cache-dir", "Data/in-vivo/SIfigures"),
   root,
@@ -276,6 +301,35 @@ output_dir <- resolve_path(
   arg_value(args, "output-dir", "Results/in-vivo/SI_figures"),
   root,
   must_work = FALSE
+)
+all_ploidy_path <- resolve_path(
+  arg_value(args, "all-ploidy", "Data/in-vivo/all_ploidy.tsv"),
+  root,
+  must_work = TRUE
+)
+cbs_dir <- resolve_path(
+  arg_value(args, "cbs-dir", "Data/in-vivo/scRNAseq_Numbat"),
+  root,
+  must_work = TRUE
+)
+injected_reference_dir <- resolve_path(
+  arg_value(
+    args,
+    "injected-reference-dir",
+    file.path(cbs_dir, "injected_reference")
+  ),
+  root,
+  must_work = TRUE
+)
+cbs_manifest_path <- resolve_path(
+  file.path(cbs_dir, "cbs_manifest.tsv"),
+  root,
+  must_work = TRUE
+)
+injected_reference_manifest_path <- resolve_path(
+  file.path(injected_reference_dir, "reference_manifest.tsv"),
+  root,
+  must_work = TRUE
 )
 overwrite <- arg_flag(args, "overwrite")
 allow_generated_human_only_si7 <- arg_flag(
@@ -861,8 +915,8 @@ tumor_4n <- tumor[tumor$initial_ploidy == "4N", , drop = FALSE]
 s6a <- shared_context_make_umap_continuous(
   tumor,
   "endpoint_ploidy",
-  "Endpoint ploidy in all tumors",
-  "Endpoint ploidy",
+  "NUMBAT-derived ploidy in all tumors",
+  "NUMBAT-derived ploidy",
   "A",
   point_size,
   plot_seed,
@@ -876,8 +930,8 @@ s6a <- shared_context_make_umap_continuous(
 s6b <- shared_context_make_umap_continuous(
   tumor_2n,
   "endpoint_ploidy",
-  "Endpoint ploidy in initial 2N tumors",
-  "Endpoint ploidy",
+  "NUMBAT-derived ploidy in 2N-origin tumors",
+  "NUMBAT-derived ploidy",
   "B",
   point_size,
   plot_seed,
@@ -886,8 +940,8 @@ s6b <- shared_context_make_umap_continuous(
 s6c <- shared_context_make_umap_continuous(
   tumor_4n,
   "endpoint_ploidy",
-  "Endpoint ploidy in initial 4N tumors",
-  "Endpoint ploidy",
+  "NUMBAT-derived ploidy in 4N-origin tumors",
+  "NUMBAT-derived ploidy",
   "C",
   point_size,
   plot_seed,
@@ -912,12 +966,12 @@ s6d <- ggplot2::ggplot(
     low = "#2C7BB6",
     high = "#D7191C",
     limits = endpoint_limits,
-    name = "Endpoint ploidy"
+    name = "NUMBAT-derived ploidy"
   ) +
   ggplot2::coord_equal() +
   ggplot2::labs(
-    title = "Endpoint ploidy by mouse of origin",
-    subtitle = "All panels use the same endpoint-ploidy scale",
+    title = "NUMBAT-derived ploidy by mouse of origin",
+    subtitle = "All panels use the same chromosome-length-weighted scale",
     x = "UMAP 1",
     y = "UMAP 2"
   ) +
@@ -930,13 +984,246 @@ s6d <- ggplot2::ggplot(
     panel.spacing = grid::unit(0.10, "lines")
   )
 s6d <- shared_context_add_tag(s6d, "D")
-s6 <- patchwork::wrap_plots(
+message("Generating SI6E downstream CBS copy-number heatmap.")
+cbs_collection <- si_copy_number_read_collection(
+  cbs_dir = cbs_dir,
+  all_ploidy_path = all_ploidy_path,
+  endpoint_audit = endpoint_audit,
+  sample_metadata = sample_metadata
+)
+cbs_harmonized <- si_copy_number_harmonize(cbs_collection)
+cbs_sample_summary <- si_copy_number_sample_summary(
+  cbs_harmonized$cell_annotations
+)
+cbs_injected_references <- si_copy_number_read_injected_references(
+  injected_reference_dir
+)
+cbs_reduction_summary <- si_copy_number_reduction_summary(
+  cbs_injected_references$cells,
+  cbs_sample_summary,
+  cbs_harmonized$cell_annotations
+)
+cbs_separation_summary <- si_copy_number_separation_summary(
+  cbs_reduction_summary
+)
+cbs_4n_reduction <- cbs_reduction_summary[
+  cbs_reduction_summary$injected_origin == "4N", , drop = FALSE
+]
+cbs_2n_reduction <- cbs_reduction_summary[
+  cbs_reduction_summary$injected_origin == "2N", , drop = FALSE
+]
+if (nrow(cbs_2n_reduction) != 1L || nrow(cbs_4n_reduction) != 1L) {
+  stop("Expected one descriptive ploidy-change row per injected origin",
+       call. = FALSE)
+}
+cbs_endpoint_summaries <- si_copy_number_endpoint_summaries(
+  cbs_sample_summary
+)
+write_tsv(
+  cbs_harmonized$cell_annotations,
+  file.path(metadata_dir, "si_figure6E_copy_number_cell_annotations.tsv")
+)
+write_tsv(
+  cbs_harmonized$chromosomes,
+  file.path(metadata_dir, "si_figure6E_copy_number_chromosomes.tsv")
+)
+write_tsv(
+  cbs_harmonized$chromosome_schema_audit,
+  file.path(metadata_dir, "si_figure6E_cbs_schema_chromosome_coverage.tsv")
+)
+write_tsv(
+  cbs_harmonized$chromosome_file_audit,
+  file.path(metadata_dir, "si_figure6E_cbs_file_chromosome_coverage.tsv")
+)
+write_tsv(
+  cbs_endpoint_summaries$samples,
+  file.path(metadata_dir, "si_figure6_postprocessed_copy_number_score_by_mouse.tsv")
+)
+write_tsv(
+  cbs_endpoint_summaries$origin_summary,
+  file.path(metadata_dir, "si_figure6_postprocessed_copy_number_score_by_injected_origin.tsv")
+)
+write_tsv(
+  cbs_endpoint_summaries$origin_dose_summary,
+  file.path(metadata_dir, "si_figure6_postprocessed_copy_number_score_by_origin_and_dose.tsv")
+)
+write_tsv(
+  cbs_injected_references$cells,
+  file.path(metadata_dir, "si_figure6_injected_cell_reference_ploidy.tsv")
+)
+write_tsv(
+  cbs_reduction_summary,
+  file.path(metadata_dir, "si_figure6_injected_to_endpoint_ploidy_change.tsv")
+)
+write_tsv(
+  cbs_separation_summary,
+  file.path(
+    metadata_dir,
+    "si_figure6_injected_to_endpoint_ploidy_separation.tsv"
+  )
+)
+saveRDS(
+  cbs_harmonized$matrix,
+  file.path(metadata_dir, "si_figure6E_copy_number_heatmap_matrix.rds"),
+  compress = "gzip"
+)
+cbs_heatmap <- si_copy_number_heatmap(cbs_harmonized)
+s6e_heatmap <- patchwork::wrap_elements(full = cbs_heatmap$gtable)
+cbs_reference_plot_data <- cbs_injected_references$cells
+cbs_reference_plot_data$initial_ploidy <- cbs_reference_plot_data$injected_origin
+cbs_stage_levels <- c("Injected-cell\nreference", "Endpoint\ntumor")
+cbs_reference_plot_data$stage <- factor(
+  "Injected-cell\nreference", levels = cbs_stage_levels
+)
+cbs_reference_plot_data$x_position <- 1
+cbs_reference_plot_data$value <- cbs_reference_plot_data$ploidy
+cbs_mouse_plot_data <- cbs_endpoint_summaries$samples
+cbs_mouse_plot_data$stage <- factor(
+  "Endpoint\ntumor", levels = cbs_stage_levels
+)
+cbs_mouse_plot_data$x_position <- 2
+cbs_mouse_plot_data$value <-
+  cbs_mouse_plot_data$mean_postprocessed_copy_number_score
+cbs_mouse_dose_colors <- c(
+  "0" = "#666666", "30" = "#D95F02", "120" = "#1B9E77"
+)
+cbs_reference_means <- stats::aggregate(
+  value ~ initial_ploidy + stage,
+  data = cbs_reference_plot_data,
+  FUN = mean
+)
+cbs_endpoint_means <- stats::aggregate(
+  value ~ initial_ploidy + stage,
+  data = cbs_mouse_plot_data,
+  FUN = mean
+)
+cbs_stage_means <- rbind(cbs_reference_means, cbs_endpoint_means)
+cbs_stage_means$x_position <- ifelse(
+  cbs_stage_means$stage == "Injected-cell\nreference", 1, 2
+)
+cbs_reduction_labels <- cbs_reduction_summary
+cbs_reduction_labels$initial_ploidy <- cbs_reduction_labels$injected_origin
+cbs_reduction_labels$label <- sprintf(
+  "Change: %+.2f (%+.1f%%)",
+  cbs_reduction_labels$absolute_change,
+  cbs_reduction_labels$relative_change_percent
+)
+cbs_reduction_labels$x <- 1.5
+cbs_reduction_labels$y <- vapply(
+  cbs_reduction_labels$injected_origin,
+  function(origin) {
+    max(c(
+      cbs_reference_plot_data$value[
+        cbs_reference_plot_data$initial_ploidy == origin
+      ],
+      cbs_mouse_plot_data$value[cbs_mouse_plot_data$initial_ploidy == origin]
+    )) + 0.13
+  },
+  numeric(1L)
+)
+cbs_reduction_arrows <- data.frame(
+  initial_ploidy = cbs_reduction_summary$injected_origin,
+  x = 1,
+  xend = 2,
+  y = cbs_reduction_summary$reference_mean_ploidy,
+  yend = cbs_reduction_summary$endpoint_mouse_balanced_mean_ploidy,
+  stringsAsFactors = FALSE
+)
+s6e_mouse <- ggplot2::ggplot() +
+  ggplot2::geom_segment(
+    data = cbs_reduction_arrows,
+    ggplot2::aes(x = x, xend = xend, y = y, yend = yend),
+    linewidth = 0.55,
+    color = "#555555",
+    arrow = grid::arrow(length = grid::unit(0.07, "inches"), type = "closed"),
+    inherit.aes = FALSE
+  ) +
+  ggplot2::geom_point(
+    data = cbs_reference_plot_data,
+    ggplot2::aes(x_position, value),
+    shape = 4,
+    size = 1.6,
+    stroke = 0.55,
+    color = "#333333",
+    position = ggplot2::position_jitter(
+      width = 0.10, height = 0, seed = plot_seed + 61L
+    )
+  ) +
+  ggplot2::geom_point(
+    data = cbs_mouse_plot_data,
+    ggplot2::aes(x_position, value, fill = factor(dose_mg_per_kg)),
+    shape = 21,
+    size = 3.0,
+    stroke = 0.45,
+    color = "black",
+    position = ggplot2::position_jitter(
+      width = 0.10, height = 0, seed = plot_seed + 62L
+    )
+  ) +
+  ggplot2::geom_crossbar(
+    data = cbs_stage_means,
+    ggplot2::aes(x_position, value, ymin = value, ymax = value),
+    width = 0.50,
+    linewidth = 0.6,
+    color = "black",
+    inherit.aes = FALSE
+  ) +
+  ggplot2::geom_text(
+    data = cbs_reduction_labels,
+    ggplot2::aes(x, y, label = label),
+    size = 2.5,
+    fontface = "bold",
+    inherit.aes = FALSE
+  ) +
+  ggplot2::facet_wrap(~initial_ploidy, nrow = 1) +
+  ggplot2::scale_x_continuous(
+    breaks = c(1, 2),
+    labels = c("Injected-cell\nreference", "Endpoint\ntumor"),
+    limits = c(0.72, 2.28)
+  ) +
+  ggplot2::scale_fill_manual(
+    values = cbs_mouse_dose_colors,
+    name = "Dose (mg/kg)"
+  ) +
+  ggplot2::labs(
+    title = "Injected-reference to endpoint ploidy",
+    subtitle = paste(
+      "Reference crosses: project-designated proxy cells (chr999 included);",
+      "endpoint circles: one mean per mouse; descriptive only"
+    ),
+    x = NULL,
+    y = "Reference ploidy / endpoint copy-number score"
+  ) +
+  shared_context_figure_theme(9) +
+  ggplot2::theme(
+    legend.position = "bottom",
+    plot.subtitle = ggplot2::element_text(size = 7.2, lineheight = 1.05),
+    axis.text.x = ggplot2::element_text(size = 7.2),
+    strip.text = ggplot2::element_text(face = "bold")
+  )
+s6e_mouse <- shared_context_add_tag(s6e_mouse, "F")
+s6e <- patchwork::wrap_plots(
+  s6e_heatmap,
+  s6e_mouse,
+  ncol = 2,
+  widths = c(3.3, 1.9)
+)
+s6_top <- patchwork::wrap_plots(
   patchwork::wrap_plots(s6a, s6b, s6c, ncol = 1),
   s6d,
   ncol = 2,
   widths = c(1, 3)
+)
+s6 <- patchwork::wrap_plots(
+  s6_top,
+  s6e,
+  ncol = 1,
+  heights = c(1.0, 1.15)
 ) + patchwork::plot_annotation(
-  title = "Supplementary Figure 6 | Endpoint tumor ploidy"
+  title = paste(
+    "Supplementary Figure 6 | Endpoint tumor ploidy and",
+    "NUMBAT-derived copy-number states"
+  )
 )
 panel_rows[[length(panel_rows) + 1L]] <- save_composite(
   s6,
@@ -944,7 +1231,7 @@ panel_rows[[length(panel_rows) + 1L]] <- save_composite(
   "SuppFig6",
   "panel_SuppFig6_composite",
   20,
-  16.5
+  26
 )
 
 message("Generating Supplementary Figure 7 composite.")
@@ -1068,10 +1355,25 @@ if (
 }
 write_tsv(panel_contract, file.path(metadata_dir, "panel_contract.tsv"))
 
+cbs_input_paths <- file.path(
+  cbs_dir,
+  cbs_collection$reviewed_manifest$filename
+)
+injected_reference_input_paths <- file.path(
+  injected_reference_dir,
+  cbs_injected_references$manifest$filename
+)
 input_paths <- c(
   config_path,
   composition_helper_path,
   shared_context_helper_path,
+  copy_number_helper_path,
+  weighted_ploidy_path,
+  all_ploidy_path,
+  cbs_manifest_path,
+  cbs_input_paths,
+  injected_reference_manifest_path,
+  injected_reference_input_paths,
   file.path(cache_dir, "manifest.tsv"),
   source_paths
 )
@@ -1080,6 +1382,21 @@ input_manifest <- data.frame(
     "figure7_config",
     "normalized_composition_helper",
     "shared_context_panels_helper",
+    "copy_number_heatmap_helper",
+    "endpoint_ploidy_derivation_helper",
+    "endpoint_ploidy_source",
+    "numbat_cbs_manifest",
+    paste0(
+      "numbat_cbs_matrix_",
+      gsub("[^A-Za-z0-9]+", "_", basename(cbs_input_paths))
+    ),
+    "injected_cell_reference_manifest",
+    paste0(
+      "injected_cell_reference_matrix_",
+      gsub(
+        "[^A-Za-z0-9]+", "_", basename(injected_reference_input_paths)
+      )
+    ),
     if (allow_generated_human_only_si7) {
       "si_figures_generated_cache_manifest"
     } else {
@@ -1157,6 +1474,38 @@ run_config <- data.frame(
     "composition_permutation_strata",
     "composition_multiple_testing",
     "composition_fdr_threshold",
+    "si6e_copy_number_source",
+    "si6e_column_statistic",
+    "si6e_cbs_matrix_count",
+    "si6e_cell_count",
+    "si6e_chromosome_count",
+    "si6e_row_order",
+    "si6e_column_order",
+    "si6_postprocessed_copy_number_score_unit",
+    "si6_injected_reference_ploidy_policy",
+    "si6_injected_reference_cell_counts",
+    "si6_injected_reference_source_repository",
+    "si6_injected_reference_source_commit",
+    "si6_injected_reference_policy_source_commit",
+    "si6_injected_reference_policy_source_locator",
+    "si6_injected_reference_designation_basis",
+    "si6_endpoint_summary_analysis_type",
+    "si6_2n_reference_assigned_autosomal_mean_ploidy",
+    "si6_2n_reference_mean_chr999_extra_dna_fraction",
+    "si6_2n_reference_mean_ploidy",
+    "si6_2n_endpoint_mouse_balanced_mean_ploidy",
+    "si6_2n_absolute_change",
+    "si6_2n_relative_change_percent",
+    "si6_4n_reference_assigned_autosomal_mean_ploidy",
+    "si6_4n_reference_mean_chr999_extra_dna_fraction",
+    "si6_4n_reference_mean_ploidy",
+    "si6_4n_endpoint_mouse_balanced_mean_ploidy",
+    "si6_4n_absolute_change",
+    "si6_4n_relative_change_percent",
+    "si6_reference_4n_minus_2n_mean_ploidy",
+    "si6_endpoint_4n_minus_2n_mouse_balanced_mean_ploidy",
+    "si6_absolute_separation_change",
+    "si6_separation_contraction_percent",
     "si7_feature_species_policy",
     "si7_gene_set_database",
     "si7_canonical_publication_allowed",
@@ -1188,6 +1537,94 @@ run_config <- data.frame(
     ),
     "Benjamini-Hochberg across all group-by-cluster contrasts within each panel",
     "0.05",
+    "postprocessed NUMBAT-derived cell-by-segment CBS matrices",
+    paste(
+      "per-cell length-weighted mean across available CBS segments within",
+      "each chromosome and file-specific schema"
+    ),
+    as.character(length(cbs_collection$matrices)),
+    as.character(nrow(cbs_harmonized$matrix)),
+    as.character(ncol(cbs_harmonized$matrix)),
+    paste(
+      "injected origin, dose, mouse, post-processed copy-number score, cell ID;",
+      "no row clustering"
+    ),
+    "chromosomes 1-22 in genomic order; no column clustering",
+    "sequenced mouse/CBS file",
+    unique(cbs_injected_references$cells$ploidy_policy),
+    paste(
+      paste0(
+        cbs_reduction_summary$injected_origin,
+        "=",
+        cbs_reduction_summary$n_reference_cells
+      ),
+      collapse = ";"
+    ),
+    paste(
+      unique(cbs_injected_references$cells$source_repository),
+      collapse = ";"
+    ),
+    paste(unique(cbs_injected_references$cells$source_commit), collapse = ";"),
+    paste(
+      unique(cbs_injected_references$cells$policy_source_commit),
+      collapse = ";"
+    ),
+    paste(
+      unique(cbs_injected_references$cells$policy_source_locator),
+      collapse = ";"
+    ),
+    paste(
+      paste0(
+        cbs_reduction_summary$injected_origin,
+        "=",
+        cbs_reduction_summary$designation_basis
+      ),
+      collapse = ";"
+    ),
+    "descriptive_only",
+    format(
+      cbs_2n_reduction$reference_mean_assigned_autosomal_ploidy,
+      digits = 16
+    ),
+    format(
+      cbs_2n_reduction$reference_mean_chr999_extra_dna_fraction,
+      digits = 16
+    ),
+    format(cbs_2n_reduction$reference_mean_ploidy, digits = 16),
+    format(
+      cbs_2n_reduction$endpoint_mouse_balanced_mean_ploidy,
+      digits = 16
+    ),
+    format(cbs_2n_reduction$absolute_change, digits = 16),
+    format(cbs_2n_reduction$relative_change_percent, digits = 16),
+    format(
+      cbs_4n_reduction$reference_mean_assigned_autosomal_ploidy,
+      digits = 16
+    ),
+    format(
+      cbs_4n_reduction$reference_mean_chr999_extra_dna_fraction,
+      digits = 16
+    ),
+    format(cbs_4n_reduction$reference_mean_ploidy, digits = 16),
+    format(
+      cbs_4n_reduction$endpoint_mouse_balanced_mean_ploidy,
+      digits = 16
+    ),
+    format(cbs_4n_reduction$absolute_change, digits = 16),
+    format(cbs_4n_reduction$relative_change_percent, digits = 16),
+    format(
+      cbs_separation_summary$reference_4n_minus_2n_mean_ploidy,
+      digits = 16
+    ),
+    format(
+      cbs_separation_summary$endpoint_4n_minus_2n_mouse_balanced_mean_ploidy,
+      digits = 16
+    ),
+    format(cbs_separation_summary$absolute_separation_change, digits = 16),
+    format(
+      cbs_separation_summary$separation_contraction_percent,
+      digits = 16
+    ),
     as.character(
       if (allow_generated_human_only_si7) {
         si_config$raw_rebuild_species_policy
@@ -1225,6 +1662,25 @@ input_qc <- data.frame(
     "normalized_composition_tested_contrasts",
     "normalized_composition_descriptive_contrasts",
     "normalized_composition_significant_enrichments",
+    "si6e_cbs_matrices",
+    "si6e_unique_cells",
+    "si6e_chromosomes",
+    "si6e_missing_chromosome_mean_fraction",
+    "si6e_cbs_schemas",
+    "si6_postprocessed_copy_number_score_mice",
+    "si6_injected_reference_cells",
+    "si6_endpoint_summary_analysis_type",
+    "si6_2n_reference_mean_ploidy",
+    "si6_2n_endpoint_mouse_balanced_mean_ploidy",
+    "si6_2n_absolute_change",
+    "si6_2n_relative_change_percent",
+    "si6_2n_all_endpoint_cells_below_reference_min",
+    "si6_4n_reference_mean_ploidy",
+    "si6_4n_endpoint_mouse_balanced_mean_ploidy",
+    "si6_4n_absolute_change",
+    "si6_4n_relative_change_percent",
+    "si6_4n_all_endpoint_cells_below_reference_min",
+    "si6_separation_contraction_percent",
     "composite_files"
   ),
   value = c(
@@ -1242,6 +1698,38 @@ input_qc <- data.frame(
     sum(composition_test_audit$testable),
     sum(!composition_test_audit$testable),
     sum(composition_test_audit$enriched),
+    length(cbs_collection$matrices),
+    nrow(cbs_harmonized$matrix),
+    ncol(cbs_harmonized$matrix),
+    format(mean(is.na(cbs_harmonized$matrix)), digits = 16),
+    length(unique(cbs_harmonized$chromosome_schema_audit$schema_id)),
+    nrow(cbs_endpoint_summaries$samples),
+    nrow(cbs_injected_references$cells),
+    "descriptive_only",
+    format(cbs_2n_reduction$reference_mean_ploidy, digits = 16),
+    format(
+      cbs_2n_reduction$endpoint_mouse_balanced_mean_ploidy,
+      digits = 16
+    ),
+    format(cbs_2n_reduction$absolute_change, digits = 16),
+    format(cbs_2n_reduction$relative_change_percent, digits = 16),
+    tolower(as.character(
+      cbs_2n_reduction$all_endpoint_cells_below_reference_min
+    )),
+    format(cbs_4n_reduction$reference_mean_ploidy, digits = 16),
+    format(
+      cbs_4n_reduction$endpoint_mouse_balanced_mean_ploidy,
+      digits = 16
+    ),
+    format(cbs_4n_reduction$absolute_change, digits = 16),
+    format(cbs_4n_reduction$relative_change_percent, digits = 16),
+    tolower(as.character(
+      cbs_4n_reduction$all_endpoint_cells_below_reference_min
+    )),
+    format(
+      cbs_separation_summary$separation_contraction_percent,
+      digits = 16
+    ),
     nrow(panel_contract)
   ),
   stringsAsFactors = FALSE
@@ -1267,6 +1755,26 @@ provenance <- data.frame(
     "normalized_composition_helper_sha256",
     "shared_context_panels_helper",
     "shared_context_panels_helper_sha256",
+    "copy_number_heatmap_helper",
+    "copy_number_heatmap_helper_sha256",
+    "endpoint_ploidy_derivation_helper",
+    "endpoint_ploidy_derivation_helper_sha256",
+    "endpoint_ploidy_source",
+    "endpoint_ploidy_source_sha256",
+    "numbat_cbs_manifest",
+    "numbat_cbs_manifest_sha256",
+    "numbat_cbs_matrix_count",
+    "numbat_cbs_matrix_hashes",
+    "injected_cell_reference_manifest",
+    "injected_cell_reference_manifest_sha256",
+    "injected_cell_reference_matrix_hashes",
+    "si6e_harmonization",
+    "si6f_reference_source",
+    "si6f_reference_policy_source",
+    "si6f_reference_designation_basis",
+    "si6f_reference_ploidy_policy",
+    "si6f_summary_analysis_type",
+    "si6f_ploidy_reduction_comparison",
     "source_code_revision",
     "table_cache",
     "table_cache_manifest_sha256",
@@ -1289,6 +1797,78 @@ provenance <- data.frame(
     file_sha256(composition_helper_path),
     repo_relative(shared_context_helper_path, root),
     file_sha256(shared_context_helper_path),
+    repo_relative(copy_number_helper_path, root),
+    file_sha256(copy_number_helper_path),
+    repo_relative(weighted_ploidy_path, root),
+    file_sha256(weighted_ploidy_path),
+    repo_relative(all_ploidy_path, root),
+    file_sha256(all_ploidy_path),
+    repo_relative(cbs_manifest_path, root),
+    file_sha256(cbs_manifest_path),
+    as.character(length(cbs_input_paths)),
+    paste(
+      paste0(
+        basename(cbs_input_paths),
+        "=",
+        vapply(cbs_input_paths, file_sha256, character(1L))
+      ),
+      collapse = ";"
+    ),
+    repo_relative(injected_reference_manifest_path, root),
+    file_sha256(injected_reference_manifest_path),
+    paste(
+      paste0(
+        basename(injected_reference_input_paths),
+        "=",
+        vapply(
+          injected_reference_input_paths,
+          file_sha256,
+          character(1L)
+        )
+      ),
+      collapse = ";"
+    ),
+    paste(
+      "each separately postprocessed file-specific CBS schema reduced",
+      "independently to chr1-22 finite-segment length-weighted means;",
+      "exported and finite coverage audited separately; no coordinate",
+      "alignment; rows and columns unclustered"
+    ),
+    paste(
+      unique(cbs_injected_references$cells$source_repository),
+      paste(unique(cbs_injected_references$cells$source_commit), collapse = ";"),
+      sep = "@"
+    ),
+    paste(
+      unique(cbs_injected_references$cells$source_repository),
+      paste(
+        unique(cbs_injected_references$cells$policy_source_commit),
+        collapse = ";"
+      ),
+      paste(
+        unique(cbs_injected_references$cells$policy_source_locator),
+        collapse = ";"
+      ),
+      sep = "@"
+    ),
+    paste(
+      paste0(
+        cbs_reduction_summary$injected_origin,
+        "=",
+        cbs_reduction_summary$designation_basis
+      ),
+      collapse = ";"
+    ),
+    unique(cbs_injected_references$cells$ploidy_policy),
+    "descriptive_only; no endpoint cross-origin or reference-to-endpoint test",
+    paste(
+      "project-designated lineage-matched 2N-A7M/4N-A5M karyotype",
+      "reference distributions, including the chr999 unassigned-extra-DNA",
+      "fraction, compared descriptively with one postprocessed endpoint",
+      "mean per mouse; no formal P value because each reference is one",
+      "culture-level biological unit and origin-specific endpoint runs use",
+      "different schemas/calibration"
+    ),
     git_revision,
     repo_relative(cache_dir, root),
     file_sha256(file.path(cache_dir, "manifest.tsv")),
@@ -1352,22 +1932,50 @@ writeLines(
     paste0("Composite files: ", nrow(panel_contract)),
     paste0("All cells: ", nrow(seurat)),
     paste0("Included tumor cells: ", n_tumor),
-        paste0("Tumor mice: ", n_mice),
-        paste0("Selected CellCycle tumor cells: ", selected_tumor_cells),
-        paste0(
-          "Normalized composition panels: ",
-          paste(names(composition_results), collapse = ",")
-        ),
-        paste0(
-          "Significant composition enrichments (BH FDR <= 0.05): ",
-          sum(composition_test_audit$enriched)
-        ),
-        paste0(
-          "Tested/descriptive composition contrasts: ",
-          sum(composition_test_audit$testable),
-          "/",
-          sum(!composition_test_audit$testable)
-        ),
+    paste0(
+      "SI6E CBS matrices/cells/chromosomes: ",
+      length(cbs_collection$matrices),
+      "/",
+      nrow(cbs_harmonized$matrix),
+      "/",
+      ncol(cbs_harmonized$matrix)
+    ),
+    paste0(
+      "SI6 2N injected-reference to endpoint descriptive change: ",
+      format(cbs_2n_reduction$absolute_change, digits = 9),
+      " (",
+      format(cbs_2n_reduction$relative_change_percent, digits = 9),
+      "%)"
+    ),
+    paste0(
+      "SI6 4N injected-reference to endpoint descriptive change: ",
+      format(cbs_4n_reduction$absolute_change, digits = 9),
+      " (",
+      format(cbs_4n_reduction$relative_change_percent, digits = 9),
+      "%)"
+    ),
+    paste0(
+      "SI6 descriptive 4N-minus-2N separation contraction: ",
+      format(cbs_separation_summary$separation_contraction_percent,
+             digits = 9),
+      "%"
+    ),
+    paste0("Tumor mice: ", n_mice),
+    paste0("Selected CellCycle tumor cells: ", selected_tumor_cells),
+    paste0(
+      "Normalized composition panels: ",
+      paste(names(composition_results), collapse = ",")
+    ),
+    paste0(
+      "Significant composition enrichments (BH FDR <= 0.05): ",
+      sum(composition_test_audit$enriched)
+    ),
+    paste0(
+      "Tested/descriptive composition contrasts: ",
+      sum(composition_test_audit$testable),
+      "/",
+      sum(!composition_test_audit$testable)
+    ),
     paste0(
       "SI7 feature policy: ",
       as.character(

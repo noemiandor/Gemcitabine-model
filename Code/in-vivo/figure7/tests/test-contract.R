@@ -64,14 +64,14 @@ testthat::test_that("tracked historical 04i reference validates exact report lin
   )
 })
 
-testthat::test_that("tracked reviewed v2 is the exact approved human-only FDR reference", {
+testthat::test_that("tracked v2 is byte-pinned but superseded after the endpoint-score confound", {
   input <- figure7_test_inputs()
   reference_path <- file.path(
     repo_root,
     input$config$state_pathways$reviewed_reference_root,
-    input$config$state_pathways$reviewed_reference_id
+    "state_pathway_grch_human_only_etp2_24_day17_v2"
   )
-  reference <- figure7_validate_reviewed_state_reference(
+  reference <- figure7_validate_superseded_v2_state_reference(
     reference_path,
     input$config
   )
@@ -87,9 +87,9 @@ testthat::test_that("tracked reviewed v2 is the exact approved human-only FDR re
   )
   testthat::expect_identical(
     reference$reference_kind,
-    "reviewed_human_only_frozen"
+    "superseded_human_only_endpoint_cn_score_frozen"
   )
-  testthat::expect_true(reference$canonical_publication_allowed)
+  testthat::expect_false(reference$canonical_publication_allowed)
   testthat::expect_equal(nrow(reference$selected), 21L)
   testthat::expect_equal(nrow(reference$activity), 21L * 501L)
   testthat::expect_identical(
@@ -111,7 +111,132 @@ testthat::test_that("tracked reviewed v2 is the exact approved human-only FDR re
   )))
 })
 
-testthat::test_that("reviewed v2 rejects provenance or selected-table tampering", {
+testthat::test_that("tracked v3 candidate uses injected initial ploidy and GRCh-only features", {
+  input <- figure7_test_inputs()
+  reference_path <- file.path(
+    repo_root,
+    input$config$state_pathways$reference_root,
+    input$config$state_pathways$generated_reference_id
+  )
+  reference <- figure7_validate_generated_state_reference(
+    reference_path,
+    input$config,
+    expected_inputs = list(
+      cellcycle = file.path(
+        repo_root,
+        "Data/in-vivo/figure7/processed",
+        "CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+      ),
+      noncellcycle = file.path(
+        repo_root,
+        "Data/in-vivo/figure7/processed",
+        "NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+      ),
+      seurat_rds = NA_character_
+    ),
+    config_path = NULL
+  )
+  provenance <- stats::setNames(
+    as.character(reference$provenance$value),
+    reference$provenance$key
+  )
+  design <- figure7_read_tsv(
+    file.path(reference_path, "state_pathway_design_qc.tsv")
+  )
+
+  testthat::expect_identical(
+    reference$reference_id,
+    "state_pathway_grch_human_only_initial_ploidy_day17_v3_candidate"
+  )
+  testthat::expect_identical(
+    reference$reference_kind,
+    "generated_human_only_initial_ploidy_frozen_candidate"
+  )
+  testthat::expect_false(reference$canonical_publication_allowed)
+  testthat::expect_equal(nrow(reference$selected), 21L)
+  testthat::expect_lte(max(figure7_numeric(reference$selected$padj)), 0.05)
+  testthat::expect_identical(
+    provenance[["nuisance_policy"]],
+    "injected_initial_ploidy_only_no_endpoint_cn_score"
+  )
+  testthat::expect_identical(
+    provenance[["nuisance_terms"]],
+    "dose_mg_factor,initial_ploidy_factor"
+  )
+  testthat::expect_identical(
+    provenance[["endpoint_cn_score_covariate_prohibited"]],
+    "true"
+  )
+  testthat::expect_identical(
+    provenance[["feature_species_policy_id"]],
+    "grch_human_tumor_only_v2"
+  )
+  testthat::expect_identical(design$covariate_mode, "initial_ploidy")
+  testthat::expect_identical(design$initial_ploidy_levels, "2N;4N")
+  testthat::expect_match(
+    design$retained_design_columns,
+    "(^|;)initial_ploidy_factor4N($|;)"
+  )
+  testthat::expect_false(any(grepl(
+    "etp|endpoint|cn_score",
+    design$retained_design_columns,
+    ignore.case = TRUE
+  )))
+})
+
+testthat::test_that("reviewed v3 is the exact promoted initial-ploidy-adjusted result", {
+  input <- figure7_test_inputs()
+  reviewed_path <- file.path(
+    repo_root,
+    input$config$state_pathways$reviewed_reference_root,
+    input$config$state_pathways$reviewed_reference_id
+  )
+  candidate_path <- file.path(
+    repo_root,
+    input$config$state_pathways$reference_root,
+    input$config$state_pathways$generated_reference_id
+  )
+  reviewed <- figure7_validate_reviewed_state_reference(
+    reviewed_path,
+    input$config
+  )
+  candidate <- figure7_validate_generated_state_reference(
+    candidate_path,
+    input$config,
+    expected_inputs = NULL,
+    config_path = NULL
+  )
+  provenance <- stats::setNames(
+    as.character(reviewed$provenance$value),
+    reviewed$provenance$key
+  )
+  keys <- c(
+    "collection_id", "pathway_id", "NES", "padj",
+    "selected_direction", "selected_rank_within_direction"
+  )
+
+  testthat::expect_identical(
+    reviewed$reference_id,
+    "state_pathway_grch_human_only_initial_ploidy_day17_v3"
+  )
+  testthat::expect_identical(
+    reviewed$reference_kind,
+    "reviewed_human_only_initial_ploidy_frozen"
+  )
+  testthat::expect_true(reviewed$canonical_publication_allowed)
+  testthat::expect_identical(reviewed$selected[, keys], candidate$selected[, keys])
+  testthat::expect_lte(max(figure7_numeric(reviewed$selected$padj)), 0.05)
+  testthat::expect_identical(
+    provenance[["reviewed_source_run_id"]],
+    "20260731_figure7_v3_exact_candidate_review_figure7"
+  )
+  testthat::expect_identical(
+    provenance[["endpoint_cn_score_covariate_prohibited"]],
+    "true"
+  )
+})
+
+testthat::test_that("reviewed v3 rejects provenance or selected-table tampering", {
   input <- figure7_test_inputs()
   source <- file.path(
     repo_root,
@@ -131,7 +256,7 @@ testthat::test_that("reviewed v2 rejects provenance or selected-table tampering"
 
   provenance_path <- file.path(tampered, "state_pathway_provenance.tsv")
   provenance <- figure7_read_tsv(provenance_path, c("key", "value"))
-  provenance$value[provenance$key == "reviewed_on"] <- "2026-07-31"
+  provenance$value[provenance$key == "reviewed_on"] <- "2026-08-01"
   figure7_write_tsv(provenance, provenance_path)
   testthat::expect_error(
     figure7_validate_reviewed_state_reference(tampered, input$config),
@@ -143,7 +268,7 @@ testthat::test_that("reviewed v2 rejects provenance or selected-table tampering"
       input$config,
       verify_checksums = FALSE
     ),
-    "exact approved retry7"
+    "initial-ploidy-adjusted v3"
   )
 })
 
@@ -292,4 +417,225 @@ testthat::test_that("render-only rejects a source without frozen run metadata be
   status <- suppressWarnings(system2(file.path(R.home("bin"), "Rscript"), args, stdout = TRUE, stderr = TRUE))
   testthat::expect_true(!is.null(attr(status, "status")) && attr(status, "status") != 0L)
   testthat::expect_false(dir.exists(out))
+})
+
+testthat::test_that("SI8 compact provenance is complete and relocatable", {
+  provenance_path <- file.path(
+    repo_root,
+    "figures/Figure7_Supplement/Figure7_Supplement_provenance.tsv"
+  )
+  provenance <- figure7_read_tsv(provenance_path, c("key", "value"))
+  expected_roles <- unlist(lapply(c("day24", "day31"), function(day) {
+    paste0(
+      day,
+      c(
+        "_run_config", "_endpoint_ploidy", "_panel_a",
+        "_panel_c_data", "_panel_c_test", "_panel_e_data",
+        "_panel_e_test"
+      )
+    )
+  }), use.names = FALSE)
+
+  testthat::expect_identical(anyDuplicated(provenance$key), 0L)
+  testthat::expect_setequal(
+    sub("^source_file:", "", provenance$key[startsWith(
+      provenance$key,
+      "source_file:"
+    )]),
+    expected_roles
+  )
+  testthat::expect_setequal(
+    sub("^source_sha256:", "", provenance$key[startsWith(
+      provenance$key,
+      "source_sha256:"
+    )]),
+    expected_roles
+  )
+  source_locators <- provenance$value[startsWith(
+    provenance$key,
+    "source_file:"
+  )]
+  keyed <- stats::setNames(as.character(provenance$value), provenance$key)
+  bundle_locator <- paste0(
+    "Data/in-vivo/figure7/saved_tgi_sensitivity/",
+    "tgi_day24_day31_all_cbs_v1"
+  )
+  expected_bundle_files <- unlist(lapply(c("day24", "day31"), function(day) {
+    c(
+      file.path(day, "metadata", "run_config.tsv"),
+      file.path(
+        day,
+        "tables",
+        c(
+          "panel_7A_plot_data.tsv",
+          "panel_7C_plot_data.tsv",
+          "panel_7C_test.tsv",
+          "panel_7E_plot_data.tsv",
+          "panel_7E_test.tsv"
+        )
+      )
+    )
+  }), use.names = FALSE)
+  bundle_path <- file.path(repo_root, bundle_locator)
+
+  testthat::expect_identical(
+    keyed[["source_bundle_id"]],
+    "tgi_day24_day31_all_cbs_v1"
+  )
+  testthat::expect_identical(keyed[["source_bundle"]], bundle_locator)
+  testthat::expect_identical(keyed[["source_bundle_file_count"]], "12")
+  testthat::expect_setequal(
+    list.files(bundle_path, recursive = TRUE, all.files = FALSE, no.. = TRUE),
+    expected_bundle_files
+  )
+  testthat::expect_equal(
+    sum(grepl("/tables/", expected_bundle_files)),
+    10L
+  )
+  testthat::expect_equal(
+    sum(grepl("/metadata/run_config[.]tsv$", expected_bundle_files)),
+    2L
+  )
+  endpoint_roles <- grepl("_endpoint_ploidy$", expected_roles)
+  testthat::expect_true(all(
+    source_locators[match(expected_roles[endpoint_roles], sub(
+      "^source_file:", "", provenance$key[startsWith(
+        provenance$key,
+        "source_file:"
+      )]
+    ))] == "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv"
+  ))
+  bundle_source_locators <- source_locators[!grepl(
+    "all_ploidy[.]csv$",
+    source_locators
+  )]
+  testthat::expect_true(all(startsWith(
+    bundle_source_locators,
+    paste0(bundle_locator, "/")
+  )))
+
+  path_keys <- c(
+    "assembly_script", "source_bundle", "day24_source_run",
+    "day31_source_run", "png", "pdf"
+  )
+  declared_path_locators <- c(keyed[path_keys], source_locators)
+  testthat::expect_false(any(grepl(
+    "^(/|[A-Za-z]:[\\\\/])|^external:|^Results/",
+    declared_path_locators
+  )))
+  testthat::expect_true(all(vapply(
+    declared_path_locators,
+    function(locator) file.exists(file.path(repo_root, locator)),
+    logical(1L)
+  )))
+
+  source_role_keys <- sub(
+    "^source_file:",
+    "",
+    provenance$key[startsWith(provenance$key, "source_file:")]
+  )
+  for (role in source_role_keys) {
+    locator <- keyed[[paste0("source_file:", role)]]
+    testthat::expect_identical(
+      keyed[[paste0("source_sha256:", role)]],
+      figure7_sha256(file.path(repo_root, locator)),
+      info = role
+    )
+  }
+  testthat::expect_identical(
+    keyed[["assembly_script_sha256"]],
+    figure7_sha256(file.path(module_dir, "assemble_tgi_sensitivity.R"))
+  )
+  testthat::expect_identical(
+    keyed[["png_sha256"]],
+    figure7_sha256(file.path(
+      repo_root,
+      "figures/Figure7_Supplement/Figure7_Supplement.png"
+    ))
+  )
+  testthat::expect_identical(
+    keyed[["pdf_sha256"]],
+    figure7_sha256(file.path(
+      repo_root,
+      "figures/Figure7_Supplement/Figure7_Supplement.pdf"
+    ))
+  )
+
+  relocated_root <- tempfile("figure7_si8_relocated_")
+  dir.create(relocated_root, recursive = TRUE)
+  file_locators <- unique(c(
+    keyed[["assembly_script"]], source_locators,
+    keyed[["png"]], keyed[["pdf"]]
+  ))
+  for (locator in file_locators) {
+    source <- file.path(repo_root, locator)
+    destination <- file.path(relocated_root, locator)
+    dir.create(dirname(destination), recursive = TRUE, showWarnings = FALSE)
+    testthat::expect_true(file.copy(source, destination, overwrite = TRUE))
+  }
+  for (locator in keyed[c(
+    "source_bundle", "day24_source_run", "day31_source_run"
+  )]) {
+    testthat::expect_true(dir.exists(file.path(relocated_root, locator)))
+  }
+  relocated_provenance <- file.path(
+    relocated_root,
+    "figures/Figure7_Supplement/Figure7_Supplement_provenance.tsv"
+  )
+  dir.create(dirname(relocated_provenance), recursive = TRUE, showWarnings = FALSE)
+  testthat::expect_true(file.copy(
+    provenance_path,
+    relocated_provenance,
+    overwrite = TRUE
+  ))
+  relocated <- figure7_read_tsv(relocated_provenance, c("key", "value"))
+  relocated_keyed <- stats::setNames(
+    as.character(relocated$value),
+    relocated$key
+  )
+  testthat::expect_identical(anyDuplicated(relocated$key), 0L)
+  testthat::expect_true(all(vapply(
+    declared_path_locators,
+    function(locator) file.exists(file.path(relocated_root, locator)),
+    logical(1L)
+  )))
+  for (role in source_role_keys) {
+    locator <- relocated_keyed[[paste0("source_file:", role)]]
+    testthat::expect_identical(
+      relocated_keyed[[paste0("source_sha256:", role)]],
+      figure7_sha256(file.path(relocated_root, locator)),
+      info = paste("relocated", role)
+    )
+  }
+
+  manifest_columns <- c(
+    "figure", "panel", "asset_path", "source_file", "source_kind",
+    "generated_by", "command", "input_data", "result_run_dir", "run_id",
+    "caption_role", "asset_status", "not_regenerated_reason",
+    "local_provenance_path", "citation_or_uri", "notes"
+  )
+  si8_manifest <- figure7_read_tsv(file.path(
+    repo_root,
+    "figures/Figure7_Supplement/si8_manifest.tsv"
+  ))
+  source_manifest <- figure7_read_tsv(file.path(
+    repo_root,
+    "figures/Figure7_Supplement/manifest.tsv"
+  ))
+  testthat::expect_identical(names(si8_manifest), manifest_columns)
+  testthat::expect_equal(nrow(si8_manifest), 2L)
+  testthat::expect_setequal(
+    si8_manifest$panel,
+    c("SuppFig8", "SuppFig8_png")
+  )
+  testthat::expect_true(all(
+    si8_manifest$local_provenance_path ==
+      "figures/Figure7_Supplement/Figure7_Supplement_provenance.tsv"
+  ))
+  testthat::expect_true(all(file.exists(file.path(
+    repo_root,
+    si8_manifest$asset_path
+  ))))
+  testthat::expect_equal(nrow(source_manifest), 13L)
+  testthat::expect_false(any(startsWith(source_manifest$panel, "SuppFig8")))
 })

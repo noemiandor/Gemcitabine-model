@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import shutil
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -45,12 +46,12 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.reviewed_reference_source = (
             REPO_ROOT
             / "Data/in-vivo/figure7/saved_state_pathway"
-            / "state_pathway_grch_human_only_etp2_24_day17_v2"
+            / "state_pathway_grch_human_only_initial_ploidy_day17_v3"
         )
         self.reviewed_reference_root = (
             self.repo
             / "Data/in-vivo/figure7/saved_state_pathway"
-            / "state_pathway_grch_human_only_etp2_24_day17_v2"
+            / "state_pathway_grch_human_only_initial_ploidy_day17_v3"
         )
         shutil.copytree(
             self.reviewed_reference_source,
@@ -88,6 +89,14 @@ class Figure7MaterializationTest(unittest.TestCase):
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(REPO_ROOT / relative, destination)
             self.processed_inputs.append(destination)
+        self.endpoint_ploidy = (
+            self.repo / "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv"
+        )
+        self.endpoint_ploidy.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(
+            REPO_ROOT / "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv",
+            self.endpoint_ploidy,
+        )
         self.si_cache_root = self.repo / "Data/in-vivo/SIfigures"
         shutil.copytree(
             REPO_ROOT / "Data/in-vivo/SIfigures",
@@ -96,6 +105,9 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.context_inputs = []
         for relative in (
             "Code/in-vivo/figure7/src/context_panels.R",
+            "Code/in-vivo/figure7/src/tgi_data.R",
+            "Code/in-vivo/figure7/src/tgi_statistics.R",
+            "Code/in-vivo/figure7/src/tgi_panels.R",
             "Code/in-vivo/SI_figures/shared_context_panels.R",
             "Code/in-vivo/SI_figures/normalized_composition.R",
             "Code/tools/validate_si_figures_table_cache.py",
@@ -114,6 +126,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         self._write_run_metadata(include_f=True)
         self._write_state_provenance(canonical_publication_allowed="true")
         self._write_input_manifest()
+        self._write_panel_k_tables()
         self._write_output_manifest()
 
     def tearDown(self) -> None:
@@ -134,6 +147,27 @@ class Figure7MaterializationTest(unittest.TestCase):
         run_config = [
             {"key": "panel_set", "value": "a-f" if include_f else "a-e"},
             {"key": "tgi_day", "value": "17"},
+            {
+                "key": "endpoint_ploidy_input",
+                "value": "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv",
+            },
+            {
+                "key": "endpoint_ploidy_sha256",
+                "value": sha256_file(self.endpoint_ploidy),
+            },
+            {"key": "endpoint_ploidy_n_cells", "value": "14125"},
+            {"key": "endpoint_ploidy_n_files", "value": "16"},
+            {
+                "key": "endpoint_ploidy_score_policy",
+                "value": (
+                    "arithmetic_mean_of_all_finite_postprocessed_"
+                    "cell_ploidy_per_cbs_file"
+                ),
+            },
+            {
+                "key": "endpoint_ploidy_mapping_policy",
+                "value": "exact_sample_growth_curve_harvest_plus_.sps.cbs",
+            },
         ]
         if include_f:
             run_config.extend(
@@ -142,12 +176,14 @@ class Figure7MaterializationTest(unittest.TestCase):
                         "key": "state_pathway_reference_id",
                         "value": (
                             "state_pathway_grch_human_only_"
-                            "etp2_24_day17_v2"
+                            "initial_ploidy_day17_v3"
                         ),
                     },
                     {
                         "key": "state_pathway_reference_kind",
-                        "value": "reviewed_human_only_frozen",
+                        "value": (
+                            "reviewed_human_only_initial_ploidy_frozen"
+                        ),
                     },
                     {
                         "key": "canonical_publication_allowed",
@@ -225,6 +261,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             self.input_path,
             self.figure7_config,
             self.figure7_renderer,
+            self.endpoint_ploidy,
             *self.processed_inputs,
             *self.context_inputs,
             self.si_cache_root / "manifest.tsv",
@@ -287,6 +324,226 @@ class Figure7MaterializationTest(unittest.TestCase):
             ["key", "value"],
         )
 
+    def _write_panel_k_tables(self) -> None:
+        plot_columns = [
+            "sample_id",
+            "initial_ploidy",
+            "dose",
+            "dose_mg",
+            "endpoint_ploidy_file",
+            "sample_mean_endpoint_ploidy",
+            "n_endpoint_ploidy_cells",
+            "endpoint_ploidy_source_total_cells",
+            "endpoint_ploidy_source_file_count",
+            "endpoint_ploidy_source_sha256",
+            "endpoint_ploidy_score_policy",
+            "endpoint_ploidy_mapping_policy",
+            "terminal_postprocessed_cn_score",
+            "terminal_cn_score_within_origin_z",
+            "permutation_stratum",
+            "terminal_cn_score_nuisance_residual",
+            "tgi_origin_dose_residual",
+            "TGI_percent_Day_17",
+            "tgi_outcome",
+            "tgi_day",
+            "tgi_measure",
+            "matched_control_summary",
+            "matched_control_group",
+        ]
+        design = [
+            (
+                "2N-A2-0", "2N", "30mg/kg", "30",
+                "SUM159-2N-30-0_harvest.sps.cbs",
+            ),
+            (
+                "2N-A2-L", "2N", "30mg/kg", "30",
+                "SUM159-2N-30-L_harvest.sps.cbs",
+            ),
+            (
+                "2N-A4-R", "2N", "120mg/kg", "120",
+                "SUM159-2N-120-R_harvest.sps.cbs",
+            ),
+            (
+                "2N-A4-RL", "2N", "120mg/kg", "120",
+                "SUM159-2N-120-RL_harvest.sps.cbs",
+            ),
+            (
+                "A6-4N-O", "4N", "30mg/kg", "30",
+                "SUM159-4N-30-0_harvest.sps.cbs",
+            ),
+            (
+                "A6-4N-RR", "4N", "30mg/kg", "30",
+                "SUM159-4N-30-RR_harvest.sps.cbs",
+            ),
+            (
+                "4N-A8-RL", "4N", "120mg/kg", "120",
+                "SUM159-4N-120-RL_harvest.sps.cbs",
+            ),
+            (
+                "4N-A8-RR", "4N", "120mg/kg", "120",
+                "SUM159-4N-120-RR_harvest.sps.cbs",
+            ),
+        ]
+        endpoint_scores: dict[str, list[float]] = {}
+        with self.endpoint_ploidy.open(newline="") as handle:
+            for row in csv.DictReader(handle, delimiter="\t"):
+                endpoint_scores.setdefault(row["file"], []).append(
+                    float(row["ploidy"])
+                )
+        terminal_scores = [
+            statistics.mean(endpoint_scores[file_name])
+            for *_, file_name in design
+        ]
+        z_scores: list[float] = []
+        for origin in ("2N", "4N"):
+            indices = [
+                index
+                for index, row in enumerate(design)
+                if row[1] == origin
+            ]
+            local_scores = [terminal_scores[index] for index in indices]
+            local_mean = statistics.mean(local_scores)
+            local_sd = statistics.stdev(local_scores)
+            local_z = [
+                (score - local_mean) / local_sd for score in local_scores
+            ]
+            z_scores.extend(local_z)
+        tgi_by_sample: dict[str, float] = {}
+        with self.processed_inputs[0].open(newline="") as handle:
+            for row in csv.DictReader(handle):
+                sample_id = row["sample_id"]
+                if sample_id not in tgi_by_sample:
+                    tgi_by_sample[sample_id] = float(
+                        row["TGI_percent_Day_17"]
+                    )
+        plot_rows = []
+        for index, (
+            sample_id,
+            origin,
+            dose,
+            dose_mg,
+            endpoint_file,
+        ) in enumerate(design):
+            z_score = z_scores[index]
+            terminal_score = terminal_scores[index]
+            plot_rows.append(
+                {
+                    "sample_id": sample_id,
+                    "initial_ploidy": origin,
+                    "dose": dose,
+                    "dose_mg": dose_mg,
+                    "endpoint_ploidy_file": endpoint_file,
+                    "sample_mean_endpoint_ploidy": terminal_score,
+                    "n_endpoint_ploidy_cells": len(
+                        endpoint_scores[endpoint_file]
+                    ),
+                    "endpoint_ploidy_source_total_cells": "14125",
+                    "endpoint_ploidy_source_file_count": "16",
+                    "endpoint_ploidy_source_sha256": sha256_file(
+                        self.endpoint_ploidy
+                    ),
+                    "endpoint_ploidy_score_policy": (
+                        "arithmetic_mean_of_all_finite_postprocessed_"
+                        "cell_ploidy_per_cbs_file"
+                    ),
+                    "endpoint_ploidy_mapping_policy": (
+                        "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+                    ),
+                    "terminal_postprocessed_cn_score": terminal_score,
+                    "terminal_cn_score_within_origin_z": z_score,
+                    "permutation_stratum": f"{origin}|{dose_mg}",
+                    "terminal_cn_score_nuisance_residual": "pending",
+                    "tgi_origin_dose_residual": "pending",
+                    "TGI_percent_Day_17": tgi_by_sample[sample_id],
+                    "tgi_outcome": "day",
+                    "tgi_day": "17",
+                    "tgi_measure": "TGI_percent_Day_17",
+                    "matched_control_summary": "mean",
+                    "matched_control_group": "initial_ploidy",
+                }
+            )
+
+        def additive_residual(column: str) -> list[float]:
+            values = [float(row[column]) for row in plot_rows]
+            grand_mean = statistics.mean(values)
+            origin_means = {
+                origin: statistics.mean(
+                    value
+                    for value, row in zip(values, plot_rows)
+                    if row["initial_ploidy"] == origin
+                )
+                for origin in ("2N", "4N")
+            }
+            dose_means = {
+                dose_mg: statistics.mean(
+                    value
+                    for value, row in zip(values, plot_rows)
+                    if row["dose_mg"] == dose_mg
+                )
+                for dose_mg in ("30", "120")
+            }
+            return [
+                value
+                - origin_means[row["initial_ploidy"]]
+                - dose_means[row["dose_mg"]]
+                + grand_mean
+                for value, row in zip(values, plot_rows)
+            ]
+
+        x_residual = additive_residual("terminal_cn_score_within_origin_z")
+        y_residual = additive_residual("TGI_percent_Day_17")
+        for row, x_value, y_value in zip(
+            plot_rows,
+            x_residual,
+            y_residual,
+        ):
+            row["terminal_cn_score_nuisance_residual"] = x_value
+            row["tgi_origin_dose_residual"] = y_value
+        write_tsv(
+            self.run_root / "tables/panel_7E_plot_data.tsv",
+            plot_rows,
+            plot_columns,
+        )
+        test_row = {
+            "n": "8",
+            "estimate": "-0.344659307863932",
+            "partial_correlation": "-0.344659307863932",
+            "effect_per_within_origin_sd": "-8.8374975584089",
+            "permutation_p_two_sided": "0.6875",
+            "n_permutations": "16",
+            "permutation_mode": (
+                "exact_TGI_label_enumeration_within_initial_ploidy_x_dose"
+            ),
+            "permutation_strata": "initial_ploidy:dose_mg",
+            "score_variable": "sample_mean_all_canonical_cbs_cell_ploidy",
+            "score_source_sha256": sha256_file(self.endpoint_ploidy),
+            "score_source_n_cells": "14125",
+            "score_source_n_files": "16",
+            "treated_score_n_cells": "7623",
+            "score_aggregation_policy": (
+                "arithmetic_mean_of_all_finite_postprocessed_"
+                "cell_ploidy_per_cbs_file"
+            ),
+            "sample_mapping_policy": (
+                "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+            ),
+            "score_standardization": "z_score_within_initial_ploidy",
+            "adjustment_terms": "initial_ploidy+dose_mg",
+            "outcome_variable": "TGI_percent_Day_17",
+            "plot_x": "terminal_cn_score_nuisance_residual",
+            "plot_y": "tgi_origin_dose_residual",
+            "tgi_outcome": "day",
+            "tgi_day": "17",
+            "tgi_measure": "TGI_percent_Day_17",
+            "matched_control_summary": "mean",
+            "matched_control_group": "initial_ploidy",
+        }
+        write_tsv(
+            self.run_root / "tables/panel_7E_test.tsv",
+            [test_row],
+            list(test_row),
+        )
+
     def _write_output_manifest(self) -> None:
         rows = []
         for spec in self.figure7_specs:
@@ -309,6 +566,30 @@ class Figure7MaterializationTest(unittest.TestCase):
                     "figure": "Figure7",
                     "panel": spec["panel"],
                     "notes": "test",
+                }
+            )
+        for source in (
+            self.run_root / "tables/panel_7E_plot_data.tsv",
+            self.run_root / "tables/panel_7E_test.tsv",
+        ):
+            relative = str(source.relative_to(self.repo))
+            rows.append(
+                {
+                    "path": relative,
+                    "repo_relative_path": relative,
+                    "absolute_path": str(source),
+                    "role": "output_table",
+                    "source_kind": "generated_table",
+                    "module": "in_vivo_figure7",
+                    "generated_by": "Manager.sh",
+                    "command_id": self.source_id,
+                    "sha256": sha256_file(source),
+                    "checksum_unavailable_reason": "",
+                    "byte_size": source.stat().st_size,
+                    "mtime_utc": "2026-07-16T00:00:00+00:00",
+                    "figure": "",
+                    "panel": "",
+                    "notes": "panel K test fixture",
                 }
             )
         write_tsv(
@@ -338,7 +619,9 @@ class Figure7MaterializationTest(unittest.TestCase):
             capture_output=True,
         )
 
-    def test_materializes_exact_reviewed_human_only_v2(self) -> None:
+    def test_materializes_exact_reviewed_human_only_initial_ploidy_v3(
+        self,
+    ) -> None:
         result = self._run_materializer()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(
@@ -347,6 +630,136 @@ class Figure7MaterializationTest(unittest.TestCase):
                 / "figures/Figure7/"
                 "panel_7F_pseudotime_state_pathway_activity.pdf"
             ).is_file()
+        )
+
+    def test_materialized_panel_7e_records_confound_safe_panel_7k_role(
+        self,
+    ) -> None:
+        result = self._run_materializer()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with (
+            self.repo / "figures/Figure7/manifest.tsv"
+        ).open(newline="") as handle:
+            rows = {
+                row["panel"]: row
+                for row in csv.DictReader(handle, delimiter="\t")
+            }
+        self.assertEqual(
+            rows["7E"]["caption_role"],
+            (
+                "Day-17 TGI versus within-origin standardized terminal "
+                "postprocessed CN score, adjusted for origin and dose"
+            ),
+        )
+
+        run_config_path = self.run_root / "metadata/run_config.tsv"
+        with run_config_path.open(newline="") as handle:
+            run_config = {
+                row["key"]: row["value"]
+                for row in csv.DictReader(handle, delimiter="\t")
+            }
+        self.assertTrue(
+            run_config["main_composite_panel_order"].endswith("K=7E")
+        )
+
+    def test_rejects_missing_panel_k_source_code_binding(self) -> None:
+        manifest = self.run_root / "metadata/input_manifest.tsv"
+        with manifest.open(newline="") as handle:
+            original_rows = list(csv.DictReader(handle, delimiter="\t"))
+        for relative in (
+            "Code/in-vivo/figure7/src/tgi_data.R",
+            "Code/in-vivo/figure7/src/tgi_statistics.R",
+            "Code/in-vivo/figure7/src/tgi_panels.R",
+        ):
+            with self.subTest(relative=relative):
+                rows = [
+                    row for row in original_rows
+                    if row["repo_relative_path"] != relative
+                ]
+                write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
+                result = self._run_materializer()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(
+                    "does not bind the panel K statistics and plotting helpers",
+                    result.stderr,
+                )
+                self.assertIn(relative, result.stderr)
+
+    def test_rejects_missing_panel_k_output_manifest_binding(self) -> None:
+        manifest = self.run_root / "metadata/output_manifest.tsv"
+        with manifest.open(newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        rows = [
+            row for row in rows
+            if not row["repo_relative_path"].endswith("panel_7E_test.tsv")
+        ]
+        write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
+
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "output manifest must bind exactly one test table row",
+            result.stderr,
+        )
+
+    def test_rejects_pooled_confounded_panel_k_method(self) -> None:
+        table = self.run_root / "tables/panel_7E_test.tsv"
+        with table.open(newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+            columns = list(rows[0])
+        rows[0].update(
+            {
+                "n_permutations": "40320",
+                "permutation_mode": "exact_TGI_label_enumeration",
+                "permutation_strata": "",
+                "score_standardization": "none",
+                "adjustment_terms": "none",
+                "plot_x": "sample_mean_endpoint_ploidy",
+                "plot_y": "TGI_percent_Day_17",
+            }
+        )
+        write_tsv(table, rows, columns)
+        self._write_output_manifest()
+
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "does not use the reviewed within-origin standardization",
+            result.stderr,
+        )
+
+    def test_rejects_nonreviewed_panel_k_numeric_result(self) -> None:
+        table = self.run_root / "tables/panel_7E_test.tsv"
+        with table.open(newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+            columns = list(rows[0])
+        rows[0]["effect_per_within_origin_sd"] = "-8.7"
+        write_tsv(table, rows, columns)
+        self._write_output_manifest()
+
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "does not reproduce the exact reviewed Day-17 adjusted beta",
+            result.stderr,
+        )
+
+    def test_rejects_panel_k_scores_not_standardized_within_origin(
+        self,
+    ) -> None:
+        table = self.run_root / "tables/panel_7E_plot_data.tsv"
+        with table.open(newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+            columns = list(rows[0])
+        rows[0]["terminal_cn_score_within_origin_z"] = "0"
+        write_tsv(table, rows, columns)
+        self._write_output_manifest()
+
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "not the per-mouse mean over all canonical CBS cells",
+            result.stderr,
         )
 
     def test_rejects_missing_exact_processed_input_binding(self) -> None:
@@ -371,6 +784,64 @@ class Figure7MaterializationTest(unittest.TestCase):
                 )
                 self.assertIn(omitted, result.stderr)
                 self.assertFalse((self.repo / "figures").exists())
+
+    def test_rejects_missing_all_cell_endpoint_ploidy_binding(self) -> None:
+        manifest = self.run_root / "metadata/input_manifest.tsv"
+        with manifest.open(newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        endpoint_relative = str(self.endpoint_ploidy.relative_to(self.repo))
+        rows = [
+            row
+            for row in rows
+            if row["repo_relative_path"] != endpoint_relative
+        ]
+        write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
+
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "input manifest must bind exactly one reviewed 14,125-cell",
+            result.stderr,
+        )
+
+    def test_rejects_plot_subset_or_wrong_mouse_panel_k_score(self) -> None:
+        table = self.run_root / "tables/panel_7E_plot_data.tsv"
+        with table.open(newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+            columns = list(rows[0])
+        rows[0]["sample_mean_endpoint_ploidy"] = str(
+            float(rows[0]["sample_mean_endpoint_ploidy"]) + 0.01
+        )
+        rows[0]["terminal_postprocessed_cn_score"] = rows[0][
+            "sample_mean_endpoint_ploidy"
+        ]
+        write_tsv(table, rows, columns)
+        self._write_output_manifest()
+
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "not the per-mouse mean over all canonical CBS cells",
+            result.stderr,
+        )
+
+    def test_rejects_tampered_panel_k_adjusted_residual(self) -> None:
+        table = self.run_root / "tables/panel_7E_plot_data.tsv"
+        with table.open(newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+            columns = list(rows[0])
+        rows[0]["terminal_cn_score_nuisance_residual"] = str(
+            float(rows[0]["terminal_cn_score_nuisance_residual"]) + 0.01
+        )
+        write_tsv(table, rows, columns)
+        self._write_output_manifest()
+
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "plotted residuals do not reproduce the origin-and-dose nuisance adjustment",
+            result.stderr,
+        )
 
     def test_rejects_generated_si_context_identity_as_canonical(self) -> None:
         run_config_path = self.run_root / "metadata/run_config.tsv"
@@ -399,7 +870,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         )
         self.assertFalse((self.repo / "figures").exists())
 
-    def test_rejects_historical_mixed_v1_spoofed_as_reviewed_v2(
+    def test_rejects_historical_mixed_v1_spoofed_as_reviewed_v3(
         self,
     ) -> None:
         historical = (
@@ -407,8 +878,13 @@ class Figure7MaterializationTest(unittest.TestCase):
             / "Data/in-vivo/figure7/saved_state_pathway"
             / "taoli_04i_etp2_24_day17_v1"
         )
+        reviewed_filenames = {
+            path.name for path in self.reviewed_reference_root.glob("*.tsv")
+            if path.name != "state_pathway_provenance.tsv"
+        }
         for target in self.run_root.joinpath("tables").glob("*.tsv"):
-            target.unlink()
+            if target.name in reviewed_filenames:
+                target.unlink()
         (self.run_root / "metadata/state_pathway_provenance.tsv").unlink()
         for source in historical.glob("*.tsv"):
             destination = (
@@ -426,26 +902,18 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.assertFalse((self.repo / "figures").exists())
 
     def test_rejects_explicit_historical_mixed_v1_for_af(self) -> None:
-        write_tsv(
-            self.run_root / "metadata/run_config.tsv",
-            [
-                {"key": "panel_set", "value": "a-f"},
-                {"key": "tgi_day", "value": "17"},
-                {
-                    "key": "state_pathway_reference_id",
-                    "value": "taoli_04i_etp2_24_day17_v1",
-                },
-                {
-                    "key": "state_pathway_reference_kind",
-                    "value": "historical_mixed_frozen",
-                },
-                {
-                    "key": "canonical_publication_allowed",
-                    "value": "false",
-                },
-            ],
-            ["key", "value"],
-        )
+        run_config_path = self.run_root / "metadata/run_config.tsv"
+        with run_config_path.open(newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        replacements = {
+            "state_pathway_reference_id": "taoli_04i_etp2_24_day17_v1",
+            "state_pathway_reference_kind": "historical_mixed_frozen",
+            "canonical_publication_allowed": "false",
+        }
+        for row in rows:
+            if row["key"] in replacements:
+                row["value"] = replacements[row["key"]]
+        write_tsv(run_config_path, rows, ["key", "value"])
         self._write_state_provenance(
             canonical_publication_allowed="false"
         )
@@ -596,7 +1064,14 @@ class Figure7MaterializationTest(unittest.TestCase):
     def test_rejects_canonical_identity_without_reviewed_input_binding(
         self,
     ) -> None:
-        retained_paths = [self.input_path, *self.processed_inputs]
+        retained_paths = [
+            self.input_path,
+            self.endpoint_ploidy,
+            *self.processed_inputs,
+            self.repo / "Code/in-vivo/figure7/src/tgi_data.R",
+            self.repo / "Code/in-vivo/figure7/src/tgi_statistics.R",
+            self.repo / "Code/in-vivo/figure7/src/tgi_panels.R",
+        ]
         write_tsv(
             self.run_root / "metadata/input_manifest.tsv",
             [
@@ -624,7 +1099,10 @@ class Figure7MaterializationTest(unittest.TestCase):
         result = self._run_materializer()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "does not bind the reviewed renderer, config, and eight-file",
+            (
+                "does not bind the reviewed renderer, config, and "
+                "eight-file"
+            ),
             result.stderr,
         )
         self.assertFalse((self.repo / "figures").exists())
@@ -768,13 +1246,21 @@ class ManifestContractTest(unittest.TestCase):
     def test_existing_manifests_validate_in_a_moved_checkout(self) -> None:
         manifest_paths = sorted((REPO_ROOT / "figures").glob("Figure[1-6]/manifest.tsv"))
         manifest_paths.append(REPO_ROOT / "figures/Supplementary/manifest.tsv")
+        manifest_paths.append(
+            REPO_ROOT / "figures/Figure7_Supplement/si8_manifest.tsv"
+        )
         with tempfile.TemporaryDirectory() as tmp:
             moved_repo = Path(tmp) / "moved-checkout"
             for manifest in manifest_paths:
                 with manifest.open(newline="") as handle:
                     rows = list(csv.DictReader(handle, delimiter="\t"))
                 for row in rows:
-                    for key in ("asset_path", "source_file", "result_run_dir"):
+                    for key in (
+                        "asset_path",
+                        "source_file",
+                        "result_run_dir",
+                        "local_provenance_path",
+                    ):
                         value = row.get(key, "").strip()
                         if not value or Path(value).is_absolute():
                             continue

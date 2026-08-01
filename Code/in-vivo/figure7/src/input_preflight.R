@@ -312,13 +312,13 @@ figure7_state_result_relative_paths <- function() {
     "binning/00_manifest/analysis_parameters.csv",
     "binning/01_qc/primary_coverage_check.csv",
     "binning/02_pseudobulk/sample_bin_metadata.csv",
-    "binning/ETP_reference_balanced_threshold_2_24/00_manifest/model_parameters.csv",
-    "binning/ETP_reference_balanced_threshold_2_24/01_qc/model_design_rank_audit.csv",
-    "binning/ETP_reference_balanced_threshold_2_24/03_gene_models/gene_primary_adjacent_state_contrast.csv",
-    "binning/ETP_reference_balanced_threshold_2_24/03_gene_models/gene_symbol_resolution.csv",
-    "binning/ETP_reference_balanced_threshold_2_24/04_gsea/all_collections_primary_adjacent_state_gsea.csv",
-    "binning/ETP_reference_balanced_threshold_2_24/04_gsea/all_collections_leading_edge_genes.csv",
-    "binning/ETP_reference_balanced_threshold_2_24/04_gsea/pathway_activity_over_pseudotime.csv"
+    "binning/initial_ploidy_adjusted_grch_human_only_v3/00_manifest/model_parameters.csv",
+    "binning/initial_ploidy_adjusted_grch_human_only_v3/01_qc/model_design_rank_audit.csv",
+    "binning/initial_ploidy_adjusted_grch_human_only_v3/03_gene_models/gene_primary_adjacent_state_contrast.csv",
+    "binning/initial_ploidy_adjusted_grch_human_only_v3/03_gene_models/gene_symbol_resolution.csv",
+    "binning/initial_ploidy_adjusted_grch_human_only_v3/04_gsea/all_collections_primary_adjacent_state_gsea.csv",
+    "binning/initial_ploidy_adjusted_grch_human_only_v3/04_gsea/all_collections_leading_edge_genes.csv",
+    "binning/initial_ploidy_adjusted_grch_human_only_v3/04_gsea/pathway_activity_over_pseudotime.csv"
   )
 }
 

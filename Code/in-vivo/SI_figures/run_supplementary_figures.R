@@ -220,13 +220,25 @@ render_cache <- function(
   output,
   generated,
   log_name = "00_render.log",
-  upstream_input_manifest = NULL
+  upstream_input_manifest = NULL,
+  all_ploidy = NULL,
+  cbs_dir = NULL,
+  injected_reference_dir = NULL
 ) {
   values <- list(
     "table-cache-dir" = cache,
     config = config,
     "output-dir" = output
   )
+  if (!is.null(all_ploidy) && nzchar(all_ploidy)) {
+    values[["all-ploidy"]] <- all_ploidy
+  }
+  if (!is.null(cbs_dir) && nzchar(cbs_dir)) {
+    values[["cbs-dir"]] <- cbs_dir
+  }
+  if (!is.null(injected_reference_dir) && nzchar(injected_reference_dir)) {
+    values[["injected-reference-dir"]] <- injected_reference_dir
+  }
   if (generated) {
     values[["allow-generated-human-only-si7"]] <- "true"
   }
@@ -935,6 +947,46 @@ main <- function(args = parse_args(commandArgs(trailingOnly = TRUE))) {
     repo_root,
     must_work = FALSE
   )
+  all_ploidy <- resolve_path(
+    arg(
+      args,
+      "all-ploidy",
+      as.character(
+        config$versioned_source_artifacts$endpoint_ploidy$default_path
+      )
+    ),
+    repo_root,
+    must_work = TRUE
+  )
+  all_ploidy_sha256 <- sha256(all_ploidy)
+  if (!identical(
+    all_ploidy_sha256,
+    as.character(config$versioned_source_artifacts$endpoint_ploidy$sha256)
+  )) {
+    stop("Endpoint-ploidy input differs from its frozen checksum",
+         call. = FALSE)
+  }
+  cbs_dir <- resolve_path(
+    arg(args, "cbs-dir", "Data/in-vivo/scRNAseq_Numbat"),
+    repo_root,
+    must_work = TRUE
+  )
+  injected_reference_dir <- resolve_path(
+    arg(
+      args,
+      "injected-reference-dir",
+      file.path(cbs_dir, "injected_reference")
+    ),
+    repo_root,
+    must_work = TRUE
+  )
+  copy_number_helper <- file.path(script_dir, "copy_number_heatmap.R")
+  copy_number_environment <- new.env(parent = globalenv())
+  sys.source(copy_number_helper, envir = copy_number_environment)
+  copy_number_environment$si_copy_number_validate_manifest(cbs_dir)
+  copy_number_environment$si_copy_number_validate_reference_manifest(
+    injected_reference_dir
+  )
   renderer <- file.path(script_dir, "generate_supplementary_figures.R")
   builder <- file.path(script_dir, "build_raw_supplementary_tables.R")
   validator <- file.path(
@@ -948,7 +1000,16 @@ main <- function(args = parse_args(commandArgs(trailingOnly = TRUE))) {
   # reconstruction check.
   if (!identical(mode, "full-workflow") &&
       validate_cache(validator, canonical_cache)) {
-    render_cache(renderer, canonical_cache, config_path, output_dir, FALSE)
+    render_cache(
+      renderer,
+      canonical_cache,
+      config_path,
+      output_dir,
+      FALSE,
+      all_ploidy = all_ploidy,
+      cbs_dir = cbs_dir,
+      injected_reference_dir = injected_reference_dir
+    )
     return(invisible(output_dir))
   }
   if (identical(mode, "plot-only")) {
@@ -994,29 +1055,6 @@ main <- function(args = parse_args(commandArgs(trailingOnly = TRUE))) {
   sys.source(seurat_selection_script, envir = runtime_environment)
   config <- figure7_read_config(config_path)
 
-  all_ploidy <- resolve_path(
-    arg(
-      args,
-      "all-ploidy",
-      as.character(
-        config$versioned_source_artifacts$endpoint_ploidy$default_path
-      )
-    ),
-    repo_root,
-    must_work = TRUE
-  )
-  all_ploidy_sha256 <- sha256(all_ploidy)
-  if (!identical(
-    all_ploidy_sha256,
-    as.character(
-      config$versioned_source_artifacts$endpoint_ploidy$sha256
-    )
-  )) {
-    stop(
-      "Endpoint-ploidy input differs from its frozen checksum",
-      call. = FALSE
-    )
-  }
   sample_info <- resolve_path(
     arg(
       args,
@@ -1146,7 +1184,10 @@ main <- function(args = parse_args(commandArgs(trailingOnly = TRUE))) {
         reusable$build_dir,
         "metadata",
         "input_manifest.tsv"
-      )
+      ),
+      all_ploidy = all_ploidy,
+      cbs_dir = cbs_dir,
+      injected_reference_dir = injected_reference_dir
     )
     return(invisible(output_dir))
   }
@@ -1275,7 +1316,10 @@ main <- function(args = parse_args(commandArgs(trailingOnly = TRUE))) {
       output_dir,
       TRUE,
       "01_render.log",
-      audited_manifest
+      audited_manifest,
+      all_ploidy = all_ploidy,
+      cbs_dir = cbs_dir,
+      injected_reference_dir = injected_reference_dir
     )
     return(invisible(output_dir))
   }
@@ -1373,7 +1417,10 @@ main <- function(args = parse_args(commandArgs(trailingOnly = TRUE))) {
     output_dir,
     TRUE,
     "01_render.log",
-    file.path(build_dir, "metadata", "input_manifest.tsv")
+    file.path(build_dir, "metadata", "input_manifest.tsv"),
+    all_ploidy = all_ploidy,
+    cbs_dir = cbs_dir,
+    injected_reference_dir = injected_reference_dir
   )
   invisible(output_dir)
 }

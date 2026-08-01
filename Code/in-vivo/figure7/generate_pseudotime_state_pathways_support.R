@@ -61,7 +61,7 @@ usage <- function() {
       "This standalone script writes only the Figure 7 support files requested under:",
       "  <output_root>/00_manifest",
       "  <output_root>/binning",
-      "  <output_root>/binning/ETP_reference_balanced_threshold_2_24",
+      "  <output_root>/binning/initial_ploidy_adjusted_grch_human_only_v3",
       sep = "\n"
     ),
     "\n"
@@ -109,7 +109,7 @@ write_csv <- function(x, path) {
 required_packages <- function() {
   c(
     "Seurat", "SeuratObject", "Matrix", "yaml", "digest", "edgeR",
-    "limma", "splines", "fgsea", "msigdbr", "readr"
+    "limma", "splines", "fgsea", "BiocParallel", "msigdbr", "readr"
   )
 }
 
@@ -291,40 +291,31 @@ join_assay_layers_for_counts <- function(
   obj
 }
 
-etp_reference_spec <- function() {
+model_spec_initial_ploidy <- function(
+  model_id = "initial_ploidy_adjusted_grch_human_only_v3"
+) {
   list(
-    method = "ETP_reference_balanced_threshold_2_24",
-    threshold_scheme = "reference_balanced_threshold_2_24",
-    threshold = 2.24,
-    group_column = "ETP_reference_balanced_threshold_2_24_group",
-    factor_column = "ETP_reference_balanced_threshold_2_24_factor",
-    group_levels = c("ETP-lower", "ETP-higher")
-  )
-}
-
-model_spec_etp_reference_balanced <- function() {
-  spec <- etp_reference_spec()
-  list(
-    model_id = spec$method,
-    model_label = paste0("ETP group-adjusted model: ", spec$threshold_scheme),
-    covariate_terms = c(spec$factor_column),
-    covariate_mode = "etp_group",
-    etp_method = spec$method,
-    etp_threshold = spec$threshold,
+    model_id = model_id,
+    model_label = "Injected-initial-ploidy-adjusted GRCh-only model",
+    covariate_terms = "initial_ploidy_factor",
+    covariate_mode = "initial_ploidy",
+    initial_ploidy_levels = c("2N", "4N"),
     is_primary = FALSE
   )
 }
 
 model_parameters_table <- function(model_spec) {
   data.frame(
-    parameter = c("model_id", "model_label", "covariate_mode", "covariate_terms", "etp_method", "etp_threshold", "is_primary"),
+    parameter = c(
+      "model_id", "model_label", "covariate_mode", "covariate_terms",
+      "initial_ploidy_levels", "is_primary"
+    ),
     value = c(
       model_spec$model_id %||% NA_character_,
       model_spec$model_label %||% NA_character_,
       model_spec$covariate_mode %||% NA_character_,
       paste(model_spec$covariate_terms %||% character(), collapse = ";"),
-      model_spec$etp_method %||% NA_character_,
-      as.character(model_spec$etp_threshold %||% NA_real_),
+      paste(model_spec$initial_ploidy_levels %||% character(), collapse = ";"),
       as.character(isTRUE(model_spec$is_primary))
     ),
     stringsAsFactors = FALSE
@@ -415,87 +406,6 @@ unique_value <- function(x, label) {
   if (length(x) == 0L) NA_character_ else x[[1L]]
 }
 
-read_etp_compartment <- function(path, compartment) {
-  if (!file.exists(path)) stop("Missing ETP metadata input: ", path, call. = FALSE)
-  data <- as.data.frame(readr::read_csv(path, show_col_types = FALSE), stringsAsFactors = FALSE)
-  required <- c("cell_id", "sample_id", "initial_ploidy", "gemcitabine_dose", "gemcitabine_dose_mg_per_kg", "cell_ploidy")
-  missing <- setdiff(required, names(data))
-  if (length(missing) > 0L) stop("ETP metadata input missing columns: ", paste(missing, collapse = ", "), call. = FALSE)
-  data$cell_id <- as.character(data$cell_id)
-  data$sample_id <- as.character(data$sample_id)
-  data$initial_ploidy <- as.character(data$initial_ploidy)
-  data$gemcitabine_dose <- as.character(data$gemcitabine_dose)
-  data$gemcitabine_dose_mg_per_kg <- suppressWarnings(as.numeric(data$gemcitabine_dose_mg_per_kg))
-  data$cell_ploidy <- suppressWarnings(as.numeric(data$cell_ploidy))
-  data$etp_source_compartment <- compartment
-  data[, c("cell_id", "sample_id", "initial_ploidy", "gemcitabine_dose", "gemcitabine_dose_mg_per_kg", "cell_ploidy", "etp_source_compartment"), drop = FALSE]
-}
-
-build_etp_assignments <- function(cellcycle_path, noncell_path, etp_spec) {
-  union_cells <- rbind(
-    read_etp_compartment(cellcycle_path, "CellCycle"),
-    read_etp_compartment(noncell_path, "NonCellCycle")
-  )
-  union_cells <- union_cells[is.finite(union_cells$cell_ploidy), , drop = FALSE]
-  if (nrow(union_cells) == 0L) stop("No finite cell-level ETP values were found.", call. = FALSE)
-
-  duplicated_ids <- unique(union_cells$cell_id[duplicated(union_cells$cell_id)])
-  if (length(duplicated_ids) > 0L) {
-    keep <- rep(TRUE, nrow(union_cells))
-    for (cell_id in duplicated_ids) {
-      idx <- which(union_cells$cell_id == cell_id)
-      local <- union_cells[idx, , drop = FALSE]
-      same_sample <- length(unique(local$sample_id)) == 1L
-      same_ploidy <- length(unique(local$cell_ploidy)) == 1L
-      if (!same_sample || !same_ploidy) stop("Conflicting duplicated ETP cell_id: ", cell_id, call. = FALSE)
-      keep[idx[-1L]] <- FALSE
-    }
-    union_cells <- union_cells[keep, , drop = FALSE]
-  }
-
-  split_cells <- split(union_cells, union_cells$sample_id)
-  rows <- lapply(names(split_cells), function(sample_id) {
-    x <- split_cells[[sample_id]]
-    data.frame(
-      sample_id = sample_id,
-      initial_ploidy = unique_value(x$initial_ploidy, paste(sample_id, "initial_ploidy")),
-      dose = unique_value(x$gemcitabine_dose, paste(sample_id, "dose")),
-      dose_mg = unique(x$gemcitabine_dose_mg_per_kg[is.finite(x$gemcitabine_dose_mg_per_kg)])[1L],
-      n_endpoint_ploidy_cells = nrow(x),
-      n_cellcycle_endpoint_ploidy_cells = sum(x$etp_source_compartment == "CellCycle"),
-      n_noncellcycle_endpoint_ploidy_cells = sum(x$etp_source_compartment == "NonCellCycle"),
-      sample_mean_endpoint_ploidy = mean(x$cell_ploidy),
-      sample_median_endpoint_ploidy = stats::median(x$cell_ploidy),
-      sample_max_endpoint_ploidy = max(x$cell_ploidy),
-      stringsAsFactors = FALSE
-    )
-  })
-  assignments <- do.call(rbind, rows)
-  assignments$sample_mean_endpoint_ploidy_scaled <- as.numeric(scale(assignments$sample_mean_endpoint_ploidy))
-  group <- ifelse(
-    assignments$sample_mean_endpoint_ploidy > etp_spec$threshold,
-    "ETP-higher",
-    "ETP-lower"
-  )
-  assignments[[etp_spec$group_column]] <- factor(
-    group,
-    levels = etp_spec$group_levels
-  )
-  assignments[order(assignments$sample_id), , drop = FALSE]
-}
-
-attach_etp_assignments <- function(meta, assignments) {
-  idx <- match(meta$sample_id, assignments$sample_id)
-  if (anyNA(idx)) {
-    missing <- unique(meta$sample_id[is.na(idx)])
-    stop("Missing ETP assignments for samples: ", paste(missing, collapse = ", "), call. = FALSE)
-  }
-  add_cols <- setdiff(names(assignments), c("sample_id", "initial_ploidy", "dose", "dose_mg"))
-  out <- meta
-  for (column in add_cols) out[[column]] <- assignments[[column]][idx]
-  out
-}
-
 audit_metadata <- function(meta) {
   duplicate_cells <- meta[duplicated(meta$cell_id) | duplicated(meta$cell_id, fromLast = TRUE), , drop = FALSE]
   per_cell <- stats::aggregate(
@@ -573,25 +483,6 @@ sample_metadata <- function(meta) {
       mean_pseudotime = mean(x$pseudotime, na.rm = TRUE),
       stringsAsFactors = FALSE
     )
-    optional <- intersect(
-      c(
-        "n_endpoint_ploidy_cells",
-        "sample_mean_endpoint_ploidy",
-        "sample_median_endpoint_ploidy",
-        "sample_max_endpoint_ploidy",
-        "sample_mean_endpoint_ploidy_scaled",
-        etp_reference_spec()$group_column
-      ),
-      names(x)
-    )
-    for (column in optional) {
-      if (is.numeric(x[[column]])) {
-        values <- unique(x[[column]][is.finite(x[[column]])])
-        base[[column]] <- if (length(values) == 0L) NA_real_ else values[[1L]]
-      } else {
-        base[[column]] <- unique_value(x[[column]], paste(sample_id, column))
-      }
-    }
     base
   })
   out <- do.call(rbind, rows)
@@ -697,16 +588,16 @@ check_primary_coverage <- function(coverage) {
 prepare_design <- function(meta, spline_df, model_spec, include_dose = TRUE) {
   meta <- as.data.frame(meta, stringsAsFactors = FALSE)
   meta$dose_mg_factor <- factor(meta$dose_mg)
-  meta$initial_ploidy_factor <- factor(meta$initial_ploidy)
-  etp_spec <- etp_reference_spec()
-  if (etp_spec$group_column %in% names(meta)) {
-    meta[[etp_spec$factor_column]] <- factor(
-      as.character(meta[[etp_spec$group_column]]),
-      levels = etp_spec$group_levels
+  meta$initial_ploidy_factor <- factor(
+    meta$initial_ploidy,
+    levels = c("2N", "4N")
+  )
+  if (anyNA(meta$initial_ploidy_factor) ||
+      !identical(levels(droplevels(meta$initial_ploidy_factor)), c("2N", "4N"))) {
+    stop(
+      "State-pathway model requires both injected initial-ploidy levels 2N and 4N",
+      call. = FALSE
     )
-  }
-  if ("sample_mean_endpoint_ploidy" %in% names(meta)) {
-    meta$sample_mean_endpoint_ploidy_scaled <- as.numeric(scale(meta$sample_mean_endpoint_ploidy))
   }
   basis <- splines::ns(meta$bin_midpoint, df = spline_df)
   colnames(basis) <- paste0("pt_spline", seq_len(ncol(basis)))
@@ -814,8 +705,10 @@ design_audit <- function(model_fit) {
   data.frame(
     model_id = model_fit$model_spec$model_id %||% NA_character_,
     covariate_mode = model_fit$model_spec$covariate_mode %||% NA_character_,
-    etp_method = model_fit$model_spec$etp_method %||% NA_character_,
-    etp_threshold = model_fit$model_spec$etp_threshold %||% NA_real_,
+    initial_ploidy_levels = paste(
+      model_fit$model_spec$initial_ploidy_levels %||% character(),
+      collapse = ";"
+    ),
     include_dose = isTRUE(model_fit$include_dose),
     n_observations = model_fit$design_n_observations,
     n_design_columns_original = model_fit$design_ncol_original,
@@ -980,6 +873,7 @@ run_fgsea_once <- function(
     maxSize = max_size,
     nPermSimple = nperm_simple,
     nproc = 1L,
+    BPPARAM = BiocParallel::SerialParam(progressbar = FALSE),
     eps = 0
   )
 }
@@ -1386,13 +1280,20 @@ run_support_workflow <- function(args, repo_root) {
   binning_manifest <- ensure_dir(file.path(binning_root, "00_manifest"))
   binning_qc <- ensure_dir(file.path(binning_root, "01_qc"))
   binning_pseudobulk <- ensure_dir(file.path(binning_root, "02_pseudobulk"))
-  model_root <- ensure_dir(file.path(binning_root, "ETP_reference_balanced_threshold_2_24"))
+  cfg <- read_config(args$config)
+  model_id <- as.character(cfg$state_pathways$model)
+  if (!identical(model_id, "initial_ploidy_adjusted_grch_human_only_v3")) {
+    stop(
+      "State-pathway config must request initial_ploidy_adjusted_grch_human_only_v3",
+      call. = FALSE
+    )
+  }
+  model_root <- ensure_dir(file.path(binning_root, model_id))
   model_manifest <- ensure_dir(file.path(model_root, "00_manifest"))
   model_qc <- ensure_dir(file.path(model_root, "01_qc"))
   model_gene_models <- ensure_dir(file.path(model_root, "03_gene_models"))
   model_gsea <- ensure_dir(file.path(model_root, "04_gsea"))
 
-  cfg <- read_config(args$config)
   species <- cfg$feature_species
   configured_gsea_retry <- as.integer(c(
     cfg$state_pathways$gsea_nperm_simple,
@@ -1477,12 +1378,6 @@ run_support_workflow <- function(args, repo_root) {
 
   message("Reading cell metadata")
   meta <- read_cell_metadata(args$cell_metadata)
-  etp_assignments <- build_etp_assignments(
-    args$cell_metadata,
-    args$noncell_metadata,
-    etp_reference_spec()
-  )
-  meta <- attach_etp_assignments(meta, etp_assignments)
   metadata_audit <- audit_metadata(meta)
   if (nrow(metadata_audit$inconsistent_cells) > 0L) {
     stop("Cell metadata has inconsistent sample/dose/ploidy assignments.", call. = FALSE)
@@ -1515,7 +1410,7 @@ run_support_workflow <- function(args, repo_root) {
     stop("Binning primary interval coverage check failed. See binning/01_qc/primary_coverage_check.csv.", call. = FALSE)
   }
 
-  model_spec <- model_spec_etp_reference_balanced()
+  model_spec <- model_spec_initial_ploidy(model_id)
   write_csv(model_parameters_table(model_spec), file.path(model_manifest, "model_parameters.csv"))
 
   message("Fitting model: ", model_spec$model_id)

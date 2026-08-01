@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import itertools
+import math
 import os
 import shutil
+import statistics
 from collections import Counter
 from pathlib import Path
 
@@ -14,8 +17,10 @@ from figure_output_contract import (
     GENERATED_SOURCE_KINDS,
     first_local_path,
     module_manifest_local_path,
+    path_within,
     read_tsv,
     repo_root_from,
+    resolve_repo_path,
     sha256_file,
     validate_expected_panel_set,
     validate_module_manifest,
@@ -300,7 +305,10 @@ PANEL_SPECS = [
         "figure": "Figure7",
         "panel": "7E",
         "asset": "panel_7E_day17_tgi_vs_mean_etp.pdf",
-        "caption_role": "Day-17 TGI versus sample mean endpoint ploidy",
+        "caption_role": (
+            "Day-17 TGI versus within-origin standardized terminal "
+            "postprocessed CN score, adjusted for origin and dose"
+        ),
         "variant": "pdf",
     },
     {
@@ -355,7 +363,9 @@ PANEL_SPECS = [
         "figure": "Figure7",
         "panel": "7E_png",
         "asset": "panel_7E_day17_tgi_vs_mean_etp.png",
-        "caption_role": "PNG derivative of the endpoint-ploidy association panel",
+        "caption_role": (
+            "PNG derivative of the adjusted terminal CN-score association panel"
+        ),
         "variant": "png",
     },
     {
@@ -386,22 +396,24 @@ PANEL_SPECS = [
 STRICT_FIGURE_MODULES = {"in_vivo_figure7", "si_figures"}
 FIGURE_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".svg", ".tif", ".tiff"}
 FIGURE7_REVIEWED_REFERENCE_ID = (
-    "state_pathway_grch_human_only_etp2_24_day17_v2"
+    "state_pathway_grch_human_only_initial_ploidy_day17_v3"
 )
-FIGURE7_REVIEWED_REFERENCE_KIND = "reviewed_human_only_frozen"
+FIGURE7_REVIEWED_REFERENCE_KIND = (
+    "reviewed_human_only_initial_ploidy_frozen"
+)
 FIGURE7_REVIEWED_REFERENCE_ROOT = (
     Path("Data/in-vivo/figure7/saved_state_pathway")
     / FIGURE7_REVIEWED_REFERENCE_ID
 )
 FIGURE7_REVIEWED_FILES = {
-    "panel_7F_pathway_activity_plot_data.tsv": "c2a6d455fd11c1d95bbc31441419953d4cc0d88eb8acf611fc3488f04af8d0f8",
-    "panel_7F_selected_pathway_gsea.tsv": "ca86833bb6159cfde1e1218d897183809eba00a0cf096fc5c4951b5065767460",
-    "panel_7F_leading_edge_genes.tsv": "6e86e697b64565cf0281e8684d29001eed84c83e1a3b9e45f7ffd37b78fdf9dd",
-    "state_pathway_gene_ranking_complete.tsv": "ac9ced0c9bb691b490b0197c9962a72a6d272781e6883631c76d7c9f2397d34c",
-    "state_pathway_gsea_complete.tsv": "4d1283e89b28e5100586a591621b5522b1698859d5d64b69054c4c470356a8d6",
-    "state_pathway_sample_bin_coverage.tsv": "a0a408a91968f172ea7a30d9432c63571f74cea5fe27f4c5ad1c8f6044172a47",
-    "state_pathway_design_qc.tsv": "66a1cf1a5362539f50777ae482b37b5b30e4d92bd673eee9aa4c842e91160151",
-    "state_pathway_provenance.tsv": "406c4fa97b96dc001b1744e01658a533fc571897724a485080e8bbbc787293a4",
+    "panel_7F_pathway_activity_plot_data.tsv": "9913d66a911275fe5c347a6048e0eabc39ec57ff8298eedb18b4b4f4c43c7932",
+    "panel_7F_selected_pathway_gsea.tsv": "39a1e243725b70f7d8dd907584a5d6f5049d3e84149678b11f985783178a99f0",
+    "panel_7F_leading_edge_genes.tsv": "18346c2efe9a584c945963fb83d1169238cf8c98b30fe8b01603c9d9e56b710f",
+    "state_pathway_gene_ranking_complete.tsv": "eec9a01d187e3d6fff5d2a83ac9971140404548fce7c488bb0fe631aa5902e15",
+    "state_pathway_gsea_complete.tsv": "639d79ce9d9116d4c93fc2a5108a8973dd8e7416f826de29c92479e5445912df",
+    "state_pathway_sample_bin_coverage.tsv": "0ef5470eca70272bacdbbd0d416b21a9ad4f9e448ac172cad4ba06cb7f2719aa",
+    "state_pathway_design_qc.tsv": "8c039ed4ec4e986f2e5f917a88dfade395556b17c31132d889fbbf3a83b44ce6",
+    "state_pathway_provenance.tsv": "da394f469a4c3777b33adbfa90d890115a04de05d8cde09c604d34664ca03c47",
 }
 SI7_REVIEWED_FEATURE_POLICY = (
     "Human tumor/cell-line analysis: retain exact GRCh38-prefixed features "
@@ -421,6 +433,18 @@ SI7_REVIEWED_FROZEN_MATRIX_NOTE = (
 SI_REVIEWED_MANIFEST_SHA256 = (
     "b624c3f3ff945c51f09b9e6e512a97df57eb4e514b3fba28a65e97a38207f135"
 )
+SI_REVIEWED_CBS_MANIFEST_SHA256 = (
+    "756c644df06c95f95ccd7a6a1d7bfbcc972b7873ebc1188aac7da5b72f1876f9"
+)
+SI_INJECTED_REFERENCE_MANIFEST_SHA256 = (
+    "b5b4d910bc0f61a13740b295d8d6aaa3f275ffeb225ee5a24dbda39ee3be349e"
+)
+SI_ENDPOINT_PLOIDY_SHA256 = (
+    "6db48ee5f196b37b58aa71d0472dd3deb06aaacb4b637070af1b27d9425db2b3"
+)
+FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256 = (
+    "80f4e6b78e7b6d8b73030da4889ecb5c09ee97c9f83fb771aec4d3908511b569"
+)
 FIGURE7_PROCESSED_INPUTS = {
     Path(
         "Data/in-vivo/figure7/processed/"
@@ -430,6 +454,48 @@ FIGURE7_PROCESSED_INPUTS = {
         "Data/in-vivo/figure7/processed/"
         "NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
     ): "1e44794fb2b2c402b49cf9d17abcc54cd7690dc5d1d611e38a6aa3b996093d3c",
+}
+FIGURE7_PANEL_K_SOURCE_INPUTS = (
+    Path("Code/in-vivo/figure7/src/tgi_data.R"),
+    Path("Code/in-vivo/figure7/src/tgi_statistics.R"),
+    Path("Code/in-vivo/figure7/src/tgi_panels.R"),
+)
+FIGURE7_PANEL_K_RESULTS = {
+    17: {
+        "effect_per_within_origin_sd": -8.8374975584089,
+        "partial_correlation": -0.344659307863932,
+        "permutation_p_two_sided": 0.6875,
+    },
+    24: {
+        "effect_per_within_origin_sd": -6.77351906237078,
+        "partial_correlation": -0.30605912538695,
+        "permutation_p_two_sided": 0.5625,
+    },
+    31: {
+        "effect_per_within_origin_sd": -2.77364130329883,
+        "partial_correlation": -0.173200987198346,
+        "permutation_p_two_sided": 0.6875,
+    },
+}
+FIGURE7_PANEL_K_SAMPLE_DESIGN = {
+    ("2N-A2-0", "2N", "30mg/kg", "30"),
+    ("2N-A2-L", "2N", "30mg/kg", "30"),
+    ("2N-A4-R", "2N", "120mg/kg", "120"),
+    ("2N-A4-RL", "2N", "120mg/kg", "120"),
+    ("A6-4N-O", "4N", "30mg/kg", "30"),
+    ("A6-4N-RR", "4N", "30mg/kg", "30"),
+    ("4N-A8-RL", "4N", "120mg/kg", "120"),
+    ("4N-A8-RR", "4N", "120mg/kg", "120"),
+}
+FIGURE7_PANEL_K_SAMPLE_FILES = {
+    "2N-A2-0": "SUM159-2N-30-0_harvest.sps.cbs",
+    "2N-A2-L": "SUM159-2N-30-L_harvest.sps.cbs",
+    "2N-A4-R": "SUM159-2N-120-R_harvest.sps.cbs",
+    "2N-A4-RL": "SUM159-2N-120-RL_harvest.sps.cbs",
+    "A6-4N-O": "SUM159-4N-30-0_harvest.sps.cbs",
+    "A6-4N-RR": "SUM159-4N-30-RR_harvest.sps.cbs",
+    "4N-A8-RL": "SUM159-4N-120-RL_harvest.sps.cbs",
+    "4N-A8-RR": "SUM159-4N-120-RR_harvest.sps.cbs",
 }
 
 EXTERNAL_ROWS = [
@@ -607,6 +673,580 @@ def read_unique_key_values(path: Path, label: str) -> dict[str, str]:
     return dict(zip(keys, values))
 
 
+def finite_float(value: str, label: str) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} is not numeric: {value!r}") from exc
+    if not math.isfinite(parsed):
+        raise ValueError(f"{label} is not finite: {value!r}")
+    return parsed
+
+
+def validate_figure7_panel_k_contract(
+    run_root: Path,
+    repo_root: Path,
+    input_rows: list[dict[str, str]],
+    output_rows: list[dict[str, str]],
+    source_run_id: str,
+    tgi_day: int,
+) -> None:
+    expected_result = FIGURE7_PANEL_K_RESULTS.get(tgi_day)
+    if expected_result is None:
+        raise ValueError(
+            "Canonical Figure 7 panel K has reviewed results only for "
+            "TGI days 17, 24, and 31"
+        )
+
+    run_config = read_unique_key_values(
+        run_root / "metadata" / "run_config.tsv",
+        "source Figure 7 run config",
+    )
+    expected_endpoint_metadata = {
+        "endpoint_ploidy_sha256": FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256,
+        "endpoint_ploidy_n_cells": "14125",
+        "endpoint_ploidy_n_files": "16",
+        "endpoint_ploidy_score_policy": (
+            "arithmetic_mean_of_all_finite_postprocessed_cell_ploidy_per_cbs_file"
+        ),
+        "endpoint_ploidy_mapping_policy": (
+            "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+        ),
+    }
+    if any(
+        run_config.get(key) != value
+        for key, value in expected_endpoint_metadata.items()
+    ):
+        raise ValueError(
+            "Figure 7 panel K run metadata does not bind the reviewed "
+            "14,125-cell, 16-file endpoint-CBS score contract"
+        )
+    endpoint_locator = run_config.get("endpoint_ploidy_input", "")
+    endpoint_path = resolve_repo_path(endpoint_locator, repo_root)
+    if (
+        endpoint_path is None
+        or not path_within(endpoint_path, repo_root)
+        or not endpoint_path.is_file()
+        or sha256_file(endpoint_path)
+        != FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256
+    ):
+        raise ValueError(
+            "Figure 7 panel K does not bind the exact portable reviewed "
+            "endpoint-ploidy table"
+        )
+    endpoint_input_rows = [
+        row
+        for row in input_rows
+        if (
+            (path := module_manifest_local_path(row, repo_root)) is not None
+            and path.resolve() == endpoint_path.resolve()
+        )
+    ]
+    if (
+        len(endpoint_input_rows) != 1
+        or endpoint_input_rows[0].get("sha256")
+        != FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256
+    ):
+        raise ValueError(
+            "Figure 7 source input manifest must bind exactly one reviewed "
+            "14,125-cell endpoint-ploidy table"
+        )
+
+    endpoint_headers, endpoint_rows = read_tsv(endpoint_path)
+    if endpoint_headers != [
+        "file",
+        "cell_id",
+        "ploidy",
+        "total_chromosomes",
+        "frac_covered",
+        "format",
+    ] or len(endpoint_rows) != 14125:
+        raise ValueError(
+            "Figure 7 endpoint-ploidy source does not have the reviewed "
+            "14,125-cell schema"
+        )
+    endpoint_keys: set[tuple[str, str]] = set()
+    endpoint_scores: dict[str, list[float]] = {}
+    for row in endpoint_rows:
+        file_name = row.get("file", "")
+        cell_id = row.get("cell_id", "")
+        key = (file_name, cell_id)
+        score = finite_float(row.get("ploidy", ""), "endpoint cell ploidy")
+        coverage = finite_float(
+            row.get("frac_covered", ""),
+            "endpoint cell covered fraction",
+        )
+        total_chromosomes = finite_float(
+            row.get("total_chromosomes", ""),
+            "endpoint cell total chromosome count",
+        )
+        if (
+            not file_name.endswith(".sps.cbs")
+            or Path(file_name).name != file_name
+            or not cell_id
+            or key in endpoint_keys
+            or score <= 0
+            or total_chromosomes <= 0
+            or not 0 < coverage <= 1
+            or row.get("format") != "wide"
+        ):
+            raise ValueError(
+                "Figure 7 endpoint-ploidy source contains an invalid or "
+                "duplicated CBS cell"
+            )
+        endpoint_keys.add(key)
+        endpoint_scores.setdefault(file_name, []).append(score)
+    if len(endpoint_scores) != 16:
+        raise ValueError(
+            "Figure 7 endpoint-ploidy source must contain exactly 16 CBS files"
+        )
+
+    table_paths = {
+        "plot": (run_root / "tables" / "panel_7E_plot_data.tsv").resolve(),
+        "test": (run_root / "tables" / "panel_7E_test.tsv").resolve(),
+    }
+    manifest_rows_by_path: dict[Path, list[dict[str, str]]] = {}
+    for row in output_rows:
+        path = module_manifest_local_path(
+            row,
+            repo_root,
+            output_root=run_root,
+        )
+        if path is not None:
+            manifest_rows_by_path.setdefault(path.resolve(), []).append(row)
+    for label, table_path in table_paths.items():
+        if not table_path.is_file():
+            raise FileNotFoundError(
+                f"Missing Figure 7 panel K {label} table: {table_path}"
+            )
+        matches = manifest_rows_by_path.get(table_path, [])
+        if len(matches) != 1:
+            raise ValueError(
+                "Figure 7 panel K output manifest must bind exactly one "
+                f"{label} table row; found {len(matches)}"
+            )
+        row = matches[0]
+        if (
+            row.get("role") != "output_table"
+            or row.get("source_kind") != "generated_table"
+            or row.get("module") != "in_vivo_figure7"
+            or row.get("command_id") != source_run_id
+            or row.get("sha256", "").strip() != sha256_file(table_path)
+        ):
+            raise ValueError(
+                "Figure 7 panel K output-manifest provenance is invalid for "
+                f"{table_path.name}"
+            )
+
+    plot_headers, plot_rows = read_tsv(table_paths["plot"])
+    test_headers, test_rows = read_tsv(table_paths["test"])
+    tgi_measure = f"TGI_percent_Day_{tgi_day}"
+    required_plot_headers = {
+        "sample_id",
+        "initial_ploidy",
+        "dose",
+        "dose_mg",
+        "endpoint_ploidy_file",
+        "sample_mean_endpoint_ploidy",
+        "n_endpoint_ploidy_cells",
+        "endpoint_ploidy_source_total_cells",
+        "endpoint_ploidy_source_file_count",
+        "endpoint_ploidy_source_sha256",
+        "endpoint_ploidy_score_policy",
+        "endpoint_ploidy_mapping_policy",
+        "terminal_postprocessed_cn_score",
+        "terminal_cn_score_within_origin_z",
+        "permutation_stratum",
+        "terminal_cn_score_nuisance_residual",
+        "tgi_origin_dose_residual",
+        tgi_measure,
+        "tgi_outcome",
+        "tgi_day",
+        "tgi_measure",
+        "matched_control_summary",
+        "matched_control_group",
+    }
+    required_test_headers = {
+        "n",
+        "estimate",
+        "partial_correlation",
+        "effect_per_within_origin_sd",
+        "permutation_p_two_sided",
+        "n_permutations",
+        "permutation_mode",
+        "permutation_strata",
+        "score_variable",
+        "score_source_sha256",
+        "score_source_n_cells",
+        "score_source_n_files",
+        "treated_score_n_cells",
+        "score_aggregation_policy",
+        "sample_mapping_policy",
+        "score_standardization",
+        "adjustment_terms",
+        "outcome_variable",
+        "plot_x",
+        "plot_y",
+        "tgi_outcome",
+        "tgi_day",
+        "tgi_measure",
+        "matched_control_summary",
+        "matched_control_group",
+    }
+    if (
+        len(plot_rows) != 8
+        or len(test_rows) != 1
+        or not required_plot_headers.issubset(plot_headers)
+        or not required_test_headers.issubset(test_headers)
+        or "etp_group" in plot_headers
+        or "etp_group" in test_headers
+    ):
+        raise ValueError(
+            "Figure 7 panel K tables do not have the reviewed adjusted-analysis "
+            "schema and eight-tumor scope"
+        )
+
+    observed_design = {
+        (
+            row["sample_id"],
+            row["initial_ploidy"],
+            row["dose"],
+            row["dose_mg"],
+        )
+        for row in plot_rows
+    }
+    if observed_design != FIGURE7_PANEL_K_SAMPLE_DESIGN:
+        raise ValueError(
+            "Figure 7 panel K does not contain the exact reviewed treated-"
+            "tumor origin-by-dose design"
+        )
+
+    metadata = {
+        "tgi_outcome": "day",
+        "tgi_day": str(tgi_day),
+        "tgi_measure": tgi_measure,
+        "matched_control_summary": "mean",
+        "matched_control_group": "initial_ploidy",
+    }
+    if any(
+        row.get(key) != value
+        for row in [*plot_rows, *test_rows]
+        for key, value in metadata.items()
+    ):
+        raise ValueError(
+            "Figure 7 panel K tables do not bind the selected TGI day and "
+            "initial-ploidy-matched control contract"
+        )
+
+    z_by_origin: dict[str, list[float]] = {}
+    strata_counts: Counter[str] = Counter()
+    treated_endpoint_cell_count = 0
+    canonical_score_by_sample = {
+        sample_id: statistics.mean(endpoint_scores[file_name])
+        for sample_id, file_name in FIGURE7_PANEL_K_SAMPLE_FILES.items()
+    }
+    expected_z_by_sample: dict[str, float] = {}
+    design_origin_by_sample = {
+        sample_id: origin
+        for sample_id, origin, _dose, _dose_mg in FIGURE7_PANEL_K_SAMPLE_DESIGN
+    }
+    for origin in ("2N", "4N"):
+        sample_ids = sorted(
+            sample_id
+            for sample_id, sample_origin in design_origin_by_sample.items()
+            if sample_origin == origin
+        )
+        values = [canonical_score_by_sample[sample_id] for sample_id in sample_ids]
+        center = statistics.mean(values)
+        spread = statistics.stdev(values)
+        expected_z_by_sample.update(
+            {
+                sample_id: (value - center) / spread
+                for sample_id, value in zip(sample_ids, values)
+            }
+        )
+    for row in plot_rows:
+        score = finite_float(
+            row["terminal_postprocessed_cn_score"],
+            "panel K terminal CN score",
+        )
+        source_score = finite_float(
+            row["sample_mean_endpoint_ploidy"],
+            "panel K source terminal CN score",
+        )
+        z_score = finite_float(
+            row["terminal_cn_score_within_origin_z"],
+            "panel K within-origin z score",
+        )
+        finite_float(
+            row["terminal_cn_score_nuisance_residual"],
+            "panel K score residual",
+        )
+        finite_float(
+            row["tgi_origin_dose_residual"],
+            "panel K TGI residual",
+        )
+        finite_float(row[tgi_measure], f"panel K {tgi_measure}")
+        expected_file = FIGURE7_PANEL_K_SAMPLE_FILES.get(row["sample_id"])
+        file_scores = endpoint_scores.get(row["endpoint_ploidy_file"], [])
+        endpoint_cell_count = int(
+            finite_float(
+                row["n_endpoint_ploidy_cells"],
+                "panel K endpoint CBS cell count",
+            )
+        )
+        if (
+            row["endpoint_ploidy_file"] != expected_file
+            or endpoint_cell_count != len(file_scores)
+            or not file_scores
+            or not math.isclose(
+                source_score,
+                sum(file_scores) / len(file_scores),
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            )
+            or row["endpoint_ploidy_source_total_cells"] != "14125"
+            or row["endpoint_ploidy_source_file_count"] != "16"
+            or row["endpoint_ploidy_source_sha256"]
+            != FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256
+            or row["endpoint_ploidy_score_policy"]
+            != expected_endpoint_metadata["endpoint_ploidy_score_policy"]
+            or row["endpoint_ploidy_mapping_policy"]
+            != expected_endpoint_metadata["endpoint_ploidy_mapping_policy"]
+            or not math.isclose(
+                z_score,
+                expected_z_by_sample[row["sample_id"]],
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            )
+        ):
+            raise ValueError(
+                "Figure 7 panel K score is not the per-mouse mean over all "
+                "canonical CBS cells from its mapped harvest file"
+            )
+        treated_endpoint_cell_count += endpoint_cell_count
+        if not math.isclose(score, source_score, rel_tol=0.0, abs_tol=1e-12):
+            raise ValueError(
+                "Figure 7 panel K terminal CN score differs from its frozen "
+                "postprocessed endpoint score"
+            )
+        expected_stratum = f"{row['initial_ploidy']}|{row['dose_mg']}"
+        if row["permutation_stratum"] != expected_stratum:
+            raise ValueError(
+                "Figure 7 panel K permutation strata are not injected "
+                "origin by dose"
+            )
+        z_by_origin.setdefault(row["initial_ploidy"], []).append(z_score)
+        strata_counts[expected_stratum] += 1
+    if set(z_by_origin) != {"2N", "4N"} or any(
+        len(values) != 4
+        or abs(sum(values) / len(values)) > 1e-10
+        or abs(
+            math.sqrt(
+                sum(
+                    (value - sum(values) / len(values)) ** 2
+                    for value in values
+                )
+                / (len(values) - 1)
+            )
+            - 1.0
+        )
+        > 1e-10
+        for values in z_by_origin.values()
+    ):
+        raise ValueError(
+            "Figure 7 panel K CN scores are not standardized separately "
+            "within 2N and 4N injected origins"
+        )
+    if set(strata_counts.values()) != {2} or len(strata_counts) != 4:
+        raise ValueError(
+            "Figure 7 panel K does not have the four two-tumor origin-by-dose "
+            "permutation strata underlying 16 exact assignments"
+        )
+    if treated_endpoint_cell_count != 7623:
+        raise ValueError(
+            "Figure 7 panel K must use all 7,623 canonical CBS cells from "
+            "the eight treated tumors"
+        )
+
+    origins = [row["initial_ploidy"] for row in plot_rows]
+    doses = [row["dose_mg"] for row in plot_rows]
+
+    def additive_residual(values: list[float]) -> list[float]:
+        grand_mean = statistics.mean(values)
+        origin_means = {
+            origin: statistics.mean(
+                value
+                for value, row_origin in zip(values, origins)
+                if row_origin == origin
+            )
+            for origin in ("2N", "4N")
+        }
+        dose_means = {
+            dose: statistics.mean(
+                value
+                for value, row_dose in zip(values, doses)
+                if row_dose == dose
+            )
+            for dose in ("30", "120")
+        }
+        return [
+            value - origin_means[origin] - dose_means[dose] + grand_mean
+            for value, origin, dose in zip(values, origins, doses)
+        ]
+
+    expected_z = [expected_z_by_sample[row["sample_id"]] for row in plot_rows]
+    outcome = [
+        finite_float(row[tgi_measure], f"panel K {tgi_measure}")
+        for row in plot_rows
+    ]
+    expected_x_residual = additive_residual(expected_z)
+    expected_y_residual = additive_residual(outcome)
+    observed_x_residual = [
+        finite_float(
+            row["terminal_cn_score_nuisance_residual"],
+            "panel K score residual",
+        )
+        for row in plot_rows
+    ]
+    observed_y_residual = [
+        finite_float(
+            row["tgi_origin_dose_residual"],
+            "panel K TGI residual",
+        )
+        for row in plot_rows
+    ]
+    if any(
+        not math.isclose(observed, expected, rel_tol=0.0, abs_tol=1e-12)
+        for observed, expected in zip(
+            [*observed_x_residual, *observed_y_residual],
+            [*expected_x_residual, *expected_y_residual],
+        )
+    ):
+        raise ValueError(
+            "Figure 7 panel K plotted residuals do not reproduce the "
+            "origin-and-dose nuisance adjustment"
+        )
+
+    x_sum_squares = sum(value * value for value in expected_x_residual)
+    y_sum_squares = sum(value * value for value in expected_y_residual)
+    recomputed_effect = sum(
+        x_value * y_value
+        for x_value, y_value in zip(
+            expected_x_residual,
+            expected_y_residual,
+        )
+    ) / x_sum_squares
+    recomputed_partial_r = sum(
+        x_value * y_value
+        for x_value, y_value in zip(
+            expected_x_residual,
+            expected_y_residual,
+        )
+    ) / math.sqrt(x_sum_squares * y_sum_squares)
+
+    stratum_indices: dict[str, list[int]] = {}
+    for index, row in enumerate(plot_rows):
+        stratum_indices.setdefault(row["permutation_stratum"], []).append(index)
+    permuted_effects: list[float] = []
+    for swaps in itertools.product((False, True), repeat=4):
+        permuted_outcome = list(outcome)
+        for swap, indices in zip(
+            swaps,
+            [stratum_indices[key] for key in sorted(stratum_indices)],
+        ):
+            if swap:
+                first, second = indices
+                permuted_outcome[first], permuted_outcome[second] = (
+                    permuted_outcome[second],
+                    permuted_outcome[first],
+                )
+        permuted_y_residual = additive_residual(permuted_outcome)
+        permuted_effects.append(
+            sum(
+                x_value * y_value
+                for x_value, y_value in zip(
+                    expected_x_residual,
+                    permuted_y_residual,
+                )
+            )
+            / x_sum_squares
+        )
+    recomputed_permutation_p = sum(
+        abs(value) >= abs(recomputed_effect) - 1e-15
+        for value in permuted_effects
+    ) / len(permuted_effects)
+
+    test = test_rows[0]
+    expected_method = {
+        "n": "8",
+        "n_permutations": "16",
+        "permutation_mode": (
+            "exact_TGI_label_enumeration_within_initial_ploidy_x_dose"
+        ),
+        "permutation_strata": "initial_ploidy:dose_mg",
+        "score_variable": "sample_mean_all_canonical_cbs_cell_ploidy",
+        "score_source_sha256": FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256,
+        "score_source_n_cells": "14125",
+        "score_source_n_files": "16",
+        "treated_score_n_cells": "7623",
+        "score_aggregation_policy": expected_endpoint_metadata[
+            "endpoint_ploidy_score_policy"
+        ],
+        "sample_mapping_policy": expected_endpoint_metadata[
+            "endpoint_ploidy_mapping_policy"
+        ],
+        "score_standardization": "z_score_within_initial_ploidy",
+        "adjustment_terms": "initial_ploidy+dose_mg",
+        "outcome_variable": tgi_measure,
+        "plot_x": "terminal_cn_score_nuisance_residual",
+        "plot_y": "tgi_origin_dose_residual",
+    }
+    if any(test.get(key) != value for key, value in expected_method.items()):
+        raise ValueError(
+            "Figure 7 panel K does not use the reviewed within-origin "
+            "standardization, origin-and-dose adjustment, and exact "
+            "origin-by-dose permutation method"
+        )
+    numeric_results = {
+        "effect_per_within_origin_sd": recomputed_effect,
+        "partial_correlation": recomputed_partial_r,
+        "estimate": recomputed_partial_r,
+        "permutation_p_two_sided": recomputed_permutation_p,
+    }
+    if any(
+        not math.isclose(
+            finite_float(test.get(key, ""), f"panel K {key}"),
+            value,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        )
+        for key, value in numeric_results.items()
+    ):
+        raise ValueError(
+            "Figure 7 panel K does not reproduce the exact reviewed "
+            f"Day-{tgi_day} adjusted beta, partial correlation, and exact P"
+        )
+    recomputed_reviewed = {
+        "effect_per_within_origin_sd": recomputed_effect,
+        "partial_correlation": recomputed_partial_r,
+        "permutation_p_two_sided": recomputed_permutation_p,
+    }
+    if any(
+        not math.isclose(
+            recomputed_reviewed[key],
+            expected_result[key],
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        )
+        for key in recomputed_reviewed
+    ):
+        raise ValueError(
+            "Figure 7 panel K all-CBS inputs no longer reproduce the "
+            f"reviewed Day-{tgi_day} regression contract"
+        )
+
+
 def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
     provenance = read_unique_key_values(
         run_root / "metadata" / "si_figures_provenance.tsv",
@@ -741,6 +1381,192 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
         raise FileNotFoundError(
             f"Missing SI Figures shared-context helper: {shared_context_helper}"
         )
+    copy_number_helper = (
+        repo_root
+        / "Code"
+        / "in-vivo"
+        / "SI_figures"
+        / "copy_number_heatmap.R"
+    )
+    if not copy_number_helper.is_file():
+        raise FileNotFoundError(
+            f"Missing SI Figures copy-number helper: {copy_number_helper}"
+        )
+    endpoint_ploidy_locator = provenance.get("endpoint_ploidy_source", "")
+    all_ploidy = resolve_repo_path(endpoint_ploidy_locator, repo_root)
+    if (
+        all_ploidy is None
+        or not path_within(all_ploidy, repo_root)
+        or not all_ploidy.is_file()
+    ):
+        raise FileNotFoundError(
+            "Missing portable SI Figures postprocessed copy-number table: "
+            f"{endpoint_ploidy_locator}"
+        )
+    if sha256_file(all_ploidy) != SI_ENDPOINT_PLOIDY_SHA256:
+        raise ValueError(
+            "Canonical SI Figures require the exact reviewed 14,125-cell "
+            "endpoint-ploidy table, whether tracked or reconstructed into "
+            "the source run"
+        )
+    cbs_root = repo_root / "Data" / "in-vivo" / "scRNAseq_Numbat"
+    cbs_manifest = cbs_root / "cbs_manifest.tsv"
+    if not cbs_manifest.is_file():
+        raise FileNotFoundError(
+            f"Missing reviewed CBS manifest: {cbs_manifest}"
+        )
+    if sha256_file(cbs_manifest) != SI_REVIEWED_CBS_MANIFEST_SHA256:
+        raise ValueError(
+            "Canonical SI Figures materialization is prohibited: the "
+            "repository does not contain the exact reviewed CBS manifest"
+        )
+    cbs_headers, cbs_rows = read_tsv(cbs_manifest)
+    cbs_names = [row.get("filename", "") for row in cbs_rows]
+    if (
+        cbs_headers != ["filename", "bytes", "sha256", "notes"]
+        or len(cbs_names) != 16
+        or len(set(cbs_names)) != 16
+        or any(not name or Path(name).name != name for name in cbs_names)
+    ):
+        raise ValueError(
+            "Reviewed CBS manifest must contain exactly 16 unique matrices"
+        )
+    cbs_matrices = [cbs_root / name for name in cbs_names]
+    observed_cbs_names = sorted(
+        path.name for path in cbs_root.glob("*.sps.cbs")
+    )
+    if observed_cbs_names != sorted(cbs_names):
+        raise ValueError(
+            "Canonical SI Figures require the exact reviewed CBS inventory"
+        )
+    for path, row in zip(cbs_matrices, cbs_rows):
+        if (
+            not path.is_file()
+            or row.get("bytes") != str(path.stat().st_size)
+            or row.get("sha256") != sha256_file(path)
+        ):
+            raise ValueError(
+                "Canonical SI Figures require the reviewed CBS matrix: "
+                f"{path.name}"
+            )
+    cbs_hashes = ";".join(
+        f"{path.name}={sha256_file(path)}" for path in cbs_matrices
+    )
+    reference_root = cbs_root / "injected_reference"
+    reference_manifest = reference_root / "reference_manifest.tsv"
+    if (
+        not reference_manifest.is_file()
+        or sha256_file(reference_manifest)
+        != SI_INJECTED_REFERENCE_MANIFEST_SHA256
+    ):
+        raise ValueError(
+            "Canonical SI Figures require the reviewed injected-cell "
+            "reference manifest"
+        )
+    reference_headers, reference_rows = read_tsv(reference_manifest)
+    reference_names = [row.get("filename", "") for row in reference_rows]
+    if (
+        reference_headers
+        != [
+            "filename",
+            "injected_origin",
+            "reference_label",
+            "n_cells",
+            "bytes",
+            "sha256",
+            "source_repository",
+            "source_commit",
+            "policy_source_commit",
+            "policy_source_locator",
+            "designation_basis",
+            "extra_dna_policy",
+        ]
+        or len(reference_names) != 2
+        or {row.get("injected_origin") for row in reference_rows}
+        != {"2N", "4N"}
+        or len(set(reference_names)) != 2
+        or any(not name or Path(name).name != name for name in reference_names)
+    ):
+        raise ValueError(
+            "Injected-cell reference manifest must pin one 2N and one 4N matrix"
+        )
+    reference_matrices = [reference_root / name for name in reference_names]
+    if sorted(path.name for path in reference_root.glob("*.sps.cbs")) != sorted(
+        reference_names
+    ):
+        raise ValueError(
+            "Canonical SI Figures require the exact injected-reference inventory"
+        )
+    for path, row in zip(reference_matrices, reference_rows):
+        if (
+            not path.is_file()
+            or row.get("bytes") != str(path.stat().st_size)
+            or row.get("sha256") != sha256_file(path)
+        ):
+            raise ValueError(
+                "Canonical SI Figures require the injected-cell reference: "
+                f"{path.name}"
+            )
+    reference_hashes = ";".join(
+        f"{path.name}={sha256_file(path)}" for path in reference_matrices
+    )
+    copy_number_expected = {
+        "si6e_copy_number_source": (
+            "postprocessed NUMBAT-derived cell-by-segment CBS matrices"
+        ),
+        "si6e_column_statistic": (
+            "per-cell length-weighted mean across available CBS segments "
+            "within each chromosome and file-specific schema"
+        ),
+        "si6e_cbs_matrix_count": "16",
+        "si6e_cell_count": "14125",
+        "si6e_chromosome_count": "22",
+        "si6e_row_order": (
+            "injected origin, dose, mouse, post-processed copy-number score, "
+            "cell ID; no row clustering"
+        ),
+        "si6e_column_order": (
+            "chromosomes 1-22 in genomic order; no column clustering"
+        ),
+        "si6_postprocessed_copy_number_score_unit": (
+            "sequenced mouse/CBS file"
+        ),
+        "si6_injected_reference_ploidy_policy": (
+            "autosomal length-weighted estimate multiplied by (1 + chr999 "
+            "unassigned-extra-DNA fraction)"
+        ),
+        "si6_injected_reference_cell_counts": "2N=20;4N=16",
+        "si6_injected_reference_source_repository": "miningcloneid",
+        "si6_injected_reference_source_commit": (
+            "c505cd9159fa2a8c0974c7379f6aacd09fe19abc"
+        ),
+        "si6_injected_reference_policy_source_commit": (
+            "c0051b17e375703b20e32fd3c9258263138b16dd"
+        ),
+        "si6_injected_reference_policy_source_locator": (
+            "code/beam_search_flip_rate_wgd.py:load_initial_ploidy_from_cbs"
+        ),
+        "si6_endpoint_summary_analysis_type": "descriptive_only",
+        "si6_2n_reference_mean_ploidy": "2.293348570930235",
+        "si6_2n_endpoint_mouse_balanced_mean_ploidy": "2.135342433356468",
+        "si6_2n_relative_change_percent": "-6.88975673286667",
+        "si6_4n_reference_mean_ploidy": "4.986231167848856",
+        "si6_4n_endpoint_mouse_balanced_mean_ploidy": "2.321562728339866",
+        "si6_4n_relative_change_percent": "-53.44053153192601",
+        "si6_reference_4n_minus_2n_mean_ploidy": "2.69288259691862",
+        "si6_endpoint_4n_minus_2n_mouse_balanced_mean_ploidy": (
+            "0.1862202949833978"
+        ),
+        "si6_separation_contraction_percent": "93.08472284694165",
+    }
+    ploidy_reduction_note = (
+        "project-designated lineage-matched 2N-A7M/4N-A5M karyotype "
+        "reference distributions, including the chr999 unassigned-extra-DNA "
+        "fraction, compared descriptively with one postprocessed endpoint "
+        "mean per mouse; no formal P value because each reference is one "
+        "culture-level biological unit and origin-specific endpoint runs use "
+        "different schemas/calibration"
+    )
     if (
         any(
             provenance.get(key) != value
@@ -748,7 +1574,11 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
         )
         or any(
             run_config.get(key) != value
-            for key, value in {**si7_expected, **composition_expected}.items()
+            for key, value in {
+                **si7_expected,
+                **composition_expected,
+                **copy_number_expected,
+            }.items()
         )
         or provenance.get("si7_frozen_matrix_note")
         != SI7_REVIEWED_FROZEN_MATRIX_NOTE
@@ -772,6 +1602,41 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
         )
         or provenance.get("shared_context_panels_helper_sha256")
         != sha256_file(shared_context_helper)
+        or provenance.get("copy_number_heatmap_helper") != (
+            "Code/in-vivo/SI_figures/copy_number_heatmap.R"
+        )
+        or provenance.get("copy_number_heatmap_helper_sha256")
+        != sha256_file(copy_number_helper)
+        or provenance.get("endpoint_ploidy_derivation_helper") != (
+            "Data/in-vivo/weighted_ploidy.py"
+        )
+        or provenance.get("endpoint_ploidy_derivation_helper_sha256")
+        != sha256_file(repo_root / "Data/in-vivo/weighted_ploidy.py")
+        or provenance.get("endpoint_ploidy_source")
+        != endpoint_ploidy_locator
+        or provenance.get("endpoint_ploidy_source_sha256")
+        != sha256_file(all_ploidy)
+        or provenance.get("numbat_cbs_manifest") != (
+            "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv"
+        )
+        or provenance.get("numbat_cbs_manifest_sha256")
+        != SI_REVIEWED_CBS_MANIFEST_SHA256
+        or provenance.get("numbat_cbs_matrix_count") != "16"
+        or provenance.get("numbat_cbs_matrix_hashes") != cbs_hashes
+        or provenance.get("injected_cell_reference_manifest") != (
+            "Data/in-vivo/scRNAseq_Numbat/injected_reference/"
+            "reference_manifest.tsv"
+        )
+        or provenance.get("injected_cell_reference_manifest_sha256")
+        != SI_INJECTED_REFERENCE_MANIFEST_SHA256
+        or provenance.get("injected_cell_reference_matrix_hashes")
+        != reference_hashes
+        or provenance.get("si6f_ploidy_reduction_comparison")
+        != ploidy_reduction_note
+        or provenance.get("si6f_summary_analysis_type") != (
+            "descriptive_only; no endpoint cross-origin or "
+            "reference-to-endpoint test"
+        )
         or provenance.get("table_cache_manifest_sha256")
         != sha256_file(canonical_manifest)
     ):
@@ -819,6 +1684,24 @@ def validate_strict_source_run(
     if module == "si_figures":
         cache_root = repo_root / "Data" / "in-vivo" / "SIfigures"
         cache_manifest = cache_root / "manifest.tsv"
+        si_provenance = read_unique_key_values(
+            run_root / "metadata" / "si_figures_provenance.tsv",
+            "source SI Figures provenance",
+        )
+        endpoint_ploidy = resolve_repo_path(
+            si_provenance.get("endpoint_ploidy_source", ""),
+            repo_root,
+        )
+        if (
+            endpoint_ploidy is None
+            or not path_within(endpoint_ploidy, repo_root)
+            or not endpoint_ploidy.is_file()
+            or sha256_file(endpoint_ploidy) != SI_ENDPOINT_PLOIDY_SHA256
+        ):
+            raise ValueError(
+                "SI Figures source provenance does not bind the exact portable "
+                "endpoint-ploidy table"
+            )
         cache_headers, cache_rows = read_tsv(cache_manifest)
         cache_names = [row.get("filename", "") for row in cache_rows]
         if (
@@ -892,6 +1775,46 @@ def validate_strict_source_run(
             (
                 repo_root
                 / "Code"
+                / "in-vivo"
+                / "SI_figures"
+                / "copy_number_heatmap.R"
+            ).resolve(),
+            (repo_root / "Data" / "in-vivo" / "weighted_ploidy.py").resolve(),
+            endpoint_ploidy.resolve(),
+            (
+                repo_root
+                / "Data"
+                / "in-vivo"
+                / "scRNAseq_Numbat"
+                / "cbs_manifest.tsv"
+            ).resolve(),
+            *{
+                path.resolve()
+                for path in (
+                    repo_root / "Data" / "in-vivo" / "scRNAseq_Numbat"
+                ).glob("*.sps.cbs")
+            },
+            (
+                repo_root
+                / "Data"
+                / "in-vivo"
+                / "scRNAseq_Numbat"
+                / "injected_reference"
+                / "reference_manifest.tsv"
+            ).resolve(),
+            *{
+                path.resolve()
+                for path in (
+                    repo_root
+                    / "Data"
+                    / "in-vivo"
+                    / "scRNAseq_Numbat"
+                    / "injected_reference"
+                ).glob("*.sps.cbs")
+            },
+            (
+                repo_root
+                / "Code"
                 / "tools"
                 / "validate_si_figures_table_cache.py"
             ).resolve(),
@@ -925,6 +1848,7 @@ def validate_strict_source_run(
     errors = validate_module_manifest(output_manifest, repo_root=repo_root, output_root=run_root)
     if errors:
         raise ValueError("Invalid source output manifest:\n" + "\n".join(errors))
+    _, output_rows = read_tsv(output_manifest)
 
     expected_sources = {
         (run_root / str(spec["source"])).resolve()
@@ -1003,6 +1927,28 @@ def validate_strict_source_run(
                     "Figure 7 processed input differs from its reviewed hash: "
                     f"{relative_path}"
                 )
+        required_panel_k_sources = {
+            (repo_root / relative_path).resolve()
+            for relative_path in FIGURE7_PANEL_K_SOURCE_INPUTS
+        }
+        missing_panel_k_sources = sorted(
+            str(path)
+            for path in required_panel_k_sources - observed_input_paths
+        )
+        if missing_panel_k_sources:
+            raise ValueError(
+                "Figure 7 source input manifest does not bind the panel K "
+                "statistics and plotting helpers: "
+                f"missing={missing_panel_k_sources}"
+            )
+        validate_figure7_panel_k_contract(
+            run_root,
+            repo_root,
+            input_rows,
+            output_rows,
+            source_run_id,
+            figure7_tgi_day,
+        )
         if has_panel_f:
             figure7_config = (
                 repo_root
@@ -1089,8 +2035,8 @@ def validate_strict_source_run(
                 != "true"
                 or provenance.get("reviewed_source_provenance_sha256")
                 != (
-                    "c325359b1d0fe67c3ad1f13523e993cb80e5168d164d06e1"
-                    "b2fa1b1b584be888"
+                    "3824db8e7c3b9d3ff1bc0ad361644156a47e4e146ca485110"
+                    "1ea5b52ea04932a"
                 )
             ):
                 raise ValueError(
@@ -1237,7 +2183,7 @@ def validate_strict_source_run(
             f"{module} violates its exact panel inventory: missing={missing}; unexpected={unexpected}"
         )
 
-    _, rows = read_tsv(output_manifest)
+    rows = output_rows
     rows_by_path: dict[Path, list[dict[str, str]]] = {}
     for row in rows:
         path = module_manifest_local_path(

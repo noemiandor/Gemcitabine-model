@@ -134,6 +134,101 @@ required_input_paths_for_module in_vivo_figure7
         self.assertNotIn("seurat-rds", result.stdout.lower())
         self.assertNotIn("force-reanalysis", result.stdout.lower())
 
+    def test_missing_default_endpoint_table_uses_run_scoped_cbs_fallback(
+        self,
+    ) -> None:
+        manager_text = (REPO_ROOT / "Manager.sh").read_text()
+        start = manager_text.index("quote_args()")
+        end = manager_text.index("\nregistry_module_name()", start)
+        function_block = manager_text[start:end]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            derivation_script = tmp_path / "Data/in-vivo/weighted_ploidy.py"
+            cbs_manifest = (
+                tmp_path / "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv"
+            )
+            derivation_script.parent.mkdir(parents=True)
+            cbs_manifest.parent.mkdir(parents=True)
+            derivation_script.write_text("# fixture\n")
+            shutil.copy2(
+                REPO_ROOT / "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv",
+                cbs_manifest,
+            )
+            script = f"""
+set -euo pipefail
+{function_block}
+module_list=(si_figures)
+figure7_cell_ploidy_input=Data/in-vivo/all_ploidy.tsv
+figure7_cell_ploidy_input_explicit=false
+figure7_python=/fixture/python
+si_figures_cbs_dir=Data/in-vivo/scRNAseq_Numbat
+manager_run_dir=Results/manager/runs/fallback
+mode=check-only
+dry_run=false
+prepare_endpoint_ploidy_if_missing
+printf 'DERIVED=%s\\n' "${{figure7_cell_ploidy_input}}"
+"""
+            result = subprocess.run(
+                ["bash", "-c", script],
+                cwd=tmp_path,
+                text=True,
+                capture_output=True,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        expected = (
+            "Results/manager/runs/fallback/artifacts/endpoint_ploidy/"
+            "all_ploidy.tsv"
+        )
+        self.assertIn("[endpoint_ploidy_fallback]", result.stdout)
+        self.assertIn("--manifest Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv", result.stdout)
+        self.assertIn("--omit-total-chromosomes", result.stdout)
+        self.assertIn(
+            "--expected-sha256 "
+            "6db48ee5f196b37b58aa71d0472dd3deb06aaacb4b637070af1b27d9425db2b3",
+            result.stdout,
+        )
+        self.assertIn(f"DERIVED={expected}", result.stdout)
+
+    def test_endpoint_fallback_rejects_tampered_cbs_manifest(self) -> None:
+        manager_text = (REPO_ROOT / "Manager.sh").read_text()
+        start = manager_text.index("quote_args()")
+        end = manager_text.index("\nregistry_module_name()", start)
+        function_block = manager_text[start:end]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            derivation_script = tmp_path / "Data/in-vivo/weighted_ploidy.py"
+            cbs_manifest = (
+                tmp_path / "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv"
+            )
+            derivation_script.parent.mkdir(parents=True)
+            cbs_manifest.parent.mkdir(parents=True)
+            derivation_script.write_text("# fixture\n")
+            cbs_manifest.write_text(
+                "filename\tbytes\tsha256\tnotes\n"
+                "tampered.sps.cbs\t1\tdeadbeef\ttampered\n"
+            )
+            script = f"""
+set -euo pipefail
+{function_block}
+module_list=(si_figures)
+figure7_cell_ploidy_input=Data/in-vivo/all_ploidy.tsv
+figure7_cell_ploidy_input_explicit=false
+figure7_python=/fixture/python
+si_figures_cbs_dir=Data/in-vivo/scRNAseq_Numbat
+manager_run_dir=Results/manager/runs/fallback
+mode=check-only
+dry_run=false
+prepare_endpoint_ploidy_if_missing
+"""
+            result = subprocess.run(
+                ["bash", "-c", script],
+                cwd=tmp_path,
+                text=True,
+                capture_output=True,
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("requires the reviewed CBS manifest", result.stderr)
+
     def test_generator_has_no_raw_analysis_entrypoint(self) -> None:
         generator = (
             REPO_ROOT
@@ -539,7 +634,8 @@ input_paths_for_module in_vivo_figure7 "$3"
             )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            f"Missing required file: {missing_ploidy}",
+            f"Missing explicitly selected endpoint-ploidy input: "
+            f"{missing_ploidy}",
             result.stderr,
         )
 
@@ -728,6 +824,20 @@ input_paths_for_module si_figures "$1"
                 paths,
             )
             self.assertIn(
+                "Code/in-vivo/SI_figures/copy_number_heatmap.R",
+                paths,
+            )
+            self.assertIn("Data/in-vivo/all_ploidy.tsv", paths)
+            self.assertIn(
+                "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv",
+                paths,
+            )
+            self.assertIn(
+                "Data/in-vivo/scRNAseq_Numbat/injected_reference/"
+                "reference_manifest.tsv",
+                paths,
+            )
+            self.assertIn(
                 "Code/tools/validate_si_figures_table_cache.py",
                 paths,
             )
@@ -737,6 +847,21 @@ input_paths_for_module si_figures "$1"
                 "seurat_upstream/reconstruction_manifest.tsv",
                 paths,
             )
+            expected_cbs = {
+                str(path.relative_to(REPO_ROOT))
+                for path in (
+                    REPO_ROOT / "Data/in-vivo/scRNAseq_Numbat"
+                ).glob("*.sps.cbs")
+            }
+            self.assertEqual(len(expected_cbs), 16)
+            expected_injected_references = {
+                str(path.relative_to(REPO_ROOT))
+                for path in (
+                    REPO_ROOT
+                    / "Data/in-vivo/scRNAseq_Numbat/injected_reference"
+                ).glob("*.sps.cbs")
+            }
+            self.assertEqual(len(expected_injected_references), 2)
             self.assertEqual(
                 set(paths),
                 {
@@ -748,8 +873,17 @@ input_paths_for_module si_figures "$1"
                     "normalized_composition.R",
                     "Code/in-vivo/SI_figures/"
                     "shared_context_panels.R",
+                    "Code/in-vivo/SI_figures/"
+                    "copy_number_heatmap.R",
+                    "Data/in-vivo/weighted_ploidy.py",
                     "Code/tools/validate_si_figures_table_cache.py",
+                    "Data/in-vivo/all_ploidy.tsv",
+                    "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv",
+                    "Data/in-vivo/scRNAseq_Numbat/injected_reference/"
+                    "reference_manifest.tsv",
                     str(retained),
+                    *expected_cbs,
+                    *expected_injected_references,
                 },
             )
 
@@ -1043,9 +1177,35 @@ printf 'key\\tvalue\\nsi7_canonical_publication_allowed\\ttrue\\n' \\
                     "Code/in-vivo/SI_figures/shared_context_panels.R",
                 ),
                 (
+                    "copy_number_heatmap_helper",
+                    "Code/in-vivo/SI_figures/copy_number_heatmap.R",
+                ),
+                (
+                    "endpoint_ploidy_source",
+                    "Data/in-vivo/all_ploidy.tsv",
+                ),
+                (
+                    "numbat_cbs_manifest",
+                    "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv",
+                ),
+                (
                     "si_figures_cache_manifest",
                     "Data/in-vivo/SIfigures/manifest.tsv",
                 ),
+            ] + [
+                (
+                    "numbat_cbs_matrix_"
+                    + "".join(
+                        character if character.isalnum() else "_"
+                        for character in path.name
+                    ),
+                    str(path.relative_to(REPO_ROOT)),
+                )
+                for path in sorted(
+                    (
+                        REPO_ROOT / "Data/in-vivo/scRNAseq_Numbat"
+                    ).glob("*.sps.cbs")
+                )
             ] + [
                 (
                     "si_figures_frozen_table",
@@ -1366,6 +1526,120 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 result.stderr,
             )
 
+    def test_materializer_rejects_missing_reviewed_cbs_matrix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, _ = self._canonical_fixture(tmp)
+            matrix = next(
+                (repo / "Data/in-vivo/scRNAseq_Numbat").glob("*.sps.cbs")
+            )
+            matrix.unlink()
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("exact reviewed CBS inventory", result.stderr)
+
+    def test_materializer_rejects_tampered_reviewed_cbs_matrix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, _ = self._canonical_fixture(tmp)
+            matrix = next(
+                (repo / "Data/in-vivo/scRNAseq_Numbat").glob("*.sps.cbs")
+            )
+            with matrix.open("a") as handle:
+                handle.write("\n# tampered after review\n")
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("reviewed CBS matrix", result.stderr)
+
+    def test_materializer_rejects_unreviewed_cbs_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, _ = self._canonical_fixture(tmp)
+            manifest = (
+                repo / "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv"
+            )
+            with manifest.open("a") as handle:
+                handle.write("\n")
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("exact reviewed CBS manifest", result.stderr)
+
+    def test_materializer_rejects_tampered_endpoint_ploidy_table(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, _ = self._canonical_fixture(tmp)
+            endpoint = repo / "Data/in-vivo/all_ploidy.tsv"
+            with endpoint.open("a") as handle:
+                handle.write("\n")
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("endpoint-ploidy", result.stderr)
+
+    def test_materializer_rejects_tampered_injected_reference_matrix(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, _ = self._canonical_fixture(tmp)
+            matrix = next(
+                (
+                    repo
+                    / "Data/in-vivo/scRNAseq_Numbat/injected_reference"
+                ).glob("*.sps.cbs")
+            )
+            with matrix.open("a") as handle:
+                handle.write("\n# tampered after review\n")
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("injected-cell reference", result.stderr)
+
+    def test_materializer_rejects_tampered_reference_policy_manifest(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, _ = self._canonical_fixture(tmp)
+            manifest = (
+                repo
+                / "Data/in-vivo/scRNAseq_Numbat/injected_reference/"
+                "reference_manifest.tsv"
+            )
+            text = manifest.read_text()
+            manifest.write_text(
+                text.replace(
+                    "chr999 unassigned-extra-DNA fraction",
+                    "tampered policy",
+                    1,
+                )
+            )
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("reference manifest", result.stderr)
+
     @staticmethod
     def _manifest_row(
         path: Path,
@@ -1436,6 +1710,72 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             / "Code/in-vivo/SI_figures/shared_context_panels.R"
         )
         shutil.copy2(shared_context_source, shared_context_target)
+        copy_number_source = (
+            REPO_ROOT
+            / "Code/in-vivo/SI_figures/copy_number_heatmap.R"
+        )
+        copy_number_target = (
+            repo
+            / "Code/in-vivo/SI_figures/copy_number_heatmap.R"
+        )
+        shutil.copy2(copy_number_source, copy_number_target)
+        all_ploidy_source = REPO_ROOT / "Data/in-vivo/all_ploidy.tsv"
+        all_ploidy_target = repo / "Data/in-vivo/all_ploidy.tsv"
+        all_ploidy_target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(all_ploidy_source, all_ploidy_target)
+        ploidy_derivation_source = (
+            REPO_ROOT / "Data/in-vivo/weighted_ploidy.py"
+        )
+        ploidy_derivation_target = (
+            repo / "Data/in-vivo/weighted_ploidy.py"
+        )
+        shutil.copy2(ploidy_derivation_source, ploidy_derivation_target)
+        cbs_source_root = REPO_ROOT / "Data/in-vivo/scRNAseq_Numbat"
+        cbs_target_root = repo / "Data/in-vivo/scRNAseq_Numbat"
+        cbs_target_root.mkdir(parents=True, exist_ok=True)
+        cbs_manifest_target = cbs_target_root / "cbs_manifest.tsv"
+        shutil.copy2(
+            cbs_source_root / "cbs_manifest.tsv",
+            cbs_manifest_target,
+        )
+        cbs_targets = []
+        with cbs_manifest_target.open(newline="") as handle:
+            reviewed_cbs_names = [
+                row["filename"]
+                for row in csv.DictReader(handle, delimiter="\t")
+            ]
+        for filename in reviewed_cbs_names:
+            source = cbs_source_root / filename
+            target = cbs_target_root / source.name
+            shutil.copy2(source, target)
+            cbs_targets.append(target)
+        if len(cbs_targets) != 16:
+            raise AssertionError("fixture requires exactly 16 CBS matrices")
+        reference_source_root = cbs_source_root / "injected_reference"
+        reference_target_root = cbs_target_root / "injected_reference"
+        reference_target_root.mkdir(parents=True, exist_ok=True)
+        reference_manifest_target = (
+            reference_target_root / "reference_manifest.tsv"
+        )
+        shutil.copy2(
+            reference_source_root / "reference_manifest.tsv",
+            reference_manifest_target,
+        )
+        with reference_manifest_target.open(newline="") as handle:
+            reviewed_reference_names = [
+                row["filename"]
+                for row in csv.DictReader(handle, delimiter="\t")
+            ]
+        reference_targets = []
+        for filename in reviewed_reference_names:
+            source = reference_source_root / filename
+            target = reference_target_root / source.name
+            shutil.copy2(source, target)
+            reference_targets.append(target)
+        if len(reference_targets) != 2:
+            raise AssertionError(
+                "fixture requires exactly two injected-cell references"
+            )
         runner_source = (
             REPO_ROOT
             / "Code/in-vivo/SI_figures/run_supplementary_figures.R"
@@ -1498,6 +1838,126 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 "value": sha256_file(shared_context_target),
             },
             {
+                "key": "copy_number_heatmap_helper",
+                "value": (
+                    "Code/in-vivo/SI_figures/copy_number_heatmap.R"
+                ),
+            },
+            {
+                "key": "copy_number_heatmap_helper_sha256",
+                "value": sha256_file(copy_number_target),
+            },
+            {
+                "key": "endpoint_ploidy_derivation_helper",
+                "value": "Data/in-vivo/weighted_ploidy.py",
+            },
+            {
+                "key": "endpoint_ploidy_derivation_helper_sha256",
+                "value": sha256_file(ploidy_derivation_target),
+            },
+            {
+                "key": "endpoint_ploidy_source",
+                "value": "Data/in-vivo/all_ploidy.tsv",
+            },
+            {
+                "key": "endpoint_ploidy_source_sha256",
+                "value": sha256_file(all_ploidy_target),
+            },
+            {
+                "key": "numbat_cbs_manifest",
+                "value": "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv",
+            },
+            {
+                "key": "numbat_cbs_manifest_sha256",
+                "value": sha256_file(cbs_manifest_target),
+            },
+            {"key": "numbat_cbs_matrix_count", "value": "16"},
+            {
+                "key": "numbat_cbs_matrix_hashes",
+                "value": ";".join(
+                    f"{path.name}={sha256_file(path)}"
+                    for path in cbs_targets
+                ),
+            },
+            {
+                "key": "injected_cell_reference_manifest",
+                "value": (
+                    "Data/in-vivo/scRNAseq_Numbat/injected_reference/"
+                    "reference_manifest.tsv"
+                ),
+            },
+            {
+                "key": "injected_cell_reference_manifest_sha256",
+                "value": sha256_file(reference_manifest_target),
+            },
+            {
+                "key": "injected_cell_reference_matrix_hashes",
+                "value": ";".join(
+                    f"{path.name}={sha256_file(path)}"
+                    for path in reference_targets
+                ),
+            },
+            {
+                "key": "si6e_harmonization",
+                "value": (
+                    "each separately postprocessed file-specific CBS schema "
+                    "reduced independently to chr1-22 finite-segment "
+                    "length-weighted means; exported and finite coverage "
+                    "audited separately; no coordinate alignment; rows and "
+                    "columns unclustered"
+                ),
+            },
+            {
+                "key": "si6f_reference_source",
+                "value": (
+                    "miningcloneid@"
+                    "c505cd9159fa2a8c0974c7379f6aacd09fe19abc"
+                ),
+            },
+            {
+                "key": "si6f_reference_policy_source",
+                "value": (
+                    "miningcloneid@"
+                    "c0051b17e375703b20e32fd3c9258263138b16dd@"
+                    "code/beam_search_flip_rate_wgd.py:"
+                    "load_initial_ploidy_from_cbs"
+                ),
+            },
+            {
+                "key": "si6f_reference_designation_basis",
+                "value": (
+                    "2N=project-designated 2N-lineage proxy; not the "
+                    "same-passage A6M inoculum;4N=project-designated "
+                    "4N-lineage proxy; not the same-passage A4M inoculum"
+                ),
+            },
+            {
+                "key": "si6f_reference_ploidy_policy",
+                "value": (
+                    "autosomal length-weighted estimate multiplied by "
+                    "(1 + chr999 unassigned-extra-DNA fraction)"
+                ),
+            },
+            {
+                "key": "si6f_summary_analysis_type",
+                "value": (
+                    "descriptive_only; no endpoint cross-origin or "
+                    "reference-to-endpoint test"
+                ),
+            },
+            {
+                "key": "si6f_ploidy_reduction_comparison",
+                "value": (
+                    "project-designated lineage-matched 2N-A7M/4N-A5M "
+                    "karyotype reference distributions, including the "
+                    "chr999 unassigned-extra-DNA fraction, compared "
+                    "descriptively with one postprocessed endpoint mean per "
+                    "mouse; no formal P value because each reference is one "
+                    "culture-level biological unit and origin-specific "
+                    "endpoint runs use different schemas/calibration"
+                ),
+            },
+            {
                 "key": "table_cache_manifest_sha256",
                 "value": sha256_file(cache_manifest),
             },
@@ -1554,6 +2014,109 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             },
             {"key": "composition_fdr_threshold", "value": "0.05"},
             {
+                "key": "si6e_copy_number_source",
+                "value": (
+                    "postprocessed NUMBAT-derived cell-by-segment CBS matrices"
+                ),
+            },
+            {
+                "key": "si6e_column_statistic",
+                "value": (
+                    "per-cell length-weighted mean across available CBS "
+                    "segments within each chromosome and file-specific schema"
+                ),
+            },
+            {"key": "si6e_cbs_matrix_count", "value": "16"},
+            {"key": "si6e_cell_count", "value": "14125"},
+            {"key": "si6e_chromosome_count", "value": "22"},
+            {
+                "key": "si6e_row_order",
+                "value": (
+                    "injected origin, dose, mouse, post-processed copy-number "
+                    "score, cell ID; no row clustering"
+                ),
+            },
+            {
+                "key": "si6e_column_order",
+                "value": (
+                    "chromosomes 1-22 in genomic order; no column clustering"
+                ),
+            },
+            {
+                "key": "si6_postprocessed_copy_number_score_unit",
+                "value": "sequenced mouse/CBS file",
+            },
+            {
+                "key": "si6_injected_reference_ploidy_policy",
+                "value": (
+                    "autosomal length-weighted estimate multiplied by "
+                    "(1 + chr999 unassigned-extra-DNA fraction)"
+                ),
+            },
+            {
+                "key": "si6_injected_reference_cell_counts",
+                "value": "2N=20;4N=16",
+            },
+            {
+                "key": "si6_injected_reference_source_repository",
+                "value": "miningcloneid",
+            },
+            {
+                "key": "si6_injected_reference_source_commit",
+                "value": "c505cd9159fa2a8c0974c7379f6aacd09fe19abc",
+            },
+            {
+                "key": "si6_injected_reference_policy_source_commit",
+                "value": "c0051b17e375703b20e32fd3c9258263138b16dd",
+            },
+            {
+                "key": "si6_injected_reference_policy_source_locator",
+                "value": (
+                    "code/beam_search_flip_rate_wgd.py:"
+                    "load_initial_ploidy_from_cbs"
+                ),
+            },
+            {
+                "key": "si6_endpoint_summary_analysis_type",
+                "value": "descriptive_only",
+            },
+            {
+                "key": "si6_2n_reference_mean_ploidy",
+                "value": "2.293348570930235",
+            },
+            {
+                "key": "si6_2n_endpoint_mouse_balanced_mean_ploidy",
+                "value": "2.135342433356468",
+            },
+            {
+                "key": "si6_2n_relative_change_percent",
+                "value": "-6.88975673286667",
+            },
+            {
+                "key": "si6_4n_reference_mean_ploidy",
+                "value": "4.986231167848856",
+            },
+            {
+                "key": "si6_4n_endpoint_mouse_balanced_mean_ploidy",
+                "value": "2.321562728339866",
+            },
+            {
+                "key": "si6_4n_relative_change_percent",
+                "value": "-53.44053153192601",
+            },
+            {
+                "key": "si6_reference_4n_minus_2n_mean_ploidy",
+                "value": "2.69288259691862",
+            },
+            {
+                "key": "si6_endpoint_4n_minus_2n_mouse_balanced_mean_ploidy",
+                "value": "0.1862202949833978",
+            },
+            {
+                "key": "si6_separation_contraction_percent",
+                "value": "93.08472284694165",
+            },
+            {
                 "key": "si7_feature_species_policy",
                 "value": SI7_REVIEWED_FEATURE_POLICY,
             },
@@ -1602,6 +2165,13 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             renderer_target,
             helper_target,
             shared_context_target,
+            copy_number_target,
+            ploidy_derivation_target,
+            all_ploidy_target,
+            cbs_manifest_target,
+            *cbs_targets,
+            reference_manifest_target,
+            *reference_targets,
             validator_target,
             cache_manifest,
             *[

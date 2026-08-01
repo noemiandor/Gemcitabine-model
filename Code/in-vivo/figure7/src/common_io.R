@@ -501,7 +501,10 @@ figure7_read_config <- function(path, tgi_day = NULL) {
       )) {
     figure7_stop("Figure 7 raw-data contract is not the reviewed Zenodo record")
   }
-  source_roles <- c("endpoint_ploidy", "sample_info", "growth_curve")
+  source_roles <- c(
+    "endpoint_ploidy", "panel_k_endpoint_ploidy", "sample_info",
+    "growth_curve"
+  )
   sources <- config$versioned_source_artifacts
   if (!all(source_roles %in% names(sources)) ||
       !identical(
@@ -511,6 +514,22 @@ figure7_read_config <- function(path, tgi_day = NULL) {
       !identical(
         as.character(sources$endpoint_ploidy$default_path),
         "Data/in-vivo/all_ploidy.tsv"
+      ) ||
+      !identical(
+        as.character(sources$endpoint_ploidy$sha256),
+        "6db48ee5f196b37b58aa71d0472dd3deb06aaacb4b637070af1b27d9425db2b3"
+      ) ||
+      !identical(
+        as.character(sources$panel_k_endpoint_ploidy$default_path),
+        "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv"
+      ) ||
+      !identical(
+        as.character(sources$panel_k_endpoint_ploidy$sha256),
+        "80f4e6b78e7b6d8b73030da4889ecb5c09ee97c9f83fb771aec4d3908511b569"
+      ) ||
+      !identical(
+        as.character(sources$panel_k_endpoint_ploidy$source_revision),
+        "dcdb62f2252ef05873404c8e45da42f4a5ec2c0d"
       ) ||
       !identical(
         as.character(sources$sample_info$default_path),
@@ -647,17 +666,31 @@ figure7_read_config <- function(path, tgi_day = NULL) {
     reference_kind = "historical_mixed_frozen",
     reference_canonical_publication_allowed = "false",
     reviewed_reference_id =
-      "state_pathway_grch_human_only_etp2_24_day17_v2",
-    reviewed_reference_kind = "reviewed_human_only_frozen",
+      "state_pathway_grch_human_only_initial_ploidy_day17_v3",
+    reviewed_reference_kind =
+      "reviewed_human_only_initial_ploidy_frozen",
     reviewed_reference_canonical_publication_allowed = "true",
-    generated_reference_kind = "generated_human_only",
+    generated_reference_kind =
+      "generated_human_only_initial_ploidy_frozen_candidate",
     generated_reference_id =
-      "runtime_state_pathway_grch_human_only_v2",
+      "state_pathway_grch_human_only_initial_ploidy_day17_v3_candidate",
     generated_canonical_publication_allowed = "false"
   )
   if (!identical(state_identity, expected_state_identity)) {
     figure7_stop(
       "Panel-7F historical/reviewed/generated publication identity is invalid"
+    )
+  }
+  if (!identical(
+        as.character(state$model),
+        "initial_ploidy_adjusted_grch_human_only_v3"
+      ) ||
+      !identical(
+        as.character(unlist(state$nuisance_terms)),
+        c("dose_mg_factor", "initial_ploidy_factor")
+      )) {
+    figure7_stop(
+      "Panel-7F v3 must adjust for injected initial ploidy and must not use endpoint CN score"
     )
   }
   expected_reference_files <- c(
@@ -854,9 +887,9 @@ figure7_state_config_contract_sha256 <- function(config) {
     )
   ]
   values <- c(
+    state_pathway_contract_version =
+      "grch_human_only_initial_ploidy_nuisance_v3",
     unlist(config$feature_species, use.names = TRUE),
-    config$etp$method,
-    config$etp$threshold,
     unlist(config$intervals, use.names = TRUE),
     unlist(config$gene_sets, use.names = TRUE),
     unlist(state_fields, use.names = TRUE)

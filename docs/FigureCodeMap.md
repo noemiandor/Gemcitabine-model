@@ -107,11 +107,15 @@ Manuscript asset: `figures/Figure6_v5_Overleaf.png` at `GemcitabinePaper.tex:397
 
 The `in_vivo_figure7` module at `Code/in-vivo/figure7/run_figure7.R` writes one
 immutable run under `Results/in-vivo/figure7/runs/<run_id>_figure7/`. Routine
-mode recomputes scientific source panels 7A-7E from the tracked CellCycle and
-NonCellCycle tables and renders source 7F from the reviewed, byte-pinned
-human-only reference `state_pathway_grch_human_only_etp2_24_day17_v2`. That
-reference retains exact `GRCh38-` features before expression filtering and
-modeling, uses Homo sapiens MSigDB 2026.1.Hs collections, and displays only
+mode recomputes scientific source panels 7A-7D from the tracked CellCycle and
+NonCellCycle plot-facing tables. Source 7E/final K additionally reads the
+checksum-pinned six-column `scRNAseq_Numbat/all_ploidy.csv`, computing the eight
+treated-mouse scores from all 7,623 treated cells in the complete 14,125-cell,
+16-file CBS source. Source 7F is rendered from the reviewed, byte-pinned
+human-only reference
+`state_pathway_grch_human_only_initial_ploidy_day17_v3`. That reference retains
+exact `GRCh38-` features before expression filtering and modeling, uses Homo
+sapiens MSigDB 2026.1.Hs collections, and displays only
 pathways with collection-wide BH-FDR <= 0.05, up to four per direction without
 nonsignificant backfill. The historical mixed-feature v1 reference remains
 audit-only. The module also validates the reviewed 11-table SI cache and uses
@@ -130,13 +134,20 @@ pathway-support stages. Full-refit writes
 or materialize a canonical manuscript asset. Raw-refit results remain
 run-scoped and noncanonical until separately reviewed.
 
+The reviewed Day-24/Day-31 Supplementary Figure 8 sensitivity analysis is
+frozen separately at
+`Data/in-vivo/figure7/saved_tgi_sensitivity/tgi_day24_day31_all_cbs_v1/`.
+It retains only the ten consumed endpoint tables and two run configs. Its final
+PDF/PNG have their own portable `si8_manifest.tsv`; they are intentionally not
+inserted into the 13-row Day-24 Figure 7 source-panel manifest.
+
 | Panel | Manuscript content | Canonical source output |
 |---|---|---|
 | 7A | Growth trajectories explaining matched-control mean Day-17 TGI | `figures/panel_7A_day17_tgi_calculation.pdf` |
 | 7B | Selected CellCycle ECDF comparisons (original comparisons 1, 8, and 9) | `figures/panel_7B_cellcycle_selected_ecdf_comparisons.pdf` |
 | 7C | Day-17 TGI in treated initial-2N versus initial-4N tumors | `figures/panel_7C_day17_tgi_by_initial_ploidy.pdf` |
 | 7D | Within-dose-centered Day-17 TGI versus centered ECDF shift | `figures/panel_7D_day17_tgi_vs_centered_ecdf_shift.pdf` |
-| 7E | Day-17 TGI versus sample mean endpoint ploidy | `figures/panel_7E_day17_tgi_vs_mean_etp.pdf` |
+| 7E | Day-17 TGI versus within-origin-standardized terminal postprocessed CN score, adjusted for injected origin and dose | `figures/panel_7E_day17_tgi_vs_mean_etp.pdf` |
 | 7F | Pathway activity across the accumulated pseudotime interval 0.30-0.49 | `figures/panel_7F_pseudotime_state_pathway_activity.pdf` |
 
 The source IDs above retain their scientific provenance. The manuscript-facing
@@ -161,7 +172,7 @@ final composite PDF/PNG pairs.
 |---|---|---|
 | Supplementary Figure 4 | Tumor and CellLine UMAPs, S-phase score, equal-sample context/ploidy composition with sample-level enrichment tests, and the explicit 2,881-cell CellCycle subset count | `figures/Supplementary/panel_SuppFig4_composite.pdf` and `.png` |
 | Supplementary Figure 5 | Tumor cluster, ploidy, dose, and sample views; descriptive per-mouse composition plus equal-mouse grouped composition with stratified sample-level enrichment tests | `figures/Supplementary/panel_SuppFig5_composite.pdf` and `.png` |
-| Supplementary Figure 6 | Endpoint tumor ploidy overall, by initial ploidy, and by mouse | `figures/Supplementary/panel_SuppFig6_composite.pdf` and `.png` |
+| Supplementary Figure 6 | Endpoint tumor ploidy overall/by origin/by mouse; all-cell chromosome-level copy-number heatmap; descriptive injected-reference-proxy-to-endpoint comparison | `figures/Supplementary/panel_SuppFig6_composite.pdf` and `.png` |
 | Supplementary Figure 7 | Top-20 Hallmark ORA annotation-score and GSEA NES heatmaps | `figures/Supplementary/panel_SuppFig7_composite.pdf` and `.png` |
 
 The reviewed SI Figure 7 matrices are the exact approved raw-refit outputs:

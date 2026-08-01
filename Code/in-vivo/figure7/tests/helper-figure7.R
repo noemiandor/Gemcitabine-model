@@ -23,9 +23,22 @@ figure7_test_inputs <- local({
       "CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"), "CellCycle", config)
     noncellcycle <- figure7_read_cell_table(file.path(repo_root, "Data/in-vivo/figure7/processed",
       "NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"), "NonCellCycle", config)
-    samples <- figure7_sample_table(cellcycle, noncellcycle, config)
+    endpoint_ploidy <- figure7_read_endpoint_ploidy_table(
+      file.path(
+        repo_root,
+        "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv"
+      ),
+      config
+    )
+    samples <- figure7_sample_table(
+      cellcycle,
+      noncellcycle,
+      config,
+      endpoint_ploidy
+    )
     cache <<- list(config = config, cellcycle = cellcycle, noncellcycle = noncellcycle,
-                   samples = samples, data = figure7_prepare_cellcycle(cellcycle, samples, config))
+                   endpoint_ploidy = endpoint_ploidy, samples = samples,
+                   data = figure7_prepare_cellcycle(cellcycle, samples, config))
     cache
   }
 })
@@ -145,14 +158,14 @@ figure7_test_state_reference <- function() {
     c("spline_df", "pseudotime_bins", "minimum_cells_per_sample_bin", "grid_size"),
     function(key) as.character(config$state_pathways[[key]]), character(1L))
   values["seed"] <- as.character(config$statistics$seed)
-  values["nuisance_terms"] <- paste(unlist(config$state_pathways$nuisance_terms), collapse = ",")
+  values["nuisance_terms"] <- "dose_mg_factor,ETP_reference_balanced_threshold_2_24_factor"
   values["gene_set_collections"] <- paste(unlist(config$state_pathways$collections), collapse = ",")
   values["treatment_by_pseudotime_interaction"] <- as.character(config$state_pathways$treatment_by_pseudotime_interaction)
   values["pathway_selection_rule"] <- as.character(config$state_pathways$pathway_selector)
   values["activity_table_sha256"] <- activity_hash
   values["canonical_reference_id"] <- as.character(config$state_pathways$reference_id)
   values["workflow_id"] <- "binning"
-  values["model_id"] <- as.character(config$state_pathways$model)
+  values["model_id"] <- "ETP_reference_balanced_threshold_2_24"
   values["accumulated_interval"] <- "[0.30,0.49]"
   values["left_neighbor_interval"] <- "[0.11,0.30)"
   values["right_neighbor_interval"] <- "(0.49,0.68]"

@@ -38,6 +38,47 @@ has one biological sample per displayed mouse; it is therefore explicitly
 descriptive and emits no inferential stars rather than treating cells as
 replicates.
 
+SI6E is reproduced from the 16 tracked downstream
+`Data/in-vivo/scRNAseq_Numbat/*.sps.cbs` matrices. The matrices contain 14,125
+cells and use two different segment schemas. Their exact filenames, byte sizes,
+and SHA-256 values are pinned in `scRNAseq_Numbat/cbs_manifest.tsv` and checked
+before rendering. Because those schemas cannot be
+assumed to share a coordinate build, the renderer does not align breakpoints
+or project them to common loci. Instead, it computes each cell's
+length-weighted mean across the available CBS segments of each autosome and
+plots the resulting 14,125-by-22 matrix in chromosome order. Rows are grouped
+by injected 2N/4N origin, dose, and mouse, then ordered by the post-processed
+copy-number score; neither rows nor columns are clustered. Mouse and injected
+origin are displayed as row annotations. The renderer exports the plotted
+matrix, cell order, and per-file/per-schema represented-base-pair audit.
+
+SI6F compares the project-designated injected-cell karyotype references (20 2N
+A7M and 16 4N A5M metaphases) with one terminal NUMBAT-derived mean per mouse;
+dose is encoded by color. For the karyotype references, the autosomal
+length-weighted estimate is multiplied by (1+) the `chr999` fraction that the
+source workflow records as unassigned extra DNA. This converts the intermediate
+assigned-autosomal means of 2.00997 and 3.51561 to final 2N- and 4N-reference
+means of 2.29335 and 4.98623. The terminal mouse-balanced means are 2.13534 and
+2.32156, respectively: descriptive changes of -0.15801 (-6.89%) for 2N and
+-2.66467 (-53.44%) for 4N. The 4N-minus-2N separation contracts from 2.69288 in
+the references to 0.18622 at endpoint (93.08%). Every terminal 4N-origin cell
+estimate is below the minimum 4N-reference metaphase. The A7M and A5M matrices
+are project-designated lineage-matched proxies, not the same-passage A6M and A4M
+inocula. The cross-assay comparison is therefore descriptive and has no P value:
+each proxy represents one culture-level biological unit, and the independently
+processed endpoint runs use different schemas/calibration. Metadata retain the
+exact reference-cell values, mouse means, ranges, changes, source/policy commits,
+input hashes, and this inference boundary.
+
+The tracked CBS matrices reproduce this downstream panel and recompute and
+validate every score/coverage value in the canonical
+`Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv` (and its reduced
+`Data/in-vivo/all_ploidy.tsv` projection). The two injected-reference matrices
+and their checksums are under `scRNAseq_Numbat/injected_reference/`. These files do
+not constitute a complete NUMBAT run: allele-count inputs, clone posteriors,
+consensus segment outputs preceding these matrices, phylogeny, configuration,
+logs, and an executable upstream inference workflow remain unavailable.
+
 SI4A-C/E and SI7A/B are constructed by `shared_context_panels.R`. Main Figure
 7 calls the same helper for its copies of SI4A-C/E and SI7B, with display tags
 assigned by the A-K compositor; fixed shuffle keys keep the UMAP point order
