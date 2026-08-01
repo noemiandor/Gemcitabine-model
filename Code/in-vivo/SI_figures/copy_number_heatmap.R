@@ -89,8 +89,8 @@ si_copy_number_validate_reference_manifest <- function(
   )
   required <- c(
     "filename", "injected_origin", "reference_label", "n_cells", "bytes",
-    "sha256", "source_repository", "source_commit", "policy_source_commit",
-    "policy_source_locator", "designation_basis", "extra_dna_policy"
+    "sha256", "source_repository", "source_commit", "designation_basis",
+    "chr999_unit", "chr999_interpretation_basis", "ploidy_policy"
   )
   manifest$n_cells <- suppressWarnings(as.integer(manifest$n_cells))
   manifest$bytes <- suppressWarnings(as.numeric(manifest$bytes))
@@ -106,15 +106,15 @@ si_copy_number_validate_reference_manifest <- function(
       any(manifest$source_repository != "miningcloneid") ||
       any(manifest$source_commit !=
         "c505cd9159fa2a8c0974c7379f6aacd09fe19abc") ||
-      any(manifest$policy_source_commit !=
-        "c0051b17e375703b20e32fd3c9258263138b16dd") ||
-      any(manifest$policy_source_locator !=
-        "code/beam_search_flip_rate_wgd.py:load_initial_ploidy_from_cbs") ||
       anyNA(manifest$designation_basis) ||
       any(!nzchar(manifest$designation_basis)) ||
-      any(manifest$extra_dna_policy != paste(
-        "autosomal length-weighted estimate multiplied by",
-        "(1 + chr999 unassigned-extra-DNA fraction)"
+      any(manifest$chr999_unit !=
+        "haploid-genome-equivalent unassigned DNA") ||
+      any(manifest$chr999_interpretation_basis !=
+        "project-confirmed 2026-08-01") ||
+      any(manifest$ploidy_policy != paste(
+        "autosomal length-weighted estimate plus chr999",
+        "haploid-genome-equivalent unassigned DNA"
       ))) {
     stop(
       "Injected-cell reference manifest must pin one valid 2N and one valid 4N matrix",
@@ -174,12 +174,13 @@ si_copy_number_read_injected_references <- function(reference_dir) {
         call. = FALSE
       )
     }
-    extra_dna_fraction <- suppressWarnings(as.numeric(
+    extra_dna_haploid_genome_equivalents <- suppressWarnings(as.numeric(
       raw[extra_index, cell_columns, drop = TRUE]
     ))
-    if (length(extra_dna_fraction) != length(cell_columns) ||
-        any(!is.finite(extra_dna_fraction)) ||
-        any(extra_dna_fraction < 0)) {
+    if (length(extra_dna_haploid_genome_equivalents) !=
+          length(cell_columns) ||
+        any(!is.finite(extra_dna_haploid_genome_equivalents)) ||
+        any(extra_dna_haploid_genome_equivalents < 0)) {
       stop("Injected-cell reference has invalid chr999 extra-DNA values: ",
            entry$filename, call. = FALSE)
     }
@@ -202,18 +203,18 @@ si_copy_number_read_injected_references <- function(reference_dir) {
     denominator <- colSums(finite * segment_length)
     assigned_autosomal_ploidy <-
       colSums(values * segment_length, na.rm = TRUE) / denominator
-    # The source workflow designates chr999 as the fraction of unassigned
-    # extra DNA relative to the chromosome-assigned karyotype. Apply the same
-    # multiplicative correction used when loading these lineage-matched
-    # reference CBS matrices in miningcloneid/code/beam_search_flip_rate_wgd.py.
-    ploidy <- assigned_autosomal_ploidy * (1 + extra_dna_fraction)
+    # chr999 is expressed in haploid-genome-equivalent units of unassigned
+    # DNA. It is therefore additive on the ploidy scale, not a multiplicative
+    # fraction of the chromosome-assigned karyotype.
+    ploidy <- assigned_autosomal_ploidy +
+      extra_dna_haploid_genome_equivalents
     chromosome_means <- lapply(sort(unique(chromosome)), function(value) {
       columns <- values[chromosome == value, , drop = FALSE]
       colMeans(columns, na.rm = TRUE)
     })
     assigned_autosomal_chromosomes <- Reduce(`+`, chromosome_means)
-    total_chromosomes <-
-      assigned_autosomal_chromosomes * (1 + extra_dna_fraction)
+    total_chromosomes <- assigned_autosomal_chromosomes +
+      22 * extra_dna_haploid_genome_equivalents
     data.frame(
       reference_file = entry$filename,
       reference_cell_id = cell_columns,
@@ -222,14 +223,16 @@ si_copy_number_read_injected_references <- function(reference_dir) {
       designation_basis = entry$designation_basis,
       source_repository = entry$source_repository,
       source_commit = entry$source_commit,
-      policy_source_commit = entry$policy_source_commit,
-      policy_source_locator = entry$policy_source_locator,
+      chr999_unit = entry$chr999_unit,
+      chr999_interpretation_basis = entry$chr999_interpretation_basis,
       assigned_autosomal_ploidy = assigned_autosomal_ploidy,
-      extra_dna_fraction = extra_dna_fraction,
+      extra_dna_haploid_genome_equivalents =
+        extra_dna_haploid_genome_equivalents,
       ploidy = ploidy,
+      assigned_autosomal_chromosomes = assigned_autosomal_chromosomes,
       total_chromosomes = total_chromosomes,
       frac_covered = denominator / sum(segment_length),
-      ploidy_policy = entry$extra_dna_policy,
+      ploidy_policy = entry$ploidy_policy,
       stringsAsFactors = FALSE
     )
   })
@@ -876,9 +879,9 @@ si_copy_number_reduction_summary <- function(
 ) {
   required_reference <- c(
     "injected_origin", "reference_label", "designation_basis",
-    "source_repository", "source_commit", "policy_source_commit",
-    "policy_source_locator", "assigned_autosomal_ploidy",
-    "extra_dna_fraction", "ploidy", "ploidy_policy"
+    "source_repository", "source_commit", "chr999_unit",
+    "chr999_interpretation_basis", "assigned_autosomal_ploidy",
+    "extra_dna_haploid_genome_equivalents", "ploidy", "ploidy_policy"
   )
   required_sample <- c(
     "sample_id", "initial_ploidy", "mean_postprocessed_copy_number_score"
@@ -911,13 +914,15 @@ si_copy_number_reduction_summary <- function(
     designation_basis <- unique(reference$designation_basis)
     source_repository <- unique(reference$source_repository)
     source_commit <- unique(reference$source_commit)
-    policy_source_commit <- unique(reference$policy_source_commit)
-    policy_source_locator <- unique(reference$policy_source_locator)
+    chr999_unit <- unique(reference$chr999_unit)
+    chr999_interpretation_basis <- unique(
+      reference$chr999_interpretation_basis
+    )
     if (length(reference_policy) != 1L || length(reference_label) != 1L ||
         length(designation_basis) != 1L ||
         length(source_repository) != 1L || length(source_commit) != 1L ||
-        length(policy_source_commit) != 1L ||
-        length(policy_source_locator) != 1L) {
+        length(chr999_unit) != 1L ||
+        length(chr999_interpretation_basis) != 1L) {
       stop("Injected-cell reference provenance is ambiguous for origin ",
            origin, call. = FALSE)
     }
@@ -927,15 +932,15 @@ si_copy_number_reduction_summary <- function(
       designation_basis = designation_basis,
       reference_source_repository = source_repository,
       reference_source_commit = source_commit,
-      reference_policy_source_commit = policy_source_commit,
-      reference_policy_source_locator = policy_source_locator,
+      reference_chr999_unit = chr999_unit,
+      reference_chr999_interpretation_basis = chr999_interpretation_basis,
       reference_ploidy_policy = reference_policy,
       n_reference_cells = nrow(reference),
       reference_mean_assigned_autosomal_ploidy = mean(
         reference$assigned_autosomal_ploidy
       ),
-      reference_mean_chr999_extra_dna_fraction = mean(
-        reference$extra_dna_fraction
+      reference_mean_chr999_extra_dna_haploid_genome_equivalents = mean(
+        reference$extra_dna_haploid_genome_equivalents
       ),
       reference_mean_ploidy = reference_mean,
       reference_min_ploidy = min(reference$ploidy),

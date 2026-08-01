@@ -193,17 +193,18 @@ stopifnot(
   all(references$cells$source_repository == "miningcloneid"),
   all(references$cells$source_commit ==
     "c505cd9159fa2a8c0974c7379f6aacd09fe19abc"),
-  all(references$cells$policy_source_commit ==
-    "c0051b17e375703b20e32fd3c9258263138b16dd"),
-  all(references$cells$policy_source_locator == paste0(
-    "code/beam_search_flip_rate_wgd.py:",
-    "load_initial_ploidy_from_cbs"
-  )),
+  all(references$cells$chr999_unit ==
+    "haploid-genome-equivalent unassigned DNA"),
+  all(references$cells$chr999_interpretation_basis ==
+    "project-confirmed 2026-08-01"),
   all(grepl("proxy; not the same-passage", references$cells$designation_basis,
             fixed = TRUE)),
   all(references$cells$ploidy ==
-    references$cells$assigned_autosomal_ploidy *
-      (1 + references$cells$extra_dna_fraction)),
+    references$cells$assigned_autosomal_ploidy +
+      references$cells$extra_dna_haploid_genome_equivalents),
+  all(references$cells$total_chromosomes ==
+    references$cells$assigned_autosomal_chromosomes +
+      22 * references$cells$extra_dna_haploid_genome_equivalents),
   abs(mean(references$cells$assigned_autosomal_ploidy[
     references$cells$injected_origin == "2N"
   ]) - 2.0099748244977409) < 1e-13,
@@ -212,16 +213,19 @@ stopifnot(
   ]) - 3.5156098144651913) < 1e-13,
   abs(mean(references$cells$ploidy[
     references$cells$injected_origin == "2N"
-  ]) - 2.2933485709302355) < 1e-13,
+  ]) - 2.1512429531532429) < 1e-13,
   abs(mean(references$cells$ploidy[
     references$cells$injected_origin == "4N"
-  ]) - 4.9862311678488558) < 1e-13,
+  ]) - 3.9465129997095696) < 1e-13,
   abs(min(references$cells$ploidy[
     references$cells$injected_origin == "4N"
-  ]) - 4.0171010312680098) < 1e-13,
+  ]) - 3.4428661179580171) < 1e-13,
   abs(max(references$cells$ploidy[
     references$cells$injected_origin == "4N"
-  ]) - 6.1486064402620189) < 1e-13
+  ]) - 4.1630096382924098) < 1e-13,
+  all(references$cells$ploidy <
+    references$cells$assigned_autosomal_ploidy *
+      (1 + references$cells$extra_dna_haploid_genome_equivalents))
 )
 
 reference_fixture <- tempfile("injected-reference-")
@@ -262,7 +266,7 @@ reference_manifest <- utils::read.delim(
   check.names = FALSE,
   stringsAsFactors = FALSE
 )
-reference_manifest$extra_dna_policy[[1L]] <- "exclude chr999"
+reference_manifest$ploidy_policy[[1L]] <- "exclude chr999"
 utils::write.table(
   reference_manifest,
   file.path(reference_fixture, "reference_manifest.tsv"),
@@ -421,13 +425,13 @@ stopifnot(
     tolerance = 1e-14
   )),
   isTRUE(all.equal(
-    reduction$reference_mean_chr999_extra_dna_fraction,
+    reduction$reference_mean_chr999_extra_dna_haploid_genome_equivalents,
     c(0.14126812865550156, 0.43090318524437865),
     tolerance = 1e-14
   )),
   isTRUE(all.equal(
     reduction$reference_mean_ploidy,
-    c(2.2933485709302355, 4.9862311678488558),
+    c(2.1512429531532429, 3.9465129997095696),
     tolerance = 1e-14
   )),
   isTRUE(all.equal(
@@ -436,15 +440,15 @@ stopifnot(
     tolerance = 1e-14
   )),
   abs(reduction$absolute_change[reduction$injected_origin == "2N"] -
-        (-0.1578352739210076)) < 1e-13,
+        (-0.015729656144015003)) < 1e-13,
   abs(reduction$relative_change_percent[
     reduction$injected_origin == "2N"
-  ] - (-6.8823063323943838)) < 1e-11,
+  ] - (-0.7311892002230036)) < 1e-11,
   abs(reduction$absolute_change[reduction$injected_origin == "4N"] -
-        (-2.6676782184085894)) < 1e-13,
+        (-1.6279600502693032)) < 1e-13,
   abs(reduction$relative_change_percent[
     reduction$injected_origin == "4N"
-  ] - (-53.500893332217302)) < 1e-11,
+  ] - (-41.250593888556999)) < 1e-11,
   isTRUE(reduction$all_endpoint_mouse_means_below_reference_min[
     reduction$injected_origin == "4N"
   ]),
@@ -454,11 +458,11 @@ stopifnot(
   identical(separation$analysis_type, "descriptive_only"),
   identical(separation$formal_test_performed, FALSE),
   abs(separation$reference_4n_minus_2n_mean_ploidy -
-        2.6928825969186203) < 1e-13,
+        1.7952700465563267) < 1e-13,
   abs(separation$endpoint_4n_minus_2n_mouse_balanced_mean_ploidy -
         0.18303965243103848) < 1e-13,
   abs(separation$separation_contraction_percent -
-        93.202835777523873) < 1e-11
+        89.80433875214797) < 1e-11
 )
 
 # The endpoint audit is the frozen QC mask. It must identify exactly the final
@@ -575,7 +579,7 @@ stopifnot(
   grepl("si_copy_number_reduction_summary", generator_text, fixed = TRUE),
   grepl("si_copy_number_separation_summary", generator_text, fixed = TRUE),
   grepl("Injected-reference to endpoint ploidy", generator_text, fixed = TRUE),
-  grepl("project-designated proxy cells (chr999 included)",
+  grepl("chr999 added in haploid-genome-equivalent units",
         generator_text, fixed = TRUE),
   grepl("descriptive_only", generator_text, fixed = TRUE),
   grepl("relative_change_percent", generator_text, fixed = TRUE),

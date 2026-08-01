@@ -1705,7 +1705,7 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             text = manifest.read_text()
             manifest.write_text(
                 text.replace(
-                    "chr999 unassigned-extra-DNA fraction",
+                    "chr999 haploid-genome-equivalent unassigned DNA",
                     "tampered policy",
                     1,
                 )
@@ -2003,12 +2003,10 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 ),
             },
             {
-                "key": "si6f_reference_policy_source",
+                "key": "si6f_reference_chr999_interpretation",
                 "value": (
-                    "miningcloneid@"
-                    "c0051b17e375703b20e32fd3c9258263138b16dd@"
-                    "code/beam_search_flip_rate_wgd.py:"
-                    "load_initial_ploidy_from_cbs"
+                    "haploid-genome-equivalent unassigned DNA; "
+                    "project-confirmed 2026-08-01"
                 ),
             },
             {
@@ -2022,8 +2020,8 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             {
                 "key": "si6f_reference_ploidy_policy",
                 "value": (
-                    "autosomal length-weighted estimate multiplied by "
-                    "(1 + chr999 unassigned-extra-DNA fraction)"
+                    "autosomal length-weighted estimate plus chr999 "
+                    "haploid-genome-equivalent unassigned DNA"
                 ),
             },
             {
@@ -2038,11 +2036,12 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 "value": (
                     "project-designated lineage-matched 2N-A7M/4N-A5M "
                     "karyotype reference distributions, including the "
-                    "chr999 unassigned-extra-DNA fraction, compared "
-                    "descriptively with one postprocessed endpoint mean per "
-                    "mouse; no formal P value because each reference is one "
-                    "culture-level biological unit and origin-specific "
-                    "endpoint runs use different schemas/calibration"
+                    "chr999 unassigned-extra-DNA haploid-genome-equivalent "
+                    "term added to autosomal ploidy, compared descriptively "
+                    "with one postprocessed endpoint mean per mouse; no "
+                    "formal P value because each reference is one culture-level "
+                    "biological unit and origin-specific endpoint runs use "
+                    "different schemas/calibration"
                 ),
             },
             {
@@ -2153,8 +2152,8 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             {
                 "key": "si6_injected_reference_ploidy_policy",
                 "value": (
-                    "autosomal length-weighted estimate multiplied by "
-                    "(1 + chr999 unassigned-extra-DNA fraction)"
+                    "autosomal length-weighted estimate plus chr999 "
+                    "haploid-genome-equivalent unassigned DNA"
                 ),
             },
             {
@@ -2170,15 +2169,12 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 "value": "c505cd9159fa2a8c0974c7379f6aacd09fe19abc",
             },
             {
-                "key": "si6_injected_reference_policy_source_commit",
-                "value": "c0051b17e375703b20e32fd3c9258263138b16dd",
+                "key": "si6_injected_reference_chr999_unit",
+                "value": "haploid-genome-equivalent unassigned DNA",
             },
             {
-                "key": "si6_injected_reference_policy_source_locator",
-                "value": (
-                    "code/beam_search_flip_rate_wgd.py:"
-                    "load_initial_ploidy_from_cbs"
-                ),
+                "key": "si6_injected_reference_chr999_interpretation_basis",
+                "value": "project-confirmed 2026-08-01",
             },
             {
                 "key": "si6_endpoint_summary_analysis_type",
@@ -2186,7 +2182,7 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             },
             {
                 "key": "si6_2n_reference_mean_ploidy",
-                "value": "2.293348570930235",
+                "value": "2.151242953153243",
             },
             {
                 "key": "si6_2n_endpoint_mouse_balanced_mean_ploidy",
@@ -2194,11 +2190,11 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             },
             {
                 "key": "si6_2n_relative_change_percent",
-                "value": "-6.882306332394384",
+                "value": "-0.7311892002230036",
             },
             {
                 "key": "si6_4n_reference_mean_ploidy",
-                "value": "4.986231167848856",
+                "value": "3.94651299970957",
             },
             {
                 "key": "si6_4n_endpoint_mouse_balanced_mean_ploidy",
@@ -2206,11 +2202,11 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             },
             {
                 "key": "si6_4n_relative_change_percent",
-                "value": "-53.5008933322173",
+                "value": "-41.250593888557",
             },
             {
                 "key": "si6_reference_4n_minus_2n_mean_ploidy",
-                "value": "2.69288259691862",
+                "value": "1.795270046556327",
             },
             {
                 "key": "si6_endpoint_4n_minus_2n_mouse_balanced_mean_ploidy",
@@ -2218,7 +2214,7 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             },
             {
                 "key": "si6_separation_contraction_percent",
-                "value": "93.20283577752387",
+                "value": "89.80433875214797",
             },
             {
                 "key": "si7_feature_species_policy",

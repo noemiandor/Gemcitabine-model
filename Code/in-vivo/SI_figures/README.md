@@ -59,20 +59,20 @@ matrix, cell order, and per-file/per-schema represented-base-pair audit.
 SI6F compares the project-designated injected-cell karyotype references (20 2N
 A7M and 16 4N A5M metaphases) with one terminal NUMBAT-derived mean per mouse;
 dose is encoded by color. For the karyotype references, the autosomal
-length-weighted estimate is multiplied by (1+) the `chr999` fraction that the
-source workflow records as unassigned extra DNA. This converts the intermediate
+length-weighted estimate is added to the `chr999` value, which is expressed in
+haploid-genome-equivalent units of unassigned DNA. This converts the intermediate
 assigned-autosomal means of 2.00997 and 3.51561 to final 2N- and 4N-reference
-means of 2.29335 and 4.98623. The terminal mouse-balanced means are 2.13551 and
-2.31855, respectively: descriptive changes of -0.15784 (-6.88%) for 2N and
--2.66768 (-53.50%) for 4N. The 4N-minus-2N separation contracts from 2.69288 in
-the references to 0.18304 at endpoint (93.20%). Every terminal 4N-origin cell
+means of 2.15124 and 3.94651. The terminal mouse-balanced means are 2.13551 and
+2.31855, respectively: descriptive changes of -0.01573 (-0.73%) for 2N and
+-1.62796 (-41.25%) for 4N. The 4N-minus-2N separation contracts from 1.79527 in
+the references to 0.18304 at endpoint (89.80%). Every terminal 4N-origin cell
 estimate is below the minimum 4N-reference metaphase. The A7M and A5M matrices
 are project-designated lineage-matched proxies, not the same-passage A6M and A4M
 inocula. The cross-assay comparison is therefore descriptive and has no P value:
 each proxy represents one culture-level biological unit, and the independently
 processed endpoint runs use different schemas/calibration. Metadata retain the
-exact reference-cell values, mouse means, ranges, changes, source/policy commits,
-input hashes, and this inference boundary.
+exact reference-cell values, mouse means, ranges, changes, source commit,
+confirmed `chr999` unit interpretation, input hashes, and this inference boundary.
 
 The tracked CBS matrices reproduce this downstream panel and recompute and
 validate every score/coverage value in the canonical

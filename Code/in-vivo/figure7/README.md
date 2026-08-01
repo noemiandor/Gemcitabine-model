@@ -123,11 +123,11 @@ SI6E chromosome-state view and recompute every value in the canonical
 `scRNAseq_Numbat/all_ploidy.csv` (and its reduced `all_ploidy.tsv` projection).
 Two checksum-pinned, project-designated lineage-matched karyotype proxies
 provide the 2N-A7M and 4N-A5M reference distributions used by SI6F; they are
-not the same-passage A6M/A4M inocula. The reference calculation multiplies the
-autosomal length-weighted estimate by one plus the `chr999` unassigned-extra-
-DNA fraction, matching the recorded source-workflow policy. It gives a 4N
-proxy mean of 4.98623 and an eight-mouse terminal 4N-origin mean of 2.32156
-(53.44% lower); the corresponding 2N values are 2.29335 and 2.13534. This is a
+not the same-passage A6M/A4M inocula. The reference calculation adds the
+`chr999` value, expressed in haploid-genome-equivalent units of unassigned DNA,
+to the autosomal length-weighted estimate. It gives a 4N proxy mean of 3.94651
+and an eight-mouse terminal 4N-origin mean of 2.31855 (41.25% lower); the
+corresponding 2N values are 2.15124 and 2.13551. This is a
 descriptive cross-assay comparison, not a formal test or evidence about when
 the reduction occurred. These downstream
 artifacts do not establish a complete, versioned upstream NUMBAT inference in

@@ -438,7 +438,7 @@ SI_REVIEWED_CBS_MANIFEST_SHA256 = (
     "756c644df06c95f95ccd7a6a1d7bfbcc972b7873ebc1188aac7da5b72f1876f9"
 )
 SI_INJECTED_REFERENCE_MANIFEST_SHA256 = (
-    "b5b4d910bc0f61a13740b295d8d6aaa3f275ffeb225ee5a24dbda39ee3be349e"
+    "be07657b14493523f982498dba74599a3b8185b6f6d6e7e4ab56a13d838d0492"
 )
 SI_ENDPOINT_PLOIDY_SHA256 = (
     "6db48ee5f196b37b58aa71d0472dd3deb06aaacb4b637070af1b27d9425db2b3"
@@ -1682,10 +1682,10 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
             "sha256",
             "source_repository",
             "source_commit",
-            "policy_source_commit",
-            "policy_source_locator",
             "designation_basis",
-            "extra_dna_policy",
+            "chr999_unit",
+            "chr999_interpretation_basis",
+            "ploidy_policy",
         ]
         or len(reference_names) != 2
         or {row.get("injected_origin") for row in reference_rows}
@@ -1744,32 +1744,32 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
             "sequenced mouse/CBS file"
         ),
         "si6_injected_reference_ploidy_policy": (
-            "autosomal length-weighted estimate multiplied by (1 + chr999 "
-            "unassigned-extra-DNA fraction)"
+            "autosomal length-weighted estimate plus chr999 "
+            "haploid-genome-equivalent unassigned DNA"
         ),
         "si6_injected_reference_cell_counts": "2N=20;4N=16",
         "si6_injected_reference_source_repository": "miningcloneid",
         "si6_injected_reference_source_commit": (
             "c505cd9159fa2a8c0974c7379f6aacd09fe19abc"
         ),
-        "si6_injected_reference_policy_source_commit": (
-            "c0051b17e375703b20e32fd3c9258263138b16dd"
+        "si6_injected_reference_chr999_unit": (
+            "haploid-genome-equivalent unassigned DNA"
         ),
-        "si6_injected_reference_policy_source_locator": (
-            "code/beam_search_flip_rate_wgd.py:load_initial_ploidy_from_cbs"
+        "si6_injected_reference_chr999_interpretation_basis": (
+            "project-confirmed 2026-08-01"
         ),
         "si6_endpoint_summary_analysis_type": "descriptive_only",
-        "si6_2n_reference_mean_ploidy": "2.293348570930235",
+        "si6_2n_reference_mean_ploidy": "2.151242953153243",
         "si6_2n_endpoint_mouse_balanced_mean_ploidy": "2.135513297009228",
-        "si6_2n_relative_change_percent": "-6.882306332394384",
-        "si6_4n_reference_mean_ploidy": "4.986231167848856",
+        "si6_2n_relative_change_percent": "-0.7311892002230036",
+        "si6_4n_reference_mean_ploidy": "3.94651299970957",
         "si6_4n_endpoint_mouse_balanced_mean_ploidy": "2.318552949440266",
-        "si6_4n_relative_change_percent": "-53.5008933322173",
-        "si6_reference_4n_minus_2n_mean_ploidy": "2.69288259691862",
+        "si6_4n_relative_change_percent": "-41.250593888557",
+        "si6_reference_4n_minus_2n_mean_ploidy": "1.795270046556327",
         "si6_endpoint_4n_minus_2n_mouse_balanced_mean_ploidy": (
             "0.1830396524310385"
         ),
-        "si6_separation_contraction_percent": "93.20283577752387",
+        "si6_separation_contraction_percent": "89.80433875214797",
     }
     qc_selection_note = (
         "the complete 14,125-cell CBS source is checksum/value validated, "
@@ -1780,10 +1780,11 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
     ploidy_reduction_note = (
         "project-designated lineage-matched 2N-A7M/4N-A5M karyotype "
         "reference distributions, including the chr999 unassigned-extra-DNA "
-        "fraction, compared descriptively with one postprocessed endpoint "
-        "mean per mouse; no formal P value because each reference is one "
-        "culture-level biological unit and origin-specific endpoint runs use "
-        "different schemas/calibration"
+        "haploid-genome-equivalent term added to autosomal ploidy, compared "
+        "descriptively with one postprocessed endpoint mean per mouse; no "
+        "formal P value because each reference is one culture-level biological "
+        "unit and origin-specific endpoint runs use different "
+        "schemas/calibration"
     )
     if (
         any(

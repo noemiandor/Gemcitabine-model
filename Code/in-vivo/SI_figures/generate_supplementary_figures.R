@@ -1188,7 +1188,8 @@ s6e_mouse <- ggplot2::ggplot() +
   ggplot2::labs(
     title = "Injected-reference to endpoint ploidy",
     subtitle = paste(
-      "Reference crosses: project-designated proxy cells (chr999 included);",
+      "Reference crosses: project-designated proxy cells",
+      "(chr999 added in haploid-genome-equivalent units);",
       "endpoint circles: one mean per mouse; descriptive only"
     ),
     x = NULL,
@@ -1489,18 +1490,18 @@ run_config <- data.frame(
     "si6_injected_reference_cell_counts",
     "si6_injected_reference_source_repository",
     "si6_injected_reference_source_commit",
-    "si6_injected_reference_policy_source_commit",
-    "si6_injected_reference_policy_source_locator",
+    "si6_injected_reference_chr999_unit",
+    "si6_injected_reference_chr999_interpretation_basis",
     "si6_injected_reference_designation_basis",
     "si6_endpoint_summary_analysis_type",
     "si6_2n_reference_assigned_autosomal_mean_ploidy",
-    "si6_2n_reference_mean_chr999_extra_dna_fraction",
+    "si6_2n_reference_mean_chr999_extra_dna_haploid_genome_equivalents",
     "si6_2n_reference_mean_ploidy",
     "si6_2n_endpoint_mouse_balanced_mean_ploidy",
     "si6_2n_absolute_change",
     "si6_2n_relative_change_percent",
     "si6_4n_reference_assigned_autosomal_mean_ploidy",
-    "si6_4n_reference_mean_chr999_extra_dna_fraction",
+    "si6_4n_reference_mean_chr999_extra_dna_haploid_genome_equivalents",
     "si6_4n_reference_mean_ploidy",
     "si6_4n_endpoint_mouse_balanced_mean_ploidy",
     "si6_4n_absolute_change",
@@ -1575,11 +1576,11 @@ run_config <- data.frame(
     ),
     paste(unique(cbs_injected_references$cells$source_commit), collapse = ";"),
     paste(
-      unique(cbs_injected_references$cells$policy_source_commit),
+      unique(cbs_injected_references$cells$chr999_unit),
       collapse = ";"
     ),
     paste(
-      unique(cbs_injected_references$cells$policy_source_locator),
+      unique(cbs_injected_references$cells$chr999_interpretation_basis),
       collapse = ";"
     ),
     paste(
@@ -1596,7 +1597,9 @@ run_config <- data.frame(
       digits = 16
     ),
     format(
-      cbs_2n_reduction$reference_mean_chr999_extra_dna_fraction,
+      cbs_2n_reduction[[
+        "reference_mean_chr999_extra_dna_haploid_genome_equivalents"
+      ]],
       digits = 16
     ),
     format(cbs_2n_reduction$reference_mean_ploidy, digits = 16),
@@ -1611,7 +1614,9 @@ run_config <- data.frame(
       digits = 16
     ),
     format(
-      cbs_4n_reduction$reference_mean_chr999_extra_dna_fraction,
+      cbs_4n_reduction[[
+        "reference_mean_chr999_extra_dna_haploid_genome_equivalents"
+      ]],
       digits = 16
     ),
     format(cbs_4n_reduction$reference_mean_ploidy, digits = 16),
@@ -1784,7 +1789,7 @@ provenance <- data.frame(
     "injected_cell_reference_matrix_hashes",
     "si6e_harmonization",
     "si6f_reference_source",
-    "si6f_reference_policy_source",
+    "si6f_reference_chr999_interpretation",
     "si6f_reference_designation_basis",
     "si6f_reference_ploidy_policy",
     "si6f_summary_analysis_type",
@@ -1860,16 +1865,14 @@ provenance <- data.frame(
       sep = "@"
     ),
     paste(
-      unique(cbs_injected_references$cells$source_repository),
+      paste(unique(cbs_injected_references$cells$chr999_unit), collapse = ";"),
       paste(
-        unique(cbs_injected_references$cells$policy_source_commit),
+        unique(
+          cbs_injected_references$cells$chr999_interpretation_basis
+        ),
         collapse = ";"
       ),
-      paste(
-        unique(cbs_injected_references$cells$policy_source_locator),
-        collapse = ";"
-      ),
-      sep = "@"
+      sep = "; "
     ),
     paste(
       paste0(
@@ -1884,7 +1887,8 @@ provenance <- data.frame(
     paste(
       "project-designated lineage-matched 2N-A7M/4N-A5M karyotype",
       "reference distributions, including the chr999 unassigned-extra-DNA",
-      "fraction, compared descriptively with one postprocessed endpoint",
+      "haploid-genome-equivalent term added to autosomal ploidy, compared",
+      "descriptively with one postprocessed endpoint",
       "mean per mouse; no formal P value because each reference is one",
       "culture-level biological unit and origin-specific endpoint runs use",
       "different schemas/calibration"
