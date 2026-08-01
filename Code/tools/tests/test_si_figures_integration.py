@@ -23,6 +23,7 @@ from figure_output_contract import (  # noqa: E402
 )
 from materialize_figure_assets import (  # noqa: E402
     PANEL_SPECS,
+    SI6_COPY_NUMBER_ANNOTATION_COLUMNS,
     SI7_REVIEWED_FEATURE_POLICY,
     SI7_REVIEWED_FROZEN_MATRIX_NOTE,
     SI7_REVIEWED_GENE_SET_DATABASE,
@@ -1591,6 +1592,84 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("endpoint-ploidy", result.stderr)
 
+    def test_materializer_rejects_tampered_si6_cell_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, _ = self._canonical_fixture(tmp)
+            annotation_path = (
+                run_root
+                / "metadata"
+                / "si_figure6E_copy_number_cell_annotations.tsv"
+            )
+            with annotation_path.open(newline="") as handle:
+                rows = list(csv.DictReader(handle, delimiter="\t"))
+            rows[0]["sample_id"] = "2N-A1-R"
+            write_tsv(
+                annotation_path,
+                rows,
+                SI6_COPY_NUMBER_ANNOTATION_COLUMNS,
+            )
+            output_manifest = run_root / "metadata/output_manifest.tsv"
+            with output_manifest.open(newline="") as handle:
+                output_rows = list(csv.DictReader(handle, delimiter="\t"))
+            annotation_locator = str(annotation_path.relative_to(repo))
+            matches = [
+                row
+                for row in output_rows
+                if row["repo_relative_path"] == annotation_locator
+            ]
+            self.assertEqual(len(matches), 1)
+            matches[0]["sha256"] = sha256_file(annotation_path)
+            matches[0]["byte_size"] = str(annotation_path.stat().st_size)
+            write_tsv(
+                output_manifest,
+                output_rows,
+                MODULE_MANIFEST_COLUMNS,
+            )
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "exact canonical cell/file/barcode/ploidy identity",
+                result.stderr,
+            )
+
+    def test_materializer_rejects_wrong_si6_matrix_manifest_role(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, _ = self._canonical_fixture(tmp)
+            output_manifest = run_root / "metadata/output_manifest.tsv"
+            with output_manifest.open(newline="") as handle:
+                output_rows = list(csv.DictReader(handle, delimiter="\t"))
+            matches = [
+                row
+                for row in output_rows
+                if row["repo_relative_path"].endswith(
+                    "si_figure6E_copy_number_heatmap_matrix.rds"
+                )
+            ]
+            self.assertEqual(len(matches), 1)
+            matches[0]["role"] = "output_table"
+            matches[0]["source_kind"] = "generated_table"
+            write_tsv(
+                output_manifest,
+                output_rows,
+                MODULE_MANIFEST_COLUMNS,
+            )
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "SI6 output-manifest provenance is invalid",
+                result.stderr,
+            )
+
     def test_materializer_rejects_tampered_injected_reference_matrix(
         self,
     ) -> None:
@@ -1880,6 +1959,15 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 ),
             },
             {
+                "key": "si6e_qc_selection",
+                "value": (
+                    "the complete 14,125-cell CBS source is checksum/value "
+                    "validated, then restricted by the frozen endpoint-ploidy "
+                    "audit to the exact 9,832 QC-passed tumor cells (5,335 "
+                    "treated); clusters 3, 4, 9, and 9c remain excluded"
+                ),
+            },
+            {
                 "key": "injected_cell_reference_manifest",
                 "value": (
                     "Data/in-vivo/scRNAseq_Numbat/injected_reference/"
@@ -2027,7 +2115,23 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 ),
             },
             {"key": "si6e_cbs_matrix_count", "value": "16"},
-            {"key": "si6e_cell_count", "value": "14125"},
+            {"key": "si6e_source_cell_count", "value": "14125"},
+            {
+                "key": "si6e_qc_passed_tumor_cell_count",
+                "value": "9832",
+            },
+            {
+                "key": "si6e_treated_tumor_cell_count",
+                "value": "5335",
+            },
+            {
+                "key": "si6e_qc_selection_policy",
+                "value": (
+                    "exact cells matched by the frozen endpoint-ploidy audit "
+                    "from the final QC-curated Seurat object; clusters 3, 4, "
+                    "9, and 9c excluded"
+                ),
+            },
             {"key": "si6e_chromosome_count", "value": "22"},
             {
                 "key": "si6e_row_order",
@@ -2086,11 +2190,11 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             },
             {
                 "key": "si6_2n_endpoint_mouse_balanced_mean_ploidy",
-                "value": "2.135342433356468",
+                "value": "2.135513297009228",
             },
             {
                 "key": "si6_2n_relative_change_percent",
-                "value": "-6.88975673286667",
+                "value": "-6.882306332394384",
             },
             {
                 "key": "si6_4n_reference_mean_ploidy",
@@ -2098,11 +2202,11 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             },
             {
                 "key": "si6_4n_endpoint_mouse_balanced_mean_ploidy",
-                "value": "2.321562728339866",
+                "value": "2.318552949440266",
             },
             {
                 "key": "si6_4n_relative_change_percent",
-                "value": "-53.44053153192601",
+                "value": "-53.5008933322173",
             },
             {
                 "key": "si6_reference_4n_minus_2n_mean_ploidy",
@@ -2110,11 +2214,11 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             },
             {
                 "key": "si6_endpoint_4n_minus_2n_mouse_balanced_mean_ploidy",
-                "value": "0.1862202949833978",
+                "value": "0.1830396524310385",
             },
             {
                 "key": "si6_separation_contraction_percent",
-                "value": "93.08472284694165",
+                "value": "93.20283577752387",
             },
             {
                 "key": "si7_feature_species_policy",
@@ -2155,6 +2259,60 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             ],
             ["panel_id", "filename"],
         )
+
+        annotation_path = (
+            run_root
+            / "metadata"
+            / "si_figure6E_copy_number_cell_annotations.tsv"
+        )
+        matrix_path = (
+            run_root
+            / "metadata"
+            / "si_figure6E_copy_number_heatmap_matrix.rds"
+        )
+        audit_path = (
+            cache_target / "si_figure6_endpoint_ploidy_join_audit.csv"
+        )
+        annotation_rows = []
+        with audit_path.open(newline="") as handle:
+            audit_rows = csv.DictReader(handle)
+            for row in audit_rows:
+                if (
+                    row["context"] != "Tumor"
+                    or row["matched"].strip().lower() != "true"
+                ):
+                    continue
+                cell_id = row["endpoint_cell_id"]
+                suffix = f"_{cell_id}"
+                if not row["cell"].endswith(suffix):
+                    raise AssertionError(
+                        "fixture audit cell does not have its CBS barcode suffix"
+                    )
+                sample_id = row["cell"][: -len(suffix)]
+                file_name = row["endpoint_file"]
+                annotation_rows.append(
+                    {
+                        "heatmap_row_id": f"{file_name}::{cell_id}",
+                        "file": file_name,
+                        "cell_id": cell_id,
+                        "sample_id": sample_id,
+                        "initial_ploidy": row["initial_ploidy"],
+                        "dose_mg_per_kg": file_name.split("-")[2],
+                        "endpoint_ploidy": row["endpoint_ploidy"],
+                        "frac_covered": "1",
+                        "display_order": str(len(annotation_rows) + 1),
+                    }
+                )
+        if len(annotation_rows) != 9832:
+            raise AssertionError(
+                "fixture audit must contain exactly 9,832 matched tumor cells"
+            )
+        write_tsv(
+            annotation_path,
+            annotation_rows,
+            SI6_COPY_NUMBER_ANNOTATION_COLUMNS,
+        )
+        matrix_path.write_bytes(b"strict SI6 matrix RDS fixture\n")
 
         source_id = run_root.name.removesuffix("_si_figures")
         with cache_manifest.open(newline="") as handle:
@@ -2206,6 +2364,22 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                     panel=str(spec["panel"]),
                 )
                 for spec in specs
+            ]
+            + [
+                cls._manifest_row(
+                    annotation_path,
+                    repo,
+                    source_id,
+                    role="output_table",
+                    source_kind="generated_table",
+                ),
+                cls._manifest_row(
+                    matrix_path,
+                    repo,
+                    source_id,
+                    role="output_model",
+                    source_kind="generated_model",
+                ),
             ],
             MODULE_MANIFEST_COLUMNS,
         )

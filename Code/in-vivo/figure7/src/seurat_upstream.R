@@ -1454,6 +1454,170 @@ figure7_upstream_assert_counts <- function(values, stage) {
   invisible(TRUE)
 }
 
+figure7_upstream_expected_tumor_samples <- function() {
+  counts <- c(
+    "2N-A1-0" = 413L,
+    "2N-A1-LR" = 369L,
+    "2N-A1-R" = 196L,
+    "2N-A1-RR" = 1495L,
+    "2N-A2-0" = 317L,
+    "2N-A2-L" = 505L,
+    "2N-A4-R" = 305L,
+    "2N-A4-RL" = 1280L,
+    "4N-A5-0" = 888L,
+    "4N-A5-RR" = 393L,
+    "A5-4N-L" = 385L,
+    "A5-4N-R" = 358L,
+    "A6-4N-O" = 189L,
+    "A6-4N-RR" = 660L,
+    "4N-A8-RL" = 1832L,
+    "4N-A8-RR" = 247L
+  )
+  data.frame(
+    sample = names(counts),
+    n_cells = unname(counts),
+    Ploidy = c(rep("2N", 8L), rep("4N", 8L)),
+    Dose = c(
+      rep(0, 4L), rep(30, 2L), rep(120, 2L),
+      rep(0, 4L), rep(30, 2L), rep(120, 2L)
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
+figure7_upstream_validate_final_metadata <- function(metadata) {
+  if (!is.data.frame(metadata)) {
+    figure7_stop("Final Seurat metadata must be a data frame")
+  }
+  figure7_upstream_require_columns(
+    metadata,
+    c("clusters", "TN", "Ploidy", "Dose", "sample"),
+    "Final Seurat metadata"
+  )
+  if (nrow(metadata) != 35513L) {
+    figure7_stop(
+      "Final Seurat metadata cell count differs from reviewed value 35513: ",
+      nrow(metadata)
+    )
+  }
+
+  clusters <- as.character(metadata$clusters)
+  discarded <- intersect(unique(clusters), c("3", "4", "9", "9c"))
+  if (length(discarded)) {
+    figure7_stop(
+      "Final Seurat metadata retains discarded QC cluster(s): ",
+      paste(discarded, collapse = ", ")
+    )
+  }
+  figure7_upstream_assert_counts(clusters, "final")
+
+  assert_exact_counts <- function(values, expected, label) {
+    values <- as.character(values)
+    if (anyNA(values) || any(!nzchar(values))) {
+      figure7_stop("Final Seurat ", label, " contains missing values")
+    }
+    observed <- table(values)
+    if (!setequal(names(observed), names(expected)) ||
+        !identical(
+          as.integer(observed[names(expected)]),
+          as.integer(expected)
+        )) {
+      figure7_stop(
+        "Final Seurat ",
+        label,
+        " counts differ from reviewed values"
+      )
+    }
+    invisible(TRUE)
+  }
+
+  context <- as.character(metadata$TN)
+  ploidy <- as.character(metadata$Ploidy)
+  assert_exact_counts(
+    context,
+    c(CellLine = 25681L, Tumor = 9832L),
+    "TN"
+  )
+  assert_exact_counts(
+    ploidy,
+    c(`2N` = 19716L, `4N` = 15797L),
+    "Ploidy"
+  )
+
+  context_ploidy <- table(
+    factor(context, levels = c("CellLine", "Tumor")),
+    factor(ploidy, levels = c("2N", "4N"))
+  )
+  expected_context_ploidy <- matrix(
+    c(14836L, 4880L, 10845L, 4952L),
+    nrow = 2L,
+    dimnames = list(c("CellLine", "Tumor"), c("2N", "4N"))
+  )
+  if (!identical(
+    unname(as.integer(context_ploidy)),
+    unname(as.integer(expected_context_ploidy))
+  )) {
+    figure7_stop(
+      "Final Seurat TN-by-Ploidy counts differ from reviewed values"
+    )
+  }
+
+  dose_raw <- metadata$Dose
+  cell_line <- context == "CellLine"
+  tumor <- context == "Tumor"
+  if (any(!is.na(dose_raw[cell_line]))) {
+    figure7_stop("Final Seurat CellLine Dose values must be missing")
+  }
+  tumor_dose <- suppressWarnings(as.numeric(as.character(dose_raw[tumor])))
+  if (any(!is.finite(tumor_dose)) ||
+      any(!tumor_dose %in% c(0, 30, 120))) {
+    figure7_stop(
+      "Final Seurat Tumor Dose values must be numeric 0, 30, or 120"
+    )
+  }
+
+  treated <- tumor_dose %in% c(30, 120)
+  if (sum(treated) != 5335L) {
+    figure7_stop(
+      "Final Seurat treated Tumor count differs from reviewed value 5335: ",
+      sum(treated)
+    )
+  }
+  treated_ploidy <- ploidy[tumor][treated]
+  assert_exact_counts(
+    treated_ploidy,
+    c(`2N` = 2407L, `4N` = 2928L),
+    "treated Tumor Ploidy"
+  )
+
+  expected_samples <- figure7_upstream_expected_tumor_samples()
+  tumor_sample <- as.character(metadata$sample[tumor])
+  observed_sample_counts <- table(factor(
+    tumor_sample,
+    levels = expected_samples$sample
+  ))
+  if (anyNA(tumor_sample) || any(!nzchar(tumor_sample)) ||
+      !setequal(unique(tumor_sample), expected_samples$sample) ||
+      !identical(
+        as.integer(observed_sample_counts),
+        as.integer(expected_samples$n_cells)
+      )) {
+    figure7_stop(
+      "Final Seurat Tumor sample counts differ from the reviewed ",
+      "16-sample universe"
+    )
+  }
+  sample_match <- match(tumor_sample, expected_samples$sample)
+  if (any(ploidy[tumor] != expected_samples$Ploidy[sample_match]) ||
+      any(tumor_dose != expected_samples$Dose[sample_match])) {
+    figure7_stop(
+      "Final Seurat Tumor sample-to-Ploidy/Dose mapping differs from ",
+      "reviewed values"
+    )
+  }
+  invisible(TRUE)
+}
+
 figure7_upstream_validate_final <- function(
   object,
   strict_counts = TRUE
@@ -1493,27 +1657,7 @@ figure7_upstream_validate_final <- function(
     figure7_stop("Final Seurat cluster cell-cycle annotation is invalid")
   }
   if (isTRUE(strict_counts)) {
-    figure7_upstream_assert_counts(object$clusters, "final")
-    if (ncol(object) != 35513L) {
-      figure7_stop(
-        "Final Seurat cell count differs from reviewed value 35513: ",
-        ncol(object)
-      )
-    }
-    ploidy_counts <- table(as.character(object$Ploidy))
-    context_counts <- table(as.character(object$TN))
-    if (!identical(
-      as.integer(ploidy_counts[c("2N", "4N")]),
-      c(19716L, 15797L)
-    )) {
-      figure7_stop("Final Seurat Ploidy counts differ from reviewed values")
-    }
-    if (!identical(
-      as.integer(context_counts[c("CellLine", "Tumor")]),
-      c(25681L, 9832L)
-    )) {
-      figure7_stop("Final Seurat TN counts differ from reviewed values")
-    }
+    figure7_upstream_validate_final_metadata(object@meta.data)
   }
   invisible(TRUE)
 }

@@ -92,6 +92,59 @@ class SiFiguresCacheTest(unittest.TestCase):
             errors = validate_cache(cache)
         self.assertTrue(any("portable basenames" in error for error in errors))
 
+    def test_rejects_a_treated_cell_outside_the_final_qc_universe(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = self.copy_cache(Path(tmp))
+            metadata = cache / "si_figures_cell_metadata.csv"
+            with metadata.open(newline="") as handle:
+                rows = list(csv.DictReader(handle))
+                headers = list(rows[0])
+            treated = next(
+                row
+                for row in rows
+                if row["context"] == "Tumor" and row["dose"] != "0mg/kg"
+            )
+            treated["included_in_si_figures"] = "false"
+            with metadata.open("w", newline="") as handle:
+                writer = csv.DictWriter(
+                    handle,
+                    fieldnames=headers,
+                    lineterminator="\n",
+                )
+                writer.writeheader()
+                writer.writerows(rows)
+            errors = validate_cache(cache)
+        self.assertTrue(any("exact final-QC universe" in error for error in errors))
+
+    def test_rejects_same_count_endpoint_barcode_swap(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = self.copy_cache(Path(tmp))
+            audit = cache / "si_figure6_endpoint_ploidy_join_audit.csv"
+            with audit.open(newline="") as handle:
+                rows = list(csv.DictReader(handle))
+                headers = list(rows[0])
+            same_file = [
+                row
+                for row in rows
+                if row["context"] == "Tumor"
+                and row["endpoint_file"] == rows[0]["endpoint_file"]
+            ]
+            self.assertGreaterEqual(len(same_file), 2)
+            same_file[0]["endpoint_cell_id"], same_file[1]["endpoint_cell_id"] = (
+                same_file[1]["endpoint_cell_id"],
+                same_file[0]["endpoint_cell_id"],
+            )
+            with audit.open("w", newline="") as handle:
+                writer = csv.DictWriter(
+                    handle,
+                    fieldnames=headers,
+                    lineterminator="\n",
+                )
+                writer.writeheader()
+                writer.writerows(rows)
+            errors = validate_cache(cache)
+        self.assertTrue(any("endpoint identity differs" in error for error in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

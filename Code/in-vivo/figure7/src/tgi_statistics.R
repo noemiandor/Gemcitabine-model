@@ -198,6 +198,7 @@ figure7_adjusted_cn_association <- function(data, outcome_column) {
     "sample_id", "initial_ploidy", "dose", "dose_mg",
     "endpoint_ploidy_file", "sample_mean_endpoint_ploidy",
     "n_endpoint_ploidy_cells", "endpoint_ploidy_source_total_cells",
+    "endpoint_ploidy_score_universe_total_cells",
     "endpoint_ploidy_source_file_count", "endpoint_ploidy_source_sha256",
     "endpoint_ploidy_score_policy", "endpoint_ploidy_mapping_policy",
     outcome_column
@@ -216,6 +217,7 @@ figure7_adjusted_cn_association <- function(data, outcome_column) {
       any(!is.finite(data$n_endpoint_ploidy_cells)) ||
       any(data$n_endpoint_ploidy_cells <= 0) ||
       any(data$endpoint_ploidy_source_total_cells != 14125L) ||
+      any(data$endpoint_ploidy_score_universe_total_cells != 9832L) ||
       any(data$endpoint_ploidy_source_file_count != 16L) ||
       length(unique(data$endpoint_ploidy_source_sha256)) != 1L ||
       any(!grepl("^[0-9a-f]{64}$", data$endpoint_ploidy_source_sha256)) ||
@@ -282,9 +284,11 @@ figure7_adjusted_cn_association <- function(data, outcome_column) {
     permutation_mode = "exact_TGI_label_enumeration_within_initial_ploidy_x_dose",
     permutation_strata = "initial_ploidy:dose_mg",
     score_variable =
-      "sample_mean_all_canonical_cbs_cell_ploidy",
+      "sample_mean_qc_passed_curated_cbs_cell_ploidy",
     score_source_sha256 = unique(data$endpoint_ploidy_source_sha256),
-    score_source_n_cells = unique(data$endpoint_ploidy_source_total_cells),
+    score_source_n_cells =
+      unique(data$endpoint_ploidy_score_universe_total_cells),
+    score_inventory_n_cells = unique(data$endpoint_ploidy_source_total_cells),
     score_source_n_files = unique(data$endpoint_ploidy_source_file_count),
     treated_score_n_cells = sum(data$n_endpoint_ploidy_cells),
     score_aggregation_policy = unique(data$endpoint_ploidy_score_policy),
@@ -302,10 +306,10 @@ figure7_adjusted_cn_association <- function(data, outcome_column) {
 figure7_panel_e <- function(samples, config) {
   tgi_measure <- figure7_tgi_measure(config)
   x <- samples[samples$dose_mg > 0, , drop = FALSE]
-  if (nrow(x) != 8L || sum(x$n_endpoint_ploidy_cells) != 7623L) {
+  if (nrow(x) != 8L || sum(x$n_endpoint_ploidy_cells) != 5335L) {
     figure7_stop(
-      "Panel 7E/K requires all 7,623 canonical CBS cells from the exact ",
-      "eight treated tumors"
+      "Panel 7E/K requires the exact 5,335 QC-passed curated CBS cells ",
+      "from the eight treated tumors"
     )
   }
   figure7_adjusted_cn_association(x, tgi_measure)

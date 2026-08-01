@@ -66,6 +66,124 @@ expect_error(
   "does not match the authoritative fingerprint"
 )
 
+# Raw SI reconstruction must fail before endpoint joins or enrichment unless
+# its source is the exact reviewed final-QC universe. This includes the same
+# treated-tumor subset used by Figure 7 and a strict Tumor-only meaning for
+# included_in_si_figures.
+reviewed_cluster_counts <- c(
+  "0" = 22670L,
+  "2" = 3644L,
+  "4c" = 103L,
+  "5" = 1823L,
+  "6" = 1685L,
+  "8" = 1579L,
+  "10" = 3095L,
+  "13" = 704L,
+  "14" = 210L
+)
+reviewed_context <- c(
+  rep("CellLine", 25681L),
+  rep("Tumor", 9832L)
+)
+reviewed_sample_counts <- c(
+  "2N-A1-0" = 413L,
+  "2N-A1-LR" = 369L,
+  "2N-A1-R" = 196L,
+  "2N-A1-RR" = 1495L,
+  "2N-A2-0" = 317L,
+  "2N-A2-L" = 505L,
+  "2N-A4-R" = 305L,
+  "2N-A4-RL" = 1280L,
+  "4N-A5-0" = 888L,
+  "4N-A5-RR" = 393L,
+  "A5-4N-L" = 385L,
+  "A5-4N-R" = 358L,
+  "A6-4N-O" = 189L,
+  "A6-4N-RR" = 660L,
+  "4N-A8-RL" = 1832L,
+  "4N-A8-RR" = 247L
+)
+reviewed_sample_origins <- stats::setNames(
+  c(rep("2N", 8L), rep("4N", 8L)),
+  names(reviewed_sample_counts)
+)
+reviewed_sample_doses <- stats::setNames(
+  c(
+    rep("0mg/kg", 4L), rep("30mg/kg", 2L), rep("120mg/kg", 2L),
+    rep("0mg/kg", 4L), rep("30mg/kg", 2L), rep("120mg/kg", 2L)
+  ),
+  names(reviewed_sample_counts)
+)
+reviewed_universe <- data.frame(
+  cell = sprintf("reviewed-cell-%05d", seq_len(35513L)),
+  mouse = c(
+    rep("CellLine-reference", 25681L),
+    rep(names(reviewed_sample_counts), reviewed_sample_counts)
+  ),
+  cluster = rep(names(reviewed_cluster_counts), reviewed_cluster_counts),
+  context = reviewed_context,
+  initial_ploidy = c(
+    rep("2N", 25681L),
+    rep(reviewed_sample_origins, reviewed_sample_counts)
+  ),
+  dose = c(
+    rep(NA_character_, 25681L),
+    rep(reviewed_sample_doses, reviewed_sample_counts)
+  ),
+  stringsAsFactors = FALSE
+)
+reviewed_included <- reviewed_universe$context == "Tumor"
+stopifnot(
+  isTRUE(builder_env$si_assert_reviewed_final_universe(reviewed_universe)),
+  isTRUE(builder_env$si_assert_reviewed_final_universe(
+    reviewed_universe,
+    reviewed_included
+  ))
+)
+
+wrong_context <- reviewed_universe
+wrong_context$context[[1L]] <- "Tumor"
+expect_error(
+  builder_env$si_assert_reviewed_final_universe(wrong_context),
+  "reviewed context counts"
+)
+
+wrong_treatment <- reviewed_universe
+first_treated <- which(
+  wrong_treatment$context == "Tumor" &
+    wrong_treatment$dose != "0mg/kg"
+)[[1L]]
+wrong_treatment$dose[[first_treated]] <- "0mg/kg"
+expect_error(
+  builder_env$si_assert_reviewed_final_universe(wrong_treatment),
+  "one injected-origin/dose assignment per tumor sample"
+)
+
+wrong_sample_count <- reviewed_universe
+first_tumor <- which(wrong_sample_count$context == "Tumor")[[1L]]
+wrong_sample_count$mouse[[first_tumor]] <- "2N-A1-LR"
+expect_error(
+  builder_env$si_assert_reviewed_final_universe(wrong_sample_count),
+  "exact reviewed 16-sample cell counts"
+)
+
+discarded_cluster <- reviewed_universe
+discarded_cluster$cluster[[1L]] <- "9"
+expect_error(
+  builder_env$si_assert_reviewed_final_universe(discarded_cluster),
+  "discarded QC cluster(s): 9"
+)
+
+wrong_inclusion <- reviewed_included
+wrong_inclusion[[first_treated]] <- FALSE
+expect_error(
+  builder_env$si_assert_reviewed_final_universe(
+    reviewed_universe,
+    wrong_inclusion
+  ),
+  "must select exactly all 9,832 final-QC Tumor cells"
+)
+
 canonical <- data.frame(
   cell = c("cell-a", "cell-b", "cell-c"),
   initial_ploidy = c("2N", "4N", "4N"),

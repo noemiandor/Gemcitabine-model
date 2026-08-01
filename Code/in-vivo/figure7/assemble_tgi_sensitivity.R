@@ -34,7 +34,7 @@ if (length(missing_packages)) {
 }
 
 args <- figure7_parse_args(commandArgs(trailingOnly = TRUE))
-source_bundle_id <- "tgi_day24_day31_all_cbs_v1"
+source_bundle_id <- "tgi_day24_day31_curated_cbs_v2"
 default_source_bundle_dir <- file.path(
   repo_root,
   "Data", "in-vivo", "figure7", "saved_tgi_sensitivity",
@@ -209,13 +209,29 @@ read_endpoint_run <- function(run_dir, day) {
     "endpoint-ploidy source file count"
   )
   assert_scalar(
+    run_config[["endpoint_ploidy_score_universe_n_cells"]],
+    "9832",
+    "endpoint-ploidy score-universe cell count"
+  )
+  assert_scalar(
+    run_config[["endpoint_ploidy_treated_score_n_cells"]],
+    "5335",
+    "treated endpoint-ploidy score cell count"
+  )
+  assert_scalar(
     run_config[["endpoint_ploidy_score_policy"]],
-    "arithmetic_mean_of_all_finite_postprocessed_cell_ploidy_per_cbs_file",
+    paste0(
+      "arithmetic_mean_of_finite_postprocessed_cell_ploidy_in_exact_",
+      "qc_passed_cellcycle_noncellcycle_union_per_sample"
+    ),
     "endpoint-ploidy score policy"
   )
   assert_scalar(
     run_config[["endpoint_ploidy_mapping_policy"]],
-    "exact_sample_growth_curve_harvest_plus_.sps.cbs",
+    paste0(
+      "exact_processed_sample_barcode_to_canonical_cbs_file_cell_and_value;",
+      "score_universe=reviewed_final_seurat_tumor_cells"
+    ),
     "endpoint-ploidy mapping policy"
   )
   endpoint_locator <- as.character(run_config[["endpoint_ploidy_input"]])
@@ -233,6 +249,33 @@ read_endpoint_run <- function(run_dir, day) {
     endpoint_path,
     config
   )
+  resolve_processed_input <- function(role) {
+    locator <- as.character(run_config[[paste0(role, "_input")]])
+    expected_hash <- as.character(run_config[[paste0(role, "_sha256")]])
+    if (!nzchar(locator) || startsWith(locator, "external:") ||
+        !grepl("^[0-9a-f]{64}$", expected_hash)) {
+      figure7_stop(
+        "Day-", day, " source run does not provide a portable, hashed ",
+        role, " locator"
+      )
+    }
+    path <- normalizePath(file.path(repo_root, locator), mustWork = TRUE)
+    figure7_verify_checksum(path, expected_hash, paste0("Day-", day, " ", role))
+    path
+  }
+  cellcycle_path <- resolve_processed_input("cellcycle")
+  noncellcycle_path <- resolve_processed_input("noncellcycle")
+  expected_samples <- figure7_sample_table(
+    figure7_read_cell_table(cellcycle_path, "CellCycle", config),
+    figure7_read_cell_table(noncellcycle_path, "NonCellCycle", config),
+    config,
+    endpoint_ploidy
+  )
+  expected_treated <- expected_samples[
+    expected_samples$dose_mg > 0,
+    ,
+    drop = FALSE
+  ]
 
   table_path <- function(name) file.path(run_dir, "tables", name)
   a <- figure7_read_tsv(
@@ -261,6 +304,7 @@ read_endpoint_run <- function(run_dir, day) {
       "sample_id", "initial_ploidy", "dose", "dose_mg",
       "endpoint_ploidy_file", "sample_mean_endpoint_ploidy",
       "n_endpoint_ploidy_cells", "endpoint_ploidy_source_total_cells",
+      "endpoint_ploidy_score_universe_total_cells",
       "endpoint_ploidy_source_file_count", "endpoint_ploidy_source_sha256",
       "endpoint_ploidy_score_policy", "endpoint_ploidy_mapping_policy",
       "terminal_postprocessed_cn_score",
@@ -275,7 +319,8 @@ read_endpoint_run <- function(run_dir, day) {
       "n", "partial_correlation", "effect_per_within_origin_sd",
       "permutation_p_two_sided", "n_permutations", "permutation_mode",
       "permutation_strata", "score_variable", "score_source_sha256",
-      "score_source_n_cells", "score_source_n_files",
+      "score_source_n_cells", "score_inventory_n_cells",
+      "score_source_n_files",
       "treated_score_n_cells", "score_aggregation_policy",
       "sample_mapping_policy", "score_standardization",
       "adjustment_terms", "outcome_variable", "plot_x", "plot_y"
@@ -310,37 +355,24 @@ read_endpoint_run <- function(run_dir, day) {
     },
     logical(1L)
   )
-  endpoint_scores <- split(
-    endpoint_ploidy$cells$ploidy,
-    endpoint_ploidy$cells$file
-  )
-  expected_files <- c(
-    "2N-A2-0" = "SUM159-2N-30-0_harvest.sps.cbs",
-    "2N-A2-L" = "SUM159-2N-30-L_harvest.sps.cbs",
-    "2N-A4-R" = "SUM159-2N-120-R_harvest.sps.cbs",
-    "2N-A4-RL" = "SUM159-2N-120-RL_harvest.sps.cbs",
-    "A6-4N-O" = "SUM159-4N-30-0_harvest.sps.cbs",
-    "A6-4N-RR" = "SUM159-4N-30-RR_harvest.sps.cbs",
-    "4N-A8-RL" = "SUM159-4N-120-RL_harvest.sps.cbs",
-    "4N-A8-RR" = "SUM159-4N-120-RR_harvest.sps.cbs"
-  )
-  mapped_files <- unname(expected_files[edata$sample_id])
-  mapped_scores <- vapply(mapped_files, function(file) {
-    mean(endpoint_scores[[file]])
-  }, numeric(1L))
-  mapped_counts <- vapply(mapped_files, function(file) {
-    length(endpoint_scores[[file]])
-  }, integer(1L))
+  expected_treated <- expected_treated[
+    match(edata$sample_id, expected_treated$sample_id),
+    ,
+    drop = FALSE
+  ]
+  mapped_files <- expected_treated$endpoint_ploidy_file
+  mapped_scores <- expected_treated$sample_mean_endpoint_ploidy
+  mapped_counts <- expected_treated$n_endpoint_ploidy_cells
   expected_results <- list(
     `24` = c(
-      effect = -6.77351906237078,
-      partial_r = -0.30605912538695,
-      permutation_p = 0.5625
+      effect = -6.683928279063553,
+      partial_r = -0.3022214862100653,
+      permutation_p = 0.625
     ),
     `31` = c(
-      effect = -2.77364130329883,
-      partial_r = -0.173200987198346,
-      permutation_p = 0.6875
+      effect = -2.955883758578773,
+      partial_r = -0.1847098257830974,
+      permutation_p = 0.625
     )
   )[[as.character(day)]]
   if (nrow(edata) != 8L || nrow(etest) != 1L || !all(z_contract) ||
@@ -353,8 +385,9 @@ read_endpoint_run <- function(run_dir, day) {
         figure7_numeric(edata$terminal_postprocessed_cn_score) - mapped_scores
       ) > 1e-12) ||
       any(figure7_numeric(edata$n_endpoint_ploidy_cells) != mapped_counts) ||
-      sum(figure7_numeric(edata$n_endpoint_ploidy_cells)) != 7623L ||
+      sum(figure7_numeric(edata$n_endpoint_ploidy_cells)) != 5335L ||
       any(figure7_numeric(edata$endpoint_ploidy_source_total_cells) != 14125L) ||
+      any(figure7_numeric(edata$endpoint_ploidy_score_universe_total_cells) != 9832L) ||
       any(figure7_numeric(edata$endpoint_ploidy_source_file_count) != 16L) ||
       any(edata$endpoint_ploidy_source_sha256 != expected_endpoint_hash) ||
       any(edata$endpoint_ploidy_score_policy !=
@@ -376,15 +409,16 @@ read_endpoint_run <- function(run_dir, day) {
       ) ||
       !identical(
         as.character(etest$score_variable),
-        "sample_mean_all_canonical_cbs_cell_ploidy"
+        "sample_mean_qc_passed_curated_cbs_cell_ploidy"
       ) ||
       !identical(
         as.character(etest$score_source_sha256),
         expected_endpoint_hash
       ) ||
-      figure7_numeric(etest$score_source_n_cells) != 14125L ||
+      figure7_numeric(etest$score_source_n_cells) != 9832L ||
+      figure7_numeric(etest$score_inventory_n_cells) != 14125L ||
       figure7_numeric(etest$score_source_n_files) != 16L ||
-      figure7_numeric(etest$treated_score_n_cells) != 7623L ||
+      figure7_numeric(etest$treated_score_n_cells) != 5335L ||
       !identical(
         as.character(etest$score_aggregation_policy),
         run_config[["endpoint_ploidy_score_policy"]]
@@ -423,6 +457,8 @@ read_endpoint_run <- function(run_dir, day) {
     run_dir = run_dir,
     run_config_path = run_config_path,
     endpoint_path = endpoint_path,
+    cellcycle_path = cellcycle_path,
+    noncellcycle_path = noncellcycle_path,
     config = config,
     a = a,
     cdata = cdata,
@@ -638,7 +674,16 @@ repo_locator <- function(path) {
     paste0("external:", basename(normalized))
   }
 }
+if (!identical(day24$cellcycle_path, day31$cellcycle_path) ||
+    !identical(day24$noncellcycle_path, day31$noncellcycle_path)) {
+  figure7_stop(
+    "Day-24 and Day-31 sensitivity sources must bind the same exact ",
+    "QC-passed CellCycle + NonCellCycle score universe"
+  )
+}
 source_files <- c(
+  cellcycle = day24$cellcycle_path,
+  noncellcycle = day24$noncellcycle_path,
   day24_run_config = day24$run_config_path,
   day24_endpoint_ploidy = day24$endpoint_path,
   stats::setNames(
@@ -661,7 +706,8 @@ provenance <- data.frame(
     "artifact", "assembly_script", "assembly_script_sha256",
     "source_bundle_id", "source_bundle", "source_bundle_file_count",
     "day24_source_run", "day31_source_run",
-    "endpoint_ploidy_source_n_cells",
+    "endpoint_ploidy_inventory_n_cells",
+    "endpoint_ploidy_score_universe_n_cells",
     "treated_endpoint_ploidy_n_cells",
     "endpoint_ploidy_score_policy",
     paste0("source_file:", names(source_files)),
@@ -681,8 +727,12 @@ provenance <- data.frame(
     repo_locator(day24_run),
     repo_locator(day31_run),
     "14125",
-    "7623",
-    "arithmetic_mean_of_all_finite_postprocessed_cell_ploidy_per_cbs_file",
+    "9832",
+    "5335",
+    paste0(
+      "arithmetic_mean_of_finite_postprocessed_cell_ploidy_in_exact_",
+      "qc_passed_cellcycle_noncellcycle_union_per_sample"
+    ),
     vapply(source_files, repo_locator, character(1L)),
     vapply(source_files, figure7_sha256, character(1L)),
     as.character(day24$etest$effect_per_within_origin_sd),

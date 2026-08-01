@@ -312,6 +312,67 @@ si_copy_number_read_ploidy <- function(path) {
   ploidy
 }
 
+si_copy_number_qc_selection <- function(endpoint_audit) {
+  required <- c(
+    "cell", "context", "initial_ploidy", "endpoint_file",
+    "endpoint_cell_id", "endpoint_ploidy", "matched"
+  )
+  if (!all(required %in% names(endpoint_audit))) {
+    stop(
+      "Endpoint-ploidy audit lacks the QC-passed cell-universe columns",
+      call. = FALSE
+    )
+  }
+  selected <- endpoint_audit[
+    si_copy_number_truthy(endpoint_audit$matched),
+    required,
+    drop = FALSE
+  ]
+  selected$cell <- as.character(selected$cell)
+  selected$context <- as.character(selected$context)
+  selected$initial_ploidy <- as.character(selected$initial_ploidy)
+  selected$endpoint_file <- as.character(selected$endpoint_file)
+  selected$endpoint_cell_id <- as.character(selected$endpoint_cell_id)
+  selected$endpoint_ploidy <- suppressWarnings(as.numeric(
+    selected$endpoint_ploidy
+  ))
+  sample_id_length <- nchar(selected$cell) -
+    nchar(selected$endpoint_cell_id) - 1L
+  selected$sample_id <- ifelse(
+    sample_id_length > 0L,
+    substring(selected$cell, 1L, sample_id_length),
+    ""
+  )
+  key <- paste(selected$endpoint_file, selected$endpoint_cell_id, sep = "::")
+  if (nrow(selected) != 9832L ||
+      anyNA(selected[, setdiff(required, "matched"), drop = FALSE]) ||
+      any(!nzchar(selected$cell)) || any(!nzchar(selected$endpoint_file)) ||
+      any(!nzchar(selected$endpoint_cell_id)) || anyDuplicated(selected$cell) ||
+      anyDuplicated(key) || any(selected$context != "Tumor") ||
+      any(!nzchar(selected$sample_id)) ||
+      any(selected$cell != paste(
+        selected$sample_id,
+        selected$endpoint_cell_id,
+        sep = "_"
+      )) ||
+      !identical(
+        as.integer(table(factor(
+          selected$initial_ploidy,
+          levels = c("2N", "4N")
+        ))),
+        c(4880L, 4952L)
+      ) ||
+      length(unique(selected$endpoint_file)) != 16L ||
+      any(!is.finite(selected$endpoint_ploidy))) {
+    stop(
+      "Endpoint-ploidy audit must identify the exact 9,832-cell ",
+      "QC-passed tumor universe",
+      call. = FALSE
+    )
+  }
+  selected
+}
+
 si_copy_number_sample_lookup <- function(endpoint_audit) {
   required <- c(
     "cell", "initial_ploidy", "endpoint_file", "endpoint_cell_id", "matched"
@@ -380,6 +441,7 @@ si_copy_number_read_collection <- function(
       call. = FALSE
     )
   }
+  qc_selection <- si_copy_number_qc_selection(endpoint_audit)
   sample_lookup <- si_copy_number_sample_lookup(endpoint_audit)
 
   matrices <- vector("list", length(files))
@@ -437,11 +499,41 @@ si_copy_number_read_collection <- function(
            call. = FALSE)
     }
 
+    # Validate the complete checksum-pinned CBS source above, but analyze only
+    # cells retained in Tao's final QC-curated Seurat object.  The endpoint
+    # audit is the exact bridge between that 9,832-cell transcriptional
+    # universe and the 14,125-cell downstream CBS source.
+    selected <- qc_selection[
+      qc_selection$endpoint_file == filename, , drop = FALSE
+    ]
+    selected_position <- match(expected$cell_id, selected$endpoint_cell_id)
+    keep <- !is.na(selected_position)
+    if (!nrow(selected) || sum(keep) != nrow(selected) ||
+        anyDuplicated(selected_position[keep]) ||
+        any(abs(
+          expected$ploidy[keep] -
+            selected$endpoint_ploidy[selected_position[keep]]
+        ) > tolerance)) {
+      stop(
+        "QC-passed endpoint audit does not match canonical CBS cells: ",
+        filename,
+        call. = FALSE
+      )
+    }
+    values <- values[keep, , drop = FALSE]
+    expected <- expected[keep, , drop = FALSE]
+
     file_metadata <- si_copy_number_filename_metadata(filename)
     sample_row <- sample_lookup[
       sample_lookup$endpoint_file == filename, , drop = FALSE
     ]
     if (nrow(sample_row) != 1L ||
+        any(selected$sample_id != as.character(sample_row$sample_id)) ||
+        any(selected$cell != paste(
+          as.character(sample_row$sample_id),
+          selected$endpoint_cell_id,
+          sep = "_"
+        )) ||
         !identical(
           as.character(sample_row$initial_ploidy),
           file_metadata$initial_ploidy
@@ -497,15 +589,21 @@ si_copy_number_read_collection <- function(
   }
   cell_annotations <- do.call(rbind, annotations)
   rownames(cell_annotations) <- NULL
-  if (nrow(cell_annotations) != nrow(ploidy) ||
+  treated <- cell_annotations$dose_mg_per_kg > 0
+  if (nrow(cell_annotations) != 9832L || sum(treated) != 5335L ||
+      sum(!treated) != 4497L ||
       anyDuplicated(cell_annotations$heatmap_row_id)) {
-    stop("Combined CBS collection does not contain each ploidy cell once",
-         call. = FALSE)
+    stop(
+      "Combined CBS analysis collection must contain the exact QC-passed ",
+      "9,832-cell universe, including 5,335 treated cells",
+      call. = FALSE
+    )
   }
   list(
     matrices = matrices,
     cell_annotations = cell_annotations,
     ploidy = ploidy,
+    qc_selection = qc_selection,
     reviewed_manifest = reviewed_manifest
   )
 }

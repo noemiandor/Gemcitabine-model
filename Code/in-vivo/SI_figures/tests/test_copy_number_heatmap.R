@@ -71,6 +71,58 @@ collection <- helper$si_copy_number_read_collection(
   sample_metadata
 )
 
+# Figure 7's two frozen transcriptional tables and the SI endpoint audit must
+# describe one identical final-QC tumor universe. This prevents downstream CBS
+# consumers from silently reintroducing clusters 3, 4, 9, or 9c.
+figure7_cellcycle <- utils::read.csv(
+  file.path(
+    repo_root, "Data", "in-vivo", "figure7", "processed",
+    "CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+  ),
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+figure7_noncellcycle <- utils::read.csv(
+  file.path(
+    repo_root,
+    "Data", "in-vivo", "figure7", "processed",
+    "NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+  ),
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+figure7_tumor <- rbind(figure7_cellcycle, figure7_noncellcycle)
+figure7_treated <- figure7_tumor$gemcitabine_dose_mg_per_kg > 0
+collection_tumor_ids <- paste(
+  collection$cell_annotations$sample_id,
+  collection$cell_annotations$cell_id,
+  sep = "_"
+)
+collection_treated <- collection$cell_annotations$dose_mg_per_kg > 0
+stopifnot(
+  nrow(figure7_cellcycle) == 2881L,
+  nrow(figure7_noncellcycle) == 6951L,
+  nrow(figure7_tumor) == 9832L,
+  !anyDuplicated(figure7_tumor$cell_id),
+  !anyDuplicated(collection_tumor_ids),
+  setequal(figure7_tumor$cell_id, collection$qc_selection$cell),
+  setequal(figure7_tumor$cell_id, collection_tumor_ids),
+  sum(figure7_treated) == 5335L,
+  sum(collection_treated) == 5335L,
+  setequal(
+    figure7_tumor$cell_id[figure7_treated],
+    collection_tumor_ids[collection_treated]
+  ),
+  identical(
+    as.integer(table(factor(
+      figure7_tumor$initial_ploidy[figure7_treated],
+      levels = c("2N", "4N")
+    ))),
+    c(2407L, 2928L)
+  ),
+  !any(as.character(figure7_tumor$cluster) %in% c("3", "4", "9", "9c"))
+)
+
 # The reviewed 16-matrix inventory is checksum-pinned independently of Git's
 # current working-tree state.
 manifest_path <- file.path(cbs_root, "cbs_manifest.tsv")
@@ -234,18 +286,29 @@ repeated_barcodes <- unique(cell_ids[duplicated(cell_ids)])
 stopifnot(
   length(collection$matrices) == 16L,
   identical(names(collection$matrices), reviewed_manifest$filename),
-  nrow(collection$cell_annotations) == 14125L,
+  nrow(collection$ploidy) == 14125L,
+  nrow(collection$qc_selection) == 9832L,
+  nrow(collection$cell_annotations) == 9832L,
+  sum(collection$cell_annotations$dose_mg_per_kg > 0) == 5335L,
+  sum(collection$cell_annotations$dose_mg_per_kg == 0) == 4497L,
+  identical(
+    as.integer(table(factor(
+      collection$cell_annotations$initial_ploidy,
+      levels = c("2N", "4N")
+    ))),
+    c(4880L, 4952L)
+  ),
   identical(sort(unique(matrix_widths)), c(37L, 45L)),
   sum(matrix_widths == 37L) == 8L,
   sum(matrix_widths == 45L) == 8L,
-  length(repeated_barcodes) == 13L,
+  length(repeated_barcodes) == 8L,
   !anyDuplicated(collection$cell_annotations$heatmap_row_id),
   setequal(unique(collection$cell_annotations$initial_ploidy), c("2N", "4N"))
 )
 
 harmonized <- helper$si_copy_number_harmonize(collection)
 stopifnot(
-  identical(dim(harmonized$matrix), c(14125L, 22L)),
+  identical(dim(harmonized$matrix), c(9832L, 22L)),
   identical(colnames(harmonized$matrix), paste0("chr", seq_len(22L))),
   nrow(harmonized$chromosome_schema_audit) == 44L,
   nrow(harmonized$chromosome_file_audit) == 352L,
@@ -333,23 +396,23 @@ stopifnot(
   )),
   isTRUE(all.equal(
     endpoint_summaries$origin_summary$mean_of_mouse_means,
-    c(2.13534243335647, 2.32156272833987),
+    c(2.1355132970092279, 2.3185529494402664),
     tolerance = 1e-14
   )),
   isTRUE(all.equal(
     endpoint_summaries$origin_summary$min_mouse_mean,
-    c(1.93931939949025, 2.21903005842484),
+    c(1.9414587666013141, 2.2136453794185855),
     tolerance = 1e-14
   )),
   isTRUE(all.equal(
     endpoint_summaries$origin_summary$max_mouse_mean,
-    c(2.31448336243046, 2.58129052174566),
+    c(2.3157000073747946, 2.5855181343704836),
     tolerance = 1e-14
   )),
   identical(reduction$injected_origin, c("2N", "4N")),
   identical(reduction$n_reference_cells, c(20L, 16L)),
   identical(reduction$n_endpoint_mice, c(8L, 8L)),
-  identical(reduction$n_endpoint_cells, c(7187L, 6938L)),
+  identical(reduction$n_endpoint_cells, c(4880L, 4952L)),
   all(reduction$analysis_type == "descriptive_only"),
   all(!reduction$formal_test_performed),
   isTRUE(all.equal(
@@ -369,19 +432,19 @@ stopifnot(
   )),
   isTRUE(all.equal(
     reduction$endpoint_mouse_balanced_mean_ploidy,
-    c(2.1353424333564681, 2.3215627283398659),
+    c(2.1355132970092279, 2.3185529494402664),
     tolerance = 1e-14
   )),
   abs(reduction$absolute_change[reduction$injected_origin == "2N"] -
-        (-0.15800613757376736)) < 1e-13,
+        (-0.1578352739210076)) < 1e-13,
   abs(reduction$relative_change_percent[
     reduction$injected_origin == "2N"
-  ] - (-6.8897567328666698)) < 1e-11,
+  ] - (-6.8823063323943838)) < 1e-11,
   abs(reduction$absolute_change[reduction$injected_origin == "4N"] -
-        (-2.6646684395089899)) < 1e-13,
+        (-2.6676782184085894)) < 1e-13,
   abs(reduction$relative_change_percent[
     reduction$injected_origin == "4N"
-  ] - (-53.4405315319260055)) < 1e-11,
+  ] - (-53.500893332217302)) < 1e-11,
   isTRUE(reduction$all_endpoint_mouse_means_below_reference_min[
     reduction$injected_origin == "4N"
   ]),
@@ -393,9 +456,60 @@ stopifnot(
   abs(separation$reference_4n_minus_2n_mean_ploidy -
         2.6928825969186203) < 1e-13,
   abs(separation$endpoint_4n_minus_2n_mouse_balanced_mean_ploidy -
-        0.1862202949833978) < 1e-13,
+        0.18303965243103848) < 1e-13,
   abs(separation$separation_contraction_percent -
-        93.0847228469419) < 1e-11
+        93.202835777523873) < 1e-11
+)
+
+# The endpoint audit is the frozen QC mask. It must identify exactly the final
+# 9,832-cell tumor universe and cannot silently admit one of the discarded
+# clusters (or omit a retained cell).
+bad_endpoint_audit <- endpoint_audit
+matched_position <- which(helper$si_copy_number_truthy(
+  bad_endpoint_audit$matched
+))[[1L]]
+bad_endpoint_audit$matched[[matched_position]] <- FALSE
+expect_error(
+  helper$si_copy_number_read_collection(
+    cbs_root,
+    ploidy_path,
+    bad_endpoint_audit,
+    sample_metadata
+  ),
+  "exact 9,832-cell QC-passed tumor universe"
+)
+
+# A same-count swap to a discarded CBS barcode must also fail. Counts alone
+# are not an inclusion contract: the full metadata cell ID must bind the exact
+# sample-specific endpoint barcode.
+bad_endpoint_audit <- endpoint_audit
+matched_positions <- which(helper$si_copy_number_truthy(
+  bad_endpoint_audit$matched
+))
+matched_position <- matched_positions[[1L]]
+matched_file <- bad_endpoint_audit$endpoint_file[[matched_position]]
+selected_barcodes <- bad_endpoint_audit$endpoint_cell_id[
+  helper$si_copy_number_truthy(bad_endpoint_audit$matched) &
+    bad_endpoint_audit$endpoint_file == matched_file
+]
+unused_barcode <- setdiff(
+  collection$ploidy$cell_id[collection$ploidy$file == matched_file],
+  selected_barcodes
+)[[1L]]
+unused_ploidy <- collection$ploidy$ploidy[
+  collection$ploidy$file == matched_file &
+    collection$ploidy$cell_id == unused_barcode
+][[1L]]
+bad_endpoint_audit$endpoint_cell_id[[matched_position]] <- unused_barcode
+bad_endpoint_audit$endpoint_ploidy[[matched_position]] <- unused_ploidy
+expect_error(
+  helper$si_copy_number_read_collection(
+    cbs_root,
+    ploidy_path,
+    bad_endpoint_audit,
+    sample_metadata
+  ),
+  "exact 9,832-cell QC-passed tumor universe"
 )
 
 # Filename-encoded dose must agree with the independently reviewed metadata.

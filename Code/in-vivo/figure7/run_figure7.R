@@ -162,6 +162,8 @@ write_metadata <- function(
   endpoint_ploidy_sha256 = "",
   endpoint_ploidy_n_cells = "",
   endpoint_ploidy_n_files = "",
+  endpoint_ploidy_score_universe_n_cells = "",
+  endpoint_ploidy_treated_score_n_cells = "",
   endpoint_ploidy_score_policy = "",
   endpoint_ploidy_mapping_policy = ""
 ) {
@@ -212,6 +214,8 @@ write_metadata <- function(
             "noncellcycle_input", "noncellcycle_sha256",
             "endpoint_ploidy_input", "endpoint_ploidy_sha256",
             "endpoint_ploidy_n_cells", "endpoint_ploidy_n_files",
+            "endpoint_ploidy_score_universe_n_cells",
+            "endpoint_ploidy_treated_score_n_cells",
             "endpoint_ploidy_score_policy",
             "endpoint_ploidy_mapping_policy"),
     value = c("in_vivo_figure7", mode, panel_set, "day", as.character(tgi_day), tgi_measure, "mean", "initial_ploidy",
@@ -232,6 +236,8 @@ write_metadata <- function(
               if (nzchar(endpoint_ploidy_sha256)) endpoint_ploidy_sha256 else "not_recorded",
               if (nzchar(endpoint_ploidy_n_cells)) endpoint_ploidy_n_cells else "not_recorded",
               if (nzchar(endpoint_ploidy_n_files)) endpoint_ploidy_n_files else "not_recorded",
+              if (nzchar(endpoint_ploidy_score_universe_n_cells)) endpoint_ploidy_score_universe_n_cells else "not_recorded",
+              if (nzchar(endpoint_ploidy_treated_score_n_cells)) endpoint_ploidy_treated_score_n_cells else "not_recorded",
               if (nzchar(endpoint_ploidy_score_policy)) endpoint_ploidy_score_policy else "not_recorded",
               if (nzchar(endpoint_ploidy_mapping_policy)) endpoint_ploidy_mapping_policy else "not_recorded"),
     stringsAsFactors = FALSE
@@ -540,16 +546,31 @@ render_from_run <- function(
       !identical(source_scalar("endpoint_ploidy_n_cells"), "14125") ||
       !identical(source_scalar("endpoint_ploidy_n_files"), "16") ||
       !identical(
+        source_scalar("endpoint_ploidy_score_universe_n_cells"),
+        "9832"
+      ) ||
+      !identical(
+        source_scalar("endpoint_ploidy_treated_score_n_cells"),
+        "5335"
+      ) ||
+      !identical(
         source_scalar("endpoint_ploidy_score_policy"),
-        "arithmetic_mean_of_all_finite_postprocessed_cell_ploidy_per_cbs_file"
+        paste0(
+          "arithmetic_mean_of_finite_postprocessed_cell_ploidy_in_exact_",
+          "qc_passed_cellcycle_noncellcycle_union_per_sample"
+        )
       ) ||
       !identical(
         source_scalar("endpoint_ploidy_mapping_policy"),
-        "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+        paste0(
+          "exact_processed_sample_barcode_to_canonical_cbs_file_cell_and_value;",
+          "score_universe=reviewed_final_seurat_tumor_cells"
+        )
       )) {
     figure7_stop(
       "render-only source run does not bind the complete reviewed ",
-      "14,125-cell endpoint-CBS score contract"
+      "14,125-cell endpoint-CBS inventory and exact 9,832-cell curated ",
+      "score-universe contract"
     )
   }
   expected_contract <- figure7_panel_contract(
@@ -594,6 +615,7 @@ render_from_run <- function(
     "sample_id", "initial_ploidy", "dose", "dose_mg",
     "endpoint_ploidy_file", "sample_mean_endpoint_ploidy",
     "n_endpoint_ploidy_cells", "endpoint_ploidy_source_total_cells",
+    "endpoint_ploidy_score_universe_total_cells",
     "endpoint_ploidy_source_file_count", "endpoint_ploidy_source_sha256",
     "endpoint_ploidy_score_policy", "endpoint_ploidy_mapping_policy",
     "terminal_postprocessed_cn_score",
@@ -606,7 +628,8 @@ render_from_run <- function(
     "effect_per_within_origin_sd", "permutation_p_two_sided",
     "n_permutations", "permutation_mode", "permutation_strata",
     "score_variable", "score_source_sha256", "score_source_n_cells",
-    "score_source_n_files", "treated_score_n_cells",
+    "score_inventory_n_cells", "score_source_n_files",
+    "treated_score_n_cells",
     "score_aggregation_policy", "sample_mapping_policy",
     "score_standardization", "adjustment_terms",
     "outcome_variable", "plot_x", "plot_y"
@@ -621,17 +644,19 @@ render_from_run <- function(
   }, logical(1L))
   if (nrow(e) != 8L || nrow(et) != 1L || !all(e_z_contract) ||
       any(abs(e$terminal_postprocessed_cn_score - e$sample_mean_endpoint_ploidy) > 1e-12) ||
-      sum(figure7_numeric(e$n_endpoint_ploidy_cells)) != 7623L ||
+      sum(figure7_numeric(e$n_endpoint_ploidy_cells)) != 5335L ||
       any(figure7_numeric(e$endpoint_ploidy_source_total_cells) != 14125L) ||
+      any(figure7_numeric(e$endpoint_ploidy_score_universe_total_cells) != 9832L) ||
       any(figure7_numeric(e$endpoint_ploidy_source_file_count) != 16L) ||
       any(e$endpoint_ploidy_source_sha256 != source_scalar("endpoint_ploidy_sha256")) ||
       !identical(as.character(et$score_source_sha256), source_scalar("endpoint_ploidy_sha256")) ||
-      figure7_numeric(et$score_source_n_cells) != 14125L ||
+      figure7_numeric(et$score_source_n_cells) != 9832L ||
+      figure7_numeric(et$score_inventory_n_cells) != 14125L ||
       figure7_numeric(et$score_source_n_files) != 16L ||
-      figure7_numeric(et$treated_score_n_cells) != 7623L ||
+      figure7_numeric(et$treated_score_n_cells) != 5335L ||
       !identical(
         as.character(et$score_variable),
-        "sample_mean_all_canonical_cbs_cell_ploidy"
+        "sample_mean_qc_passed_curated_cbs_cell_ploidy"
       ) ||
       any(e$permutation_stratum != paste(e$initial_ploidy, e$dose_mg, sep = "|")) ||
       !identical(as.character(et$permutation_strata), "initial_ploidy:dose_mg") ||
@@ -999,6 +1024,10 @@ render_from_run <- function(
     endpoint_ploidy_sha256 = source_scalar("endpoint_ploidy_sha256"),
     endpoint_ploidy_n_cells = source_scalar("endpoint_ploidy_n_cells"),
     endpoint_ploidy_n_files = source_scalar("endpoint_ploidy_n_files"),
+    endpoint_ploidy_score_universe_n_cells =
+      source_scalar("endpoint_ploidy_score_universe_n_cells"),
+    endpoint_ploidy_treated_score_n_cells =
+      source_scalar("endpoint_ploidy_treated_score_n_cells"),
     endpoint_ploidy_score_policy =
       source_scalar("endpoint_ploidy_score_policy"),
     endpoint_ploidy_mapping_policy =
@@ -1267,6 +1296,8 @@ write_metadata(
   endpoint_ploidy$sha256,
   as.character(endpoint_ploidy$n_cells),
   as.character(endpoint_ploidy$n_files),
+  "9832",
+  "5335",
   endpoint_ploidy$score_policy,
   endpoint_ploidy$mapping_policy
 )

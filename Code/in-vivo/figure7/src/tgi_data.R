@@ -2,6 +2,27 @@
 
 figure7_numeric <- function(x) suppressWarnings(as.numeric(x))
 
+figure7_curated_endpoint_counts <- function() {
+  c(
+    "2N-A1-0" = 413L,
+    "2N-A1-LR" = 369L,
+    "2N-A1-R" = 196L,
+    "2N-A1-RR" = 1495L,
+    "2N-A2-0" = 317L,
+    "2N-A2-L" = 505L,
+    "2N-A4-R" = 305L,
+    "2N-A4-RL" = 1280L,
+    "4N-A5-0" = 888L,
+    "4N-A5-RR" = 393L,
+    "A5-4N-L" = 385L,
+    "A5-4N-R" = 358L,
+    "A6-4N-O" = 189L,
+    "A6-4N-RR" = 660L,
+    "4N-A8-RL" = 1832L,
+    "4N-A8-RR" = 247L
+  )
+}
+
 figure7_unique_sample_value <- function(data, column, sample_id, numeric = FALSE) {
   values <- data[data$sample_id == sample_id, column]
   if (numeric) {
@@ -103,9 +124,15 @@ figure7_read_endpoint_ploidy_table <- function(path, config) {
     n_cells = nrow(cells),
     n_files = length(unique(cells$file)),
     score_policy =
-      "arithmetic_mean_of_all_finite_postprocessed_cell_ploidy_per_cbs_file",
+      paste0(
+        "arithmetic_mean_of_finite_postprocessed_cell_ploidy_in_exact_",
+        "qc_passed_cellcycle_noncellcycle_union_per_sample"
+      ),
     mapping_policy =
-      "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+      paste0(
+        "exact_processed_sample_barcode_to_canonical_cbs_file_cell_and_value;",
+        "score_universe=reviewed_final_seurat_tumor_cells"
+      )
   )
 }
 
@@ -128,23 +155,35 @@ figure7_sample_table <- function(
   embedded_tgi_measure <- paste0("embedded_", tgi_measure)
   columns <- c("cell_id", "sample_id", "initial_ploidy", "gemcitabine_dose",
                "gemcitabine_dose_mg_per_kg", "growth_curve_harvest",
-               "cell_ploidy")
+               "cell_ploidy", "compartment")
   union <- rbind(cellcycle[, columns], noncellcycle[, columns])
   union <- union[is.finite(union$cell_ploidy), , drop = FALSE]
   duplicate_ids <- unique(union$cell_id[duplicated(union$cell_id)])
-  for (cell_id in duplicate_ids) {
-    local <- union[union$cell_id == cell_id, , drop = FALSE]
-    if (length(unique(local$sample_id)) != 1L || length(unique(local$cell_ploidy)) != 1L) {
-      figure7_stop("Conflicting duplicated cell_id: ", cell_id)
-    }
+  if (length(duplicate_ids)) {
+    figure7_stop(
+      "Figure 7 score-universe tables must be disjoint by cell_id; found ",
+      length(duplicate_ids), " duplicated curated cell(s)"
+    )
   }
-  union <- union[!duplicated(union$cell_id), , drop = FALSE]
 
-  # The plotting tables contain a 9,832-cell analysis subset.  They provide
-  # the reviewed sample-to-harvest mapping, but they must not define the
-  # terminal copy-number score.  Validate that every one of those cells maps
-  # back to the exact canonical CBS file and value, then summarize all 14,125
-  # canonical CBS cells independently by file.
+  compartment_counts <- table(union$compartment)
+  if (nrow(union) != 9832L ||
+      !identical(
+        as.integer(compartment_counts[c("CellCycle", "NonCellCycle")]),
+        c(2881L, 6951L)
+      )) {
+    figure7_stop(
+      "Figure 7 score universe must be the exact 9,832-cell reviewed ",
+      "CellCycle + NonCellCycle tumor union (2,881 + 6,951 cells)"
+    )
+  }
+
+  # The complete 14,125-cell table remains the immutable upstream CBS
+  # inventory.  The Figure 7 analysis universe is narrower by design: it is
+  # the exact 9,832 tumor cells retained in the reviewed final Seurat object
+  # and represented by the CellCycle + NonCellCycle tables.  Validate every
+  # curated key and value against the canonical inventory before aggregating
+  # only those curated cells for panel K and its endpoint sensitivities.
   prefix <- paste0(union$sample_id, "_")
   prefix_matches <- startsWith(union$cell_id, prefix)
   if (any(!prefix_matches)) {
@@ -208,15 +247,13 @@ figure7_sample_table <- function(
       dose_mg = figure7_unique_sample_value(local, "gemcitabine_dose_mg_per_kg", id, TRUE),
       growth_curve_harvest = harvest,
       endpoint_ploidy_file = endpoint_file,
-      sample_mean_endpoint_ploidy = mean(canonical$ploidy),
-      sample_median_endpoint_ploidy = stats::median(canonical$ploidy),
-      n_endpoint_ploidy_cells = nrow(canonical),
-      sample_mean_plot_table_endpoint_ploidy = mean(local$cell_ploidy),
-      sample_median_plot_table_endpoint_ploidy = stats::median(local$cell_ploidy),
-      n_plot_table_endpoint_ploidy_cells = nrow(local),
+      sample_mean_endpoint_ploidy = mean(local$cell_ploidy),
+      sample_median_endpoint_ploidy = stats::median(local$cell_ploidy),
+      n_endpoint_ploidy_cells = nrow(local),
       endpoint_ploidy_source_total_cells = endpoint_ploidy$n_cells,
       endpoint_ploidy_source_file_count = endpoint_ploidy$n_files,
       endpoint_ploidy_source_sha256 = endpoint_ploidy$sha256,
+      endpoint_ploidy_score_universe_total_cells = nrow(union),
       endpoint_ploidy_score_policy = endpoint_ploidy$score_policy,
       endpoint_ploidy_mapping_policy = endpoint_ploidy$mapping_policy,
       n_cellcycle_cells = nrow(cc),
@@ -248,17 +285,25 @@ figure7_sample_table <- function(
     character(1L),
     3L
   ))
+  expected_curated_counts <- figure7_curated_endpoint_counts()
+  observed_curated_counts <- stats::setNames(
+    samples$n_endpoint_ploidy_cells,
+    samples$sample_id
+  )
   if (nrow(samples) != 16L || anyDuplicated(samples$endpoint_ploidy_file) ||
       !setequal(samples$endpoint_ploidy_file, unique(endpoint_cells$file)) ||
-      sum(samples$n_endpoint_ploidy_cells) != endpoint_ploidy$n_cells ||
-      sum(samples$n_plot_table_endpoint_ploidy_cells) != nrow(union) ||
+      sum(samples$n_endpoint_ploidy_cells) != 9832L ||
+      !identical(
+        observed_curated_counts[names(expected_curated_counts)],
+        expected_curated_counts
+      ) ||
       any(!valid_file_parts) ||
       any(encoded_origin != samples$initial_ploidy) ||
       any(encoded_dose != samples$dose_mg)) {
     figure7_stop(
-      "Figure 7 sample-to-CBS mapping must cover all 16 files and all ",
-      "14,125 canonical cells exactly once with matching injected origin ",
-      "and dose"
+      "Figure 7 sample-to-CBS mapping must validate the complete 14,125-cell ",
+      "inventory while selecting the exact reviewed 9,832-cell score ",
+      "universe with matching sample, injected origin, and dose"
     )
   }
   samples$matched_control_reference_delta <- NA_real_

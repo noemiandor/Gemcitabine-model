@@ -420,12 +420,29 @@ testthat::test_that("render-only rejects a source without frozen run metadata be
 })
 
 testthat::test_that("SI8 compact provenance is complete and relocatable", {
-  provenance_path <- file.path(
+  validation_output <- file.path(
     repo_root,
-    "figures/Figure7_Supplement/Figure7_Supplement_provenance.tsv"
+    "figures",
+    paste0(".si8_contract_", basename(tempfile()))
+  )
+  on.exit(unlink(validation_output, recursive = TRUE, force = TRUE), add = TRUE)
+  command <- c(
+    file.path(module_dir, "assemble_tgi_sensitivity.R"),
+    paste0("--output-dir=", validation_output)
+  )
+  status <- suppressWarnings(system2(
+    file.path(R.home("bin"), "Rscript"),
+    command,
+    stdout = TRUE,
+    stderr = TRUE
+  ))
+  testthat::expect_null(attr(status, "status"), info = paste(status, collapse = "\n"))
+  provenance_path <- file.path(
+    validation_output,
+    "Figure7_Supplement_provenance.tsv"
   )
   provenance <- figure7_read_tsv(provenance_path, c("key", "value"))
-  expected_roles <- unlist(lapply(c("day24", "day31"), function(day) {
+  expected_roles <- c("cellcycle", "noncellcycle", unlist(lapply(c("day24", "day31"), function(day) {
     paste0(
       day,
       c(
@@ -434,7 +451,7 @@ testthat::test_that("SI8 compact provenance is complete and relocatable", {
         "_panel_e_test"
       )
     )
-  }), use.names = FALSE)
+  }), use.names = FALSE))
 
   testthat::expect_identical(anyDuplicated(provenance$key), 0L)
   testthat::expect_setequal(
@@ -458,7 +475,7 @@ testthat::test_that("SI8 compact provenance is complete and relocatable", {
   keyed <- stats::setNames(as.character(provenance$value), provenance$key)
   bundle_locator <- paste0(
     "Data/in-vivo/figure7/saved_tgi_sensitivity/",
-    "tgi_day24_day31_all_cbs_v1"
+    "tgi_day24_day31_curated_cbs_v2"
   )
   expected_bundle_files <- unlist(lapply(c("day24", "day31"), function(day) {
     c(
@@ -480,10 +497,22 @@ testthat::test_that("SI8 compact provenance is complete and relocatable", {
 
   testthat::expect_identical(
     keyed[["source_bundle_id"]],
-    "tgi_day24_day31_all_cbs_v1"
+    "tgi_day24_day31_curated_cbs_v2"
   )
   testthat::expect_identical(keyed[["source_bundle"]], bundle_locator)
   testthat::expect_identical(keyed[["source_bundle_file_count"]], "12")
+  testthat::expect_identical(
+    keyed[["endpoint_ploidy_inventory_n_cells"]],
+    "14125"
+  )
+  testthat::expect_identical(
+    keyed[["endpoint_ploidy_score_universe_n_cells"]],
+    "9832"
+  )
+  testthat::expect_identical(
+    keyed[["treated_endpoint_ploidy_n_cells"]],
+    "5335"
+  )
   testthat::expect_setequal(
     list.files(bundle_path, recursive = TRUE, all.files = FALSE, no.. = TRUE),
     expected_bundle_files
@@ -505,8 +534,21 @@ testthat::test_that("SI8 compact provenance is complete and relocatable", {
       )]
     ))] == "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv"
   ))
+  processed_roles <- expected_roles %in% c("cellcycle", "noncellcycle")
+  testthat::expect_setequal(
+    source_locators[match(expected_roles[processed_roles], sub(
+      "^source_file:", "", provenance$key[startsWith(
+        provenance$key,
+        "source_file:"
+      )]
+    ))],
+    c(
+      "Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
+      "Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
+    )
+  )
   bundle_source_locators <- source_locators[!grepl(
-    "all_ploidy[.]csv$",
+    "all_ploidy[.]csv$|Data/in-vivo/figure7/processed/",
     source_locators
   )]
   testthat::expect_true(all(startsWith(
@@ -549,15 +591,15 @@ testthat::test_that("SI8 compact provenance is complete and relocatable", {
   testthat::expect_identical(
     keyed[["png_sha256"]],
     figure7_sha256(file.path(
-      repo_root,
-      "figures/Figure7_Supplement/Figure7_Supplement.png"
+      validation_output,
+      "Figure7_Supplement.png"
     ))
   )
   testthat::expect_identical(
     keyed[["pdf_sha256"]],
     figure7_sha256(file.path(
-      repo_root,
-      "figures/Figure7_Supplement/Figure7_Supplement.pdf"
+      validation_output,
+      "Figure7_Supplement.pdf"
     ))
   )
 
@@ -580,7 +622,10 @@ testthat::test_that("SI8 compact provenance is complete and relocatable", {
   }
   relocated_provenance <- file.path(
     relocated_root,
-    "figures/Figure7_Supplement/Figure7_Supplement_provenance.tsv"
+    substring(
+      provenance_path,
+      nchar(paste0(repo_root, .Platform$file.sep)) + 1L
+    )
   )
   dir.create(dirname(relocated_provenance), recursive = TRUE, showWarnings = FALSE)
   testthat::expect_true(file.copy(
@@ -615,8 +660,8 @@ testthat::test_that("SI8 compact provenance is complete and relocatable", {
     "local_provenance_path", "citation_or_uri", "notes"
   )
   si8_manifest <- figure7_read_tsv(file.path(
-    repo_root,
-    "figures/Figure7_Supplement/si8_manifest.tsv"
+    validation_output,
+    "si8_manifest.tsv"
   ))
   source_manifest <- figure7_read_tsv(file.path(
     repo_root,
@@ -630,7 +675,10 @@ testthat::test_that("SI8 compact provenance is complete and relocatable", {
   )
   testthat::expect_true(all(
     si8_manifest$local_provenance_path ==
-      "figures/Figure7_Supplement/Figure7_Supplement_provenance.tsv"
+      substring(
+        provenance_path,
+        nchar(paste0(repo_root, .Platform$file.sep)) + 1L
+      )
   ))
   testthat::expect_true(all(file.exists(file.path(
     repo_root,

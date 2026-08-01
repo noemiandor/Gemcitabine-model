@@ -273,6 +273,183 @@ sort_cluster_levels <- function(values) {
   values[order(order_key, values, na.last = TRUE, method = "radix")]
 }
 
+si_assert_reviewed_final_universe <- function(
+  data,
+  included_in_si_figures = NULL
+) {
+  required <- c(
+    "cell", "mouse", "cluster", "context", "initial_ploidy", "dose"
+  )
+  missing <- setdiff(required, names(data))
+  if (length(missing)) {
+    stop(
+      "Final-QC SI universe lacks required field(s): ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  cell <- clean_character(data$cell)
+  mouse <- clean_character(data$mouse)
+  cluster <- clean_character(data$cluster)
+  context <- clean_character(data$context)
+  initial_ploidy <- clean_character(data$initial_ploidy)
+  dose <- clean_character(data$dose)
+  if (nrow(data) != 35513L || anyNA(cell) || anyDuplicated(cell)) {
+    stop(
+      "Raw SI analyses require the exact 35,513-cell reviewed final-QC ",
+      "Seurat universe with unique cell IDs",
+      call. = FALSE
+    )
+  }
+
+  expected_cluster_counts <- c(
+    "0" = 22670L,
+    "2" = 3644L,
+    "4c" = 103L,
+    "5" = 1823L,
+    "6" = 1685L,
+    "8" = 1579L,
+    "10" = 3095L,
+    "13" = 704L,
+    "14" = 210L
+  )
+  discarded_clusters <- c("3", "4", "9", "9c")
+  observed_discarded <- intersect(unique(cluster), discarded_clusters)
+  if (length(observed_discarded)) {
+    stop(
+      "Raw SI universe still contains discarded QC cluster(s): ",
+      paste(sort_cluster_levels(observed_discarded), collapse = ", "),
+      call. = FALSE
+    )
+  }
+  observed_clusters <- sort_cluster_levels(cluster)
+  observed_cluster_counts <- table(factor(
+    cluster,
+    levels = names(expected_cluster_counts)
+  ))
+  if (anyNA(cluster) ||
+      !identical(observed_clusters, names(expected_cluster_counts)) ||
+      !identical(
+        as.integer(observed_cluster_counts),
+        as.integer(expected_cluster_counts)
+      )) {
+    stop(
+      "Raw SI universe differs from the reviewed final cluster counts ",
+      "after excluding clusters 3, 4, 9, and 9c",
+      call. = FALSE
+    )
+  }
+
+  context_counts <- table(factor(
+    context,
+    levels = c("CellLine", "Tumor")
+  ))
+  if (anyNA(context) ||
+      !setequal(unique(context), c("CellLine", "Tumor")) ||
+      !identical(as.integer(context_counts), c(25681L, 9832L))) {
+    stop(
+      "Raw SI universe must have the reviewed context counts: ",
+      "25,681 CellLine and 9,832 Tumor cells",
+      call. = FALSE
+    )
+  }
+
+  tumor <- context == "Tumor"
+  expected_sample_counts <- c(
+    "2N-A1-0" = 413L,
+    "2N-A1-LR" = 369L,
+    "2N-A1-R" = 196L,
+    "2N-A1-RR" = 1495L,
+    "2N-A2-0" = 317L,
+    "2N-A2-L" = 505L,
+    "2N-A4-R" = 305L,
+    "2N-A4-RL" = 1280L,
+    "4N-A5-0" = 888L,
+    "4N-A5-RR" = 393L,
+    "A5-4N-L" = 385L,
+    "A5-4N-R" = 358L,
+    "A6-4N-O" = 189L,
+    "A6-4N-RR" = 660L,
+    "4N-A8-RL" = 1832L,
+    "4N-A8-RR" = 247L
+  )
+  expected_sample_origins <- stats::setNames(
+    c(rep("2N", 8L), rep("4N", 8L)),
+    names(expected_sample_counts)
+  )
+  expected_sample_doses <- stats::setNames(
+    c(
+      rep("0mg/kg", 4L), rep("30mg/kg", 2L), rep("120mg/kg", 2L),
+      rep("0mg/kg", 4L), rep("30mg/kg", 2L), rep("120mg/kg", 2L)
+    ),
+    names(expected_sample_counts)
+  )
+  observed_sample_counts <- table(factor(
+    mouse[tumor],
+    levels = names(expected_sample_counts)
+  ))
+  mapped_sample_origins <- unname(expected_sample_origins[mouse[tumor]])
+  mapped_sample_doses <- unname(expected_sample_doses[mouse[tumor]])
+  if (anyNA(mouse[tumor]) ||
+      !setequal(unique(mouse[tumor]), names(expected_sample_counts)) ||
+      !identical(
+        as.integer(observed_sample_counts),
+        as.integer(expected_sample_counts)
+      ) ||
+      anyNA(mapped_sample_origins) || anyNA(mapped_sample_doses) ||
+      any(initial_ploidy[tumor] != mapped_sample_origins) ||
+      any(dose[tumor] != mapped_sample_doses)) {
+    stop(
+      "Raw SI universe must retain the exact reviewed 16-sample cell counts ",
+      "and one injected-origin/dose assignment per tumor sample",
+      call. = FALSE
+    )
+  }
+
+  allowed_tumor_doses <- c("0mg/kg", "30mg/kg", "120mg/kg")
+  treated <- tumor & dose %in% c("30mg/kg", "120mg/kg")
+  tumor_ploidy_counts <- table(factor(
+    initial_ploidy[tumor],
+    levels = c("2N", "4N")
+  ))
+  treated_ploidy_counts <- table(factor(
+    initial_ploidy[treated],
+    levels = c("2N", "4N")
+  ))
+  if (anyNA(dose[tumor]) ||
+      any(!dose[tumor] %in% allowed_tumor_doses) ||
+      anyNA(initial_ploidy[tumor]) ||
+      any(!initial_ploidy[tumor] %in% c("2N", "4N")) ||
+      sum(treated) != 5335L ||
+      sum(tumor & dose == "0mg/kg") != 4497L ||
+      !identical(as.integer(tumor_ploidy_counts), c(4880L, 4952L)) ||
+      !identical(as.integer(treated_ploidy_counts), c(2407L, 2928L))) {
+    stop(
+      "Raw SI universe must retain the exact reviewed treated-tumor ",
+      "contract: 5,335 treated cells (2N=2,407; 4N=2,928) and ",
+      "4,497 untreated cells",
+      call. = FALSE
+    )
+  }
+
+  if (!is.null(included_in_si_figures)) {
+    if (!is.logical(included_in_si_figures) ||
+        length(included_in_si_figures) != nrow(data) ||
+        anyNA(included_in_si_figures) ||
+        !identical(included_in_si_figures, tumor) ||
+        sum(included_in_si_figures & treated) != 5335L) {
+      stop(
+        "`included_in_si_figures` must select exactly all 9,832 final-QC ",
+        "Tumor cells, including the same 5,335 treated cells, and no ",
+        "CellLine cells",
+        call. = FALSE
+      )
+    }
+  }
+  invisible(TRUE)
+}
+
 mapping_by_group <- function(group, value, value_label) {
   group <- clean_character(group)
   value <- clean_character(value)
@@ -869,6 +1046,7 @@ si_raw_scientific_code_contract <- function(path = NULL) {
     "standardize_ploidy",
     "standardize_context",
     "sort_cluster_levels",
+    "si_assert_reviewed_final_universe",
     "mapping_by_group",
     "assert_consistent",
     "infer_sample_ploidy",
@@ -1304,6 +1482,7 @@ ploidy_context <- resolve_reviewed_ploidy_context(
 )
 seurat$initial_ploidy <- ploidy_context$initial_ploidy
 seurat$context <- ploidy_context$context
+si_assert_reviewed_final_universe(seurat)
 si_science_marker("END:metadata")
 
 if (!is.na(scvelo_metrics_path)) {
@@ -1455,6 +1634,10 @@ seurat$exclusion_reason <- ifelse(
       )
     )
   )
+)
+si_assert_reviewed_final_universe(
+  seurat,
+  included_in_si_figures = seurat$included_in_si_figures
 )
 
 canonical_cells <- data.frame(

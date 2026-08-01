@@ -181,7 +181,8 @@ figure7_adjusted_cn_plot <- function(data, test, config) {
   required_test <- c(
     "n", "partial_correlation", "effect_per_within_origin_sd",
     "permutation_p_two_sided", "permutation_strata",
-    "score_variable", "score_source_n_cells", "score_source_n_files",
+    "score_variable", "score_source_n_cells", "score_inventory_n_cells",
+    "score_source_n_files",
     "treated_score_n_cells", "score_aggregation_policy",
     "sample_mapping_policy", "score_standardization", "adjustment_terms"
   )
@@ -192,11 +193,12 @@ figure7_adjusted_cn_plot <- function(data, test, config) {
   if (!identical(as.character(test$permutation_strata[[1L]]), "initial_ploidy:dose_mg") ||
       !identical(
         as.character(test$score_variable[[1L]]),
-        "sample_mean_all_canonical_cbs_cell_ploidy"
+        "sample_mean_qc_passed_curated_cbs_cell_ploidy"
       ) ||
-      as.integer(test$score_source_n_cells[[1L]]) != 14125L ||
+      as.integer(test$score_source_n_cells[[1L]]) != 9832L ||
+      as.integer(test$score_inventory_n_cells[[1L]]) != 14125L ||
       as.integer(test$score_source_n_files[[1L]]) != 16L ||
-      as.integer(test$treated_score_n_cells[[1L]]) != 7623L ||
+      as.integer(test$treated_score_n_cells[[1L]]) != 5335L ||
       !identical(as.character(test$score_standardization[[1L]]), "z_score_within_initial_ploidy") ||
       !identical(as.character(test$adjustment_terms[[1L]]), "initial_ploidy+dose_mg")) {
     figure7_stop("Panel 7E/K adjusted CN-score plot received an incompatible analysis contract")
@@ -255,10 +257,10 @@ figure7_adjusted_cn_plot <- function(data, test, config) {
     ggplot2::labs(
       title = paste(
         "Day", figure7_tgi_day(config),
-        "TGI vs all-cell terminal postprocessed CN score"
+        "TGI vs QC-passed terminal postprocessed CN score"
       ),
       subtitle = paste0(
-        "All 7,623 treated-tumor CBS cells; within-origin z score;\n",
+        "5,335 QC-passed treated-tumor CBS cells; within-origin z score;\n",
         "association adjusted for injected origin and dose"
       ),
       x = paste0(

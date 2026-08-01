@@ -110,8 +110,10 @@ immutable run under `Results/in-vivo/figure7/runs/<run_id>_figure7/`. Routine
 mode recomputes scientific source panels 7A-7D from the tracked CellCycle and
 NonCellCycle plot-facing tables. Source 7E/final K additionally reads the
 checksum-pinned six-column `scRNAseq_Numbat/all_ploidy.csv`, computing the eight
-treated-mouse scores from all 7,623 treated cells in the complete 14,125-cell,
-16-file CBS source. Source 7F is rendered from the reviewed, byte-pinned
+treated-mouse scores from the exact 5,335 QC-passed treated cells in the
+9,832-cell final-Seurat tumor union. The complete 14,125-cell, 16-file CBS table
+remains checksum-pinned as the upstream inventory, and every curated file +
+barcode + value must map to it exactly. Source 7F is rendered from the reviewed, byte-pinned
 human-only reference
 `state_pathway_grch_human_only_initial_ploidy_day17_v3`. That reference retains
 exact `GRCh38-` features before expression filtering and modeling, uses Homo
@@ -136,10 +138,13 @@ run-scoped and noncanonical until separately reviewed.
 
 The reviewed Day-24/Day-31 Supplementary Figure 8 sensitivity analysis is
 frozen separately at
-`Data/in-vivo/figure7/saved_tgi_sensitivity/tgi_day24_day31_all_cbs_v1/`.
+`Data/in-vivo/figure7/saved_tgi_sensitivity/tgi_day24_day31_curated_cbs_v2/`.
 It retains only the ten consumed endpoint tables and two run configs. Its final
 PDF/PNG have their own portable `si8_manifest.tsv`; they are intentionally not
 inserted into the 13-row Day-24 Figure 7 source-panel manifest.
+The older `tgi_day24_day31_all_cbs_v1` bundle was removed because it scored
+cells outside the final QC tumor universe. It is unsupported and must not be
+materialized.
 
 | Panel | Manuscript content | Canonical source output |
 |---|---|---|
@@ -172,7 +177,7 @@ final composite PDF/PNG pairs.
 |---|---|---|
 | Supplementary Figure 4 | Tumor and CellLine UMAPs, S-phase score, equal-sample context/ploidy composition with sample-level enrichment tests, and the explicit 2,881-cell CellCycle subset count | `figures/Supplementary/panel_SuppFig4_composite.pdf` and `.png` |
 | Supplementary Figure 5 | Tumor cluster, ploidy, dose, and sample views; descriptive per-mouse composition plus equal-mouse grouped composition with stratified sample-level enrichment tests | `figures/Supplementary/panel_SuppFig5_composite.pdf` and `.png` |
-| Supplementary Figure 6 | Endpoint tumor ploidy overall/by origin/by mouse; all-cell chromosome-level copy-number heatmap; descriptive injected-reference-proxy-to-endpoint comparison | `figures/Supplementary/panel_SuppFig6_composite.pdf` and `.png` |
+| Supplementary Figure 6 | Endpoint tumor ploidy overall/by origin/by mouse; chromosome-level copy-number heatmap over the exact 9,832 final-QC tumor cells (5,335 treated), selected from the validated 14,125-cell CBS source; descriptive injected-reference-proxy-to-endpoint comparison | `figures/Supplementary/panel_SuppFig6_composite.pdf` and `.png` |
 | Supplementary Figure 7 | Top-20 Hallmark ORA annotation-score and GSEA NES heatmaps | `figures/Supplementary/panel_SuppFig7_composite.pdf` and `.png` |
 
 The reviewed SI Figure 7 matrices are the exact approved raw-refit outputs:

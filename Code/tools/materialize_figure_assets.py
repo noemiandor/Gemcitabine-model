@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import itertools
 import math
 import os
@@ -462,19 +463,19 @@ FIGURE7_PANEL_K_SOURCE_INPUTS = (
 )
 FIGURE7_PANEL_K_RESULTS = {
     17: {
-        "effect_per_within_origin_sd": -8.8374975584089,
-        "partial_correlation": -0.344659307863932,
-        "permutation_p_two_sided": 0.6875,
+        "effect_per_within_origin_sd": -8.792298734079608,
+        "partial_correlation": -0.3431355546551816,
+        "permutation_p_two_sided": 0.75,
     },
     24: {
-        "effect_per_within_origin_sd": -6.77351906237078,
-        "partial_correlation": -0.30605912538695,
-        "permutation_p_two_sided": 0.5625,
+        "effect_per_within_origin_sd": -6.683928279063553,
+        "partial_correlation": -0.3022214862100653,
+        "permutation_p_two_sided": 0.625,
     },
     31: {
-        "effect_per_within_origin_sd": -2.77364130329883,
-        "partial_correlation": -0.173200987198346,
-        "permutation_p_two_sided": 0.6875,
+        "effect_per_within_origin_sd": -2.955883758578773,
+        "partial_correlation": -0.1847098257830974,
+        "permutation_p_two_sided": 0.625,
     },
 }
 FIGURE7_PANEL_K_SAMPLE_DESIGN = {
@@ -497,6 +498,35 @@ FIGURE7_PANEL_K_SAMPLE_FILES = {
     "4N-A8-RL": "SUM159-4N-120-RL_harvest.sps.cbs",
     "4N-A8-RR": "SUM159-4N-120-RR_harvest.sps.cbs",
 }
+FIGURE7_CURATED_SAMPLE_COUNTS = {
+    "2N-A1-0": 413,
+    "2N-A1-LR": 369,
+    "2N-A1-R": 196,
+    "2N-A1-RR": 1495,
+    "2N-A2-0": 317,
+    "2N-A2-L": 505,
+    "2N-A4-R": 305,
+    "2N-A4-RL": 1280,
+    "4N-A5-0": 888,
+    "4N-A5-RR": 393,
+    "A5-4N-L": 385,
+    "A5-4N-R": 358,
+    "A6-4N-O": 189,
+    "A6-4N-RR": 660,
+    "4N-A8-RL": 1832,
+    "4N-A8-RR": 247,
+}
+SI6_COPY_NUMBER_ANNOTATION_COLUMNS = [
+    "heatmap_row_id",
+    "file",
+    "cell_id",
+    "sample_id",
+    "initial_ploidy",
+    "dose_mg_per_kg",
+    "endpoint_ploidy",
+    "frac_covered",
+    "display_order",
+]
 
 EXTERNAL_ROWS = [
     {
@@ -683,6 +713,219 @@ def finite_float(value: str, label: str) -> float:
     return parsed
 
 
+def validate_si6_copy_number_outputs(run_root: Path, repo_root: Path) -> None:
+    """Bind the published SI6 heatmap to the exact final-QC tumor universe."""
+    annotation_path = (
+        run_root
+        / "metadata"
+        / "si_figure6E_copy_number_cell_annotations.tsv"
+    ).resolve()
+    matrix_path = (
+        run_root
+        / "metadata"
+        / "si_figure6E_copy_number_heatmap_matrix.rds"
+    ).resolve()
+    for label, path in (
+        ("SI6 copy-number cell annotations", annotation_path),
+        ("SI6 copy-number heatmap matrix", matrix_path),
+    ):
+        if not path.is_file():
+            raise FileNotFoundError(f"Missing {label}: {path}")
+
+    annotation_headers, annotation_rows = read_tsv(annotation_path)
+    if (
+        annotation_headers != SI6_COPY_NUMBER_ANNOTATION_COLUMNS
+        or len(annotation_rows) != 9832
+    ):
+        raise ValueError(
+            "SI6 copy-number cell annotations must have the exact reviewed "
+            "schema and 9,832 final-QC tumor rows"
+        )
+
+    audit_path = (
+        repo_root
+        / "Data"
+        / "in-vivo"
+        / "SIfigures"
+        / "si_figure6_endpoint_ploidy_join_audit.csv"
+    )
+    if not audit_path.is_file():
+        raise FileNotFoundError(
+            f"Missing canonical SI6 endpoint-ploidy audit: {audit_path}"
+        )
+    canonical_by_key: dict[tuple[str, str], dict[str, str]] = {}
+    with audit_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames != [
+            "cell",
+            "context",
+            "initial_ploidy",
+            "endpoint_file",
+            "endpoint_cell_id",
+            "endpoint_ploidy",
+            "matched",
+        ]:
+            raise ValueError("Canonical SI6 endpoint-ploidy audit schema is invalid")
+        for row in reader:
+            matched = row["matched"].strip().lower() in {
+                "1",
+                "true",
+                "t",
+                "yes",
+            }
+            if row["context"].strip() != "Tumor" or not matched:
+                continue
+            key = (
+                row["endpoint_file"].strip(),
+                row["endpoint_cell_id"].strip(),
+            )
+            if not all(key) or key in canonical_by_key:
+                raise ValueError(
+                    "Canonical SI6 endpoint-ploidy audit has missing or "
+                    "duplicated matched CBS cell keys"
+                )
+            canonical_by_key[key] = row
+    if len(canonical_by_key) != 9832:
+        raise ValueError(
+            "Canonical SI6 endpoint-ploidy audit must identify exactly "
+            "9,832 matched final-QC tumor cells"
+        )
+
+    observed_by_key: dict[tuple[str, str], dict[str, str]] = {}
+    heatmap_row_ids: set[str] = set()
+    display_orders: set[int] = set()
+    sample_counts: Counter[str] = Counter()
+    origin_counts: Counter[str] = Counter()
+    treated_count = 0
+    for row in annotation_rows:
+        file_name = row["file"].strip()
+        cell_id = row["cell_id"].strip()
+        sample_id = row["sample_id"].strip()
+        origin = row["initial_ploidy"].strip()
+        dose = row["dose_mg_per_kg"].strip()
+        heatmap_row_id = row["heatmap_row_id"].strip()
+        key = (file_name, cell_id)
+        canonical = canonical_by_key.get(key)
+        expected_heatmap_row_id = f"{file_name}::{cell_id}"
+        full_cell_id = f"{sample_id}_{cell_id}"
+        file_parts = file_name.split("-")
+        expected_dose = file_parts[2] if len(file_parts) >= 4 else ""
+        endpoint_ploidy = finite_float(
+            row["endpoint_ploidy"],
+            "SI6 annotated endpoint ploidy",
+        )
+        frac_covered = finite_float(
+            row["frac_covered"],
+            "SI6 annotated covered fraction",
+        )
+        try:
+            display_order = int(row["display_order"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "SI6 copy-number display_order must contain integers"
+            ) from exc
+        if (
+            canonical is None
+            or key in observed_by_key
+            or not file_name.endswith(".sps.cbs")
+            or Path(file_name).name != file_name
+            or not sample_id
+            or sample_id not in FIGURE7_CURATED_SAMPLE_COUNTS
+            or heatmap_row_id != expected_heatmap_row_id
+            or heatmap_row_id in heatmap_row_ids
+            or full_cell_id != canonical["cell"].strip()
+            or origin != canonical["initial_ploidy"].strip()
+            or len(file_parts) < 4
+            or file_parts[0] != "SUM159"
+            or file_parts[1] != origin
+            or dose != expected_dose
+            or dose not in {"0", "30", "120"}
+            or not math.isclose(
+                endpoint_ploidy,
+                finite_float(
+                    canonical["endpoint_ploidy"],
+                    "canonical SI6 endpoint ploidy",
+                ),
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            )
+            or not 0 < frac_covered <= 1
+            or display_order < 1
+            or display_order in display_orders
+        ):
+            raise ValueError(
+                "SI6 copy-number annotations do not preserve the exact "
+                "canonical cell/file/barcode/ploidy identity and display contract"
+            )
+        observed_by_key[key] = row
+        heatmap_row_ids.add(heatmap_row_id)
+        display_orders.add(display_order)
+        sample_counts[sample_id] += 1
+        origin_counts[origin] += 1
+        treated_count += int(dose != "0")
+
+    if (
+        set(observed_by_key) != set(canonical_by_key)
+        or display_orders != set(range(1, 9833))
+        or sample_counts != Counter(FIGURE7_CURATED_SAMPLE_COUNTS)
+        or origin_counts != Counter({"2N": 4880, "4N": 4952})
+        or treated_count != 5335
+    ):
+        raise ValueError(
+            "SI6 copy-number annotations must contain the exact 9,832-cell "
+            "final-QC universe, including 5,335 treated cells and the "
+            "reviewed per-sample/origin counts"
+        )
+
+    output_manifest = run_root / "metadata" / "output_manifest.tsv"
+    if not output_manifest.is_file():
+        raise FileNotFoundError(f"Missing source output manifest: {output_manifest}")
+    errors = validate_module_manifest(
+        output_manifest,
+        repo_root=repo_root,
+        output_root=run_root,
+    )
+    if errors:
+        raise ValueError("Invalid source output manifest:\n" + "\n".join(errors))
+    _, output_rows = read_tsv(output_manifest)
+    expected_outputs = {
+        annotation_path: ("output_table", "generated_table"),
+        matrix_path: ("output_model", "generated_model"),
+    }
+    expected_command_id = run_root.name.removesuffix("_si_figures")
+    for path, (role, source_kind) in expected_outputs.items():
+        matches = [
+            row
+            for row in output_rows
+            if (
+                (local_path := module_manifest_local_path(
+                    row,
+                    repo_root,
+                    output_root=run_root,
+                ))
+                is not None
+                and local_path.resolve() == path
+            )
+        ]
+        if len(matches) != 1:
+            raise ValueError(
+                "SI6 output manifest must bind exactly one row for "
+                f"{path.name}; found {len(matches)}"
+            )
+        manifest_row = matches[0]
+        if (
+            manifest_row.get("role") != role
+            or manifest_row.get("source_kind") != source_kind
+            or manifest_row.get("module") != "si_figures"
+            or manifest_row.get("command_id") != expected_command_id
+            or manifest_row.get("sha256", "").strip() != sha256_file(path)
+        ):
+            raise ValueError(
+                "SI6 output-manifest provenance is invalid for "
+                f"{path.name}"
+            )
+
+
 def validate_figure7_panel_k_contract(
     run_root: Path,
     repo_root: Path,
@@ -706,11 +949,15 @@ def validate_figure7_panel_k_contract(
         "endpoint_ploidy_sha256": FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256,
         "endpoint_ploidy_n_cells": "14125",
         "endpoint_ploidy_n_files": "16",
+        "endpoint_ploidy_score_universe_n_cells": "9832",
+        "endpoint_ploidy_treated_score_n_cells": "5335",
         "endpoint_ploidy_score_policy": (
-            "arithmetic_mean_of_all_finite_postprocessed_cell_ploidy_per_cbs_file"
+            "arithmetic_mean_of_finite_postprocessed_cell_ploidy_in_exact_"
+            "qc_passed_cellcycle_noncellcycle_union_per_sample"
         ),
         "endpoint_ploidy_mapping_policy": (
-            "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+            "exact_processed_sample_barcode_to_canonical_cbs_file_cell_and_value;"
+            "score_universe=reviewed_final_seurat_tumor_cells"
         ),
     }
     if any(
@@ -719,7 +966,8 @@ def validate_figure7_panel_k_contract(
     ):
         raise ValueError(
             "Figure 7 panel K run metadata does not bind the reviewed "
-            "14,125-cell, 16-file endpoint-CBS score contract"
+            "14,125-cell endpoint-CBS inventory and exact 9,832-cell "
+            "curated score-universe contract"
         )
     endpoint_locator = run_config.get("endpoint_ploidy_input", "")
     endpoint_path = resolve_repo_path(endpoint_locator, repo_root)
@@ -767,6 +1015,7 @@ def validate_figure7_panel_k_contract(
         )
     endpoint_keys: set[tuple[str, str]] = set()
     endpoint_scores: dict[str, list[float]] = {}
+    endpoint_score_by_key: dict[tuple[str, str], float] = {}
     for row in endpoint_rows:
         file_name = row.get("file", "")
         cell_id = row.get("cell_id", "")
@@ -795,10 +1044,118 @@ def validate_figure7_panel_k_contract(
                 "duplicated CBS cell"
             )
         endpoint_keys.add(key)
+        endpoint_score_by_key[key] = score
         endpoint_scores.setdefault(file_name, []).append(score)
     if len(endpoint_scores) != 16:
         raise ValueError(
             "Figure 7 endpoint-ploidy source must contain exactly 16 CBS files"
+        )
+
+    curated_scores_by_sample: dict[str, list[float]] = {}
+    curated_file_by_sample: dict[str, str] = {}
+    curated_keys: set[tuple[str, str]] = set()
+    compartment_counts: Counter[str] = Counter()
+    for relative_path, expected_hash in FIGURE7_PROCESSED_INPUTS.items():
+        role = "cellcycle" if relative_path.name.startswith("CellCycle") else "noncellcycle"
+        locator = run_config.get(f"{role}_input", "")
+        processed_path = resolve_repo_path(locator, repo_root)
+        if (
+            processed_path is None
+            or not path_within(processed_path, repo_root)
+            or processed_path.resolve() != (repo_root / relative_path).resolve()
+            or not processed_path.is_file()
+            or run_config.get(f"{role}_sha256") != expected_hash
+            or sha256_file(processed_path) != expected_hash
+        ):
+            raise ValueError(
+                "Figure 7 panel K does not bind the exact portable reviewed "
+                f"{role} score-universe table"
+            )
+        processed_input_rows = [
+            row
+            for row in input_rows
+            if (
+                (path := module_manifest_local_path(row, repo_root)) is not None
+                and path.resolve() == processed_path.resolve()
+            )
+        ]
+        if (
+            len(processed_input_rows) != 1
+            or processed_input_rows[0].get("sha256") != expected_hash
+        ):
+            raise ValueError(
+                "Figure 7 source input manifest must bind exactly one reviewed "
+                f"{role} score-universe table"
+            )
+        with processed_path.open(newline="", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle)
+            required = {
+                "cell_id",
+                "sample_id",
+                "growth_curve_harvest",
+                "cell_ploidy",
+            }
+            if reader.fieldnames is None or not required.issubset(reader.fieldnames):
+                raise ValueError(
+                    f"Figure 7 {role} score-universe table has an invalid schema"
+                )
+            for row in reader:
+                sample_id = row["sample_id"].strip()
+                full_cell_id = row["cell_id"].strip()
+                prefix = f"{sample_id}_"
+                harvest = row["growth_curve_harvest"].strip()
+                file_name = f"{harvest}.sps.cbs"
+                if not sample_id or not full_cell_id.startswith(prefix) or not harvest:
+                    raise ValueError(
+                        f"Figure 7 {role} score-universe table violates the "
+                        "sample-prefixed cell-key contract"
+                    )
+                key = (file_name, full_cell_id[len(prefix) :])
+                processed_score = finite_float(
+                    row["cell_ploidy"],
+                    f"Figure 7 {role} cell ploidy",
+                )
+                canonical_score = endpoint_score_by_key.get(key)
+                if (
+                    key in curated_keys
+                    or canonical_score is None
+                    or not math.isclose(
+                        processed_score,
+                        canonical_score,
+                        rel_tol=0.0,
+                        abs_tol=1e-12,
+                    )
+                ):
+                    raise ValueError(
+                        "Figure 7 curated score-universe cells do not map "
+                        "uniquely and exactly to the canonical CBS inventory"
+                    )
+                previous_file = curated_file_by_sample.setdefault(sample_id, file_name)
+                if previous_file != file_name:
+                    raise ValueError(
+                        "Figure 7 curated score universe maps one sample to "
+                        "multiple CBS files"
+                    )
+                curated_keys.add(key)
+                curated_scores_by_sample.setdefault(sample_id, []).append(canonical_score)
+                compartment_counts[role] += 1
+    curated_counts = {
+        sample_id: len(scores)
+        for sample_id, scores in curated_scores_by_sample.items()
+    }
+    if (
+        len(curated_keys) != 9832
+        or compartment_counts != Counter({"cellcycle": 2881, "noncellcycle": 6951})
+        or curated_counts != FIGURE7_CURATED_SAMPLE_COUNTS
+        or sum(
+            curated_counts[sample_id]
+            for sample_id in FIGURE7_PANEL_K_SAMPLE_FILES
+        )
+        != 5335
+    ):
+        raise ValueError(
+            "Figure 7 panel K score universe must be the exact 9,832-cell "
+            "QC-passed CellCycle + NonCellCycle union (5,335 treated cells)"
         )
 
     table_paths = {
@@ -850,6 +1207,7 @@ def validate_figure7_panel_k_contract(
         "sample_mean_endpoint_ploidy",
         "n_endpoint_ploidy_cells",
         "endpoint_ploidy_source_total_cells",
+        "endpoint_ploidy_score_universe_total_cells",
         "endpoint_ploidy_source_file_count",
         "endpoint_ploidy_source_sha256",
         "endpoint_ploidy_score_policy",
@@ -878,6 +1236,7 @@ def validate_figure7_panel_k_contract(
         "score_variable",
         "score_source_sha256",
         "score_source_n_cells",
+        "score_inventory_n_cells",
         "score_source_n_files",
         "treated_score_n_cells",
         "score_aggregation_policy",
@@ -942,8 +1301,8 @@ def validate_figure7_panel_k_contract(
     strata_counts: Counter[str] = Counter()
     treated_endpoint_cell_count = 0
     canonical_score_by_sample = {
-        sample_id: statistics.mean(endpoint_scores[file_name])
-        for sample_id, file_name in FIGURE7_PANEL_K_SAMPLE_FILES.items()
+        sample_id: statistics.mean(curated_scores_by_sample[sample_id])
+        for sample_id in FIGURE7_PANEL_K_SAMPLE_FILES
     }
     expected_z_by_sample: dict[str, float] = {}
     design_origin_by_sample = {
@@ -988,7 +1347,7 @@ def validate_figure7_panel_k_contract(
         )
         finite_float(row[tgi_measure], f"panel K {tgi_measure}")
         expected_file = FIGURE7_PANEL_K_SAMPLE_FILES.get(row["sample_id"])
-        file_scores = endpoint_scores.get(row["endpoint_ploidy_file"], [])
+        file_scores = curated_scores_by_sample.get(row["sample_id"], [])
         endpoint_cell_count = int(
             finite_float(
                 row["n_endpoint_ploidy_cells"],
@@ -997,6 +1356,7 @@ def validate_figure7_panel_k_contract(
         )
         if (
             row["endpoint_ploidy_file"] != expected_file
+            or curated_file_by_sample.get(row["sample_id"]) != expected_file
             or endpoint_cell_count != len(file_scores)
             or not file_scores
             or not math.isclose(
@@ -1006,6 +1366,7 @@ def validate_figure7_panel_k_contract(
                 abs_tol=1e-12,
             )
             or row["endpoint_ploidy_source_total_cells"] != "14125"
+            or row["endpoint_ploidy_score_universe_total_cells"] != "9832"
             or row["endpoint_ploidy_source_file_count"] != "16"
             or row["endpoint_ploidy_source_sha256"]
             != FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256
@@ -1021,8 +1382,8 @@ def validate_figure7_panel_k_contract(
             )
         ):
             raise ValueError(
-                "Figure 7 panel K score is not the per-mouse mean over all "
-                "canonical CBS cells from its mapped harvest file"
+                "Figure 7 panel K score is not the per-mouse mean over the "
+                "exact QC-passed curated cells from its mapped CBS file"
             )
         treated_endpoint_cell_count += endpoint_cell_count
         if not math.isclose(score, source_score, rel_tol=0.0, abs_tol=1e-12):
@@ -1063,10 +1424,10 @@ def validate_figure7_panel_k_contract(
             "Figure 7 panel K does not have the four two-tumor origin-by-dose "
             "permutation strata underlying 16 exact assignments"
         )
-    if treated_endpoint_cell_count != 7623:
+    if treated_endpoint_cell_count != 5335:
         raise ValueError(
-            "Figure 7 panel K must use all 7,623 canonical CBS cells from "
-            "the eight treated tumors"
+            "Figure 7 panel K must use the exact 5,335 QC-passed curated "
+            "CBS cells from the eight treated tumors"
         )
 
     origins = [row["initial_ploidy"] for row in plot_rows]
@@ -1185,11 +1546,12 @@ def validate_figure7_panel_k_contract(
             "exact_TGI_label_enumeration_within_initial_ploidy_x_dose"
         ),
         "permutation_strata": "initial_ploidy:dose_mg",
-        "score_variable": "sample_mean_all_canonical_cbs_cell_ploidy",
+        "score_variable": "sample_mean_qc_passed_curated_cbs_cell_ploidy",
         "score_source_sha256": FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256,
-        "score_source_n_cells": "14125",
+        "score_source_n_cells": "9832",
+        "score_inventory_n_cells": "14125",
         "score_source_n_files": "16",
-        "treated_score_n_cells": "7623",
+        "treated_score_n_cells": "5335",
         "score_aggregation_policy": expected_endpoint_metadata[
             "endpoint_ploidy_score_policy"
         ],
@@ -1242,7 +1604,7 @@ def validate_figure7_panel_k_contract(
         for key in recomputed_reviewed
     ):
         raise ValueError(
-            "Figure 7 panel K all-CBS inputs no longer reproduce the "
+            "Figure 7 panel K curated-CBS inputs no longer reproduce the "
             f"reviewed Day-{tgi_day} regression contract"
         )
 
@@ -1519,7 +1881,13 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
             "within each chromosome and file-specific schema"
         ),
         "si6e_cbs_matrix_count": "16",
-        "si6e_cell_count": "14125",
+        "si6e_source_cell_count": "14125",
+        "si6e_qc_passed_tumor_cell_count": "9832",
+        "si6e_treated_tumor_cell_count": "5335",
+        "si6e_qc_selection_policy": (
+            "exact cells matched by the frozen endpoint-ploidy audit from the "
+            "final QC-curated Seurat object; clusters 3, 4, 9, and 9c excluded"
+        ),
         "si6e_chromosome_count": "22",
         "si6e_row_order": (
             "injected origin, dose, mouse, post-processed copy-number score, "
@@ -1548,17 +1916,23 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
         ),
         "si6_endpoint_summary_analysis_type": "descriptive_only",
         "si6_2n_reference_mean_ploidy": "2.293348570930235",
-        "si6_2n_endpoint_mouse_balanced_mean_ploidy": "2.135342433356468",
-        "si6_2n_relative_change_percent": "-6.88975673286667",
+        "si6_2n_endpoint_mouse_balanced_mean_ploidy": "2.135513297009228",
+        "si6_2n_relative_change_percent": "-6.882306332394384",
         "si6_4n_reference_mean_ploidy": "4.986231167848856",
-        "si6_4n_endpoint_mouse_balanced_mean_ploidy": "2.321562728339866",
-        "si6_4n_relative_change_percent": "-53.44053153192601",
+        "si6_4n_endpoint_mouse_balanced_mean_ploidy": "2.318552949440266",
+        "si6_4n_relative_change_percent": "-53.5008933322173",
         "si6_reference_4n_minus_2n_mean_ploidy": "2.69288259691862",
         "si6_endpoint_4n_minus_2n_mouse_balanced_mean_ploidy": (
-            "0.1862202949833978"
+            "0.1830396524310385"
         ),
-        "si6_separation_contraction_percent": "93.08472284694165",
+        "si6_separation_contraction_percent": "93.20283577752387",
     }
+    qc_selection_note = (
+        "the complete 14,125-cell CBS source is checksum/value validated, "
+        "then restricted by the frozen endpoint-ploidy audit to the exact "
+        "9,832 QC-passed tumor cells (5,335 treated); clusters 3, 4, 9, "
+        "and 9c remain excluded"
+    )
     ploidy_reduction_note = (
         "project-designated lineage-matched 2N-A7M/4N-A5M karyotype "
         "reference distributions, including the chr999 unassigned-extra-DNA "
@@ -1623,6 +1997,7 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
         != SI_REVIEWED_CBS_MANIFEST_SHA256
         or provenance.get("numbat_cbs_matrix_count") != "16"
         or provenance.get("numbat_cbs_matrix_hashes") != cbs_hashes
+        or provenance.get("si6e_qc_selection") != qc_selection_note
         or provenance.get("injected_cell_reference_manifest") != (
             "Data/in-vivo/scRNAseq_Numbat/injected_reference/"
             "reference_manifest.tsv"
@@ -1644,6 +2019,7 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
             "Canonical SI Figures materialization is prohibited: the run "
             "does not carry the reviewed frozen-table publication contract"
         )
+    validate_si6_copy_number_outputs(run_root, repo_root)
 
 
 def validate_strict_source_run(

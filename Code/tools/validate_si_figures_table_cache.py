@@ -149,6 +149,34 @@ def validate_cache(
             errors.append(f"{cell_name}: {column} must be finite")
     if {row.get("context", "") for row in cells} != {"Tumor", "CellLine"}:
         errors.append(f"{cell_name}: context must contain exactly Tumor and CellLine")
+    tumor_cells = [row for row in cells if row.get("context") == "Tumor"]
+    cellline_cells = [row for row in cells if row.get("context") == "CellLine"]
+    treated_tumor_cells = [
+        row for row in tumor_cells if row.get("dose") in {"30mg/kg", "120mg/kg"}
+    ]
+    if (
+        len(cells) != 35513
+        or len(tumor_cells) != 9832
+        or len(cellline_cells) != 25681
+        or len(treated_tumor_cells) != 5335
+        or sum(row.get("initial_ploidy") == "2N" for row in tumor_cells) != 4880
+        or sum(row.get("initial_ploidy") == "4N" for row in tumor_cells) != 4952
+        or sum(
+            row.get("initial_ploidy") == "2N" for row in treated_tumor_cells
+        )
+        != 2407
+        or sum(
+            row.get("initial_ploidy") == "4N" for row in treated_tumor_cells
+        )
+        != 2928
+        or any(not truthy(row.get("included_in_si_figures", "")) for row in tumor_cells)
+        or any(truthy(row.get("included_in_si_figures", "")) for row in cellline_cells)
+    ):
+        errors.append(
+            f"{cell_name}: expected the exact final-QC universe "
+            "(35,513 total; 9,832 tumor; 5,335 treated tumor; "
+            "treated 2N=2,407 and 4N=2,928)"
+        )
     observed_clusters = {row.get("cluster_id", "") for row in cells}
     if observed_clusters != set(CLUSTERS):
         errors.append(
@@ -256,12 +284,40 @@ def validate_cache(
             if endpoint.get("context") != cell.get("context"):
                 errors.append(f"{endpoint_name}: context differs from canonical metadata")
                 break
+            if any(
+                endpoint.get(endpoint_column, "")
+                != cell.get(metadata_column, "")
+                for endpoint_column, metadata_column in (
+                    ("initial_ploidy", "initial_ploidy"),
+                    ("endpoint_file", "endpoint_file"),
+                    ("endpoint_cell_id", "endpoint_cell_id"),
+                )
+            ):
+                errors.append(
+                    f"{endpoint_name}: endpoint identity differs from canonical metadata"
+                )
+                break
             is_tumor = cell.get("context") == "Tumor"
             if is_tumor != truthy(endpoint.get("matched", "")):
                 errors.append(f"{endpoint_name}: matched flag violates the context contract")
                 break
             if is_tumor and not finite(endpoint.get("endpoint_ploidy", "")):
                 errors.append(f"{endpoint_name}: every Tumor row needs endpoint ploidy")
+                break
+            if is_tumor and (
+                cell.get("cell_id")
+                != f"{cell.get('sample_id')}_{endpoint.get('endpoint_cell_id')}"
+                or not finite(cell.get("endpoint_ploidy", ""))
+                or not math.isclose(
+                    float(endpoint["endpoint_ploidy"]),
+                    float(cell["endpoint_ploidy"]),
+                    rel_tol=0.0,
+                    abs_tol=1e-12,
+                )
+            ):
+                errors.append(
+                    f"{endpoint_name}: endpoint key/value differs from canonical metadata"
+                )
                 break
             if not is_tumor and endpoint.get("endpoint_ploidy", "").strip():
                 errors.append(f"{endpoint_name}: CellLine rows cannot have endpoint ploidy")

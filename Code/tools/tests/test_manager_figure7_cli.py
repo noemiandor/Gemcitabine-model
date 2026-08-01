@@ -667,15 +667,105 @@ exit 7
             endpoint_path = Path(
                 "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv"
             )
-            endpoint_scores: dict[str, list[float]] = {}
+            cellcycle_path = Path(
+                "Data/in-vivo/figure7/processed/"
+                "CellCycleCells_pseudotime_distribution_per_sample_"
+                "cell_level_with_ploidy_dose_tgi.csv"
+            )
+            noncellcycle_path = Path(
+                "Data/in-vivo/figure7/processed/"
+                "NonCellCycleCells_pseudotime_distribution_per_sample_"
+                "cell_level_with_ploidy_dose_tgi.csv"
+            )
+            endpoint_score_by_key: dict[tuple[str, str], float] = {}
+            endpoint_files: set[str] = set()
             with (REPO_ROOT / endpoint_path).open(newline="") as handle:
                 for row in csv.DictReader(handle, delimiter="\t"):
-                    endpoint_scores.setdefault(row["file"], []).append(
-                        float(row["ploidy"])
-                    )
+                    key = (row["file"], row["cell_id"])
+                    self.assertNotIn(key, endpoint_score_by_key)
+                    endpoint_score_by_key[key] = float(row["ploidy"])
+                    endpoint_files.add(row["file"])
+
+            curated_scores_by_sample: dict[str, list[float]] = {}
+            curated_file_by_sample: dict[str, str] = {}
+            curated_keys: set[tuple[str, str]] = set()
+            compartment_counts: dict[str, int] = {}
+            tgi_by_sample: dict[str, float] = {}
+            for compartment, relative_path in (
+                ("CellCycle", cellcycle_path),
+                ("NonCellCycle", noncellcycle_path),
+            ):
+                compartment_count = 0
+                with (REPO_ROOT / relative_path).open(newline="") as handle:
+                    for row in csv.DictReader(handle):
+                        sample_id = row["sample_id"]
+                        prefix = f"{sample_id}_"
+                        full_cell_id = row["cell_id"]
+                        self.assertTrue(full_cell_id.startswith(prefix))
+                        endpoint_file = f"{row['growth_curve_harvest']}.sps.cbs"
+                        key = (endpoint_file, full_cell_id[len(prefix) :])
+                        self.assertNotIn(key, curated_keys)
+                        self.assertIn(key, endpoint_score_by_key)
+                        canonical_score = endpoint_score_by_key[key]
+                        self.assertLess(
+                            abs(float(row["cell_ploidy"]) - canonical_score),
+                            1e-12,
+                        )
+                        previous_file = curated_file_by_sample.setdefault(
+                            sample_id,
+                            endpoint_file,
+                        )
+                        self.assertEqual(previous_file, endpoint_file)
+                        curated_keys.add(key)
+                        curated_scores_by_sample.setdefault(sample_id, []).append(
+                            canonical_score
+                        )
+                        compartment_count += 1
+                        if compartment == "CellCycle":
+                            tgi_by_sample.setdefault(
+                                sample_id,
+                                float(row["TGI_percent_Day_17"]),
+                            )
+                compartment_counts[compartment] = compartment_count
+
+            expected_curated_counts = {
+                "2N-A1-0": 413,
+                "2N-A1-LR": 369,
+                "2N-A1-R": 196,
+                "2N-A1-RR": 1495,
+                "2N-A2-0": 317,
+                "2N-A2-L": 505,
+                "2N-A4-R": 305,
+                "2N-A4-RL": 1280,
+                "4N-A5-0": 888,
+                "4N-A5-RR": 393,
+                "A5-4N-L": 385,
+                "A5-4N-R": 358,
+                "A6-4N-O": 189,
+                "A6-4N-RR": 660,
+                "4N-A8-RL": 1832,
+                "4N-A8-RR": 247,
+            }
+            observed_curated_counts = {
+                sample_id: len(values)
+                for sample_id, values in curated_scores_by_sample.items()
+            }
+            treated_sample_ids = {row[0] for row in design}
+            self.assertEqual(len(endpoint_score_by_key), 14125)
+            self.assertEqual(len(endpoint_files), 16)
+            self.assertEqual(compartment_counts, {
+                "CellCycle": 2881,
+                "NonCellCycle": 6951,
+            })
+            self.assertEqual(observed_curated_counts, expected_curated_counts)
+            self.assertEqual(len(curated_keys), 9832)
+            self.assertEqual(
+                sum(observed_curated_counts[sample_id] for sample_id in treated_sample_ids),
+                5335,
+            )
             scores = [
-                statistics.mean(endpoint_scores[file_name])
-                for *_, file_name in design
+                statistics.mean(curated_scores_by_sample[sample_id])
+                for sample_id, *_ in design
             ]
             z_scores = []
             for origin in ("2N", "4N"):
@@ -688,18 +778,6 @@ exit 7
                 center = statistics.mean(local)
                 spread = statistics.stdev(local)
                 z_scores.extend((value - center) / spread for value in local)
-            tgi_by_sample: dict[str, float] = {}
-            with (
-                REPO_ROOT
-                / "Data/in-vivo/figure7/processed/"
-                "CellCycleCells_pseudotime_distribution_per_sample_"
-                "cell_level_with_ploidy_dose_tgi.csv"
-            ).open(newline="") as handle:
-                for row in csv.DictReader(handle):
-                    tgi_by_sample.setdefault(
-                        row["sample_id"],
-                        float(row["TGI_percent_Day_17"]),
-                    )
             panel_k_plot = run_root / "tables/panel_7E_plot_data.tsv"
             plot_rows = []
             for index, (
@@ -720,19 +798,23 @@ exit 7
                         "endpoint_ploidy_file": endpoint_file,
                         "sample_mean_endpoint_ploidy": score,
                         "n_endpoint_ploidy_cells": len(
-                            endpoint_scores[endpoint_file]
+                            curated_scores_by_sample[sample_id]
                         ),
                         "endpoint_ploidy_source_total_cells": "14125",
+                        "endpoint_ploidy_score_universe_total_cells": "9832",
                         "endpoint_ploidy_source_file_count": "16",
                         "endpoint_ploidy_source_sha256": sha256_file(
                             REPO_ROOT / endpoint_path
                         ),
                         "endpoint_ploidy_score_policy": (
-                            "arithmetic_mean_of_all_finite_postprocessed_"
-                            "cell_ploidy_per_cbs_file"
+                            "arithmetic_mean_of_finite_postprocessed_cell_"
+                            "ploidy_in_exact_qc_passed_cellcycle_"
+                            "noncellcycle_union_per_sample"
                         ),
                         "endpoint_ploidy_mapping_policy": (
-                            "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+                            "exact_processed_sample_barcode_to_canonical_cbs_"
+                            "file_cell_and_value;score_universe=reviewed_final_"
+                            "seurat_tumor_cells"
                         ),
                         "terminal_postprocessed_cn_score": score,
                         "terminal_cn_score_within_origin_z": score_z,
@@ -790,28 +872,32 @@ exit 7
             panel_k_test = run_root / "tables/panel_7E_test.tsv"
             test_row = {
                 "n": "8",
-                "estimate": "-0.344659307863932",
-                "partial_correlation": "-0.344659307863932",
-                "effect_per_within_origin_sd": "-8.8374975584089",
-                "permutation_p_two_sided": "0.6875",
+                "estimate": "-0.3431355546551816",
+                "partial_correlation": "-0.3431355546551816",
+                "effect_per_within_origin_sd": "-8.792298734079608",
+                "permutation_p_two_sided": "0.75",
                 "n_permutations": "16",
                 "permutation_mode": (
                     "exact_TGI_label_enumeration_within_initial_ploidy_x_dose"
                 ),
                 "permutation_strata": "initial_ploidy:dose_mg",
                 "score_variable": (
-                    "sample_mean_all_canonical_cbs_cell_ploidy"
+                    "sample_mean_qc_passed_curated_cbs_cell_ploidy"
                 ),
                 "score_source_sha256": sha256_file(REPO_ROOT / endpoint_path),
-                "score_source_n_cells": "14125",
+                "score_source_n_cells": "9832",
+                "score_inventory_n_cells": "14125",
                 "score_source_n_files": "16",
-                "treated_score_n_cells": "7623",
+                "treated_score_n_cells": "5335",
                 "score_aggregation_policy": (
-                    "arithmetic_mean_of_all_finite_postprocessed_"
-                    "cell_ploidy_per_cbs_file"
+                    "arithmetic_mean_of_finite_postprocessed_cell_"
+                    "ploidy_in_exact_qc_passed_cellcycle_"
+                    "noncellcycle_union_per_sample"
                 ),
                 "sample_mapping_policy": (
-                    "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+                    "exact_processed_sample_barcode_to_canonical_cbs_"
+                    "file_cell_and_value;score_universe=reviewed_final_"
+                    "seurat_tumor_cells"
                 ),
                 "score_standardization": "z_score_within_initial_ploidy",
                 "adjustment_terms": "initial_ploidy+dose_mg",
@@ -854,19 +940,19 @@ exit 7
                     {"key": "tgi_day", "value": "17"},
                     {
                         "key": "cellcycle_input",
-                        "value": (
-                            "Data/in-vivo/figure7/processed/"
-                            "CellCycleCells_pseudotime_distribution_per_"
-                            "sample_cell_level_with_ploidy_dose_tgi.csv"
-                        ),
+                        "value": str(cellcycle_path),
+                    },
+                    {
+                        "key": "cellcycle_sha256",
+                        "value": sha256_file(REPO_ROOT / cellcycle_path),
                     },
                     {
                         "key": "noncellcycle_input",
-                        "value": (
-                            "Data/in-vivo/figure7/processed/"
-                            "NonCellCycleCells_pseudotime_distribution_per_"
-                            "sample_cell_level_with_ploidy_dose_tgi.csv"
-                        ),
+                        "value": str(noncellcycle_path),
+                    },
+                    {
+                        "key": "noncellcycle_sha256",
+                        "value": sha256_file(REPO_ROOT / noncellcycle_path),
                     },
                     {
                         "key": "endpoint_ploidy_input",
@@ -885,16 +971,27 @@ exit 7
                         "value": "16",
                     },
                     {
+                        "key": "endpoint_ploidy_score_universe_n_cells",
+                        "value": "9832",
+                    },
+                    {
+                        "key": "endpoint_ploidy_treated_score_n_cells",
+                        "value": "5335",
+                    },
+                    {
                         "key": "endpoint_ploidy_score_policy",
                         "value": (
-                            "arithmetic_mean_of_all_finite_postprocessed_"
-                            "cell_ploidy_per_cbs_file"
+                            "arithmetic_mean_of_finite_postprocessed_cell_"
+                            "ploidy_in_exact_qc_passed_cellcycle_"
+                            "noncellcycle_union_per_sample"
                         ),
                     },
                     {
                         "key": "endpoint_ploidy_mapping_policy",
                         "value": (
-                            "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+                            "exact_processed_sample_barcode_to_canonical_cbs_"
+                            "file_cell_and_value;score_universe=reviewed_final_"
+                            "seurat_tumor_cells"
                         ),
                     },
                 ],
@@ -913,16 +1010,8 @@ exit 7
                 ["panel_id", "filename"],
             )
             processed_input_paths = [
-                Path(
-                    "Data/in-vivo/figure7/processed/"
-                    "CellCycleCells_pseudotime_distribution_per_sample_"
-                    "cell_level_with_ploidy_dose_tgi.csv"
-                ),
-                Path(
-                    "Data/in-vivo/figure7/processed/"
-                    "NonCellCycleCells_pseudotime_distribution_per_sample_"
-                    "cell_level_with_ploidy_dose_tgi.csv"
-                ),
+                cellcycle_path,
+                noncellcycle_path,
                 endpoint_path,
                 Path("Code/in-vivo/figure7/src/tgi_data.R"),
                 Path("Code/in-vivo/figure7/src/tgi_statistics.R"),

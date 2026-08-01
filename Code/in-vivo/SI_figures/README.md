@@ -42,11 +42,15 @@ SI6E is reproduced from the 16 tracked downstream
 `Data/in-vivo/scRNAseq_Numbat/*.sps.cbs` matrices. The matrices contain 14,125
 cells and use two different segment schemas. Their exact filenames, byte sizes,
 and SHA-256 values are pinned in `scRNAseq_Numbat/cbs_manifest.tsv` and checked
-before rendering. Because those schemas cannot be
+before rendering. The complete matrix collection is a validated source, not
+the analysis universe: the frozen endpoint-ploidy audit restricts SI6E/F to
+the exact 9,832 tumor cells retained after final Seurat QC (including 5,335
+treated cells), so discarded clusters 3, 4, 9, and 9c cannot re-enter through
+the downstream CBS files. Because those schemas cannot be
 assumed to share a coordinate build, the renderer does not align breakpoints
 or project them to common loci. Instead, it computes each cell's
 length-weighted mean across the available CBS segments of each autosome and
-plots the resulting 14,125-by-22 matrix in chromosome order. Rows are grouped
+plots the resulting 9,832-by-22 matrix in chromosome order. Rows are grouped
 by injected 2N/4N origin, dose, and mouse, then ordered by the post-processed
 copy-number score; neither rows nor columns are clustered. Mouse and injected
 origin are displayed as row annotations. The renderer exports the plotted
@@ -58,10 +62,10 @@ dose is encoded by color. For the karyotype references, the autosomal
 length-weighted estimate is multiplied by (1+) the `chr999` fraction that the
 source workflow records as unassigned extra DNA. This converts the intermediate
 assigned-autosomal means of 2.00997 and 3.51561 to final 2N- and 4N-reference
-means of 2.29335 and 4.98623. The terminal mouse-balanced means are 2.13534 and
-2.32156, respectively: descriptive changes of -0.15801 (-6.89%) for 2N and
--2.66467 (-53.44%) for 4N. The 4N-minus-2N separation contracts from 2.69288 in
-the references to 0.18622 at endpoint (93.08%). Every terminal 4N-origin cell
+means of 2.29335 and 4.98623. The terminal mouse-balanced means are 2.13551 and
+2.31855, respectively: descriptive changes of -0.15784 (-6.88%) for 2N and
+-2.66768 (-53.50%) for 4N. The 4N-minus-2N separation contracts from 2.69288 in
+the references to 0.18304 at endpoint (93.20%). Every terminal 4N-origin cell
 estimate is below the minimum 4N-reference metaphase. The A7M and A5M matrices
 are project-designated lineage-matched proxies, not the same-passage A6M and A4M
 inocula. The cross-assay comparison is therefore descriptive and has no P value:

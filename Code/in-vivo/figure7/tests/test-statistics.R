@@ -14,16 +14,16 @@ testthat::test_that("A-E frozen numerical results and treated scope are reproduc
   e <- figure7_panel_e(input$samples, input$config)
   testthat::expect_equal(
     e$test$effect_per_within_origin_sd,
-    -8.8374975584089,
+    -8.792298734079608,
     tolerance = 1e-12
   )
   testthat::expect_equal(
     e$test$partial_correlation,
-    -0.344659307863932,
+    -0.3431355546551816,
     tolerance = 1e-12
   )
   testthat::expect_equal(e$test$estimate, e$test$partial_correlation)
-  testthat::expect_equal(e$test$permutation_p_two_sided, 0.6875, tolerance = 1e-12)
+  testthat::expect_equal(e$test$permutation_p_two_sided, 0.75, tolerance = 1e-12)
   testthat::expect_equal(e$test$n_permutations, 16L)
 })
 
@@ -76,24 +76,31 @@ testthat::test_that("panel 7E/K is standardized within origin and adjusted witho
     14125L
   )
   testthat::expect_identical(
+    unique(e$data$endpoint_ploidy_score_universe_total_cells),
+    9832L
+  )
+  testthat::expect_identical(
     unique(e$data$endpoint_ploidy_source_file_count),
     16L
   )
-  testthat::expect_equal(sum(e$data$n_endpoint_ploidy_cells), 7623L)
-  testthat::expect_equal(
-    sum(input$samples$n_endpoint_ploidy_cells),
-    14125L
+  testthat::expect_equal(sum(e$data$n_endpoint_ploidy_cells), 5335L)
+  testthat::expect_equal(sum(input$samples$n_endpoint_ploidy_cells), 9832L)
+  testthat::expect_identical(
+    stats::setNames(
+      input$samples$n_endpoint_ploidy_cells,
+      input$samples$sample_id
+    )[names(figure7_curated_endpoint_counts())],
+    figure7_curated_endpoint_counts()
   )
-  testthat::expect_equal(
-    sum(input$samples$n_plot_table_endpoint_ploidy_cells),
-    9832L
-  )
-  testthat::expect_true(any(
-    abs(
-      input$samples$sample_mean_endpoint_ploidy -
-        input$samples$sample_mean_plot_table_endpoint_ploidy
-    ) > 1e-6
-  ))
+  testthat::expect_false(any(c(
+    "sample_mean_plot_table_endpoint_ploidy",
+    "sample_median_plot_table_endpoint_ploidy",
+    "n_plot_table_endpoint_ploidy_cells",
+    "sample_mean_all_cbs_endpoint_ploidy",
+    "sample_median_all_cbs_endpoint_ploidy",
+    "n_all_cbs_endpoint_ploidy_cells",
+    "n_endpoint_ploidy_cells_excluded_from_score"
+  ) %in% names(input$samples)))
   testthat::expect_identical(
     e$data$permutation_stratum,
     paste(e$data$initial_ploidy, e$data$dose_mg, sep = "|")
@@ -105,18 +112,19 @@ testthat::test_that("panel 7E/K is standardized within origin and adjusted witho
   testthat::expect_identical(e$test$permutation_strata, "initial_ploidy:dose_mg")
   testthat::expect_identical(
     e$test$score_variable,
-    "sample_mean_all_canonical_cbs_cell_ploidy"
+    "sample_mean_qc_passed_curated_cbs_cell_ploidy"
   )
-  testthat::expect_identical(e$test$score_source_n_cells, 14125L)
+  testthat::expect_identical(e$test$score_source_n_cells, 9832L)
+  testthat::expect_identical(e$test$score_inventory_n_cells, 14125L)
   testthat::expect_identical(e$test$score_source_n_files, 16L)
-  testthat::expect_identical(e$test$treated_score_n_cells, 7623L)
+  testthat::expect_identical(e$test$treated_score_n_cells, 5335L)
   testthat::expect_identical(e$test$score_standardization, "z_score_within_initial_ploidy")
   testthat::expect_identical(e$test$adjustment_terms, "initial_ploidy+dose_mg")
   testthat::expect_identical(e$test$outcome_variable, "TGI_percent_Day_17")
   testthat::expect_false(any(grepl("etp_group", names(e$data), fixed = TRUE)))
 
   plot <- figure7_adjusted_cn_plot(e$data, e$test, input$config)
-  testthat::expect_match(plot$labels$title, "all-cell terminal postprocessed CN score", fixed = TRUE)
+  testthat::expect_match(plot$labels$title, "QC-passed terminal postprocessed CN score", fixed = TRUE)
   testthat::expect_match(plot$labels$subtitle, "adjusted for injected origin", fixed = TRUE)
   testthat::expect_match(plot$labels$x, "within-origin z score", fixed = TRUE)
   testthat::expect_match(plot$labels$y, "origin- and dose-adjusted", fixed = TRUE)
@@ -128,16 +136,16 @@ testthat::test_that("panel 7E/K exposes the frozen Day-17/24/31 sensitivity resu
   expected <- data.frame(
     day = c(17L, 24L, 31L),
     effect = c(
-      -8.8374975584089,
-      -6.77351906237078,
-      -2.77364130329883
+      -8.792298734079608,
+      -6.683928279063553,
+      -2.955883758578773
     ),
     partial_correlation = c(
-      -0.344659307863932,
-      -0.30605912538695,
-      -0.173200987198346
+      -0.3431355546551816,
+      -0.3022214862100653,
+      -0.1847098257830974
     ),
-    permutation_p = c(0.6875, 0.5625, 0.6875)
+    permutation_p = c(0.75, 0.625, 0.625)
   )
   for (i in seq_len(nrow(expected))) {
     day <- expected$day[[i]]

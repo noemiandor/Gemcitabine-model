@@ -111,7 +111,8 @@ The module needs two manager-driven analysis modes and one standalone rendering 
 1. `standard`:
    - recompute panels 7A–7D from the two tracked plot-facing cell-level
      analysis tables; source panel 7E/main panel K additionally uses the exact
-     six-column, checksum-pinned 14,125-cell CBS ploidy table;
+     six-column, checksum-pinned 14,125-cell CBS inventory and restricts its
+     per-mouse scores to the exact 9,832-cell QC-passed plot-table union;
    - render panel 7F from a frozen, tracked pathway-activity plotting table produced by the approved full `04i` run;
    - verify that all frozen settings and table checksums match the config;
    - this is the routine manuscript mode and must not require the large external Seurat object.
@@ -230,10 +231,10 @@ Data/in-vivo/figure7/saved_state_pathway/<reference_id>/state_pathway_provenance
 The two cell-level tables are approximately 2.7 MB and 6.4 MB in the current
 branch and are sufficient for routine reconstruction of panels 7A–7D. Source
 panel 7E/main panel K additionally requires the exact six-column
-`scRNAseq_Numbat/all_ploidy.csv` (14,125 cells in 16 files); the eight treated
-files contain 7,623 cells. The module verifies the 9,832 plot-table cells
-against that source, then computes each mouse's score from every cell in its
-canonical CBS file. In `full-refit`, Manager derives the same table from the 16
+`scRNAseq_Numbat/all_ploidy.csv` (14,125 cells in 16 files). The module verifies
+the exact 9,832 QC-passed plot-table cells against that complete inventory,
+then computes each mouse's score only from those curated cells (5,335 cells in
+the eight treated tumors). In `full-refit`, Manager derives the same table from the 16
 manifest-pinned CBS matrices and requires the canonical checksum. Promote
 reviewed copies of plot-facing inputs into the Figure 7 `processed/` namespace
 rather than making the module depend on feature-branch locations. The full
@@ -504,12 +505,13 @@ At minimum, assert the currently approved values within explicit numerical toler
 - final panel J/source panel 7D uses an injected-origin-matched untreated ECDF
   reference and within-dose centering: Pearson `r = 0.7399455` and exact
   permutation `P = 0.0173611`;
-- final panel K/source panel 7E uses per-mouse means from all 14,125 cells in
-  the checksum-pinned 16-file CBS source (7,623 cells in the eight treated
-  files), standardized within injected origin and adjusted for injected origin
-  and dose: slope `-8.8374975584` TGI percentage points per within-origin
-  standard deviation, partial `r = -0.3446593079`, and exact origin-by-dose
-  permutation `P = 0.6875`;
+- final panel K/source panel 7E validates the checksum-pinned 14,125-cell,
+  16-file CBS inventory, then uses per-mouse means from the exact 9,832-cell
+  QC-passed final-Seurat tumor union (5,335 cells in the eight treated tumors),
+  standardized within injected origin and adjusted for injected origin and
+  dose: slope `-8.7922987341` TGI percentage points per within-origin standard
+  deviation, partial `r = -0.3431355547`, and exact origin-by-dose permutation
+  `P = 0.75`;
 - all A–E metadata report `TGI_percent_Day_17`, outcome `day`, matched-control summary `mean`, and Day 17;
 - panel 7F contains the approved collection labels and pathway order, exactly 21 selected pathways split 5/8/8 across Hallmark/Reactome/GO biological process, and no adjusted P above 0.05;
 - panel 7F vertical boundaries are exactly 0.30 and 0.49.

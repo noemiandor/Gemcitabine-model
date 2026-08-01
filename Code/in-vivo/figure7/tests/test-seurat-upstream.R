@@ -173,6 +173,110 @@ testthat::test_that("published stage acceptance counts are internally closed", {
   )
 })
 
+testthat::test_that("final metadata validator fixes the reviewed cell universe", {
+  final_counts <- figure7_upstream_expected_counts("final")
+  clusters <- rep(names(final_counts), final_counts)
+  context <- c(rep("CellLine", 25681L), rep("Tumor", 9832L))
+  ploidy <- c(
+    rep("2N", 14836L),
+    rep("4N", 10845L),
+    rep("2N", 4880L),
+    rep("4N", 4952L)
+  )
+  dose <- c(
+    rep(NA_real_, 25681L),
+    rep(0, 2473L), rep(30, 822L), rep(120, 1585L),
+    rep(0, 2024L), rep(30, 849L), rep(120, 2079L)
+  )
+  expected_samples <- figure7_upstream_expected_tumor_samples()
+  testthat::expect_identical(
+    stats::setNames(expected_samples$n_cells, expected_samples$sample),
+    figure7_curated_endpoint_counts()
+  )
+  testthat::expect_identical(
+    expected_samples$Ploidy,
+    c(rep("2N", 8L), rep("4N", 8L))
+  )
+  testthat::expect_identical(
+    expected_samples$Dose,
+    c(
+      rep(0, 4L), rep(30, 2L), rep(120, 2L),
+      rep(0, 4L), rep(30, 2L), rep(120, 2L)
+    )
+  )
+  sample <- c(
+    rep("2N-Cell-Culture", 14836L),
+    rep("4N-Cell-Culture", 10845L),
+    rep(expected_samples$sample, expected_samples$n_cells)
+  )
+  metadata <- data.frame(
+    clusters = clusters,
+    TN = context,
+    Ploidy = ploidy,
+    Dose = dose,
+    sample = sample,
+    stringsAsFactors = FALSE
+  )
+
+  testthat::expect_silent(
+    figure7_upstream_validate_final_metadata(metadata)
+  )
+
+  too_few_treated <- metadata
+  treated_2n <- which(
+    too_few_treated$TN == "Tumor" &
+      too_few_treated$Ploidy == "2N" &
+      too_few_treated$Dose == 30
+  )[[1L]]
+  too_few_treated$Dose[[treated_2n]] <- 0
+  testthat::expect_error(
+    figure7_upstream_validate_final_metadata(too_few_treated),
+    "treated Tumor count differs"
+  )
+
+  wrong_treated_split <- metadata
+  control_4n <- which(
+    wrong_treated_split$TN == "Tumor" &
+      wrong_treated_split$Ploidy == "4N" &
+      wrong_treated_split$Dose == 0
+  )[[1L]]
+  wrong_treated_split$Dose[[treated_2n]] <- 0
+  wrong_treated_split$Dose[[control_4n]] <- 30
+  testthat::expect_error(
+    figure7_upstream_validate_final_metadata(wrong_treated_split),
+    "treated Tumor Ploidy counts differ"
+  )
+
+  wrong_sample_count <- metadata
+  sample_row <- which(wrong_sample_count$sample == "2N-A2-0")[[1L]]
+  wrong_sample_count$sample[[sample_row]] <- "2N-A2-L"
+  testthat::expect_error(
+    figure7_upstream_validate_final_metadata(wrong_sample_count),
+    "Tumor sample counts differ"
+  )
+
+  wrong_sample_dose <- metadata
+  wrong_sample_dose$Dose[[sample_row]] <- 120
+  testthat::expect_error(
+    figure7_upstream_validate_final_metadata(wrong_sample_dose),
+    "sample-to-Ploidy/Dose mapping differs"
+  )
+
+  leaked_qc_cluster <- metadata
+  leaked_qc_cluster$clusters[[1L]] <- "3"
+  testthat::expect_error(
+    figure7_upstream_validate_final_metadata(leaked_qc_cluster),
+    "retains discarded QC cluster"
+  )
+
+  dosed_cell_line <- metadata
+  dosed_cell_line$Dose[[1L]] <- 30
+  testthat::expect_error(
+    figure7_upstream_validate_final_metadata(dosed_cell_line),
+    "CellLine Dose values must be missing"
+  )
+})
+
 testthat::test_that("Cell Ranger inventory requires exactly 18 reviewed samples", {
   ids <- paste0("sample_", seq_len(16L))
   sample_info <- data.frame(

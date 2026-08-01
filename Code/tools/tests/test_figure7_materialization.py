@@ -148,6 +148,22 @@ class Figure7MaterializationTest(unittest.TestCase):
             {"key": "panel_set", "value": "a-f" if include_f else "a-e"},
             {"key": "tgi_day", "value": "17"},
             {
+                "key": "cellcycle_input",
+                "value": str(self.processed_inputs[0].relative_to(self.repo)),
+            },
+            {
+                "key": "cellcycle_sha256",
+                "value": sha256_file(self.processed_inputs[0]),
+            },
+            {
+                "key": "noncellcycle_input",
+                "value": str(self.processed_inputs[1].relative_to(self.repo)),
+            },
+            {
+                "key": "noncellcycle_sha256",
+                "value": sha256_file(self.processed_inputs[1]),
+            },
+            {
                 "key": "endpoint_ploidy_input",
                 "value": "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv",
             },
@@ -158,15 +174,26 @@ class Figure7MaterializationTest(unittest.TestCase):
             {"key": "endpoint_ploidy_n_cells", "value": "14125"},
             {"key": "endpoint_ploidy_n_files", "value": "16"},
             {
+                "key": "endpoint_ploidy_score_universe_n_cells",
+                "value": "9832",
+            },
+            {
+                "key": "endpoint_ploidy_treated_score_n_cells",
+                "value": "5335",
+            },
+            {
                 "key": "endpoint_ploidy_score_policy",
                 "value": (
-                    "arithmetic_mean_of_all_finite_postprocessed_"
-                    "cell_ploidy_per_cbs_file"
+                    "arithmetic_mean_of_finite_postprocessed_cell_ploidy_"
+                    "in_exact_qc_passed_cellcycle_noncellcycle_union_per_sample"
                 ),
             },
             {
                 "key": "endpoint_ploidy_mapping_policy",
-                "value": "exact_sample_growth_curve_harvest_plus_.sps.cbs",
+                "value": (
+                    "exact_processed_sample_barcode_to_canonical_cbs_file_"
+                    "cell_and_value;score_universe=reviewed_final_seurat_tumor_cells"
+                ),
             },
         ]
         if include_f:
@@ -334,6 +361,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             "sample_mean_endpoint_ploidy",
             "n_endpoint_ploidy_cells",
             "endpoint_ploidy_source_total_cells",
+            "endpoint_ploidy_score_universe_total_cells",
             "endpoint_ploidy_source_file_count",
             "endpoint_ploidy_source_sha256",
             "endpoint_ploidy_score_policy",
@@ -385,14 +413,35 @@ class Figure7MaterializationTest(unittest.TestCase):
             ),
         ]
         endpoint_scores: dict[str, list[float]] = {}
+        endpoint_score_by_key: dict[tuple[str, str], float] = {}
         with self.endpoint_ploidy.open(newline="") as handle:
             for row in csv.DictReader(handle, delimiter="\t"):
-                endpoint_scores.setdefault(row["file"], []).append(
-                    float(row["ploidy"])
-                )
+                score = float(row["ploidy"])
+                endpoint_scores.setdefault(row["file"], []).append(score)
+                endpoint_score_by_key[(row["file"], row["cell_id"])] = score
+        curated_scores_by_sample: dict[str, list[float]] = {}
+        for processed_path in self.processed_inputs:
+            with processed_path.open(newline="") as handle:
+                for row in csv.DictReader(handle):
+                    sample_id = row["sample_id"]
+                    prefix = f"{sample_id}_"
+                    key = (
+                        f"{row['growth_curve_harvest']}.sps.cbs",
+                        row["cell_id"][len(prefix) :],
+                    )
+                    self.assertTrue(row["cell_id"].startswith(prefix))
+                    self.assertAlmostEqual(
+                        float(row["cell_ploidy"]),
+                        endpoint_score_by_key[key],
+                        places=12,
+                    )
+                    curated_scores_by_sample.setdefault(sample_id, []).append(
+                        endpoint_score_by_key[key]
+                    )
+        self.assertEqual(sum(map(len, curated_scores_by_sample.values())), 9832)
         terminal_scores = [
-            statistics.mean(endpoint_scores[file_name])
-            for *_, file_name in design
+            statistics.mean(curated_scores_by_sample[sample_id])
+            for sample_id, *_ in design
         ]
         z_scores: list[float] = []
         for origin in ("2N", "4N"):
@@ -435,19 +484,21 @@ class Figure7MaterializationTest(unittest.TestCase):
                     "endpoint_ploidy_file": endpoint_file,
                     "sample_mean_endpoint_ploidy": terminal_score,
                     "n_endpoint_ploidy_cells": len(
-                        endpoint_scores[endpoint_file]
+                        curated_scores_by_sample[sample_id]
                     ),
                     "endpoint_ploidy_source_total_cells": "14125",
+                    "endpoint_ploidy_score_universe_total_cells": "9832",
                     "endpoint_ploidy_source_file_count": "16",
                     "endpoint_ploidy_source_sha256": sha256_file(
                         self.endpoint_ploidy
                     ),
                     "endpoint_ploidy_score_policy": (
-                        "arithmetic_mean_of_all_finite_postprocessed_"
-                        "cell_ploidy_per_cbs_file"
+                        "arithmetic_mean_of_finite_postprocessed_cell_ploidy_"
+                        "in_exact_qc_passed_cellcycle_noncellcycle_union_per_sample"
                     ),
                     "endpoint_ploidy_mapping_policy": (
-                        "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+                        "exact_processed_sample_barcode_to_canonical_cbs_file_"
+                        "cell_and_value;score_universe=reviewed_final_seurat_tumor_cells"
                     ),
                     "terminal_postprocessed_cn_score": terminal_score,
                     "terminal_cn_score_within_origin_z": z_score,
@@ -506,26 +557,28 @@ class Figure7MaterializationTest(unittest.TestCase):
         )
         test_row = {
             "n": "8",
-            "estimate": "-0.344659307863932",
-            "partial_correlation": "-0.344659307863932",
-            "effect_per_within_origin_sd": "-8.8374975584089",
-            "permutation_p_two_sided": "0.6875",
+            "estimate": "-0.3431355546551816",
+            "partial_correlation": "-0.3431355546551816",
+            "effect_per_within_origin_sd": "-8.792298734079608",
+            "permutation_p_two_sided": "0.75",
             "n_permutations": "16",
             "permutation_mode": (
                 "exact_TGI_label_enumeration_within_initial_ploidy_x_dose"
             ),
             "permutation_strata": "initial_ploidy:dose_mg",
-            "score_variable": "sample_mean_all_canonical_cbs_cell_ploidy",
+            "score_variable": "sample_mean_qc_passed_curated_cbs_cell_ploidy",
             "score_source_sha256": sha256_file(self.endpoint_ploidy),
-            "score_source_n_cells": "14125",
+            "score_source_n_cells": "9832",
+            "score_inventory_n_cells": "14125",
             "score_source_n_files": "16",
-            "treated_score_n_cells": "7623",
+            "treated_score_n_cells": "5335",
             "score_aggregation_policy": (
-                "arithmetic_mean_of_all_finite_postprocessed_"
-                "cell_ploidy_per_cbs_file"
+                "arithmetic_mean_of_finite_postprocessed_cell_ploidy_"
+                "in_exact_qc_passed_cellcycle_noncellcycle_union_per_sample"
             ),
             "sample_mapping_policy": (
-                "exact_sample_growth_curve_harvest_plus_.sps.cbs"
+                "exact_processed_sample_barcode_to_canonical_cbs_file_"
+                "cell_and_value;score_universe=reviewed_final_seurat_tumor_cells"
             ),
             "score_standardization": "z_score_within_initial_ploidy",
             "adjustment_terms": "initial_ploidy+dose_mg",
@@ -758,7 +811,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         result = self._run_materializer()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "not the per-mouse mean over all canonical CBS cells",
+            "not the per-mouse mean over the exact QC-passed curated cells",
             result.stderr,
         )
 
@@ -785,7 +838,7 @@ class Figure7MaterializationTest(unittest.TestCase):
                 self.assertIn(omitted, result.stderr)
                 self.assertFalse((self.repo / "figures").exists())
 
-    def test_rejects_missing_all_cell_endpoint_ploidy_binding(self) -> None:
+    def test_rejects_missing_complete_endpoint_ploidy_inventory_binding(self) -> None:
         manifest = self.run_root / "metadata/input_manifest.tsv"
         with manifest.open(newline="") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
@@ -821,7 +874,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         result = self._run_materializer()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "not the per-mouse mean over all canonical CBS cells",
+            "not the per-mouse mean over the exact QC-passed curated cells",
             result.stderr,
         )
 

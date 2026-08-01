@@ -19,8 +19,12 @@ state-pathway model.
   tables under `Data/in-vivo/figure7/processed/`. Source panel 7E (main panel
   K) additionally reads the exact six-column, checksum-pinned
   `Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv`: 14,125 cells across 16 CBS
-  files. Its treated-mouse score uses all 7,623 cells in the eight treated CBS
-  files, not only the 9,832-cell union represented in the plot-facing tables.
+  files. This remains the complete immutable CBS inventory. Every scored cell
+  must also occur, with the identical file, barcode, and value, in the exact
+  9,832-cell QC-passed CellCycle + NonCellCycle union represented in the
+  plot-facing tables. The other 4,293 inventory cells remain provenance-only
+  and are excluded from scoring. Panel K uses the resulting 5,335 treated
+  cells.
   That newer artifact has its own source revision (`dcdb62f2252...`) in the
   config; the surrounding legacy source revision does not claim it existed in
   the earlier snapshot.
@@ -33,9 +37,9 @@ state-pathway model.
   `initial_ploidy_adjusted_grch_human_only_v3`; its nuisance terms are dose and
   injected initial ploidy, never endpoint CN score or an endpoint-derived
   threshold group.
-- Panel 7E (main panel K) estimates -8.8375 Day-17 TGI percentage points per
-  within-origin CN-score SD (partial r = -0.3447; exact origin-by-dose
-  permutation P = 0.6875; 16 assignments). It is a confound-safe sensitivity
+- Panel 7E (main panel K) estimates -8.7923 Day-17 TGI percentage points per
+  within-origin CN-score SD (partial r = -0.3431; exact origin-by-dose
+  permutation P = 0.75; 16 assignments). It is a confound-safe sensitivity
   analysis, not evidence for an independent terminal-ploidy effect.
 - The A-K manuscript composite binds the exact reviewed 11-table SI cache and
   displays, in first-citation order: source 7A, source 7C, SI4A-C, SI4E, SI7B,
@@ -78,9 +82,11 @@ stage needs the final Seurat object, there are two supported source boundaries:
   by `zenodo_required_files.tsv`.
 
 Figure 7A-7D additionally reuse or download the 18 deposited loom files. Source
-panel 7E/main panel K instead binds the complete combined CBS table; in
+panel 7E/main panel K binds the complete combined CBS inventory; in
 `full-refit`, Manager regenerates that run-scoped table from the manifest-pinned
-16 CBS matrices and requires it to reproduce the canonical checksum. The
+16 CBS matrices and requires it to reproduce the canonical checksum. It then
+restricts scoring to exact file+barcode keys retained in the final Seurat tumor
+universe and represented by the two processed tables. The
 complete Zenodo fallback is about 10.61 GiB. Manager then runs only the missing
 figure-facing stages:
 
@@ -90,7 +96,8 @@ figure-facing stages:
 3. calculate scVelo pseudotime and derive the CellCycle and NonCellCycle
    Day-17 TGI tables used by 7A-7D and for sample/TGI metadata in 7E;
 4. regenerate and checksum-validate the complete six-column, 14,125-cell CBS
-   ploidy table used to calculate 7E's per-mouse scores;
+   inventory, then calculate 7E's per-mouse scores from the exact 9,832-cell
+   QC-passed union (5,335 cells across the eight treated tumors);
 5. fit the state-pathway model and export a compact generated reference for 7F;
 6. pass the generated supplementary cache and its complete raw-input lineage
    into Figure 7 and assemble the A-K review candidate.
@@ -210,9 +217,15 @@ bash Manager.sh \
 
 After scientific review, the exact five consumed files per endpoint (7A plot,
 7C plot/test, and 7E plot/test) plus the two run configs are frozen in
-`Data/in-vivo/figure7/saved_tgi_sensitivity/tgi_day24_day31_all_cbs_v1/`.
+`Data/in-vivo/figure7/saved_tgi_sensitivity/tgi_day24_day31_curated_cbs_v2/`.
 Canonical SI8 assembly reads that compact tracked bundle by default; the full
-40-file result runs are not publication dependencies:
+40-file result runs are not publication dependencies.
+
+The earlier `tgi_day24_day31_all_cbs_v1` bundle was removed because it
+summarized cells outside the final QC tumor universe. The assembler rejects
+that obsolete policy and accepts only the curated v2 publication source.
+
+Assemble the reviewed composite with:
 
 ```bash
 Rscript Code/in-vivo/figure7/assemble_tgi_sensitivity.R \

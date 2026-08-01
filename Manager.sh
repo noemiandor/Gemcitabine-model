@@ -109,7 +109,7 @@ Module options:
   --figure7-python PATH             Python with scVelo dependencies
   --figure7-cell-ploidy-input PATH  Endpoint-ploidy input
   --figure7-endpoint-cbs-score-input PATH
-                                  Canonical all-cell CBS table for Figure 7K/SI8
+                                  Complete CBS inventory backing the QC-passed Figure 7K/SI8 score
   --figure7-sample-info-input PATH  Sample metadata workbook
   --figure7-growth-curve-input PATH Tumor-volume workbook
   --figure7-no-download-missing-raw Do not download missing deposited raw files
@@ -466,7 +466,7 @@ prepare_figure7_endpoint_cbs_score() {
   )"
   if [[ "${observed_sha256}" != "${figure7_endpoint_cbs_score_sha256}" ]]; then
     echo \
-      "Figure 7K/SI8 require the canonical 14,125-cell CBS table (SHA-256 ${figure7_endpoint_cbs_score_sha256}): ${figure7_endpoint_cbs_score_input}" \
+      "Figure 7K/SI8 require the canonical 14,125-cell CBS source inventory (subsequently restricted to the exact 9,832-cell QC universe/5,335 treated cells; SHA-256 ${figure7_endpoint_cbs_score_sha256}): ${figure7_endpoint_cbs_score_input}" \
       >&2
     return 1
   fi

@@ -1477,7 +1477,10 @@ run_config <- data.frame(
     "si6e_copy_number_source",
     "si6e_column_statistic",
     "si6e_cbs_matrix_count",
-    "si6e_cell_count",
+    "si6e_source_cell_count",
+    "si6e_qc_passed_tumor_cell_count",
+    "si6e_treated_tumor_cell_count",
+    "si6e_qc_selection_policy",
     "si6e_chromosome_count",
     "si6e_row_order",
     "si6e_column_order",
@@ -1543,7 +1546,13 @@ run_config <- data.frame(
       "each chromosome and file-specific schema"
     ),
     as.character(length(cbs_collection$matrices)),
+    as.character(nrow(cbs_collection$ploidy)),
     as.character(nrow(cbs_harmonized$matrix)),
+    as.character(sum(cbs_harmonized$cell_annotations$dose_mg_per_kg > 0)),
+    paste(
+      "exact cells matched by the frozen endpoint-ploidy audit from the",
+      "final QC-curated Seurat object; clusters 3, 4, 9, and 9c excluded"
+    ),
     as.character(ncol(cbs_harmonized$matrix)),
     paste(
       "injected origin, dose, mouse, post-processed copy-number score, cell ID;",
@@ -1663,7 +1672,9 @@ input_qc <- data.frame(
     "normalized_composition_descriptive_contrasts",
     "normalized_composition_significant_enrichments",
     "si6e_cbs_matrices",
-    "si6e_unique_cells",
+    "si6e_source_cells",
+    "si6e_qc_passed_tumor_cells",
+    "si6e_qc_passed_treated_tumor_cells",
     "si6e_chromosomes",
     "si6e_missing_chromosome_mean_fraction",
     "si6e_cbs_schemas",
@@ -1699,7 +1710,9 @@ input_qc <- data.frame(
     sum(!composition_test_audit$testable),
     sum(composition_test_audit$enriched),
     length(cbs_collection$matrices),
+    nrow(cbs_collection$ploidy),
     nrow(cbs_harmonized$matrix),
+    sum(cbs_harmonized$cell_annotations$dose_mg_per_kg > 0),
     ncol(cbs_harmonized$matrix),
     format(mean(is.na(cbs_harmonized$matrix)), digits = 16),
     length(unique(cbs_harmonized$chromosome_schema_audit$schema_id)),
@@ -1765,6 +1778,7 @@ provenance <- data.frame(
     "numbat_cbs_manifest_sha256",
     "numbat_cbs_matrix_count",
     "numbat_cbs_matrix_hashes",
+    "si6e_qc_selection",
     "injected_cell_reference_manifest",
     "injected_cell_reference_manifest_sha256",
     "injected_cell_reference_matrix_hashes",
@@ -1813,6 +1827,12 @@ provenance <- data.frame(
         vapply(cbs_input_paths, file_sha256, character(1L))
       ),
       collapse = ";"
+    ),
+    paste(
+      "the complete 14,125-cell CBS source is checksum/value validated,",
+      "then restricted by the frozen endpoint-ploidy audit to the exact",
+      "9,832 QC-passed tumor cells (5,335 treated); clusters 3, 4, 9,",
+      "and 9c remain excluded"
     ),
     repo_relative(injected_reference_manifest_path, root),
     file_sha256(injected_reference_manifest_path),
@@ -1933,10 +1953,15 @@ writeLines(
     paste0("All cells: ", nrow(seurat)),
     paste0("Included tumor cells: ", n_tumor),
     paste0(
-      "SI6E CBS matrices/cells/chromosomes: ",
+      "SI6E CBS matrices/source cells/QC-passed cells/treated cells/",
+      "chromosomes: ",
       length(cbs_collection$matrices),
       "/",
+      nrow(cbs_collection$ploidy),
+      "/",
       nrow(cbs_harmonized$matrix),
+      "/",
+      sum(cbs_harmonized$cell_annotations$dose_mg_per_kg > 0),
       "/",
       ncol(cbs_harmonized$matrix)
     ),
