@@ -4,6 +4,8 @@ The strict A--K identity and scientific analyses are unchanged. The display is
 rebuilt natively at 7.1 x 9.7 inches instead of scaling a 24 x 28 inch canvas.
 The six-row plan preserves row-major order while allocating full width to panel
 I, 4.45 inches to G, and 3.46 inches each to J and K after the outer gutters.
+Panel H receives 1.35 inches of vertical space so its equal-mouse ECDF
+differences remain visible at publication size.
 Titles, subtitles,
 formulas, and methodological prose are removed from final panel objects and
 transferred to the manuscript legend.

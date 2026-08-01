@@ -1194,7 +1194,7 @@ figure7_publication_spec <- function() {
       paste0(strrep("J", 14L), strrep("K", 14L)),
       sep = "\n"
     ),
-    row_heights = c(1.25, 0.95, 2.60, 0.95, 2.50, 1.45),
+    row_heights = c(1.20, 0.95, 2.45, 1.35, 2.30, 1.45),
     content_left_npc = 0.020,
     content_right_npc = 0.005
   )

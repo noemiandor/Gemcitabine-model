@@ -309,6 +309,9 @@ preserving the enforced panel identity and first-citation order:
 5. I
 6. J/K
 
+Panel H receives 1.35 inches of vertical space so the three equal-mouse ECDF
+comparisons remain distinguishable on their shared, unzoomed 0--1.05 scale.
+
 The presentation-only audit package under `figures/Figure7/polishing/` can be
 rebuilt independently with:
 

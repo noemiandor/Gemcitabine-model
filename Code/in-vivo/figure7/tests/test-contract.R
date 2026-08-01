@@ -338,7 +338,10 @@ testthat::test_that("publication compositor pins dimensions, mapping, and vector
 
   testthat::expect_identical(spec$width_in, 7.1)
   testthat::expect_identical(spec$height_in, 9.7)
-  testthat::expect_length(spec$row_heights, 6L)
+  testthat::expect_identical(
+    spec$row_heights,
+    c(1.20, 0.95, 2.45, 1.35, 2.30, 1.45)
+  )
   testthat::expect_true(all(spec$row_heights > 0))
   testthat::expect_equal(sum(spec$row_heights), spec$height_in, tolerance = 0)
   testthat::expect_identical(

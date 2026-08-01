@@ -20,6 +20,9 @@ single 511 x 698 point page (7.10 x 9.69 inches after PDF-point rounding).
 - Heatmaps: G and I have dedicated enlarged rows for labels. G retains both
   row and column dendrograms and an explicit NES color scale; I retains its
   collection strips, interval markers, and mean-gene-z-score color scale.
+- ECDF comparison: H is 1.35 inches high at the target size. The overall,
+  4N-origin, and 2N-origin vehicle-versus-gemcitabine curves are separately
+  discernible on their unchanged common 0--1.05 scale.
 - Composition: F's positive-enrichment asterisks are bold and visible above
   the correct bars at print size.
 - Mouse-level panels: J and K each display all eight mouse identifiers. J's
@@ -33,9 +36,9 @@ single 511 x 698 point page (7.10 x 9.69 inches after PDF-point rounding).
 Independent production comparison:
 
 - The polishing PNG and the Figure-7-only Manager PNG are byte-identical
-  (SHA-256 `cff7eeebc2bf0828ebc121753adac0a487e6fb1df48ea8aeac9c8e5c4f11d034`).
+  (SHA-256 `be2ddbf3eb4352674d18918a95e0409090a01b9706a1d3be1fa99b020b082c97`).
 - Cairo embeds a creation timestamp, so separately exported PDFs are not
   byte-identical. Rasterizing both vector PDFs independently at 150 DPI with
   `pdftocairo -png -singlefile -r 150` produced byte-identical 1065 x 1455
   renders (SHA-256
-  `c253198bd7d214357055c53716d528a45d6540e3e220fabdf1b3f211d39c4104`).
+  `61aceeb1818fda596922dab0837c6f331960e5e5bec090a5fe4000436c365bdb`).

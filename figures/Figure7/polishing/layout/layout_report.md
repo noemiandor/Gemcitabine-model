@@ -5,6 +5,9 @@
 - Rows: A/B; C/D/E; F/G; H; I; J/K.
 - Width allocation after outer gutters: G 4.45 inches; I 6.92 inches; J and K
   3.46 inches each.
+- Panel H is 1.35 inches high, 42% taller than the preceding publication-scale
+  draft, so the three ECDF comparisons remain distinguishable without changing
+  their common 0--1.05 scale.
 - The bundled optimizer was run on the six scientifically constrained row
   groups. Its independent candidate and report are retained beside this plan.
 - The adopted plan keeps semantically related panels adjacent and avoids an
