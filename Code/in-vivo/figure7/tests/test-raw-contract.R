@@ -4,6 +4,15 @@ sys.source(
   envir = scvelo_env
 )
 
+pseudotime_env <- new.env(parent = globalenv())
+sys.source(
+  file.path(
+    module_dir,
+    "generate_pseudotime_distribution_with_ploidy_dose_tgi.R"
+  ),
+  envir = pseudotime_env
+)
+
 download_env <- new.env(parent = globalenv())
 sys.source(
   file.path(module_dir, "download_figure7_raw_data.R"),
@@ -106,6 +115,93 @@ testthat::test_that("scVelo output covers every deposited Seurat cell exactly on
     worker,
     'matched_meta["velocity_obs"].astype(str).duplicated().any()',
     fixed = TRUE
+  )
+})
+
+testthat::test_that("standalone processed-table generation fixes the final-QC universe", {
+  all_cluster_counts <- c(
+    "0" = 22670L, "2" = 3644L, "4c" = 103L, "5" = 1823L,
+    "6" = 1685L, "8" = 1579L, "10" = 3095L, "13" = 704L,
+    "14" = 210L
+  )
+  tumor_cluster_counts <- c(
+    "0" = 4830L, "2" = 976L, "4c" = 89L, "5" = 623L,
+    "6" = 686L, "8" = 13L, "10" = 2106L, "13" = 506L,
+    "14" = 3L
+  )
+  cellline_cluster_counts <- all_cluster_counts - tumor_cluster_counts
+  samples <- pseudotime_env$reviewed_tumor_sample_contract()
+  metrics <- data.frame(
+    cell = sprintf("reviewed-cell-%05d", seq_len(35513L)),
+    TN = c(rep("CellLine", 25681L), rep("Tumor", 9832L)),
+    clusters = c(
+      rep(names(cellline_cluster_counts), cellline_cluster_counts),
+      rep(names(tumor_cluster_counts), tumor_cluster_counts)
+    ),
+    sample = c(
+      rep("2N-Cell-Culture", 14836L),
+      rep("4N-Cell-Culture", 10845L),
+      rep(samples$sample, samples$n_cells)
+    ),
+    Ploidy = c(
+      rep("2N", 14836L),
+      rep("4N", 10845L),
+      rep(samples$Ploidy, samples$n_cells)
+    ),
+    Dose = c(
+      rep(NA_character_, 25681L),
+      rep(samples$Dose, samples$n_cells)
+    ),
+    stringsAsFactors = FALSE
+  )
+  testthat::expect_silent(
+    pseudotime_env$assert_reviewed_final_scvelo_universe(metrics)
+  )
+
+  leaked_cluster <- metrics
+  leaked_cluster$clusters[[1L]] <- "9"
+  testthat::expect_error(
+    pseudotime_env$assert_reviewed_final_scvelo_universe(leaked_cluster),
+    "discarded QC cluster"
+  )
+
+  wrong_sample <- metrics
+  first_tumor <- which(wrong_sample$TN == "Tumor")[[1L]]
+  wrong_sample$sample[[first_tumor]] <- "2N-A1-LR"
+  testthat::expect_error(
+    pseudotime_env$assert_reviewed_final_scvelo_universe(wrong_sample),
+    "sample counts differ"
+  )
+
+  tumor <- metrics[metrics$TN == "Tumor", , drop = FALSE]
+  tumor$DosePanel <- sub("mg/kg$", "", tumor$Dose)
+  cellcycle_hit <- tumor$clusters %in% c("4c", "6", "10")
+  make_output <- function(data) {
+    data.frame(
+      cell_id = data$cell,
+      cluster = data$clusters,
+      gemcitabine_dose_mg_per_kg = as.numeric(data$DosePanel),
+      stringsAsFactors = FALSE
+    )
+  }
+  cellcycle <- make_output(tumor[cellcycle_hit, , drop = FALSE])
+  noncellcycle <- make_output(tumor[!cellcycle_hit, , drop = FALSE])
+  testthat::expect_silent(
+    pseudotime_env$assert_reviewed_processed_universe(
+      tumor,
+      cellcycle,
+      noncellcycle
+    )
+  )
+  substituted <- noncellcycle
+  substituted$cell_id[[1L]] <- metrics$cell[[1L]]
+  testthat::expect_error(
+    pseudotime_env$assert_reviewed_processed_universe(
+      tumor,
+      cellcycle,
+      substituted
+    ),
+    "exact 9,832-cell final-QC Tumor universe"
   )
 })
 

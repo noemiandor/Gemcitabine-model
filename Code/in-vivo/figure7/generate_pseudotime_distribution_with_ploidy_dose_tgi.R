@@ -140,6 +140,220 @@ standardize_dose <- function(x) {
   out
 }
 
+reviewed_tumor_sample_contract <- function() {
+  counts <- c(
+    "2N-A1-0" = 413L,
+    "2N-A1-LR" = 369L,
+    "2N-A1-R" = 196L,
+    "2N-A1-RR" = 1495L,
+    "2N-A2-0" = 317L,
+    "2N-A2-L" = 505L,
+    "2N-A4-R" = 305L,
+    "2N-A4-RL" = 1280L,
+    "4N-A5-0" = 888L,
+    "4N-A5-RR" = 393L,
+    "A5-4N-L" = 385L,
+    "A5-4N-R" = 358L,
+    "A6-4N-O" = 189L,
+    "A6-4N-RR" = 660L,
+    "4N-A8-RL" = 1832L,
+    "4N-A8-RR" = 247L
+  )
+  data.frame(
+    sample = names(counts),
+    n_cells = unname(counts),
+    Ploidy = c(rep("2N", 8L), rep("4N", 8L)),
+    Dose = c(
+      rep("0mg/kg", 4L), rep("30mg/kg", 2L), rep("120mg/kg", 2L),
+      rep("0mg/kg", 4L), rep("30mg/kg", 2L), rep("120mg/kg", 2L)
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
+assert_reviewed_final_scvelo_universe <- function(metrics) {
+  required <- c("cell", "TN", "clusters", "sample", "Ploidy", "Dose")
+  missing <- setdiff(required, names(metrics))
+  if (length(missing)) {
+    stop(
+      "scVelo final-QC universe is missing: ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  cells <- clean_character(metrics$cell)
+  context <- clean_character(metrics$TN)
+  clusters <- clean_character(metrics$clusters)
+  sample <- clean_character(metrics$sample)
+  ploidy <- standardize_ploidy(metrics$Ploidy)
+  dose <- standardize_dose(metrics$Dose)
+  if (nrow(metrics) != 35513L || anyNA(cells) || anyDuplicated(cells)) {
+    stop(
+      "Standalone pseudotime generation requires the exact 35,513-cell ",
+      "reviewed final-QC universe with unique cell IDs",
+      call. = FALSE
+    )
+  }
+
+  expected_all_clusters <- c(
+    "0" = 22670L, "2" = 3644L, "4c" = 103L, "5" = 1823L,
+    "6" = 1685L, "8" = 1579L, "10" = 3095L, "13" = 704L,
+    "14" = 210L
+  )
+  discarded <- intersect(unique(clusters), c("3", "4", "9", "9c"))
+  if (length(discarded)) {
+    stop(
+      "scVelo final-QC universe contains discarded QC cluster(s): ",
+      paste(discarded, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  all_cluster_counts <- table(factor(
+    clusters,
+    levels = names(expected_all_clusters)
+  ))
+  if (anyNA(clusters) ||
+      !setequal(unique(clusters), names(expected_all_clusters)) ||
+      !identical(
+        as.integer(all_cluster_counts),
+        as.integer(expected_all_clusters)
+      )) {
+    stop(
+      "scVelo final-QC cluster counts differ from the reviewed nine-cluster ",
+      "universe",
+      call. = FALSE
+    )
+  }
+
+  context_counts <- table(factor(context, levels = c("CellLine", "Tumor")))
+  if (anyNA(context) ||
+      !setequal(unique(context), c("CellLine", "Tumor")) ||
+      !identical(as.integer(context_counts), c(25681L, 9832L))) {
+    stop(
+      "scVelo final-QC context counts must be 25,681 CellLine and 9,832 Tumor",
+      call. = FALSE
+    )
+  }
+  cellline <- context == "CellLine"
+  tumor <- context == "Tumor"
+  if (any(!is.na(dose[cellline]))) {
+    stop("scVelo CellLine Dose values must be missing", call. = FALSE)
+  }
+
+  expected_tumor_clusters <- c(
+    "0" = 4830L, "2" = 976L, "4c" = 89L, "5" = 623L,
+    "6" = 686L, "8" = 13L, "10" = 2106L, "13" = 506L,
+    "14" = 3L
+  )
+  tumor_cluster_counts <- table(factor(
+    clusters[tumor],
+    levels = names(expected_tumor_clusters)
+  ))
+  if (!identical(
+    as.integer(tumor_cluster_counts),
+    as.integer(expected_tumor_clusters)
+  )) {
+    stop(
+      "scVelo Tumor cluster counts differ from the exact 9,832-cell ",
+      "reviewed universe",
+      call. = FALSE
+    )
+  }
+
+  expected_samples <- reviewed_tumor_sample_contract()
+  tumor_sample <- sample[tumor]
+  observed_sample_counts <- table(factor(
+    tumor_sample,
+    levels = expected_samples$sample
+  ))
+  if (anyNA(tumor_sample) ||
+      !setequal(unique(tumor_sample), expected_samples$sample) ||
+      !identical(
+        as.integer(observed_sample_counts),
+        as.integer(expected_samples$n_cells)
+      )) {
+    stop(
+      "scVelo Tumor sample counts differ from the reviewed 16-sample universe",
+      call. = FALSE
+    )
+  }
+  sample_match <- match(tumor_sample, expected_samples$sample)
+  if (anyNA(ploidy[tumor]) ||
+      any(ploidy[tumor] != expected_samples$Ploidy[sample_match]) ||
+      anyNA(dose[tumor]) ||
+      any(dose[tumor] != expected_samples$Dose[sample_match])) {
+    stop(
+      "scVelo Tumor sample-to-Ploidy/Dose mapping differs from reviewed values",
+      call. = FALSE
+    )
+  }
+  treated <- tumor & dose %in% c("30mg/kg", "120mg/kg")
+  treated_ploidy <- table(factor(
+    ploidy[treated],
+    levels = c("2N", "4N")
+  ))
+  if (sum(treated) != 5335L ||
+      !identical(as.integer(treated_ploidy), c(2407L, 2928L))) {
+    stop(
+      "scVelo final-QC universe must contain exactly 5,335 treated Tumor ",
+      "cells (2N=2,407; 4N=2,928)",
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
+}
+
+assert_reviewed_processed_universe <- function(
+  tumor,
+  cellcycle,
+  noncellcycle
+) {
+  for (column in c("cell", "DosePanel", "clusters")) {
+    if (!(column %in% names(tumor))) {
+      stop("Reviewed Tumor universe is missing ", column, call. = FALSE)
+    }
+  }
+  required_output <- c(
+    "cell_id", "cluster", "gemcitabine_dose_mg_per_kg"
+  )
+  if (!all(required_output %in% names(cellcycle)) ||
+      !all(required_output %in% names(noncellcycle))) {
+    stop("Processed compartment output schema is incomplete", call. = FALSE)
+  }
+  combined <- rbind(
+    cellcycle[, required_output, drop = FALSE],
+    noncellcycle[, required_output, drop = FALSE]
+  )
+  expected_cellcycle_clusters <- c("4c", "6", "10")
+  expected_noncellcycle_clusters <- c("0", "2", "5", "8", "13", "14")
+  tumor_ids <- clean_character(tumor$cell)
+  combined_ids <- clean_character(combined$cell_id)
+  treated_tumor_ids <- tumor_ids[tumor$DosePanel %in% c("30", "120")]
+  treated_output_ids <- combined_ids[
+    combined$gemcitabine_dose_mg_per_kg %in% c(30, 120)
+  ]
+  if (nrow(tumor) != 9832L || nrow(cellcycle) != 2881L ||
+      nrow(noncellcycle) != 6951L || nrow(combined) != 9832L ||
+      anyNA(tumor_ids) || anyDuplicated(tumor_ids) ||
+      anyNA(combined_ids) || anyDuplicated(combined_ids) ||
+      !setequal(combined_ids, tumor_ids) ||
+      !setequal(unique(as.character(cellcycle$cluster)),
+                expected_cellcycle_clusters) ||
+      !setequal(unique(as.character(noncellcycle$cluster)),
+                expected_noncellcycle_clusters) ||
+      length(treated_tumor_ids) != 5335L ||
+      length(treated_output_ids) != 5335L ||
+      !setequal(treated_output_ids, treated_tumor_ids)) {
+    stop(
+      "Processed CellCycle + NonCellCycle outputs must preserve the exact ",
+      "9,832-cell final-QC Tumor universe and identical 5,335 treated cells ",
+      "with the reviewed 2,881/6,951 compartment split",
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
+}
+
 dose_panel <- function(x) {
   out <- sub("mg/kg$", "", standardize_dose(x))
   out[!(out %in% c("0", "30", "120"))] <- NA_character_
@@ -491,6 +705,7 @@ generate_outputs <- function(
       call. = FALSE
     )
   }
+  assert_reviewed_final_scvelo_universe(metrics)
   metrics$DosePanel <- dose_panel(metrics$Dose)
   metrics$sampleID <- metrics$sample
   tumor <- metrics[
@@ -528,6 +743,7 @@ generate_outputs <- function(
     "NonCellCycle",
     tgi_day
   )
+  assert_reviewed_processed_universe(tumor, cellcycle, noncellcycle)
 
   ensure_dir(dirname(cellcycle_output))
   ensure_dir(dirname(noncellcycle_output))
