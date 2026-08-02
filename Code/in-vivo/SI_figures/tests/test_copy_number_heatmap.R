@@ -361,6 +361,25 @@ stopifnot(
 )
 
 heatmap <- helper$si_copy_number_heatmap(harmonized)
+matrix_rectangle_width <- function(gtable) {
+  matrix_index <- which(gtable$layout$name == "matrix")
+  matrix_grob <- gtable$grobs[[matrix_index]]
+  rectangle_index <- which(vapply(
+    matrix_grob$children,
+    inherits,
+    logical(1L),
+    what = "rect"
+  ))
+  matrix_grob$children[[rectangle_index]]$width
+}
+widened_gtable <- helper$si_copy_number_widen_matrix_columns(
+  heatmap$gtable,
+  2
+)
+stopifnot(identical(
+  matrix_rectangle_width(widened_gtable),
+  matrix_rectangle_width(heatmap$gtable) * 2
+))
 cn3_index <- findInterval(3, heatmap$breaks, all.inside = TRUE)
 cn3_rgb <- as.numeric(grDevices::col2rgb(heatmap$colors[[cn3_index]]))
 white_rgb <- rep(255, 3L)
@@ -388,6 +407,7 @@ stopifnot(
   ),
   identical(heatmap$labels_col, paste0("chr", seq_len(22L))),
   identical(heatmap$gaps_col, seq_len(21L)),
+  identical(heatmap$column_width_multiplier, 1),
   identical(heatmap$cluster_rows, FALSE),
   identical(heatmap$cluster_cols, FALSE),
   length(heatmap$colors) == 120L,

@@ -558,6 +558,11 @@ testthat::test_that("full source panels plus the A-L composite satisfy the exact
     fixture$config
   )
   copy_number <- figure7_build_copy_number_panel(repo_root)
+  testthat::expect_identical(copy_number$column_width_multiplier, 2)
+  testthat::expect_identical(
+    copy_number$heatmap$column_width_multiplier,
+    2
+  )
   testthat::expect_equal(
     sum(vapply(
       context$plots$C$layers,

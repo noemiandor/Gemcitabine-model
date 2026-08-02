@@ -777,6 +777,34 @@ si_copy_number_harmonize <- function(collection) {
   )
 }
 
+si_copy_number_widen_matrix_columns <- function(gtable, multiplier = 1) {
+  if (length(multiplier) != 1L || !is.numeric(multiplier) ||
+      !is.finite(multiplier) || multiplier <= 0) {
+    stop("Copy-number heatmap column-width multiplier must be positive",
+         call. = FALSE)
+  }
+  if (identical(as.numeric(multiplier), 1)) return(gtable)
+
+  matrix_index <- which(gtable$layout$name == "matrix")
+  if (length(matrix_index) != 1L) {
+    stop("Copy-number heatmap matrix grob is unavailable", call. = FALSE)
+  }
+  matrix_grob <- gtable$grobs[[matrix_index]]
+  rectangle_index <- which(vapply(
+    matrix_grob$children,
+    inherits,
+    logical(1L),
+    what = "rect"
+  ))
+  if (length(rectangle_index) != 1L) {
+    stop("Copy-number heatmap matrix rectangles are unavailable", call. = FALSE)
+  }
+  matrix_grob$children[[rectangle_index]]$width <-
+    matrix_grob$children[[rectangle_index]]$width * multiplier
+  gtable$grobs[[matrix_index]] <- matrix_grob
+  gtable
+}
+
 si_copy_number_heatmap <- function(
   harmonized,
   title = paste(
@@ -787,7 +815,8 @@ si_copy_number_heatmap <- function(
   fontsize = 8,
   fontsize_col = 6.5,
   annotation_legend = TRUE,
-  angle_col = 0
+  angle_col = 0,
+  column_width_multiplier = 1
 ) {
   annotation <- harmonized$cell_annotations
   matrix_data <- harmonized$matrix
@@ -873,6 +902,14 @@ si_copy_number_heatmap <- function(
     main = if (is.null(title)) NA_character_ else as.character(title),
     silent = TRUE
   )
+  # pheatmap reserves a fixed four-point gap after every chromosome.  At the
+  # narrow Figure 7J publication slot that gap is approximately as wide as a
+  # chromosome column.  Widen only the matrix rectangles, keeping their
+  # centers, annotations, labels, and the overall panel footprint fixed.
+  heatmap$gtable <- si_copy_number_widen_matrix_columns(
+    heatmap$gtable,
+    column_width_multiplier
+  )
   list(
     gtable = heatmap$gtable,
     row_annotation = row_annotation,
@@ -883,6 +920,7 @@ si_copy_number_heatmap <- function(
     gaps_row = gaps_row,
     gaps_col = gaps_col,
     labels_col = labels_col,
+    column_width_multiplier = as.numeric(column_width_multiplier),
     cluster_rows = FALSE,
     cluster_cols = FALSE
   )

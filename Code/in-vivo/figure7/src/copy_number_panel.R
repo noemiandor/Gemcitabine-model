@@ -210,7 +210,8 @@ figure7_build_copy_number_panel <- function(repo_root) {
     fontsize = 6,
     fontsize_col = 5.5,
     annotation_legend = FALSE,
-    angle_col = 0
+    angle_col = 0,
+    column_width_multiplier = 2
   )
   annotation_key <- figure7_copy_number_annotation_key(
     heatmap$annotation_colors
@@ -246,6 +247,7 @@ figure7_build_copy_number_panel <- function(repo_root) {
     n_treated_cells = sum(treated),
     n_mice = length(unique(harmonized$cell_annotations$sample_id)),
     n_chromosomes = ncol(harmonized$matrix),
+    column_width_multiplier = heatmap$column_width_multiplier,
     input_paths = c(
       cell_metadata_path,
       endpoint_audit_path,
