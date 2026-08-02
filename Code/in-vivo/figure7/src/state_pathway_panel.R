@@ -442,7 +442,9 @@ figure7_panel_f_plot <- function(activity, config) {
     levels = rev(path_order$pathway_plot_key)
   )
   reader_pathway_labels <- c(
-    "Class a 1 Rhodopsin Like Receptors" = "Class A/1 rhodopsin-like receptors",
+    "Class a 1 Rhodopsin Like Receptors" = "Class A/1 rhodopsin receptors",
+    "Detection of Stimulus Involved in Sensory Perception" =
+      "Sensory-stimulus detection",
     "Dna Repair" = "DNA repair",
     "Dna Replication" = "DNA replication",
     "E2f Targets" = "E2F targets",
@@ -450,13 +452,17 @@ figure7_panel_f_plot <- function(activity, config) {
     "Kras Signaling Dn" = "KRAS signaling down",
     "Myc Targets V1" = "MYC targets V1",
     "Oxidative Phosphorylation" = "Oxidative phosphorylation",
+    "Peptide Ligand Binding Receptors" = "Peptide ligand receptors",
     "Processing of Capped Intron Containing Pre Mrna" =
-      "Processing of capped intron-containing pre-mRNA",
+      "Capped pre-mRNA processing",
     "Ribonucleoprotein Complex Biogenesis" =
-      "Ribonucleoprotein-complex biogenesis",
+      "RNP-complex biogenesis",
     "Ribosome Biogenesis" = "Ribosome biogenesis",
     "Rrna Metabolic Process" = "rRNA metabolic process",
-    "Rrna Processing" = "rRNA processing"
+    "Rrna Processing" = "rRNA processing",
+    "Sensory Perception of Chemical Stimulus" =
+      "Chemical-stimulus perception",
+    "Sensory Perception of Smell" = "Smell perception"
   )
   display_labels <- as.character(path_order$pathway_label)
   reader_match <- match(display_labels, names(reader_pathway_labels))

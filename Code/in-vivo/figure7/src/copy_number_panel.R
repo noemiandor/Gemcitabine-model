@@ -3,6 +3,115 @@
 # reduction, row ordering, and annotation colors. This wrapper only binds the
 # reviewed repository inputs and returns a live grob for Figure 7 assembly.
 
+figure7_copy_number_annotation_key <- function(annotation_colors) {
+  expected_groups <- c("Injected origin", "Gemcitabine dose", "Mouse")
+  if (!identical(names(annotation_colors), expected_groups) ||
+      !identical(
+        names(annotation_colors$`Injected origin`), c("2N", "4N")
+      ) ||
+      !identical(
+        names(annotation_colors$`Gemcitabine dose`),
+        c("Vehicle", "30 mg/kg", "120 mg/kg")
+      ) ||
+      length(annotation_colors$Mouse) != 16L ||
+      any(!nzchar(names(annotation_colors$Mouse)))) {
+    figure7_stop("Figure 7J annotation-color contract is incomplete")
+  }
+
+  key_data <- rbind(
+    data.frame(
+      group = "Injected origin",
+      label = names(annotation_colors$`Injected origin`),
+      color = unname(annotation_colors$`Injected origin`),
+      stringsAsFactors = FALSE
+    ),
+    data.frame(
+      group = "Gemcitabine dose",
+      label = names(annotation_colors$`Gemcitabine dose`),
+      color = unname(annotation_colors$`Gemcitabine dose`),
+      stringsAsFactors = FALSE
+    ),
+    data.frame(
+      group = "Mouse",
+      label = names(annotation_colors$Mouse),
+      color = unname(annotation_colors$Mouse),
+      stringsAsFactors = FALSE
+    )
+  )
+
+  title_grob <- function(label, y) {
+    grid::textGrob(
+      label,
+      x = grid::unit(0.02, "npc"), y = grid::unit(y, "npc"),
+      just = c("left", "center"),
+      gp = grid::gpar(
+        fontfamily = "sans", fontface = "bold", fontsize = 5.7,
+        col = "#222222"
+      )
+    )
+  }
+  entry_grob <- function(label, color, x, y) {
+    grid::grobTree(
+      grid::rectGrob(
+        x = grid::unit(x, "npc"), y = grid::unit(y, "npc"),
+        width = grid::unit(0.060, "npc"),
+        height = grid::unit(0.038, "npc"),
+        just = c("left", "center"),
+        gp = grid::gpar(fill = color, col = NA)
+      ),
+      grid::textGrob(
+        label,
+        x = grid::unit(x + 0.075, "npc"), y = grid::unit(y, "npc"),
+        just = c("left", "center"),
+        gp = grid::gpar(
+          fontfamily = "sans", fontsize = 5.25, col = "#222222"
+        )
+      )
+    )
+  }
+
+  children <- list(
+    grid::rectGrob(gp = grid::gpar(fill = "white", col = NA)),
+    title_grob("Injected origin", 0.975),
+    entry_grob(
+      names(annotation_colors$`Injected origin`)[[1L]],
+      unname(annotation_colors$`Injected origin`[[1L]]), 0.02, 0.915
+    ),
+    entry_grob(
+      names(annotation_colors$`Injected origin`)[[2L]],
+      unname(annotation_colors$`Injected origin`[[2L]]), 0.50, 0.915
+    ),
+    title_grob("Dose (mg/kg)", 0.835)
+  )
+  dose_x <- c(0.02, 0.35, 0.68)
+  dose_display_labels <- c("Vehicle", "30", "120")
+  for (index in seq_along(annotation_colors$`Gemcitabine dose`)) {
+    children[[length(children) + 1L]] <- entry_grob(
+      dose_display_labels[[index]],
+      unname(annotation_colors$`Gemcitabine dose`[[index]]),
+      dose_x[[index]], 0.775
+    )
+  }
+  children[[length(children) + 1L]] <- title_grob("Mouse", 0.695)
+  mouse_names <- names(annotation_colors$Mouse)
+  for (index in seq_along(annotation_colors$Mouse)) {
+    column <- (index - 1L) %/% 8L
+    row <- (index - 1L) %% 8L
+    children[[length(children) + 1L]] <- entry_grob(
+      mouse_names[[index]],
+      unname(annotation_colors$Mouse[[index]]),
+      0.02 + 0.49 * column,
+      0.63 - 0.078 * row
+    )
+  }
+  key <- do.call(
+    grid::grobTree,
+    c(children, list(name = "figure7_j_annotation_key"))
+  )
+  attr(key, "figure7_annotation_key_data") <- key_data
+  key
+}
+
 figure7_build_copy_number_panel <- function(repo_root) {
   required_functions <- c(
     "si_copy_number_read_collection",
@@ -103,6 +212,16 @@ figure7_build_copy_number_panel <- function(repo_root) {
     annotation_legend = FALSE,
     angle_col = 0
   )
+  annotation_key <- figure7_copy_number_annotation_key(
+    heatmap$annotation_colors
+  )
+  panel_plot <- patchwork::wrap_plots(
+    patchwork::wrap_elements(full = heatmap$gtable),
+    patchwork::wrap_elements(full = annotation_key),
+    nrow = 1,
+    widths = c(3.10, 1.15)
+  )
+  panel_grob <- patchwork::patchworkGrob(panel_plot)
   treated <- harmonized$cell_annotations$dose_mg_per_kg > 0
   if (!identical(dim(harmonized$matrix), c(9832L, 22L)) ||
       sum(treated) != 5335L ||
@@ -116,8 +235,12 @@ figure7_build_copy_number_panel <- function(repo_root) {
   }
 
   list(
-    plot = patchwork::wrap_elements(full = heatmap$gtable),
+    plot = patchwork::wrap_elements(full = panel_grob),
     heatmap = heatmap,
+    annotation_key = annotation_key,
+    annotation_key_data = attr(
+      annotation_key, "figure7_annotation_key_data", exact = TRUE
+    ),
     cell_annotations = harmonized$cell_annotations,
     n_cells = nrow(harmonized$matrix),
     n_treated_cells = sum(treated),

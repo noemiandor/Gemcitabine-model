@@ -9,8 +9,9 @@ at 300 DPI.
 - Panel identity and order: A--L match `panel_map.csv` and the enforced
   A=7A; B=7C; C=SI4A; D=SI4B; E=SI4C; F=SI4E; G=SI7B; H=7B-ECDF; I=7F;
   J=QC-filtered copy-number heatmap; K=7D; L=7E contract.
-- C--E: all three UMAPs are distinct at print size; C retains nine noncolliding
-  cluster labels, including separate 4c and 10 labels.
+- C--E: all three UMAPs are distinct at print size; C retains nine noncolliding,
+  color-matched cluster labels, including separate 4c and 10 labels, and D/E
+  retain compact in-panel color keys.
 - G and I: pathway labels, dendrograms, interval markers, and color scales are
   legible without clipping.
 - H: the overall, 4N-origin, and 2N-origin vehicle-versus-gemcitabine ECDF
@@ -19,8 +20,9 @@ at 300 DPI.
 - J: the heatmap contains 9,832 rows and 22 chromosome columns. Injected-origin,
   dose, and mouse annotation bars are visible; sparse chromosome labels
   (1, 5, 9, 13, 17, 22) do not collide; the copy-number color scale remains
-  visible. The caption, rather than a space-consuming 16-mouse key, defines the
-  annotation bars.
+  visible, copy number 3 is distinguishable from the white background by its
+  gold anchor, and the compact key defines both origin states, all three doses,
+  and all 16 mouse colors without overlapping the matrix.
 - F: positive-enrichment asterisks remain visible above the correct bars.
 - K and L: all eight mouse labels and both statistics boxes are legible and do
   not obscure points.

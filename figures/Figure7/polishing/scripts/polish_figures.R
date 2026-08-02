@@ -163,7 +163,7 @@ slot_dimensions <- function() {
     A = 18 / 28, B = 10 / 28,
     C = 9 / 28, D = 10 / 28, E = 9 / 28,
     F = 10 / 28, G = 18 / 28,
-    H = 1, I = 14 / 28, J = 14 / 28, K = 0.5, L = 0.5
+    H = 1, I = 11 / 28, J = 17 / 28, K = 0.5, L = 0.5
   ) * content_width_in
   heights <- c(
     A = spec$row_heights[[1L]], B = spec$row_heights[[1L]],

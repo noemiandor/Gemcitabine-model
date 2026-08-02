@@ -55,7 +55,9 @@ used as a nuisance covariate in the state-pathway model.
   evidence for an independent or causal terminal-ploidy effect.
 - Main panel J is the live-grob cell-by-chromosome view of the exact 9,832-cell
   final-QC NUMBAT universe, with injected-origin, gemcitabine-dose, and mouse
-  annotation bars.
+  annotation bars and a compact key defining every annotation color. Its
+  continuous copy-number palette uses a gold anchor at copy number 3 so that
+  the common one-copy-gain state remains visible on a white page.
 - The A-L manuscript composite binds the exact reviewed 11-table SI cache and
   displays in manuscript reading order: source 7A, source 7C, SI4A-C, SI4E, SI7B,
   source 7B, source 7F, the exact QC-filtered NUMBAT heatmap, and source 7D-E. Publication styling changes only

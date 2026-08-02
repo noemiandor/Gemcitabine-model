@@ -840,10 +840,14 @@ si_copy_number_heatmap <- function(
   gaps_row <- head(cumsum(as.integer(sample_counts)), -1L)
   gaps_col <- seq_len(21L)
   labels_col <- as.character(labels_col)
+  # Copy number 3 is frequent in these tumors and must remain visible on the
+  # white manuscript background.  The gold anchor distinguishes this common
+  # one-copy gain from both the blue low-copy states and red high-copy states.
   colors <- grDevices::colorRampPalette(c(
-    "#2166AC", "#67A9CF", "#F7F7F7", "#F4A582", "#B2182B", "#762A83"
+    "#2166AC", "#67A9CF", "#E6C84F", "#F4A582", "#B2182B", "#762A83"
   ))(120L)
   breaks <- seq(0.5, 6.5, length.out = length(colors) + 1L)
+  na_color <- "#D9D9D9"
   heatmap <- pheatmap::pheatmap(
     matrix_data,
     cluster_rows = FALSE,
@@ -854,7 +858,7 @@ si_copy_number_heatmap <- function(
     breaks = breaks,
     legend_breaks = 1:6,
     legend_labels = as.character(1:6),
-    na_col = "#D9D9D9",
+    na_col = na_color,
     border_color = NA,
     show_rownames = FALSE,
     show_colnames = TRUE,
@@ -873,6 +877,9 @@ si_copy_number_heatmap <- function(
     gtable = heatmap$gtable,
     row_annotation = row_annotation,
     annotation_colors = annotation_colors,
+    colors = colors,
+    breaks = breaks,
+    na_color = na_color,
     gaps_row = gaps_row,
     gaps_col = gaps_col,
     labels_col = labels_col,

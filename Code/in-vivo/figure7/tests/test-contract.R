@@ -353,7 +353,7 @@ testthat::test_that("publication compositor pins dimensions, mapping, and vector
       paste0(strrep("C", 9L), strrep("D", 10L), strrep("E", 9L)),
       paste0(strrep("F", 10L), strrep("G", 18L)),
       strrep("H", 28L),
-      paste0(strrep("I", 14L), strrep("J", 14L)),
+      paste0(strrep("I", 11L), strrep("J", 17L)),
       paste0(strrep("K", 14L), strrep("L", 14L))
     )
   )
@@ -446,6 +446,8 @@ testthat::test_that("publication styling removes internal prose and uses reader-
   testthat::expect_identical(styled$F$labels$y, "Mean proportion per sample")
   testthat::expect_identical(styled$H$labels$y, "Mean ECDF")
   testthat::expect_identical(styled$I$labels$fill, "Mean gene z score")
+  testthat::expect_identical(styled$D$theme$legend.position, "inside")
+  testthat::expect_identical(styled$E$theme$legend.position, "inside")
   testthat::expect_identical(
     styled$K$labels$x,
     "Pseudotime-distribution shift\n(dose-centered ECDF RMSE)"
@@ -458,8 +460,14 @@ testthat::test_that("publication styling removes internal prose and uses reader-
   composite <- suppressWarnings(figure7_main_composite_object(plots, config))
   testthat::expect_s3_class(composite, "gTree")
   testthat::expect_true(all(
-    paste0("figure7_tag_", LETTERS[1:12]) %in% names(composite$children)
+    paste0("figure7_tag_", setdiff(LETTERS[1:12], "J")) %in%
+      names(composite$children)
   ))
+  testthat::expect_false("figure7_tag_J" %in% names(composite$children))
+  locally_tagged_j <- figure7_publication_local_panel_tag(
+    plots$J, "J", figure7_publication_spec()
+  )
+  testthat::expect_identical(locally_tagged_j$labels$tag, "J")
 })
 
 testthat::test_that("main H keeps ECDFs while localization remains a separate source component", {

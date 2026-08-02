@@ -1210,7 +1210,7 @@ figure7_publication_spec <- function() {
       paste0(strrep("C", 9L), strrep("D", 10L), strrep("E", 9L)),
       paste0(strrep("F", 10L), strrep("G", 18L)),
       strrep("H", 28L),
-      paste0(strrep("I", 14L), strrep("J", 14L)),
+      paste0(strrep("I", 11L), strrep("J", 17L)),
       paste0(strrep("K", 14L), strrep("L", 14L)),
       sep = "\n"
     ),
@@ -1293,15 +1293,47 @@ figure7_publication_clean_plots <- function(plots, config) {
       axis.ticks = ggplot2::element_blank()
     )
   plots$D <- plots$D +
-    ggplot2::labs(x = NULL, y = NULL, color = "Ploidy") +
+    ggplot2::labs(x = NULL, y = NULL, color = "2N/4N state") +
+    ggplot2::guides(
+      color = ggplot2::guide_legend(
+        title = NULL, nrow = 1, byrow = TRUE,
+        override.aes = list(size = 2.2, alpha = 1, stroke = 0)
+      )
+    ) +
     ggplot2::theme(
-      legend.position = "none", axis.text = ggplot2::element_blank(),
+      legend.position = "inside",
+      legend.position.inside = c(0.02, 0.98),
+      legend.justification = c(0, 1),
+      legend.direction = "horizontal",
+      legend.background = ggplot2::element_rect(
+        fill = "#FFFFFFE6", color = "grey75", linewidth = 0.2
+      ),
+      legend.margin = ggplot2::margin(1, 2, 1, 2, unit = "pt"),
+      legend.spacing.x = grid::unit(0.12, "lines"),
+      legend.text = ggplot2::element_text(size = 6.25),
+      axis.text = ggplot2::element_blank(),
       axis.ticks = ggplot2::element_blank()
     )
   plots$E <- plots$E +
-    ggplot2::labs(x = NULL, y = NULL) +
+    ggplot2::labs(x = NULL, y = NULL, color = "Source") +
+    ggplot2::guides(
+      color = ggplot2::guide_legend(
+        title = NULL, nrow = 1, byrow = TRUE,
+        override.aes = list(size = 2.2, alpha = 1, stroke = 0)
+      )
+    ) +
     ggplot2::theme(
-      legend.position = "none", axis.text = ggplot2::element_blank(),
+      legend.position = "inside",
+      legend.position.inside = c(0.02, 0.98),
+      legend.justification = c(0, 1),
+      legend.direction = "horizontal",
+      legend.background = ggplot2::element_rect(
+        fill = "#FFFFFFE6", color = "grey75", linewidth = 0.2
+      ),
+      legend.margin = ggplot2::margin(1, 2, 1, 2, unit = "pt"),
+      legend.spacing.x = grid::unit(0.12, "lines"),
+      legend.text = ggplot2::element_text(size = 6.25),
+      axis.text = ggplot2::element_blank(),
       axis.ticks = ggplot2::element_blank()
     )
   plots$F <- drop_scale(plots$F, "fill")
@@ -1363,12 +1395,33 @@ figure7_publication_clean_plots <- function(plots, config) {
   plots
 }
 
+figure7_publication_local_panel_tag <- function(
+  plot,
+  tag,
+  spec = figure7_publication_spec()
+) {
+  plot +
+    ggplot2::labs(tag = tag) +
+    ggplot2::theme(
+      plot.tag = ggplot2::element_text(
+        family = "sans", face = "bold", size = spec$panel_tag_pt,
+        color = "#111111"
+      ),
+      plot.tag.position = c(0, 1),
+      plot.tag.location = "plot"
+    )
+}
+
 figure7_main_composite_object <- function(plots, config) {
   if (!requireNamespace("patchwork", quietly = TRUE)) {
     figure7_stop("R package 'patchwork' is required to assemble main Figure 7")
   }
   spec <- figure7_publication_spec()
   plots <- figure7_publication_clean_plots(plots, config)
+  # J is a wrapped pheatmap gtable. Its true left edge depends on I's axis-label
+  # and legend widths, so the tag must live in J's own viewport rather than at a
+  # global, nominal row fraction.
+  plots$J <- figure7_publication_local_panel_tag(plots$J, "J", spec)
   row_ab <- patchwork::wrap_plots(plots[c("A", "B")], nrow = 1, widths = c(18, 10))
   row_cde <- patchwork::wrap_plots(
     plots[c("C", "D", "E")], nrow = 1, widths = c(9, 10, 9)
@@ -1376,7 +1429,7 @@ figure7_main_composite_object <- function(plots, config) {
   row_fg <- patchwork::wrap_plots(plots[c("F", "G")], nrow = 1, widths = c(10, 18))
   row_h <- patchwork::wrap_plots(plots["H"])
   row_ij <- patchwork::wrap_plots(
-    plots[c("I", "J")], nrow = 1, widths = c(14, 14)
+    plots[c("I", "J")], nrow = 1, widths = c(11, 17)
   )
   row_kl <- patchwork::wrap_plots(plots[c("K", "L")], nrow = 1, widths = c(1, 1))
   row_plots <- list(row_ab, row_cde, row_fg, row_h, row_ij, row_kl)
@@ -1410,9 +1463,10 @@ figure7_main_composite_object <- function(plots, config) {
     A = 0, B = 18 / 28,
     C = 0, D = 9 / 28, E = 19 / 28,
     F = 0, G = 10 / 28,
-    H = 0, I = 0, J = 14 / 28, K = 0, L = 0.5
+    H = 0, I = 0, K = 0, L = 0.5
   )
-  tag_grobs <- lapply(names(row_index), function(panel) {
+  outer_tag_panels <- setdiff(names(row_index), "J")
+  tag_grobs <- lapply(outer_tag_panels, function(panel) {
     start <- content_left + panel_start[[panel]] * content_width
     grid::textGrob(
       panel,

@@ -8,15 +8,17 @@ NUMBAT copy-number heatmap, K=7D, and L=7E.
 The detailed treated-minus-vehicle localization formerly compressed beneath H
 is regenerated as full-width Supplementary Figure 4I from the exact reviewed
 2,881-cell CellCycle universe. Main H retains only the equal-mouse ECDF
-comparisons. C--E are enlarged to 1.35 inches high. I and J share the
-penultimate row equally; J retains all 22 chromosome columns while displaying
+comparisons. C--E are enlarged to 1.35 inches high. I and J receive 11:17 of
+the penultimate-row width; J retains all 22 chromosome columns while displaying
 only chromosomes 1, 5, 9, 13, 17, and 22 as tick labels to avoid print-size
 collisions.
 
 Main J is generated from all 16 checksum-pinned CBS matrices and restricted by
 exact cell identity to the 9,832-cell final-QC tumor universe, including 5,335
 treated cells. Clusters 3, 4, 9, and 9c remain excluded. Its row annotations
-encode injected origin, gemcitabine dose, and mouse. The former supplementary
+encode injected origin, gemcitabine dose, and mouse, with a compact key for all
+21 annotation levels. Copy number 3 uses a gold anchor rather than the white
+page color. The former supplementary
 copy-number heatmap is removed; Supplementary Figure 6 now contains panels A--E,
 with the injected-reference comparison as E.
 

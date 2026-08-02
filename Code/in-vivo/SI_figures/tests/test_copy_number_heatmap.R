@@ -361,6 +361,9 @@ stopifnot(
 )
 
 heatmap <- helper$si_copy_number_heatmap(harmonized)
+cn3_index <- findInterval(3, heatmap$breaks, all.inside = TRUE)
+cn3_rgb <- as.numeric(grDevices::col2rgb(heatmap$colors[[cn3_index]]))
+white_rgb <- rep(255, 3L)
 stopifnot(
   inherits(heatmap$gtable, "gtable"),
   identical(
@@ -387,6 +390,10 @@ stopifnot(
   identical(heatmap$gaps_col, seq_len(21L)),
   identical(heatmap$cluster_rows, FALSE),
   identical(heatmap$cluster_cols, FALSE),
+  length(heatmap$colors) == 120L,
+  length(heatmap$breaks) == 121L,
+  identical(heatmap$na_color, "#D9D9D9"),
+  sqrt(sum((cn3_rgb - white_rgb)^2)) > 60,
   length(heatmap$gaps_row) == 15L
 )
 

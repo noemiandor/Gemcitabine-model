@@ -167,6 +167,15 @@ testthat::test_that("promoted SI4 panels reproduce reviewed cache plots and norm
     ),
     c(C = "cluster", D = "initial_ploidy", E = "context")
   )
+  cluster_label_layers <- Filter(
+    function(layer) inherits(layer$geom, c("GeomLabel", "GeomLabelRepel")),
+    context$plots$C$layers
+  )
+  testthat::expect_length(cluster_label_layers, 1L)
+  testthat::expect_identical(
+    rlang::as_label(cluster_label_layers[[1L]]$mapping$colour),
+    "cluster"
+  )
   for (panel in c("C", "D", "E")) {
     testthat::expect_null(context$plots[[panel]]$labels$tag)
     testthat::expect_identical(
@@ -221,6 +230,7 @@ testthat::test_that("promoted SI4 panels reproduce reviewed cache plots and norm
 testthat::test_that("main panel J binds the exact QC copy-number universe and dose bar", {
   panel <- figure7_build_copy_number_panel(repo_root)
   testthat::expect_s3_class(panel$plot, "wrapped_patch")
+  testthat::expect_s3_class(panel$annotation_key, "gTree")
   testthat::expect_identical(panel$n_cells, 9832L)
   testthat::expect_identical(panel$n_treated_cells, 5335L)
   testthat::expect_identical(panel$n_mice, 16L)
@@ -236,6 +246,45 @@ testthat::test_that("main panel J binds the exact QC copy-number universe and do
       c(1L, 5L, 9L, 13L, 17L, 22L),
       as.character(c(1L, 5L, 9L, 13L, 17L, 22L))
     )
+  )
+  testthat::expect_identical(
+    panel$heatmap$annotation_colors$`Injected origin`,
+    c("2N" = "#4C78A8", "4N" = "#E45756")
+  )
+  testthat::expect_identical(
+    panel$heatmap$annotation_colors$`Gemcitabine dose`,
+    c(
+      "Vehicle" = "#666666",
+      "30 mg/kg" = "#D95F02",
+      "120 mg/kg" = "#1B9E77"
+    )
+  )
+  testthat::expect_identical(
+    names(panel$heatmap$annotation_colors$Mouse),
+    levels(panel$heatmap$row_annotation$Mouse)
+  )
+  testthat::expect_identical(
+    length(panel$heatmap$annotation_colors$Mouse),
+    16L
+  )
+  testthat::expect_false(
+    "annotation_legend" %in% panel$heatmap$gtable$layout$name
+  )
+  key_group_counts <- table(factor(
+    panel$annotation_key_data$group,
+    levels = c("Injected origin", "Gemcitabine dose", "Mouse")
+  ))
+  testthat::expect_identical(as.integer(key_group_counts), c(2L, 3L, 16L))
+  testthat::expect_identical(
+    names(key_group_counts), c("Injected origin", "Gemcitabine dose", "Mouse")
+  )
+  testthat::expect_identical(
+    panel$annotation_key_data$color,
+    unname(c(
+      panel$heatmap$annotation_colors$`Injected origin`,
+      panel$heatmap$annotation_colors$`Gemcitabine dose`,
+      panel$heatmap$annotation_colors$Mouse
+    ))
   )
 })
 

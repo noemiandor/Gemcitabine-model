@@ -112,12 +112,11 @@ shared_context_make_umap_discrete <- function(
       }
       plot <- plot + ggrepel::geom_label_repel(
         data = centers,
-        ggplot2::aes(UMAP_1, UMAP_2, label = cluster),
+        ggplot2::aes(UMAP_1, UMAP_2, label = cluster, color = cluster),
         inherit.aes = FALSE,
         size = 2.5,
         label.size = 0.2,
         fill = "white",
-        color = "#222222",
         alpha = 0.86,
         label.padding = grid::unit(0.10, "lines"),
         seed = as.integer(plot_seed) + shared_context_shuffle_offset(shuffle_key),
@@ -135,12 +134,11 @@ shared_context_make_umap_discrete <- function(
     } else {
       plot <- plot + ggplot2::geom_label(
         data = centers,
-        ggplot2::aes(UMAP_1, UMAP_2, label = cluster),
+        ggplot2::aes(UMAP_1, UMAP_2, label = cluster, color = cluster),
         inherit.aes = FALSE,
         size = 2.5,
         linewidth = 0.2,
         fill = "white",
-        color = "#222222",
         alpha = 0.86,
         label.padding = grid::unit(0.10, "lines")
       )
