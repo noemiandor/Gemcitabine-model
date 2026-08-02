@@ -23,11 +23,11 @@ versioned_source_artifacts:
     default_path: Data/in-vivo/all_ploidy.tsv
     sha256: 6db48ee5f196b37b58aa71d0472dd3deb06aaacb4b637070af1b27d9425db2b3
     role: reduced_five_column_upstream_join_and_si_fallback
-  panel_k_endpoint_ploidy:
+  panel_l_endpoint_ploidy:
     default_path: Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv
     sha256: 80f4e6b78e7b6d8b73030da4889ecb5c09ee97c9f83fb771aec4d3908511b569
     source_revision: dcdb62f2252ef05873404c8e45da42f4a5ec2c0d
-    role: complete_six_column_cbs_inventory_backing_exact_qc_passed_curated_score_for_figure7k_and_si8
+    role: complete_six_column_cbs_inventory_backing_exact_qc_passed_curated_score_for_figure7l_and_si8
   sample_info:
     default_path: Data/in-vivo/sample_info.xlsx
     sha256: 3e8a86b189a4ec61a7cbd3bbf1d0cb7cb30dd2ab3a326d91a67f83aaca63b784
@@ -190,5 +190,6 @@ panels:
       G: SI7B
       H: 7B
       I: 7F
-      J: 7D
-      K: 7E
+      J: 7J
+      K: 7D
+      L: 7E

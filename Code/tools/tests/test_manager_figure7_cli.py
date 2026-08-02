@@ -129,6 +129,27 @@ input_paths_for_module in_vivo_figure7 "$1"
         )
         self.assertIn("in_vivo_figure7", default_line)
 
+    def test_removed_include_in_vivo_flag_has_migration_error(self) -> None:
+        result = self._run("--include-in-vivo")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("--include-in-vivo was removed", result.stderr)
+        self.assertIn("--modules in_vivo_figure7", result.stderr)
+
+    def test_help_does_not_advertise_removed_in_vivo_flag(self) -> None:
+        result = self._run("--help")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("--include-in-vivo", result.stdout)
+
+    def test_removed_in_vivo_module_has_migration_error(self) -> None:
+        result = self._run(
+            "--mode", "check-only", "--modules", "in_vivo",
+            "--run-id", "removed_in_vivo",
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Module in_vivo was removed", result.stderr)
+        self.assertIn("TGI-AUC and CellCycle-subset ploidy analyses", result.stderr)
+        self.assertIn("--modules in_vivo_figure7", result.stderr)
+
     def test_source_run_id_is_rejected_outside_panels_only(self) -> None:
         result = self._run(
             "--mode", "standard", "--modules", "in_vivo_figure7",
@@ -370,7 +391,7 @@ input_paths_for_module in_vivo_figure7 "$1"
                 if (
                     spec["module"] != "in_vivo_figure7"
                     or str(spec["panel"]).startswith("7F")
-                    or str(spec["panel"]).startswith("7A-7K_composite")
+                    or str(spec["panel"]).startswith("7A-7L_composite")
                 ):
                     continue
                 source = run_root / str(spec["source"])
@@ -507,7 +528,7 @@ input_paths_for_module in_vivo_figure7 "$1"
                 statistics.mean(curated_scores_by_sample[sample_id])
                 for sample_id, *_ in design
             ]
-            panel_k_plot = run_root / "tables/panel_7E_plot_data.tsv"
+            panel_l_plot = run_root / "tables/panel_7E_plot_data.tsv"
             plot_rows = []
             for index, (
                 sample_id,
@@ -553,8 +574,8 @@ input_paths_for_module in_vivo_figure7 "$1"
                     }
                 )
 
-            write_tsv(panel_k_plot, plot_rows, list(plot_rows[0]))
-            panel_k_test = run_root / "tables/panel_7E_test.tsv"
+            write_tsv(panel_l_plot, plot_rows, list(plot_rows[0]))
+            panel_l_test = run_root / "tables/panel_7E_test.tsv"
             test_row = {
                 "n": "8",
                 "estimate": "-0.698401019253014",
@@ -593,8 +614,8 @@ input_paths_for_module in_vivo_figure7 "$1"
                 "matched_control_summary": "mean",
                 "matched_control_group": "initial_ploidy",
             }
-            write_tsv(panel_k_test, [test_row], list(test_row))
-            for source in (panel_k_plot, panel_k_test):
+            write_tsv(panel_l_test, [test_row], list(test_row))
+            for source in (panel_l_plot, panel_l_test):
                 rows.append(
                     {
                         "path": str(source),
@@ -611,7 +632,7 @@ input_paths_for_module in_vivo_figure7 "$1"
                         "mtime_utc": "2026-07-16T00:00:00+00:00",
                         "figure": "",
                         "panel": "",
-                        "notes": "panel K fixture",
+                        "notes": "panel L fixture",
                     }
                 )
             for source in write_density_localization_fixture(run_root):
@@ -729,7 +750,7 @@ input_paths_for_module in_vivo_figure7 "$1"
                     for spec in PANEL_SPECS
                     if spec["module"] == "in_vivo_figure7"
                     and not str(spec["panel"]).startswith("7F")
-                    and not str(spec["panel"]).startswith("7A-7K_composite")
+                    and not str(spec["panel"]).startswith("7A-7L_composite")
                     and spec.get("variant", "pdf") == "pdf"
                 ],
                 ["panel_id", "filename"],

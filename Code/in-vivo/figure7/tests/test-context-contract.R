@@ -1,9 +1,10 @@
-testthat::test_that("main Figure 7 config and both render paths use exact first-citation A-K order", {
+testthat::test_that("main Figure 7 config and both render paths use the exact A-L order", {
   config_path <- file.path(module_dir, "figure7_config.yaml")
   config <- figure7_test_inputs()$config
   expected_mapping <- c(
     A = "7A", B = "7C", C = "SI4A", D = "SI4B", E = "SI4C",
-    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7D", K = "7E"
+    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7J",
+    K = "7D", L = "7E"
   )
   observed_mapping <- unlist(
     config$panels$main_composite$panel_order,
@@ -25,7 +26,7 @@ testthat::test_that("main Figure 7 config and both render paths use exact first-
   )
   testthat::expect_identical(
     figure7_panel_contract(config)$panel_id,
-    c(figure7_panel_ids(TRUE), "7A-7K_composite")
+    c(figure7_panel_ids(TRUE), "7A-7L_composite")
   )
   testthat::expect_identical(
     tail(figure7_panel_contract(config)$filename, 1L),
@@ -39,7 +40,7 @@ testthat::test_that("main Figure 7 config and both render paths use exact first-
   yaml::write_yaml(tampered_config, tampered_path)
   testthat::expect_error(
     figure7_read_config(tampered_path),
-    "reviewed A-K first-citation panel mapping"
+    "reviewed A-L panel mapping"
   )
 
   find_calls <- function(node, function_name) {
@@ -80,6 +81,7 @@ testthat::test_that("main Figure 7 config and both render paths use exact first-
       "legacy_plots[LETTERS[1:5]]",
       "context_cache$plots",
       "legacy_plots$F",
+      "copy_number_panel$plot",
       "config"
     )
   )))
@@ -87,7 +89,10 @@ testthat::test_that("main Figure 7 config and both render paths use exact first-
     call_arguments,
     identical,
     logical(1L),
-    c("ae$plots", "context_cache$plots", "plot_f", "config")
+    c(
+      "ae$plots", "context_cache$plots", "plot_f",
+      "copy_number_panel$plot", "config"
+    )
   )))
 
   source_plots <- stats::setNames(
@@ -99,6 +104,10 @@ testthat::test_that("main Figure 7 config and both render paths use exact first-
     ),
     LETTERS[1:5]
   )
+  attr(source_plots$B, "figure7_panel_b_components") <- list(
+    ecdf = source_plots$B,
+    localization = ggplot2::ggplot() + ggplot2::labs(caption = "SI4I")
+  )
   context_plots <- stats::setNames(
     lapply(
       c("SI4A", "SI4B", "SI4C", "SI4E", "SI7B"),
@@ -109,13 +118,15 @@ testthat::test_that("main Figure 7 config and both render paths use exact first-
     LETTERS[3:7]
   )
   state_pathway_plot <- ggplot2::ggplot() + ggplot2::labs(caption = "7F")
+  copy_number_plot <- ggplot2::ggplot() + ggplot2::labs(caption = "7J")
   assembled <- figure7_main_composite_plots(
     source_plots,
     context_plots,
     state_pathway_plot,
+    copy_number_plot,
     config
   )
-  testthat::expect_identical(names(assembled), LETTERS[1:11])
+  testthat::expect_identical(names(assembled), LETTERS[1:12])
   testthat::expect_identical(
     vapply(assembled, function(plot) plot$labels$caption, character(1L)),
     expected_mapping
@@ -204,6 +215,27 @@ testthat::test_that("promoted SI4 panels reproduce reviewed cache plots and norm
   testthat::expect_identical(
     context$cache_manifest_sha256,
     as.character(config$si_figures$reviewed_manifest_sha256)
+  )
+})
+
+testthat::test_that("main panel J binds the exact QC copy-number universe and dose bar", {
+  panel <- figure7_build_copy_number_panel(repo_root)
+  testthat::expect_s3_class(panel$plot, "wrapped_patch")
+  testthat::expect_identical(panel$n_cells, 9832L)
+  testthat::expect_identical(panel$n_treated_cells, 5335L)
+  testthat::expect_identical(panel$n_mice, 16L)
+  testthat::expect_identical(panel$n_chromosomes, 22L)
+  testthat::expect_identical(
+    names(panel$heatmap$row_annotation),
+    c("Injected origin", "Gemcitabine dose", "Mouse")
+  )
+  testthat::expect_identical(
+    panel$heatmap$labels_col,
+    replace(
+      rep("", 22L),
+      c(1L, 5L, 9L, 13L, 17L, 22L),
+      as.character(c(1L, 5L, 9L, 13L, 17L, 22L))
+    )
   )
 })
 
@@ -308,7 +340,7 @@ testthat::test_that("full inventory requires composite while A-E inventory exclu
   ae_assets <- figure7_panel_asset_filenames(config, ae_ids)
   testthat::expect_false(composite %in% ae_assets)
   testthat::expect_false(
-    "7A-7K_composite" %in% figure7_panel_contract(config, ae_ids)$panel_id
+    "7A-7L_composite" %in% figure7_panel_contract(config, ae_ids)$panel_id
   )
   for (filename in ae_assets) {
     writeLines("fixture", file.path(ae_out, "figures", filename))

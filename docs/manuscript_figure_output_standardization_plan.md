@@ -30,7 +30,6 @@ materialize into `figures/`.
 | Figure 6 | Metabolomics panels | PCA, response/category summaries, pathway enrichment heatmaps, ordered metabolite heatmaps, and volcano-style outputs | `Code/Gemcitabine_Metabolomics_Heatmap/` | `standard` | `--metabolomics-input`, `--modules metabolomics` | The manager should materialize source panels, while final composite assembly may remain manual |
 | Figure 7 | Six in-vivo TGI, CellCycle pseudotime, and state-pathway source panels, each as PDF/PNG | Day-17 TGI calculation and associations, selected ECDF comparisons, and pathway activity across pseudotime 0.30-0.49 | `Code/in-vivo/figure7/` | Default `standard` | Included in the default module set; `--modules in_vivo_figure7` for an isolated run; `--figure7-panels-ae-only` for an explicit A-E-only run; explicit full-analysis RDS/gene-set flags | The reviewed six-panel contract emits matched vector PDF/300-DPI PNG assets from tracked routine inputs. Final A-F composition remains manual. |
 | Supplementary | GDSC and PKPD supplementary panels | Supplementary enrichment summaries and cohort model-fit/source plots such as Supp. Fig. 1 | GDSC and PKPD modules | `standard` or `saved-fit` | Same module-specific flags as above | Only locally reproducible supplementary panels are in scope |
-| In vivo pending | Optional pseudotime/TGI panels | Pseudotime-shift, TGI, and ploidy association plots/tables | `Code/in-vivo/` | Not run by default | `--include-in-vivo` | Results are pending; manuscript use should remain gated by explicit opt-in |
 
 The manager should support `check-only`, `panels-only`, `saved-fit`,
 `standard`, and `full-refit` modes. It should also allow scoped module runs with
@@ -502,43 +501,6 @@ Implementation implications:
 - Copy selected Figure 6 source panels into `figures/Figure6/`.
 - If a dCMP-specific Figure 5F panel is later added, write it under the same metabolomics run and add a `figures/Figure5/manifest.tsv` row.
 
-### In-Vivo Pseudotime/TGI Analyses: Pending In-Vivo Manuscript Sections
-
-Current entrypoints:
-
-```bash
-Rscript Code/in-vivo/pseudotimeAssociations.R
-Rscript Code/in-vivo/ploidy_vs_TGI
-```
-
-Current output:
-
-```text
-Figs/CellCycleCells_*.png
-Figs/CellCycleCells_*.pdf
-Figs/pseudotimeAssociations_reported_stats.csv
-Figs/ploidy_vs_TGI_Day24_p90_treated_by_dose.png
-Figs/ploidy_vs_TGI_Day24_p90_treated_by_dose.pdf
-```
-
-Target output:
-
-```text
-Results/in-vivo/pseudotime_associations/runs/<run_id>/{figures,tables,metadata,logs}/
-```
-
-Important dependencies:
-
-1. Both scripts consume `Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv`.
-2. They do not currently feed downstream figure-generation scripts, but they generate statistics and plots that may be cited in pending in-vivo sections.
-
-Implementation implications:
-
-- Add named `--input` and `--output-dir` support.
-- Move statistics CSV files to `tables/`, not `figures/`.
-- Write plots to `figures/`.
-- Keep these modules optional in the root manager until the in-vivo manuscript figures are finalized.
-
 ## Root Manager Design
 
 Create a root-level `Manager.sh` as the primary orchestrator because the repository uses both R and Python. A thin `Manager.R` should stay out of scope unless an R-only orchestration need appears.
@@ -583,7 +545,6 @@ Recommended manager options:
 --lci-render
 --lci-panel-only
 
---include-in-vivo
 --metabolomics-input <path>
 ```
 
@@ -615,7 +576,6 @@ Module mode matrix:
 | LCI overlays | validate explicit analysis dir if provided | materialize from latest LCI run | skip unless requested | skip unless `--lci-analysis-dir` is provided | same as standard |
 | PKPD | validate counts, platemap, PKPD workbook, and fit-summary path | materialize from latest PKPD plot run | plot from saved fit summary; no optimizer | plot from saved fit summary; no optimizer | run full fit, then plot from new summary |
 | Metabolomics | validate workbook and commands | materialize from latest metabolomics run | rerun source plots from workbook | rerun source plots from workbook | same as standard |
-| In-vivo | validate CSV if `--include-in-vivo` | materialize from latest in-vivo run if included | skip unless included | skip unless included | same as standard |
 
 The manager should write a top-level run manifest:
 
@@ -739,14 +699,6 @@ Rscript Code/in-vitro/drug_response/plot_gemcitabine_ploidy_auc_association.R \
   Results/_validation/in-vitro/drug_response/runs/test_fig3h \
   Data/in-vitro/drug_response/fig3h_cloneid_ploidy.tsv
 
-Rscript Code/in-vivo/pseudotimeAssociations.R \
-  --input Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
-  --output-dir Results/_validation/in-vivo/pseudotime_associations/runs/test_pseudotime
-
-Rscript Code/in-vivo/ploidy_vs_TGI \
-  --input Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
-  --output-dir Results/_validation/in-vivo/pseudotime_associations/runs/test_ploidy_tgi
-
 python3 Code/Gemcitabine_Metabolomics_Heatmap/run_full_2fold_metabolomics_analysis.py \
   --input Code/Gemcitabine_Metabolomics_Heatmap/Metabolomics_2N_4N_Full.xlsm \
   --out Results/_validation/in-vitro/metabolomics/runs/test_full
@@ -843,7 +795,7 @@ Standard mode should:
 - Run PKPD saved-summary plotting from an explicit saved fit.
 - Run metabolomics source plots.
 - Skip LCI unless `--lci-analysis-dir` is provided.
-- Skip in-vivo unless `--include-in-vivo` is provided.
+- Run the canonical Figure 7 and supplementary-figure modules from their reviewed inputs.
 
 Validation:
 

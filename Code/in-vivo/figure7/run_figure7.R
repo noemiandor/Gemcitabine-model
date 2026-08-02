@@ -8,7 +8,8 @@ for (file in c(
   "common_io.R", "feature_species_policy.R", "input_preflight.R",
   "seurat_upstream_selection.R",
   "tgi_data.R", "tgi_statistics.R",
-  "tgi_panels.R", "context_panels.R", "state_pathway_panel.R",
+  "tgi_panels.R", "context_panels.R", "copy_number_panel.R",
+  "state_pathway_panel.R",
   "generated_state_pathway_reference.R", "state_pathway_analysis.R"
 )) {
   sys.source(file.path(script_dir, "src", file), envir = .GlobalEnv)
@@ -56,6 +57,7 @@ si_cache_policy <- "not_applicable"
 si_cache_upstream_input_manifest <- ""
 si_cache_source_run_config <- ""
 si_cache_source_provenance <- ""
+copy_number_panel <- NULL
 if (include_state_pathway) {
   normalized_composition_path <- file.path(
     repo_root,
@@ -71,12 +73,21 @@ if (include_state_pathway) {
     "SI_figures",
     "shared_context_panels.R"
   )
+  copy_number_path <- file.path(
+    repo_root,
+    "Code",
+    "in-vivo",
+    "SI_figures",
+    "copy_number_heatmap.R"
+  )
   if (!file.exists(normalized_composition_path) ||
-      !file.exists(shared_context_path)) {
+      !file.exists(shared_context_path) ||
+      !file.exists(copy_number_path)) {
     figure7_stop("Main Figure 7 shared SI panel helpers are unavailable")
   }
   sys.source(normalized_composition_path, envir = .GlobalEnv)
   sys.source(shared_context_path, envir = .GlobalEnv)
+  sys.source(copy_number_path, envir = .GlobalEnv)
   si_cache_policy <- figure7_arg(args, "si-cache-policy", "reviewed")
   if (!si_cache_policy %in% c("reviewed", "generated-human-only")) {
     figure7_stop("Unknown --si-cache-policy: ", si_cache_policy)
@@ -124,6 +135,7 @@ if (include_state_pathway) {
     si_cache_source_run_config,
     si_cache_source_provenance
   ))
+  copy_number_panel <- figure7_build_copy_number_panel(repo_root)
 }
 state_pathway_results_root <- ""
 
@@ -164,7 +176,8 @@ write_metadata <- function(
   endpoint_ploidy_score_universe_n_cells = "",
   endpoint_ploidy_treated_score_n_cells = "",
   endpoint_ploidy_score_policy = "",
-  endpoint_ploidy_mapping_policy = ""
+  endpoint_ploidy_mapping_policy = "",
+  copy_number_panel = NULL
 ) {
   tgi_day <- figure7_tgi_day(config)
   tgi_measure <- figure7_tgi_measure(config)
@@ -225,7 +238,12 @@ write_metadata <- function(
             "endpoint_ploidy_score_universe_n_cells",
             "endpoint_ploidy_treated_score_n_cells",
             "endpoint_ploidy_score_policy",
-            "endpoint_ploidy_mapping_policy"),
+            "endpoint_ploidy_mapping_policy",
+            "copy_number_panel_qc_cells",
+            "copy_number_panel_treated_cells",
+            "copy_number_panel_mice",
+            "copy_number_panel_chromosomes",
+            "copy_number_panel_annotation_bars"),
     value = c("in_vivo_figure7", mode, panel_set, "day", as.character(tgi_day), tgi_measure, "mean", "initial_ploidy",
               "initial_ploidy", "untreated_equal_sample_mean_ecdf",
               config$etp$method, as.character(config$etp$threshold),
@@ -249,7 +267,12 @@ write_metadata <- function(
               if (nzchar(endpoint_ploidy_score_universe_n_cells)) endpoint_ploidy_score_universe_n_cells else "not_recorded",
               if (nzchar(endpoint_ploidy_treated_score_n_cells)) endpoint_ploidy_treated_score_n_cells else "not_recorded",
               if (nzchar(endpoint_ploidy_score_policy)) endpoint_ploidy_score_policy else "not_recorded",
-              if (nzchar(endpoint_ploidy_mapping_policy)) endpoint_ploidy_mapping_policy else "not_recorded"),
+              if (nzchar(endpoint_ploidy_mapping_policy)) endpoint_ploidy_mapping_policy else "not_recorded",
+              if (!is.null(copy_number_panel)) as.character(copy_number_panel$n_cells) else "not_recorded",
+              if (!is.null(copy_number_panel)) as.character(copy_number_panel$n_treated_cells) else "not_recorded",
+              if (!is.null(copy_number_panel)) as.character(copy_number_panel$n_mice) else "not_recorded",
+              if (!is.null(copy_number_panel)) as.character(copy_number_panel$n_chromosomes) else "not_recorded",
+              if (!is.null(copy_number_panel)) "injected_origin;gemcitabine_dose;mouse" else "not_recorded"),
     stringsAsFactors = FALSE
   )
   if (include_state_pathway) {
@@ -285,13 +308,13 @@ write_metadata <- function(
           "si_context_source_provenance_sha256"
         ),
         value = c(
-          "a-k",
+          "a-l",
           context_cache$composite_filename,
           paste(paste(names(mapping), mapping, sep = "="), collapse = ";"),
           format(publication_spec$width_in, trim = TRUE, scientific = FALSE),
           format(publication_spec$height_in, trim = TRUE, scientific = FALSE),
           as.character(publication_spec$png_dpi),
-          "A/B;C/D/E;F/G;H;I;J/K",
+          "A/B;C/D/E;F/G;H;I/J;K/L",
           context_cache$cache_policy,
           context_cache$cache_kind,
           figure7_metadata_locator(context_cache$cache_manifest_path),
@@ -576,7 +599,7 @@ render_from_run <- function(
     )
   }
   expected_endpoint_hash <- as.character(
-    config$versioned_source_artifacts$panel_k_endpoint_ploidy$sha256
+    config$versioned_source_artifacts$panel_l_endpoint_ploidy$sha256
   )
   if (!identical(source_scalar("endpoint_ploidy_sha256"), expected_endpoint_hash) ||
       !identical(source_scalar("endpoint_ploidy_n_cells"), "14125") ||
@@ -701,7 +724,7 @@ render_from_run <- function(
       abs(b_localization_test$global_max_abs_t - localization_values[["expected_global_max_abs_t"]]) > 1e-12 ||
       abs(b_localization_test$global_max_t_p_two_sided - localization_values[["expected_global_max_t_p_two_sided"]]) > 1e-12) {
     figure7_stop(
-      "render-only panel 7B/H density-localization contract is incompatible"
+      "render-only source-panel 7B/SI4I density-localization contract is incompatible"
     )
   }
   cdata <- figure7_read_tsv(table_path("panel_7C_plot_data.tsv"), c("sample_id", "initial_ploidy", "dose", tgi_measure))
@@ -1078,6 +1101,7 @@ render_from_run <- function(
         legacy_plots[LETTERS[1:5]],
         context_cache$plots,
         legacy_plots$F,
+        copy_number_panel$plot,
         config
       ),
       output_dir,
@@ -1113,7 +1137,8 @@ render_from_run <- function(
     endpoint_ploidy_score_policy =
       source_scalar("endpoint_ploidy_score_policy"),
     endpoint_ploidy_mapping_policy =
-      source_scalar("endpoint_ploidy_mapping_policy")
+      source_scalar("endpoint_ploidy_mapping_policy"),
+    copy_number_panel = copy_number_panel
   )
   figure7_validate_figure_inventory(
     output_dir,
@@ -1141,7 +1166,7 @@ endpoint_cbs_score_path <- normalizePath(
     file.path(
       repo_root,
       as.character(
-        config$versioned_source_artifacts$panel_k_endpoint_ploidy$default_path
+        config$versioned_source_artifacts$panel_l_endpoint_ploidy$default_path
       )
     )
   ),
@@ -1339,6 +1364,7 @@ if (include_state_pathway) {
       ae$plots,
       context_cache$plots,
       plot_f,
+      copy_number_panel$plot,
       config
     ),
     output_dir,
@@ -1367,7 +1393,8 @@ write_metadata(
   "9832",
   "5335",
   endpoint_ploidy$score_policy,
-  endpoint_ploidy$mapping_policy
+  endpoint_ploidy$mapping_policy,
+  copy_number_panel
 )
 figure7_validate_figure_inventory(
   output_dir,
@@ -1383,7 +1410,7 @@ message(
   "Generated exactly ",
   length(panel_ids),
   " Figure 7 source panels",
-  if (include_state_pathway) " and the assembled A-K main composite" else "",
+  if (include_state_pathway) " and the assembled A-L main composite" else "",
   ": ",
   output_dir
 )

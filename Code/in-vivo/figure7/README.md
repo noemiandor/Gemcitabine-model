@@ -1,17 +1,17 @@
 # Figure 7 reproducibility module
 
 This module generates six scientific source panels as matched vector PDF and
-300-DPI PNG files and assembles the manuscript-facing A-K composite as
+300-DPI PNG files and assembles the manuscript-facing A-L composite as
 `Figure7_reviewed_GRCh.{pdf,png}`. The composite is built natively at the
 7.1 x 10.645 inch full-page target rather than by shrinking a large-format
-canvas. Its fixed six-row layout is A/B; C/D/E; F/G; H; I; J/K. The composite
+canvas. Its fixed six-row layout is A/B; C/D/E; F/G; H; I/J; K/L. The composite
 reuses Supplementary Figure 4A-C/E and Supplementary Figure 7B through the
 shared production plotting helper; their supplementary copies are retained.
 The former human-only panel-7F v2
 reference is retained for audit but is superseded because its model adjusted
 for a run-confounded endpoint-CN-score group. The reviewed v3 reference instead
 adjusts for injected initial ploidy and is the canonical panel-7F source. Panel
-K shows the unadjusted mouse-level Pearson association between the
+L shows the unadjusted mouse-level Pearson association between the
 checksum-pinned mean endpoint tumor-cell ploidy and TGI, with unrestricted
 exact enumeration of all 8! TGI-label permutations; endpoint ploidy is not
 used as a nuisance covariate in the state-pathway model.
@@ -20,42 +20,45 @@ used as a nuisance covariate in the state-pathway model.
 
 - Panels 7A-7D are recomputed from the two tracked plot-facing cell-level
   tables under `Data/in-vivo/figure7/processed/`. Source panel 7E (main panel
-  K) additionally reads the exact six-column, checksum-pinned
+  L) additionally reads the exact six-column, checksum-pinned
   `Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv`: 14,125 cells across 16 CBS
   files. This remains the complete immutable CBS inventory. Every scored cell
   must also occur, with the identical file, barcode, and value, in the exact
   9,832-cell QC-passed CellCycle + NonCellCycle union represented in the
   plot-facing tables. The other 4,293 inventory cells remain provenance-only
-  and are excluded from scoring. Panel K uses the resulting 5,335 treated
+  and are excluded from scoring. Panel L uses the resulting 5,335 treated
   cells.
   That newer artifact has its own source revision (`dcdb62f2252...`) in the
   config; the surrounding legacy source revision does not claim it existed in
   the earlier snapshot.
 - TGI is the Day-17 endpoint statistic, recalculated for each treated mouse using the mean Day-17 growth delta of untreated controls matched by initial ploidy.
 - Panels 7C-7E contain exactly eight treated mice at 30 or 120 mg/kg. Untreated mice contribute references only.
-- Source panel 7B (main panel H) supplements the three equal-mouse ECDF
-  comparisons with an equal-mouse Gaussian-density contrast. A common pooled,
+- Source panel 7B computes the three equal-mouse ECDF comparisons used in main
+  panel H and the equal-mouse Gaussian-density contrast displayed as SI4I. A common pooled,
   label-invariant bandwidth is frozen in `density_localization_config.yaml`.
   Exact treatment-label enumeration within injected-origin strata gives 4,900
   assignments: pointwise positive support spans 0.296--0.486, while
   studentized max-absolute-T family-wise support spans 0.414--0.426 (global
   exact P = 0.0473469). The raw density excess peaks at pseudotime 0.452;
   standardized max-absolute-T evidence is strongest at 0.420.
-- Panel 7D (main panel J) uses equal-mouse untreated ECDF references matched by
+- Panel 7D (main panel K) uses equal-mouse untreated ECDF references matched by
   injected initial ploidy. The treated-mouse association is Pearson r =
   0.7399455 with exact within-dose permutation P = 0.0173611 (576 labelings).
 - Panel 7F (main panel I) uses model
   `initial_ploidy_adjusted_grch_human_only_v3`; its nuisance terms are dose and
   injected initial ploidy, never endpoint CN score or an endpoint-derived
   threshold group.
-- Panel 7E (main panel K) reports the descriptive mouse-level association
+- Panel 7E (main panel L) reports the descriptive mouse-level association
   between mean endpoint tumor-cell ploidy and Day-17 TGI (Pearson r =
   -0.6984010; asymptotic P = 0.0540070; exact unrestricted permutation P =
   0.0591270; 40,320 assignments). It is an unadjusted association, not
   evidence for an independent or causal terminal-ploidy effect.
-- The A-K manuscript composite binds the exact reviewed 11-table SI cache and
-  displays, in first-citation order: source 7A, source 7C, SI4A-C, SI4E, SI7B,
-  source 7B, source 7F, and source 7D-E. Publication styling changes only
+- Main panel J is the live-grob cell-by-chromosome view of the exact 9,832-cell
+  final-QC NUMBAT universe, with injected-origin, gemcitabine-dose, and mouse
+  annotation bars.
+- The A-L manuscript composite binds the exact reviewed 11-table SI cache and
+  displays in manuscript reading order: source 7A, source 7C, SI4A-C, SI4E, SI7B,
+  source 7B, source 7F, the exact QC-filtered NUMBAT heatmap, and source 7D-E. Publication styling changes only
   layout, typography, reader-facing labels, and legend placement; it does not
   change the panel identities, source tables, fitted models, tests, or values.
 
@@ -81,7 +84,7 @@ bash Manager.sh \
 ```
 
 With those two modules selected, Manager does not run Figures 1-6. When the
-full A-K figure is requested, Manager automatically schedules `si_figures`
+full A-L figure is requested, Manager automatically schedules `si_figures`
 before `in_vivo_figure7`, even if only the latter was listed. It first validates
 corrected generated caches; the reviewed frozen panel-7F reference and reviewed
 SI plot-only cache do not satisfy an explicit full refit. A complete,
@@ -96,7 +99,7 @@ stage needs the final Seurat object, there are two supported source boundaries:
   by `zenodo_required_files.tsv`.
 
 Figure 7A-7D additionally reuse or download the 18 deposited loom files. Source
-panel 7E/main panel K binds the complete combined CBS inventory; in
+panel 7E/main panel L binds the complete combined CBS inventory; in
 `full-refit`, Manager regenerates that run-scoped table from the manifest-pinned
 16 CBS matrices and requires it to reproduce the canonical checksum. It then
 restricts scoring to exact file+barcode keys retained in the final Seurat tumor
@@ -114,7 +117,7 @@ figure-facing stages:
    QC-passed union (5,335 cells across the eight treated tumors);
 5. fit the state-pathway model and export a compact generated reference for 7F;
 6. pass the generated supplementary cache and its complete raw-input lineage
-   into Figure 7 and assemble the A-K review candidate.
+   into Figure 7 and assemble the A-L review candidate.
 
 The generated-cache handoff is required in `full-refit`: Figure 7 will not
 silently fall back to the reviewed supplementary cache. The resulting
@@ -133,10 +136,10 @@ but these reviewed Seurat stages always use one scientific worker.
 No FASTQ-to-Cell-Ranger invocation or FASTQ collection was available in the
 source work, so the 18 H5 matrices are the earliest executable expression-data
 boundary. The 16 tracked downstream NUMBAT-derived CBS matrices reproduce the
-SI6E chromosome-state view and recompute every value in the canonical
+main Figure 7J chromosome-state view and recompute every value in the canonical
 `scRNAseq_Numbat/all_ploidy.csv` (and its reduced `all_ploidy.tsv` projection).
 Two checksum-pinned, project-designated lineage-matched karyotype proxies
-provide the 2N-A7M and 4N-A5M reference distributions used by SI6F; they are
+provide the 2N-A7M and 4N-A5M reference distributions used by SI6E; they are
 not the same-passage A6M/A4M inocula. The reference calculation adds the
 `chr999` value, expressed in haploid-genome-equivalent units of unassigned DNA,
 to the autosomal length-weighted estimate. It gives a 4N proxy mean of 3.94651
@@ -187,7 +190,7 @@ still lacks finite statistics at the configured cap. The generated human-only
 panel displays only pathways with collection-wide BH-adjusted P <= 0.05, then
 takes up to four pathways in each direction and collection. It never backfills
 a direction with nonsignificant pathways, so generated collection and panel row
-counts therefore vary with the significant results. Panel K
+counts therefore vary with the significant results. Main panel L
 must use only the checksum-pinned endpoint table and the recorded raw
 mouse-level Pearson/unrestricted-permutation contract; temporary unreviewed
 reconstructions are not publication inputs.
@@ -245,7 +248,7 @@ Rscript Code/in-vivo/figure7/assemble_tgi_sensitivity.R \
   --output-dir=figures/Figure7_Supplement
 ```
 
-The assembler validates the reviewed raw mouse-level panel-K contract in both
+The assembler validates the reviewed raw mouse-level endpoint-ploidy contract in both
 runs, then creates a five-panel Day-24/Day-31 composite plus a
 portable checksum provenance table. It also writes the separate standard-schema
 `si8_manifest.tsv` for the final SI8 PDF/PNG. The pre-existing 13-row
@@ -292,7 +295,7 @@ Rscript Code/in-vivo/figure7/run_figure7.R \
 ```
 
 The manager's `panels-only` mode does not invoke this R script. For Figure 7 it
-materializes the exact recorded A-K composite/source-panel or explicit A-E
+materializes the exact recorded A-L composite/source-panel or explicit A-E
 contract from an explicit `--source-run-id`. Noncanonical runs are rejected.
 
 The older artifact-driven `full-analysis` entrypoint remains only as an
@@ -304,24 +307,23 @@ generated reference noncanonical until scientific review.
 ## Publication-scale composite and visual-QC package
 
 The normal Figure 7 renderer is the authoritative compositor. It rebuilds the
-A-K figure directly from live ggplot and heatmap grob objects at 7.1 x 10.645
+A-L figure directly from live ggplot and heatmap grob objects at 7.1 x 10.645
 inches, writing a 300-DPI PNG and a vector PDF. It never assembles the final
 figure from exported panel rasters. The fixed six rows allocate extra display
 area to the two heatmaps and the two mouse-level association panels while
-preserving the enforced panel identity and first-citation order:
+preserving the enforced panel identity and manuscript reading order:
 
 1. A/B
 2. C/D/E
 3. F/G
 4. H
-5. I
-6. J/K
+5. I/J
+6. K/L
 
-Panel H receives 2.295 inches of vertical space, exactly 70% more than its prior
-1.35-inch allocation. Its upper section retains the three equal-mouse ECDF
-comparisons on their shared, unzoomed 0--1.05 scale; its lower section displays
-the treated-minus-vehicle density contrast, pointwise-support interval,
-simultaneous max-absolute-T interval, and rounded state-window boundaries.
+Panel H retains only the three equal-mouse ECDF comparisons on their shared,
+unzoomed 0--1.05 scale. The density-localization view is reproduced as the
+new full-width SI4I. Main panels I and J share the penultimate row, with J
+showing the exact QC-filtered NUMBAT copy-number matrix.
 
 The presentation-only audit package under `figures/Figure7/polishing/` can be
 rebuilt independently with:
@@ -333,7 +335,7 @@ scripts/agentRrunner.sh \
 
 This command invokes the same scientific panel builders and frozen inputs as
 the normal renderer; it does not refit models or define an alternative
-scientific analysis. The package records the explicit A-K identity map, target
+scientific analysis. The package records the explicit A-L identity map, target
 dimensions, adopted layout, optimizer diagnostic, rebuild command, input and
 output hashes, byte-identity report, and print-size visual-QC assessment.
 Audit subpanel PNGs are inspection artifacts only. Canonical manuscript
@@ -354,7 +356,8 @@ default six-panel source contract contains these PDF/PNG pairs:
 
 It additionally contains the publication-scale
 `Figure7_reviewed_GRCh.{pdf,png}` pair, whose panel contract is: A=7A, B=7C,
-C=SI4A, D=SI4B, E=SI4C, F=SI4E, G=SI7B, H=7B, I=7F, J=7D, and K=7E. The
+C=SI4A, D=SI4B, E=SI4C, F=SI4E, G=SI7B, H=7B, I=7F, J=7J,
+K=7D, and L=7E. The copy-number heatmap is published only as main J. The
 reviewed SI manifest hash, target dimensions, and ordered mapping are recorded
 in run metadata and enforced during materialization.
 
@@ -366,11 +369,12 @@ the candidate from being materialized as a manuscript asset.
 
 An explicit `--panel-set=a-e`/`--figure7-panels-ae-only` run instead contains
 exactly the first five pairs, records `panel_set=a-e`, and excludes all panel-F
-inputs and outputs. It also excludes the A-K composite because the main figure
+inputs and outputs. It also excludes the A-L composite because the main figure
 requires the reviewed state-pathway and SI-cache contracts together.
 
 Plotting data, exact-permutation tests, the complete compact state-pathway audit chain, frozen-reference comparison, run settings, panel contract, and session information are retained alongside the PDFs.
-Panel 7B/H additionally writes
+Source panel 7B, whose ECDF component is main H and whose localization is SI4I,
+additionally writes
 `panel_7B_density_localization_grid.tsv`,
 `panel_7B_density_localization_intervals.tsv`, and
 `panel_7B_density_localization_test.tsv`; render-only mode requires and

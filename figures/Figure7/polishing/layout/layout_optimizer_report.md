@@ -9,7 +9,7 @@
 
 ## Figures
 
-- `Figure 7`: 6.23 x 10.65 in, wasted 3.8%, tree `[ab / [[cde / [[fg / h] / i]] / jk]]`
+- `Figure 7`: 6.23 x 10.65 in, wasted 3.8%, tree `[[ab / [[[cde / fg] / h] / ij]] / kl]`
 
 ## Scale recommendations
 

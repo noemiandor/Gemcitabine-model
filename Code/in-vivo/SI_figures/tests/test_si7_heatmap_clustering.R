@@ -123,7 +123,7 @@ stopifnot(
 )
 
 # Empty display tags are supported for reuse in a compositor that supplies its
-# own uniform A-K labels. They must not leave an embedded title prefix.
+# own uniform A-L labels. They must not leave an embedded title prefix.
 untagged <- helper_environment$shared_context_build_heatmap(
   si7_panels$B$matrix,
   "Cluster Hallmark GSEA NES",

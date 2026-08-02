@@ -15,6 +15,7 @@ REPO_ROOT = TOOLS_DIR.parents[1]
 sys.path.insert(0, str(TOOLS_DIR))
 
 from figure_output_contract import (  # noqa: E402
+    FIGURE_MANIFEST_COLUMNS,
     MODULE_MANIFEST_COLUMNS,
     sha256_file,
     validate_expected_panel_set,
@@ -23,12 +24,12 @@ from figure_output_contract import (  # noqa: E402
     write_tsv,
 )
 from materialize_figure_assets import (  # noqa: E402
-    FIGURE7_PANEL_K_RESULTS,
+    FIGURE7_PANEL_L_RESULTS,
     PANEL_SPECS,
 )
 
 
-RAW_FIGURE7_PANEL_K_RESULTS = {
+RAW_FIGURE7_PANEL_L_RESULTS = {
     17: {
         "estimate": -0.6984010192530142,
         "asymptotic_p": 0.0540069781511847,
@@ -128,6 +129,24 @@ class Figure7MaterializationTest(unittest.TestCase):
             REPO_ROOT / "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv",
             self.endpoint_ploidy,
         )
+        self.copy_number_inputs = []
+        for relative in (
+            "Data/in-vivo/all_ploidy.tsv",
+            "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv",
+        ):
+            source = REPO_ROOT / relative
+            destination = self.repo / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+            self.copy_number_inputs.append(destination)
+        for source in sorted(
+            (REPO_ROOT / "Data/in-vivo/scRNAseq_Numbat").glob("*.sps.cbs")
+        ):
+            destination = (
+                self.repo / "Data/in-vivo/scRNAseq_Numbat" / source.name
+            )
+            shutil.copy2(source, destination)
+            self.copy_number_inputs.append(destination)
         self.si_cache_root = self.repo / "Data/in-vivo/SIfigures"
         shutil.copytree(
             REPO_ROOT / "Data/in-vivo/SIfigures",
@@ -140,8 +159,10 @@ class Figure7MaterializationTest(unittest.TestCase):
             "Code/in-vivo/figure7/src/tgi_data.R",
             "Code/in-vivo/figure7/src/tgi_statistics.R",
             "Code/in-vivo/figure7/src/tgi_panels.R",
+            "Code/in-vivo/figure7/src/copy_number_panel.R",
             "Code/in-vivo/SI_figures/shared_context_panels.R",
             "Code/in-vivo/SI_figures/normalized_composition.R",
+            "Code/in-vivo/SI_figures/copy_number_heatmap.R",
             "Code/tools/validate_si_figures_table_cache.py",
         ):
             source = REPO_ROOT / relative
@@ -154,7 +175,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         ]
         for spec in self.figure7_specs:
             source = self.run_root / str(spec["source"])
-            if str(spec["panel"]) == "7A-7K_composite":
+            if str(spec["panel"]) == "7A-7L_composite":
                 shutil.copy2(
                     REPO_ROOT / "figures/Figure7/Figure7_reviewed_GRCh.png",
                     source,
@@ -164,7 +185,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         self._write_run_metadata(include_f=True)
         self._write_state_provenance(canonical_publication_allowed="true")
         self._write_input_manifest()
-        self._write_panel_k_tables()
+        self._write_panel_l_tables()
         self._write_density_localization_tables()
         self._write_output_manifest()
 
@@ -179,7 +200,7 @@ class Figure7MaterializationTest(unittest.TestCase):
                 include_f
                 or (
                     not str(spec["panel"]).startswith("7F")
-                    and not str(spec["panel"]).startswith("7A-7K_composite")
+                    and not str(spec["panel"]).startswith("7A-7L_composite")
                 )
             )
         ]
@@ -269,7 +290,7 @@ class Figure7MaterializationTest(unittest.TestCase):
                         "key": "canonical_publication_allowed",
                         "value": "true",
                     },
-                    {"key": "main_composite_panel_set", "value": "a-k"},
+                    {"key": "main_composite_panel_set", "value": "a-l"},
                     {
                         "key": "main_composite_filename",
                         "value": "Figure7_reviewed_GRCh.png",
@@ -278,7 +299,7 @@ class Figure7MaterializationTest(unittest.TestCase):
                         "key": "main_composite_panel_order",
                         "value": (
                             "A=7A;B=7C;C=SI4A;D=SI4B;E=SI4C;F=SI4E;"
-                            "G=SI7B;H=7B;I=7F;J=7D;K=7E"
+                            "G=SI7B;H=7B;I=7F;J=7J;K=7D;L=7E"
                         ),
                     },
                     {"key": "main_composite_width_in", "value": "7.1"},
@@ -286,7 +307,18 @@ class Figure7MaterializationTest(unittest.TestCase):
                     {"key": "main_composite_png_dpi", "value": "300"},
                     {
                         "key": "main_composite_layout_rows",
-                        "value": "A/B;C/D/E;F/G;H;I;J/K",
+                        "value": "A/B;C/D/E;F/G;H;I/J;K/L",
+                    },
+                    {"key": "copy_number_panel_qc_cells", "value": "9832"},
+                    {
+                        "key": "copy_number_panel_treated_cells",
+                        "value": "5335",
+                    },
+                    {"key": "copy_number_panel_mice", "value": "16"},
+                    {"key": "copy_number_panel_chromosomes", "value": "22"},
+                    {
+                        "key": "copy_number_panel_annotation_bars",
+                        "value": "injected_origin;gemcitabine_dose;mouse",
                     },
                     {
                         "key": "reviewed_si_cache_manifest",
@@ -346,6 +378,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             self.density_localization_config,
             self.figure7_renderer,
             self.endpoint_ploidy,
+            *self.copy_number_inputs,
             *self.processed_inputs,
             *self.context_inputs,
             self.si_cache_root / "manifest.tsv",
@@ -408,7 +441,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             ["key", "value"],
         )
 
-    def _write_panel_k_tables(self) -> None:
+    def _write_panel_l_tables(self) -> None:
         plot_columns = [
             "sample_id",
             "initial_ploidy",
@@ -758,7 +791,7 @@ class Figure7MaterializationTest(unittest.TestCase):
                     "mtime_utc": "2026-07-16T00:00:00+00:00",
                     "figure": "",
                     "panel": "",
-                    "notes": "panel K test fixture",
+                    "notes": "panel L test fixture",
                 }
             )
         write_tsv(
@@ -805,23 +838,23 @@ class Figure7MaterializationTest(unittest.TestCase):
         self,
     ) -> None:
         self.assertEqual(
-            set(FIGURE7_PANEL_K_RESULTS),
-            set(RAW_FIGURE7_PANEL_K_RESULTS),
+            set(FIGURE7_PANEL_L_RESULTS),
+            set(RAW_FIGURE7_PANEL_L_RESULTS),
         )
-        for day, expected in RAW_FIGURE7_PANEL_K_RESULTS.items():
+        for day, expected in RAW_FIGURE7_PANEL_L_RESULTS.items():
             with self.subTest(day=day):
                 self.assertEqual(
-                    set(FIGURE7_PANEL_K_RESULTS[day]),
+                    set(FIGURE7_PANEL_L_RESULTS[day]),
                     set(expected),
                 )
                 for key, value in expected.items():
                     self.assertAlmostEqual(
-                        FIGURE7_PANEL_K_RESULTS[day][key],
+                        FIGURE7_PANEL_L_RESULTS[day][key],
                         value,
                         places=14,
                     )
 
-    def test_materialized_panel_7e_records_raw_panel_7k_role(
+    def test_materialized_panel_7e_records_raw_panel_7l_role(
         self,
     ) -> None:
         result = self._run_materializer()
@@ -848,10 +881,52 @@ class Figure7MaterializationTest(unittest.TestCase):
                 for row in csv.DictReader(handle, delimiter="\t")
             }
         self.assertTrue(
-            run_config["main_composite_panel_order"].endswith("K=7E")
+            run_config["main_composite_panel_order"].endswith("L=7E")
         )
 
-    def test_rejects_missing_panel_k_source_code_binding(self) -> None:
+    def test_rematerialization_drops_superseded_a_to_k_composite_aliases(
+        self,
+    ) -> None:
+        first = self._run_materializer()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        manifest = self.repo / "figures/Figure7/manifest.tsv"
+        with manifest.open(newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        current = {
+            row["panel"]: row
+            for row in rows
+            if row["panel"] in {
+                "7A-7L_composite",
+                "7A-7L_composite_pdf",
+            }
+        }
+        self.assertEqual(len(current), 2)
+        stale_rows = []
+        for current_id, stale_id in (
+            ("7A-7L_composite", "7A-7K_composite"),
+            ("7A-7L_composite_pdf", "7A-7K_composite_pdf"),
+        ):
+            stale = dict(current[current_id])
+            stale["panel"] = stale_id
+            stale["caption_role"] = "superseded Figure 7 A-K alias"
+            stale_rows.append(stale)
+        write_tsv(
+            manifest,
+            rows + stale_rows,
+            FIGURE_MANIFEST_COLUMNS,
+        )
+
+        second = self._run_materializer()
+        self.assertEqual(second.returncode, 0, second.stderr)
+        with manifest.open(newline="") as handle:
+            rematerialized = list(csv.DictReader(handle, delimiter="\t"))
+        panel_ids = [row["panel"] for row in rematerialized]
+        self.assertNotIn("7A-7K_composite", panel_ids)
+        self.assertNotIn("7A-7K_composite_pdf", panel_ids)
+        self.assertEqual(panel_ids.count("7A-7L_composite"), 1)
+        self.assertEqual(panel_ids.count("7A-7L_composite_pdf"), 1)
+
+    def test_rejects_missing_panel_l_source_code_binding(self) -> None:
         manifest = self.run_root / "metadata/input_manifest.tsv"
         with manifest.open(newline="") as handle:
             original_rows = list(csv.DictReader(handle, delimiter="\t"))
@@ -869,12 +944,12 @@ class Figure7MaterializationTest(unittest.TestCase):
                 result = self._run_materializer()
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(
-                    "does not bind the panel K statistics and plotting helpers",
+                    "does not bind the panel L statistics and plotting helpers",
                     result.stderr,
                 )
                 self.assertIn(relative, result.stderr)
 
-    def test_rejects_missing_panel_k_output_manifest_binding(self) -> None:
+    def test_rejects_missing_panel_l_output_manifest_binding(self) -> None:
         manifest = self.run_root / "metadata/output_manifest.tsv"
         with manifest.open(newline="") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
@@ -945,7 +1020,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             result.stderr,
         )
 
-    def test_rejects_adjusted_residual_panel_k_method(self) -> None:
+    def test_rejects_adjusted_residual_panel_l_method(self) -> None:
         table = self.run_root / "tables/panel_7E_test.tsv"
         with table.open(newline="") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
@@ -977,7 +1052,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             result.stderr,
         )
 
-    def test_rejects_nonreviewed_panel_k_numeric_result(self) -> None:
+    def test_rejects_nonreviewed_panel_l_numeric_result(self) -> None:
         table = self.run_root / "tables/panel_7E_test.tsv"
         with table.open(newline="") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
@@ -996,7 +1071,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             result.stderr,
         )
 
-    def test_rejects_adjusted_result_columns_in_panel_k_test_table(
+    def test_rejects_adjusted_result_columns_in_panel_l_test_table(
         self,
     ) -> None:
         table = self.run_root / "tables/panel_7E_test.tsv"
@@ -1090,7 +1165,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             result.stderr,
         )
 
-    def test_rejects_plot_subset_or_wrong_mouse_panel_k_score(self) -> None:
+    def test_rejects_plot_subset_or_wrong_mouse_panel_l_score(self) -> None:
         table = self.run_root / "tables/panel_7E_plot_data.tsv"
         with table.open(newline="") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
@@ -1111,7 +1186,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             result.stderr,
         )
 
-    def test_rejects_adjusted_residual_columns_in_panel_k_plot_table(self) -> None:
+    def test_rejects_adjusted_residual_columns_in_panel_l_plot_table(self) -> None:
         table = self.run_root / "tables/panel_7E_plot_data.tsv"
         with table.open(newline="") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
@@ -1170,7 +1245,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         result = self._run_materializer()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "A-K composite/cache contract is invalid",
+            "A-L composite/cache contract is invalid",
             result.stderr,
         )
         self.assertFalse((self.repo / "figures").exists())
@@ -1180,7 +1255,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             spec
             for spec in self.figure7_specs
             if str(spec["panel"]).startswith("7F")
-            or str(spec["panel"]).startswith("7A-7K_composite")
+            or str(spec["panel"]).startswith("7A-7L_composite")
         ]
         for spec in full_only:
             (self.run_root / str(spec["source"])).unlink()
@@ -1189,7 +1264,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             rows = [
                 row for row in csv.DictReader(handle, delimiter="\t")
                 if not row["panel"].startswith("7F")
-                and not row["panel"].startswith("7A-7K_composite")
+                and not row["panel"].startswith("7A-7L_composite")
             ]
         write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
         self._write_run_metadata(include_f=False)
@@ -1207,7 +1282,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             spec
             for spec in self.figure7_specs
             if str(spec["panel"]).startswith("7F")
-            or str(spec["panel"]).startswith("7A-7K_composite")
+            or str(spec["panel"]).startswith("7A-7L_composite")
         ]
         for spec in full_only:
             (self.run_root / str(spec["source"])).unlink()
@@ -1216,7 +1291,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             rows = [
                 row for row in csv.DictReader(handle, delimiter="\t")
                 if not row["panel"].startswith("7F")
-                and not row["panel"].startswith("7A-7K_composite")
+                and not row["panel"].startswith("7A-7L_composite")
             ]
         write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
         result = self._run_materializer()

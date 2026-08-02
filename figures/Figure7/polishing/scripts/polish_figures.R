@@ -40,7 +40,8 @@ module_dir <- file.path(repo_root, "Code", "in-vivo", "figure7")
 for (file in c(
   "common_io.R", "feature_species_policy.R", "tgi_data.R",
   "tgi_statistics.R", "tgi_panels.R", "context_panels.R",
-  "state_pathway_panel.R", "generated_state_pathway_reference.R",
+  "copy_number_panel.R", "state_pathway_panel.R",
+  "generated_state_pathway_reference.R",
   "state_pathway_analysis.R"
 )) {
   sys.source(file.path(module_dir, "src", file), envir = .GlobalEnv)
@@ -51,6 +52,10 @@ sys.source(
 )
 sys.source(
   file.path(repo_root, "Code", "in-vivo", "SI_figures", "shared_context_panels.R"),
+  envir = .GlobalEnv
+)
+sys.source(
+  file.path(repo_root, "Code", "in-vivo", "SI_figures", "copy_number_heatmap.R"),
   envir = .GlobalEnv
 )
 
@@ -142,10 +147,11 @@ build_panel_objects <- function() {
   )
   reference <- figure7_validate_reviewed_state_reference(reference_root, config)
   state_plot <- figure7_panel_f_plot(reference$activity, config)
+  copy_number <- figure7_build_copy_number_panel(repo_root)
   mapped <- figure7_main_composite_plots(
-    source_plots, context$plots, state_plot, config
+    source_plots, context$plots, state_plot, copy_number$plot, config
   )
-  list(config = config, plots = mapped)
+  list(config = config, plots = mapped, copy_number = copy_number)
 }
 
 slot_dimensions <- function() {
@@ -157,15 +163,15 @@ slot_dimensions <- function() {
     A = 18 / 28, B = 10 / 28,
     C = 9 / 28, D = 10 / 28, E = 9 / 28,
     F = 10 / 28, G = 18 / 28,
-    H = 1, I = 1, J = 0.5, K = 0.5
+    H = 1, I = 14 / 28, J = 14 / 28, K = 0.5, L = 0.5
   ) * content_width_in
   heights <- c(
     A = spec$row_heights[[1L]], B = spec$row_heights[[1L]],
     C = spec$row_heights[[2L]], D = spec$row_heights[[2L]],
     E = spec$row_heights[[2L]], F = spec$row_heights[[3L]],
     G = spec$row_heights[[3L]], H = spec$row_heights[[4L]],
-    I = spec$row_heights[[5L]], J = spec$row_heights[[6L]],
-    K = spec$row_heights[[6L]]
+    I = spec$row_heights[[5L]], J = spec$row_heights[[5L]],
+    K = spec$row_heights[[6L]], L = spec$row_heights[[6L]]
   )
   data.frame(
     figure = "Figure 7",
@@ -331,12 +337,29 @@ write_final_records <- function(output_paths) {
     relative_repo_path(endpoint_path),
     relative_repo_path(file.path(si_cache_dir, "manifest.tsv")),
     relative_repo_path(file.path(
+      si_cache_dir, "si_figures_cell_metadata.csv"
+    )),
+    relative_repo_path(file.path(
+      si_cache_dir, "si_figure6_endpoint_ploidy_join_audit.csv"
+    )),
+    "Data/in-vivo/all_ploidy.tsv",
+    "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv",
+    relative_repo_path(file.path(
       repo_root,
       "Data/in-vivo/figure7/saved_state_pathway/",
       "state_pathway_grch_human_only_initial_ploidy_day17_v3/",
       "panel_7F_pathway_activity_plot_data.tsv"
     ))
   )
+  cbs_manifest <- utils::read.delim(
+    file.path(repo_root, "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv"),
+    check.names = FALSE,
+    stringsAsFactors = FALSE
+  )
+  direct_input_paths <- unique(c(
+    direct_input_paths,
+    file.path("Data/in-vivo/scRNAseq_Numbat", cbs_manifest$filename)
+  ))
   direct_input_hashes <- vapply(
     file.path(repo_root, direct_input_paths), figure7_sha256, character(1L)
   )
@@ -349,11 +372,13 @@ write_final_records <- function(output_paths) {
     "Code/in-vivo/figure7/src/tgi_statistics.R",
     "Code/in-vivo/figure7/src/tgi_panels.R",
     "Code/in-vivo/figure7/src/context_panels.R",
+    "Code/in-vivo/figure7/src/copy_number_panel.R",
     "Code/in-vivo/figure7/src/state_pathway_panel.R",
     "Code/in-vivo/figure7/src/generated_state_pathway_reference.R",
     "Code/in-vivo/figure7/src/state_pathway_analysis.R",
     "Code/in-vivo/SI_figures/shared_context_panels.R",
     "Code/in-vivo/SI_figures/normalized_composition.R",
+    "Code/in-vivo/SI_figures/copy_number_heatmap.R",
     "figures/Figure7/polishing/layout/layout_plan.csv",
     "figures/Figure7/polishing/scripts/polish_figures.R",
     "scripts/agentRrunner.sh"

@@ -1,4 +1,4 @@
-# Helpers for Supplementary Figure 6E: downstream NUMBAT-derived CBS states.
+# Helpers for main Figure 7J: downstream NUMBAT-derived CBS states.
 #
 # The injected 2N- and 4N-origin matrices have different consensus segment
 # boundaries and may reflect different coordinate conventions. They must
@@ -777,13 +777,47 @@ si_copy_number_harmonize <- function(collection) {
   )
 }
 
-si_copy_number_heatmap <- function(harmonized) {
+si_copy_number_heatmap <- function(
+  harmonized,
+  title = paste(
+    "NUMBAT-derived copy-number states",
+    "(cell-by-chromosome available-segment mean CN)"
+  ),
+  labels_col = paste0("chr", seq_len(22L)),
+  fontsize = 8,
+  fontsize_col = 6.5,
+  annotation_legend = TRUE,
+  angle_col = 0
+) {
   annotation <- harmonized$cell_annotations
   matrix_data <- harmonized$matrix
   sample_levels <- harmonized$sample_levels
+  visible_labels <- as.character(labels_col)[nzchar(as.character(labels_col))]
+  if (length(labels_col) != ncol(matrix_data) || anyNA(labels_col) ||
+      !length(visible_labels) || anyDuplicated(visible_labels)) {
+    stop("Copy-number heatmap chromosome labels are invalid", call. = FALSE)
+  }
+  angle_col <- as.character(angle_col)
+  if (length(angle_col) != 1L || !angle_col %in% c("0", "45", "90", "270", "315")) {
+    stop("Copy-number heatmap column-label angle is invalid", call. = FALSE)
+  }
+  dose_labels <- c(
+    "0" = "Vehicle",
+    "30" = "30 mg/kg",
+    "120" = "120 mg/kg"
+  )
+  dose_key <- as.character(annotation$dose_mg_per_kg)
+  if (any(!dose_key %in% names(dose_labels))) {
+    stop("Copy-number heatmap contains an unexpected gemcitabine dose",
+         call. = FALSE)
+  }
   row_annotation <- data.frame(
     `Injected origin` = factor(
       annotation$initial_ploidy, levels = c("2N", "4N")
+    ),
+    `Gemcitabine dose` = factor(
+      unname(dose_labels[dose_key]),
+      levels = unname(dose_labels)
     ),
     Mouse = factor(annotation$sample_id, levels = sample_levels),
     check.names = FALSE
@@ -795,12 +829,17 @@ si_copy_number_heatmap <- function(harmonized) {
   )
   annotation_colors <- list(
     `Injected origin` = c("2N" = "#4C78A8", "4N" = "#E45756"),
+    `Gemcitabine dose` = c(
+      "Vehicle" = "#666666",
+      "30 mg/kg" = "#D95F02",
+      "120 mg/kg" = "#1B9E77"
+    ),
     Mouse = sample_colors
   )
   sample_counts <- table(factor(annotation$sample_id, levels = sample_levels))
   gaps_row <- head(cumsum(as.integer(sample_counts)), -1L)
   gaps_col <- seq_len(21L)
-  labels_col <- paste0("chr", seq_len(22L))
+  labels_col <- as.character(labels_col)
   colors <- grDevices::colorRampPalette(c(
     "#2166AC", "#67A9CF", "#F7F7F7", "#F4A582", "#B2182B", "#762A83"
   ))(120L)
@@ -820,16 +859,14 @@ si_copy_number_heatmap <- function(harmonized) {
     show_rownames = FALSE,
     show_colnames = TRUE,
     labels_col = labels_col,
-    fontsize = 8,
-    fontsize_col = 6.5,
-    angle_col = 0,
+    fontsize = fontsize,
+    fontsize_col = fontsize_col,
+    angle_col = angle_col,
     annotation_row = row_annotation,
     annotation_colors = annotation_colors,
+    annotation_legend = annotation_legend,
     annotation_names_row = FALSE,
-    main = paste(
-      "E | NUMBAT-derived copy-number states",
-      "(cell-by-chromosome available-segment mean CN)"
-    ),
+    main = if (is.null(title)) NA_character_ else as.character(title),
     silent = TRUE
   )
   list(

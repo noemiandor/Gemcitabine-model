@@ -1,0 +1,5 @@
+mouse_id	selected_wsp_sample_name	selected_peak_gate_name	selected_peak_annotation_n	selected_human_cells_count	selected_peak_count	selected_peak_pct_human_cells	paired_wsp_sample_name	paired_peak_gate_name	paired_peak_annotation_n	paired_human_cells_count	paired_peak_count	paired_peak_pct_human_cells	relationship_status	paired_fcs_imported
+4N-A5-0	Sample_A5-0_007.fcs	1.88N	1.880000	17969	17519	97.495687	Sample_A5-0_M_008.fcs	1.92N	1.920000	20516	19258	93.868200	unresolved	FALSE
+4N-A5-RR	Sample_A5-RR_013.fcs	1.88N	1.880000	18658	18402	98.627934	Sample_A5-RR_M_014.fcs	1.88N	1.880000	19969	19377	97.035405	unresolved	FALSE
+4N-A8-RL	Sample_A8-RL_027.fcs	2.04N	2.040000	18366	17872	97.310247	Sample_A8-RL_M_028.fcs	2.2N	2.200000	18263	15163	83.025790	unresolved	FALSE
+4N-A8-RR	Sample_A8-RR_029.fcs	2.08N	2.080000	18140	17890	98.621830	Sample_A8-RR-M_030.fcs	2.2N	2.200000	18189	14388	79.102754	unresolved	FALSE

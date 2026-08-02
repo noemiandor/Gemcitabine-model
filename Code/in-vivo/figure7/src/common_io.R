@@ -502,7 +502,7 @@ figure7_read_config <- function(path, tgi_day = NULL) {
     figure7_stop("Figure 7 raw-data contract is not the reviewed Zenodo record")
   }
   source_roles <- c(
-    "endpoint_ploidy", "panel_k_endpoint_ploidy", "sample_info",
+    "endpoint_ploidy", "panel_l_endpoint_ploidy", "sample_info",
     "growth_curve"
   )
   sources <- config$versioned_source_artifacts
@@ -520,15 +520,15 @@ figure7_read_config <- function(path, tgi_day = NULL) {
         "6db48ee5f196b37b58aa71d0472dd3deb06aaacb4b637070af1b27d9425db2b3"
       ) ||
       !identical(
-        as.character(sources$panel_k_endpoint_ploidy$default_path),
+        as.character(sources$panel_l_endpoint_ploidy$default_path),
         "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv"
       ) ||
       !identical(
-        as.character(sources$panel_k_endpoint_ploidy$sha256),
+        as.character(sources$panel_l_endpoint_ploidy$sha256),
         "80f4e6b78e7b6d8b73030da4889ecb5c09ee97c9f83fb771aec4d3908511b569"
       ) ||
       !identical(
-        as.character(sources$panel_k_endpoint_ploidy$source_revision),
+        as.character(sources$panel_l_endpoint_ploidy$source_revision),
         "dcdb62f2252ef05873404c8e45da42f4a5ec2c0d"
       ) ||
       !identical(
@@ -569,7 +569,8 @@ figure7_read_config <- function(path, tgi_day = NULL) {
   }
   expected_main_mapping <- c(
     A = "7A", B = "7C", C = "SI4A", D = "SI4B", E = "SI4C",
-    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7D", K = "7E"
+    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7J",
+    K = "7D", L = "7E"
   )
   observed_main_mapping <- as.character(unlist(
     config$panels$main_composite$panel_order,
@@ -591,7 +592,7 @@ figure7_read_config <- function(path, tgi_day = NULL) {
       ) ||
       !identical(observed_main_mapping, expected_main_mapping)) {
     figure7_stop(
-      "Main Figure 7 must use the reviewed A-K first-citation panel mapping"
+      "Main Figure 7 must use the reviewed A-L panel mapping"
     )
   }
   si <- config$si_figures
@@ -1159,7 +1160,7 @@ figure7_panel_contract <- function(
     contract <- rbind(
       contract,
       data.frame(
-        panel_id = "7A-7K_composite",
+        panel_id = "7A-7L_composite",
         filename = composite_filename,
         stringsAsFactors = FALSE
       )
@@ -1209,20 +1210,20 @@ figure7_publication_spec <- function() {
       paste0(strrep("C", 9L), strrep("D", 10L), strrep("E", 9L)),
       paste0(strrep("F", 10L), strrep("G", 18L)),
       strrep("H", 28L),
-      strrep("I", 28L),
-      paste0(strrep("J", 14L), strrep("K", 14L)),
+      paste0(strrep("I", 14L), strrep("J", 14L)),
+      paste0(strrep("K", 14L), strrep("L", 14L)),
       sep = "\n"
     ),
-    row_heights = c(1.20, 0.95, 2.45, 2.295, 2.30, 1.45),
+    row_heights = c(1.20, 1.35, 2.45, 1.45, 2.745, 1.45),
     content_left_npc = 0.020,
     content_right_npc = 0.005
   )
 }
 
 figure7_publication_clean_plots <- function(plots, config) {
-  expected <- LETTERS[1:11]
+  expected <- LETTERS[1:12]
   if (!identical(names(plots), expected)) {
-    figure7_stop("Publication styling requires named Figure 7 plot objects A-K")
+    figure7_stop("Publication styling requires named Figure 7 plot objects A-L")
   }
   spec <- figure7_publication_spec()
   drop_scale <- function(plot, aesthetic) {
@@ -1251,14 +1252,8 @@ figure7_publication_clean_plots <- function(plots, config) {
         legend.key.width = grid::unit(0.90, "lines")
       )
   }
-  panel_h_components <- attr(
-    plots$H, "figure7_panel_b_components", exact = TRUE
-  )
   is_ggplot <- vapply(plots, inherits, logical(1L), what = "ggplot")
   style_panels <- names(plots)[is_ggplot]
-  if (!is.null(panel_h_components)) {
-    style_panels <- setdiff(style_panels, "H")
-  }
   for (panel in style_panels) {
     plots[[panel]] <- publication_style(plots[[panel]])
   }
@@ -1321,83 +1316,29 @@ figure7_publication_clean_plots <- function(plots, config) {
       drop = FALSE
     ) +
     ggplot2::theme(legend.position = "none")
-  clean_panel_h_ecdf <- function(plot) {
-    plot$layers <- Filter(
-      function(layer) !inherits(layer$geom, "GeomText"),
-      plot$layers
-    )
-    plot <- drop_scale(plot, "colour")
-    plot <- drop_scale(plot, "y")
-    publication_style(plot) +
-      ggplot2::labs(
-        x = NULL, y = "Mean ECDF",
-        color = "Treatment", linetype = NULL
-      ) +
-      ggplot2::scale_color_manual(
-        values = figure7_dose_colors(),
-        breaks = c("0mg/kg", "treated"),
-        labels = c("Vehicle", "Gemcitabine"),
-        name = "Treatment"
-      ) +
-      ggplot2::scale_y_continuous(
-        breaks = c(0, 0.5, 1), limits = c(0, 1.05),
-        expand = ggplot2::expansion(mult = c(0, 0))
-      ) +
-      ggplot2::guides(linetype = "none") +
-      ggplot2::theme(
-        legend.position = "none",
-        axis.title.x = ggplot2::element_blank(),
-        axis.text.x = ggplot2::element_blank(),
-        axis.ticks.x = ggplot2::element_blank(),
-        plot.margin = ggplot2::margin(3, 4, 4, 4, unit = "pt")
-      )
-  }
-  if (is.null(panel_h_components)) {
-    plots$H$layers <- Filter(
-      function(layer) !inherits(layer$geom, "GeomText"),
-      plots$H$layers
-    )
-    plots$H <- drop_scale(plots$H, "colour")
-    plots$H <- drop_scale(plots$H, "y")
-    plots$H <- plots$H +
-      ggplot2::labs(
-        x = "Cell-cycle pseudotime", y = "Mean ECDF",
-        color = "Treatment", linetype = NULL
-      ) +
-      ggplot2::scale_color_manual(
-        values = figure7_dose_colors(),
-        breaks = c("0mg/kg", "treated"),
-        labels = c("Vehicle", "Gemcitabine"),
-        name = "Treatment"
-      ) +
-      ggplot2::scale_y_continuous(
-        breaks = c(0, 0.5, 1), limits = c(0, 1.05),
-        expand = ggplot2::expansion(mult = c(0, 0))
-      ) +
-      ggplot2::guides(linetype = "none") +
-      ggplot2::theme(legend.position = "none")
-  } else {
-    ecdf_plot <- clean_panel_h_ecdf(panel_h_components$ecdf)
-    localization_plot <- publication_style(panel_h_components$localization) +
-      ggplot2::labs(
-        x = "Cell-cycle pseudotime",
-        y = "Density difference"
-      ) +
-      ggplot2::theme(
-        legend.position = "none",
-        plot.margin = ggplot2::margin(4, 4, 3, 4, unit = "pt")
-      )
-    plots$H <- patchwork::wrap_plots(
-      list(ecdf_plot, localization_plot),
-      ncol = 1,
-      heights = c(1.35, 0.945),
-      guides = "collect"
-    )
-    attr(plots$H, "figure7_panel_b_components") <- list(
-      ecdf = ecdf_plot,
-      localization = localization_plot
-    )
-  }
+  plots$H$layers <- Filter(
+    function(layer) !inherits(layer$geom, "GeomText"),
+    plots$H$layers
+  )
+  plots$H <- drop_scale(plots$H, "colour")
+  plots$H <- drop_scale(plots$H, "y")
+  plots$H <- plots$H +
+    ggplot2::labs(
+      x = "Cell-cycle pseudotime", y = "Mean ECDF",
+      color = "Treatment", linetype = NULL
+    ) +
+    ggplot2::scale_color_manual(
+      values = figure7_dose_colors(),
+      breaks = c("0mg/kg", "treated"),
+      labels = c("Vehicle", "Gemcitabine"),
+      name = "Treatment"
+    ) +
+    ggplot2::scale_y_continuous(
+      breaks = c(0, 0.5, 1), limits = c(0, 1.05),
+      expand = ggplot2::expansion(mult = c(0, 0))
+    ) +
+    ggplot2::guides(linetype = "none") +
+    ggplot2::theme(legend.position = "none")
   plots$I <- plots$I +
     ggplot2::labs(
       x = "Cell-cycle pseudotime", y = NULL,
@@ -1407,13 +1348,13 @@ figure7_publication_clean_plots <- function(plots, config) {
       legend.position = "right",
       axis.text.y = ggplot2::element_text(size = spec$annotation_pt)
     )
-  plots$J <- plots$J +
+  plots$K <- plots$K +
     ggplot2::labs(
       x = "Pseudotime-distribution shift\n(dose-centered ECDF RMSE)",
       y = "TGI centered within dose (%)"
     ) +
     ggplot2::theme(legend.position = "none")
-  plots$K <- plots$K +
+  plots$L <- plots$L +
     ggplot2::labs(
       x = "Mean endpoint tumor-cell ploidy",
       y = paste0("Day-", figure7_tgi_day(config), " TGI (%)")
@@ -1434,9 +1375,11 @@ figure7_main_composite_object <- function(plots, config) {
   )
   row_fg <- patchwork::wrap_plots(plots[c("F", "G")], nrow = 1, widths = c(10, 18))
   row_h <- patchwork::wrap_plots(plots["H"])
-  row_i <- patchwork::wrap_plots(plots["I"])
-  row_jk <- patchwork::wrap_plots(plots[c("J", "K")], nrow = 1, widths = c(1, 1))
-  row_plots <- list(row_ab, row_cde, row_fg, row_h, row_i, row_jk)
+  row_ij <- patchwork::wrap_plots(
+    plots[c("I", "J")], nrow = 1, widths = c(14, 14)
+  )
+  row_kl <- patchwork::wrap_plots(plots[c("K", "L")], nrow = 1, widths = c(1, 1))
+  row_plots <- list(row_ab, row_cde, row_fg, row_h, row_ij, row_kl)
   row_grobs <- lapply(row_plots, patchwork::patchworkGrob)
   total_height <- sum(spec$row_heights)
   top_edges <- 1 - c(0, head(cumsum(spec$row_heights), -1L)) / total_height
@@ -1461,12 +1404,13 @@ figure7_main_composite_object <- function(plots, config) {
     )
   })
   row_index <- c(A = 1L, B = 1L, C = 2L, D = 2L, E = 2L,
-                 F = 3L, G = 3L, H = 4L, I = 5L, J = 6L, K = 6L)
+                 F = 3L, G = 3L, H = 4L, I = 5L, J = 5L,
+                 K = 6L, L = 6L)
   panel_start <- c(
     A = 0, B = 18 / 28,
     C = 0, D = 9 / 28, E = 19 / 28,
     F = 0, G = 10 / 28,
-    H = 0, I = 0, J = 0, K = 0.5
+    H = 0, I = 0, J = 14 / 28, K = 0, L = 0.5
   )
   tag_grobs <- lapply(names(row_index), function(panel) {
     start <- content_left + panel_start[[panel]] * content_width
@@ -1505,9 +1449,9 @@ figure7_save_main_composite <- function(
   height = figure7_publication_spec()$height_in,
   png_dpi = figure7_publication_spec()$png_dpi
 ) {
-  expected <- LETTERS[1:11]
+  expected <- LETTERS[1:12]
   if (!identical(names(plots), expected)) {
-    figure7_stop("Main Figure 7 composite requires named plot objects A-K")
+    figure7_stop("Main Figure 7 composite requires named plot objects A-L")
   }
   valid_plot <- vapply(
     plots,

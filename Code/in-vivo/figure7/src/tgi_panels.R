@@ -125,7 +125,7 @@ figure7_panel_b_localization_plot <- function(grid, intervals, test) {
   if (!all(required_grid %in% names(grid)) ||
       !all(required_intervals %in% names(intervals)) ||
       !all(required_test %in% names(test)) || nrow(test) != 1L) {
-    figure7_stop("Panel 7B/H density-localization plotting contract is incomplete")
+    figure7_stop("Source panel 7B/SI4I density-localization plotting contract is incomplete")
   }
   pointwise <- intervals[
     intervals$support_type == "positive_pointwise_two_sided",
@@ -141,7 +141,7 @@ figure7_panel_b_localization_plot <- function(grid, intervals, test) {
       sum(as.logical(grid$pointwise_positive_supported)) < 2L ||
       sum(as.logical(grid$simultaneous_positive_supported)) < 2L) {
     figure7_stop(
-      "Panel 7B/H localization must contain the reviewed pointwise and ",
+      "Source panel 7B/SI4I localization must contain the reviewed pointwise and ",
       "simultaneous positive-support regions"
     )
   }
@@ -221,7 +221,7 @@ figure7_panel_b_plot <- function(
   localization_test
 ) {
   if (!requireNamespace("patchwork", quietly = TRUE)) {
-    figure7_stop("R package 'patchwork' is required for panel 7B/H")
+    figure7_stop("R package 'patchwork' is required for source panel 7B components")
   }
   components <- list(
     ecdf = figure7_panel_b_ecdf_plot(data, tests),

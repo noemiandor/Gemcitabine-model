@@ -1,0 +1,10 @@
+group_level	injected_origin	dose_mg_kg	n_samples	n_samples_human_cells_qc_pass	total_human_cells_count	total_summed_mch_pos_two_n_four_n_gate_count	reviewed_peak_gate_labels	mean_peak_pct_human_cells_all_samples	mean_peak_pct_human_cells_qc_pass	mean_two_n_pct_human_cells	mean_four_n_pct_human_cells	mean_mch_pos_four_n_pct_of_summed_two_n_four_n_gate_counts	pooled_mch_pos_four_n_pct_of_summed_two_n_four_n_gate_counts
+all	all	all	16	15	236722	140345	1.88N;2.04N;2.08N;2.12N;2.2N;2N;2N 50	94.588798	96.488587	95.296379	0.443180	1.156751	0.913463
+injected_origin	2N	all	8	7	96678	60409	2N;2N 50	91.391318	95.005512	91.876332	0.701380	1.678928	1.268023
+injected_origin_x_dose	2N	0	4	3	25258	15750	2N	84.938473	91.220646	84.938473	1.002186	2.663213	2.907937
+injected_origin_x_dose	2N	30	2	2	32720	20558	2N 50	98.287247	98.287247	98.923358	0.528907	0.801758	0.802607
+injected_origin_x_dose	2N	120	2	2	38700	24101	2N 50	97.401079	97.401079	98.705025	0.272242	0.587529	0.593336
+injected_origin	4N	all	8	8	140044	79936	1.88N;2.04N;2.08N;2.12N;2.2N	97.786278	97.786278	98.716426	0.184979	0.634574	0.645516
+injected_origin_x_dose	4N	0	4	4	71034	38787	1.88N;2.08N;2.2N	97.924455	97.924455	98.409256	0.174867	0.755490	0.799237
+injected_origin_x_dose	4N	30	2	2	32504	18465	2.12N	97.330162	97.330162	98.860161	0.136250	0.441528	0.417005
+injected_origin_x_dose	4N	120	2	2	36506	22684	2.04N;2.08N	97.966038	97.966038	99.187031	0.253931	0.585788	0.568683

@@ -1,7 +1,7 @@
 figure,panel,subpanel_png,width_in,height_in,order,dpi
 Figure 7,ab,figures/Figure7/polishing/subpanels/Figure7_A.png,6.9225,1.20,1,300
-Figure 7,cde,figures/Figure7/polishing/subpanels/Figure7_C.png,6.9225,0.95,2,300
+Figure 7,cde,figures/Figure7/polishing/subpanels/Figure7_C.png,6.9225,1.35,2,300
 Figure 7,fg,figures/Figure7/polishing/subpanels/Figure7_F.png,6.9225,2.45,3,300
-Figure 7,h,figures/Figure7/polishing/subpanels/Figure7_H.png,6.9225,2.295,4,300
-Figure 7,i,figures/Figure7/polishing/subpanels/Figure7_I.png,6.9225,2.30,5,300
-Figure 7,jk,figures/Figure7/polishing/subpanels/Figure7_J.png,6.9225,1.45,6,300
+Figure 7,h,figures/Figure7/polishing/subpanels/Figure7_H.png,6.9225,1.45,4,300
+Figure 7,ij,figures/Figure7/polishing/subpanels/Figure7_I.png,6.9225,2.745,5,300
+Figure 7,kl,figures/Figure7/polishing/subpanels/Figure7_K.png,6.9225,1.45,6,300

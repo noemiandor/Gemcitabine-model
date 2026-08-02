@@ -55,6 +55,12 @@ usage <- function() {
       "    [--all-ploidy Data/in-vivo/all_ploidy.tsv] \\",
       "    [--cbs-dir Data/in-vivo/scRNAseq_Numbat] \\",
       paste(
+        "    [--cellcycle-pseudotime",
+        "Data/in-vivo/figure7/processed/CellCycleCells_",
+        "pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv] \\",
+        sep = ""
+      ),
+      paste(
         "    [--injected-reference-dir",
         "Data/in-vivo/scRNAseq_Numbat/injected_reference] \\",
       ),
@@ -280,6 +286,24 @@ if (!file.exists(copy_number_helper_path)) {
        call. = FALSE)
 }
 sys.source(copy_number_helper_path, envir = environment())
+figure7_shared_paths <- file.path(
+  root,
+  "Code",
+  "in-vivo",
+  "figure7",
+  "src",
+  c("common_io.R", "tgi_statistics.R", "tgi_panels.R")
+)
+if (any(!file.exists(figure7_shared_paths))) {
+  stop(
+    "Missing Figure 7 density-localization helper(s): ",
+    paste(figure7_shared_paths[!file.exists(figure7_shared_paths)], collapse = ", "),
+    call. = FALSE
+  )
+}
+for (path in figure7_shared_paths) {
+  sys.source(path, envir = environment())
+}
 weighted_ploidy_path <- file.path(
   root, "Data", "in-vivo", "weighted_ploidy.py"
 )
@@ -294,6 +318,19 @@ cache_dir <- resolve_path(
 )
 config_path <- resolve_path(
   arg_value(args, "config", "Code/in-vivo/figure7/figure7_config.yaml"),
+  root,
+  must_work = TRUE
+)
+cellcycle_pseudotime_path <- resolve_path(
+  arg_value(
+    args,
+    "cellcycle-pseudotime",
+    paste0(
+      "Data/in-vivo/figure7/processed/",
+      "CellCycleCells_pseudotime_distribution_per_sample_",
+      "cell_level_with_ploidy_dose_tgi.csv"
+    )
+  ),
   root,
   must_work = TRUE
 )
@@ -379,6 +416,14 @@ if (!identical(validation_status, 0L)) {
 }
 
 config <- yaml::read_yaml(config_path)
+figure7_config <- figure7_read_config(config_path)
+figure7_config <- figure7_attach_density_localization_config(
+  figure7_config,
+  file.path(root, "Code", "in-vivo", "figure7", "density_localization_config.yaml")
+)
+density_localization_config_path <- attr(
+  figure7_config, "density_localization_config_path", exact = TRUE
+)
 si_config <- config$si_figures
 if (is.null(si_config)) {
   stop("Figure 7 config is missing the si_figures contract", call. = FALSE)
@@ -648,12 +693,90 @@ s4h <- make_composition_plot(
   "H",
   FALSE
 )
+
+# Supplementary Figure 4 already defines the S-phase landscape and the exact
+# 2,881-cell clusters 4c/6/10 subset. The mouse-balanced localization formerly
+# shown beneath main Figure 7H therefore belongs here as a full-width panel.
+if (!identical(
+      file_sha256(cellcycle_pseudotime_path),
+      as.character(figure7_config$inputs$cellcycle_sha256)
+    )) {
+  stop(
+    "SI4I CellCycle pseudotime input differs from the reviewed Figure 7 input",
+    call. = FALSE
+  )
+}
+cellcycle_pseudotime <- utils::read.csv(
+  cellcycle_pseudotime_path,
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+required_localization_columns <- c(
+  "cell_id", "sample_id", "initial_ploidy",
+  "gemcitabine_dose_mg_per_kg", "pseudotime"
+)
+if (!all(required_localization_columns %in% names(cellcycle_pseudotime)) ||
+    nrow(cellcycle_pseudotime) != 2881L ||
+    anyDuplicated(cellcycle_pseudotime$cell_id) ||
+    any(!is.finite(cellcycle_pseudotime$pseudotime))) {
+  stop(
+    "SI4I requires the exact reviewed 2,881-cell pseudotime table",
+    call. = FALSE
+  )
+}
+localization_samples <- unique(data.frame(
+  sample_id = as.character(cellcycle_pseudotime$sample_id),
+  initial_ploidy = as.character(cellcycle_pseudotime$initial_ploidy),
+  dose_mg = suppressWarnings(as.numeric(
+    cellcycle_pseudotime$gemcitabine_dose_mg_per_kg
+  )),
+  stringsAsFactors = FALSE
+))
+localization_samples <- localization_samples[order(
+  localization_samples$sample_id
+), , drop = FALSE]
+if (nrow(localization_samples) != 16L ||
+    anyDuplicated(localization_samples$sample_id) ||
+    any(!is.finite(localization_samples$dose_mg))) {
+  stop("SI4I requires one reviewed treatment row for each of 16 mice",
+       call. = FALSE)
+}
+localization <- figure7_density_localization(
+  cellcycle_pseudotime,
+  localization_samples,
+  figure7_config
+)
+write_tsv(
+  localization$grid,
+  file.path(metadata_dir, "si_figure4I_density_localization_grid.tsv")
+)
+write_tsv(
+  localization$intervals,
+  file.path(metadata_dir, "si_figure4I_density_localization_intervals.tsv")
+)
+write_tsv(
+  localization$test,
+  file.path(metadata_dir, "si_figure4I_density_localization_test.tsv")
+)
+s4i <- figure7_panel_b_localization_plot(
+  localization$grid,
+  localization$intervals,
+  localization$test
+) +
+  ggplot2::labs(
+    title = "Mouse-balanced localization of gemcitabine-associated cell excess",
+    x = "Cell-cycle pseudotime",
+    y = "Gemcitabine - vehicle density difference"
+  ) +
+  shared_context_figure_theme(9)
+s4i <- shared_context_add_tag(s4i, "I")
 s4 <- patchwork::wrap_plots(
   patchwork::wrap_plots(s4a, s4b, s4c, s4d, ncol = 4),
   patchwork::wrap_plots(s4e, s4f, ncol = 2),
   patchwork::wrap_plots(s4g, s4h, ncol = 2),
+  s4i,
   ncol = 1,
-  heights = c(1.0, 0.95, 0.95)
+  heights = c(1.0, 0.95, 0.95, 0.62)
 ) + patchwork::plot_annotation(
   title = "Supplementary Figure 4 | Tumor and CellLine cellular landscape"
 )
@@ -664,7 +787,7 @@ panel_rows <- list(
     "SuppFig4",
     "panel_SuppFig4_composite",
     20,
-    15.5
+    18.5
   )
 )
 
@@ -984,7 +1107,7 @@ s6d <- ggplot2::ggplot(
     panel.spacing = grid::unit(0.10, "lines")
   )
 s6d <- shared_context_add_tag(s6d, "D")
-message("Generating SI6E downstream CBS copy-number heatmap.")
+message("Validating the Figure 7J downstream CBS copy-number heatmap inputs.")
 cbs_collection <- si_copy_number_read_collection(
   cbs_dir = cbs_dir,
   all_ploidy_path = all_ploidy_path,
@@ -1021,19 +1144,19 @@ cbs_endpoint_summaries <- si_copy_number_endpoint_summaries(
 )
 write_tsv(
   cbs_harmonized$cell_annotations,
-  file.path(metadata_dir, "si_figure6E_copy_number_cell_annotations.tsv")
+  file.path(metadata_dir, "figure7J_copy_number_cell_annotations.tsv")
 )
 write_tsv(
   cbs_harmonized$chromosomes,
-  file.path(metadata_dir, "si_figure6E_copy_number_chromosomes.tsv")
+  file.path(metadata_dir, "figure7J_copy_number_chromosomes.tsv")
 )
 write_tsv(
   cbs_harmonized$chromosome_schema_audit,
-  file.path(metadata_dir, "si_figure6E_cbs_schema_chromosome_coverage.tsv")
+  file.path(metadata_dir, "figure7J_cbs_schema_chromosome_coverage.tsv")
 )
 write_tsv(
   cbs_harmonized$chromosome_file_audit,
-  file.path(metadata_dir, "si_figure6E_cbs_file_chromosome_coverage.tsv")
+  file.path(metadata_dir, "figure7J_cbs_file_chromosome_coverage.tsv")
 )
 write_tsv(
   cbs_endpoint_summaries$samples,
@@ -1064,11 +1187,9 @@ write_tsv(
 )
 saveRDS(
   cbs_harmonized$matrix,
-  file.path(metadata_dir, "si_figure6E_copy_number_heatmap_matrix.rds"),
+  file.path(metadata_dir, "figure7J_copy_number_heatmap_matrix.rds"),
   compress = "gzip"
 )
-cbs_heatmap <- si_copy_number_heatmap(cbs_harmonized)
-s6e_heatmap <- patchwork::wrap_elements(full = cbs_heatmap$gtable)
 cbs_reference_plot_data <- cbs_injected_references$cells
 cbs_reference_plot_data$initial_ploidy <- cbs_reference_plot_data$injected_origin
 cbs_stage_levels <- c("Injected-cell\nreference", "Endpoint\ntumor")
@@ -1202,13 +1323,7 @@ s6e_mouse <- ggplot2::ggplot() +
     axis.text.x = ggplot2::element_text(size = 7.2),
     strip.text = ggplot2::element_text(face = "bold")
   )
-s6e_mouse <- shared_context_add_tag(s6e_mouse, "F")
-s6e <- patchwork::wrap_plots(
-  s6e_heatmap,
-  s6e_mouse,
-  ncol = 2,
-  widths = c(3.3, 1.9)
-)
+s6e_mouse <- shared_context_add_tag(s6e_mouse, "E")
 s6_top <- patchwork::wrap_plots(
   patchwork::wrap_plots(s6a, s6b, s6c, ncol = 1),
   s6d,
@@ -1217,9 +1332,9 @@ s6_top <- patchwork::wrap_plots(
 )
 s6 <- patchwork::wrap_plots(
   s6_top,
-  s6e,
+  s6e_mouse,
   ncol = 1,
-  heights = c(1.0, 1.15)
+  heights = c(1.15, 0.85)
 ) + patchwork::plot_annotation(
   title = paste(
     "Supplementary Figure 6 | Endpoint tumor ploidy and",
@@ -1232,7 +1347,7 @@ panel_rows[[length(panel_rows) + 1L]] <- save_composite(
   "SuppFig6",
   "panel_SuppFig6_composite",
   20,
-  26
+  18
 )
 
 message("Generating Supplementary Figure 7 composite.")
@@ -1369,6 +1484,9 @@ input_paths <- c(
   composition_helper_path,
   shared_context_helper_path,
   copy_number_helper_path,
+  figure7_shared_paths,
+  density_localization_config_path,
+  cellcycle_pseudotime_path,
   weighted_ploidy_path,
   all_ploidy_path,
   cbs_manifest_path,
@@ -1384,6 +1502,11 @@ input_manifest <- data.frame(
     "normalized_composition_helper",
     "shared_context_panels_helper",
     "copy_number_heatmap_helper",
+    "figure7_common_io_helper",
+    "figure7_tgi_statistics_helper",
+    "figure7_tgi_panels_helper",
+    "density_localization_config",
+    "si4i_cellcycle_pseudotime",
     "endpoint_ploidy_derivation_helper",
     "endpoint_ploidy_source",
     "numbat_cbs_manifest",
@@ -1475,16 +1598,22 @@ run_config <- data.frame(
     "composition_permutation_strata",
     "composition_multiple_testing",
     "composition_fdr_threshold",
-    "si6e_copy_number_source",
-    "si6e_column_statistic",
-    "si6e_cbs_matrix_count",
-    "si6e_source_cell_count",
-    "si6e_qc_passed_tumor_cell_count",
-    "si6e_treated_tumor_cell_count",
-    "si6e_qc_selection_policy",
-    "si6e_chromosome_count",
-    "si6e_row_order",
-    "si6e_column_order",
+    "si4i_cell_universe",
+    "si4i_n_cells",
+    "si4i_n_mice",
+    "si4i_pointwise_positive_interval",
+    "si4i_simultaneous_positive_interval",
+    "si4i_global_max_abs_t_p_two_sided",
+    "figure7j_copy_number_source",
+    "figure7j_column_statistic",
+    "figure7j_cbs_matrix_count",
+    "figure7j_source_cell_count",
+    "figure7j_qc_passed_tumor_cell_count",
+    "figure7j_treated_tumor_cell_count",
+    "figure7j_qc_selection_policy",
+    "figure7j_chromosome_count",
+    "figure7j_row_order",
+    "figure7j_column_order",
     "si6_postprocessed_copy_number_score_unit",
     "si6_injected_reference_ploidy_policy",
     "si6_injected_reference_cell_counts",
@@ -1541,6 +1670,20 @@ run_config <- data.frame(
     ),
     "Benjamini-Hochberg across all group-by-cluster contrasts within each panel",
     "0.05",
+    as.character(localization$test$cell_universe),
+    as.character(localization$test$n_cells),
+    as.character(localization$test$n_samples),
+    sprintf(
+      "%.3f-%.3f",
+      localization$test$pointwise_start,
+      localization$test$pointwise_end
+    ),
+    sprintf(
+      "%.3f-%.3f",
+      localization$test$simultaneous_start,
+      localization$test$simultaneous_end
+    ),
+    format(localization$test$global_max_t_p_two_sided, digits = 16),
     "postprocessed NUMBAT-derived cell-by-segment CBS matrices",
     paste(
       "per-cell length-weighted mean across available CBS segments within",
@@ -1671,18 +1814,21 @@ input_qc <- data.frame(
     "tumor_endpoint_ploidy_min",
     "tumor_endpoint_ploidy_max",
     "selected_cellcycle_tumor_cells",
+    "si4i_localization_cells",
+    "si4i_localization_mice",
+    "si4i_localization_permutations",
     "normalized_composition_panels",
     "normalized_composition_contrasts",
     "normalized_composition_tested_contrasts",
     "normalized_composition_descriptive_contrasts",
     "normalized_composition_significant_enrichments",
-    "si6e_cbs_matrices",
-    "si6e_source_cells",
-    "si6e_qc_passed_tumor_cells",
-    "si6e_qc_passed_treated_tumor_cells",
-    "si6e_chromosomes",
-    "si6e_missing_chromosome_mean_fraction",
-    "si6e_cbs_schemas",
+    "figure7j_cbs_matrices",
+    "figure7j_source_cells",
+    "figure7j_qc_passed_tumor_cells",
+    "figure7j_qc_passed_treated_tumor_cells",
+    "figure7j_chromosomes",
+    "figure7j_missing_chromosome_mean_fraction",
+    "figure7j_cbs_schemas",
     "si6_postprocessed_copy_number_score_mice",
     "si6_injected_reference_cells",
     "si6_endpoint_summary_analysis_type",
@@ -1709,6 +1855,9 @@ input_qc <- data.frame(
     format(endpoint_limits[[1L]], digits = 16),
     format(endpoint_limits[[2L]], digits = 16),
     selected_tumor_cells,
+    localization$test$n_cells,
+    localization$test$n_samples,
+    localization$test$n_permutations,
     length(composition_results),
     nrow(composition_test_audit),
     sum(composition_test_audit$testable),
@@ -1773,6 +1922,11 @@ provenance <- data.frame(
     "normalized_composition_helper_sha256",
     "shared_context_panels_helper",
     "shared_context_panels_helper_sha256",
+    "si4i_cellcycle_pseudotime",
+    "si4i_cellcycle_pseudotime_sha256",
+    "si4i_density_localization_config",
+    "si4i_density_localization_config_sha256",
+    "si4i_density_localization_method",
     "copy_number_heatmap_helper",
     "copy_number_heatmap_helper_sha256",
     "endpoint_ploidy_derivation_helper",
@@ -1783,17 +1937,17 @@ provenance <- data.frame(
     "numbat_cbs_manifest_sha256",
     "numbat_cbs_matrix_count",
     "numbat_cbs_matrix_hashes",
-    "si6e_qc_selection",
+    "figure7j_qc_selection",
     "injected_cell_reference_manifest",
     "injected_cell_reference_manifest_sha256",
     "injected_cell_reference_matrix_hashes",
-    "si6e_harmonization",
-    "si6f_reference_source",
-    "si6f_reference_chr999_interpretation",
-    "si6f_reference_designation_basis",
-    "si6f_reference_ploidy_policy",
-    "si6f_summary_analysis_type",
-    "si6f_ploidy_reduction_comparison",
+    "figure7j_harmonization",
+    "si6e_reference_source",
+    "si6e_reference_chr999_interpretation",
+    "si6e_reference_designation_basis",
+    "si6e_reference_ploidy_policy",
+    "si6e_summary_analysis_type",
+    "si6e_ploidy_reduction_comparison",
     "source_code_revision",
     "table_cache",
     "table_cache_manifest_sha256",
@@ -1816,6 +1970,15 @@ provenance <- data.frame(
     file_sha256(composition_helper_path),
     repo_relative(shared_context_helper_path, root),
     file_sha256(shared_context_helper_path),
+    repo_relative(cellcycle_pseudotime_path, root),
+    file_sha256(cellcycle_pseudotime_path),
+    repo_relative(density_localization_config_path, root),
+    file_sha256(density_localization_config_path),
+    paste(
+      "equal-mouse Gaussian-kernel treated-minus-vehicle density contrast;",
+      "exact injected-origin-stratified pointwise and studentized max-|T|",
+      "permutation inference on the reviewed 2,881-cell subset"
+    ),
     repo_relative(copy_number_helper_path, root),
     file_sha256(copy_number_helper_path),
     repo_relative(weighted_ploidy_path, root),
@@ -1957,7 +2120,7 @@ writeLines(
     paste0("All cells: ", nrow(seurat)),
     paste0("Included tumor cells: ", n_tumor),
     paste0(
-      "SI6E CBS matrices/source cells/QC-passed cells/treated cells/",
+      "Figure 7J CBS matrices/source cells/QC-passed cells/treated cells/",
       "chromosomes: ",
       length(cbs_collection$matrices),
       "/",
@@ -1991,6 +2154,17 @@ writeLines(
     ),
     paste0("Tumor mice: ", n_mice),
     paste0("Selected CellCycle tumor cells: ", selected_tumor_cells),
+    paste0(
+      "SI4I pointwise/simultaneous positive intervals and global P: ",
+      sprintf(
+        "%.3f-%.3f / %.3f-%.3f / %.6g",
+        localization$test$pointwise_start,
+        localization$test$pointwise_end,
+        localization$test$simultaneous_start,
+        localization$test$simultaneous_end,
+        localization$test$global_max_t_p_two_sided
+      )
+    ),
     paste0(
       "Normalized composition panels: ",
       paste(names(composition_results), collapse = ",")

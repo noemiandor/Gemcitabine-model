@@ -2,7 +2,7 @@
 #
 # The plotting implementation lives in SI_figures/shared_context_panels.R so
 # the main and supplementary copies cannot silently diverge.  This layer owns
-# only the reviewed-cache contract and Figure 7-specific A-K mapping.
+# only the reviewed-cache contract and Figure 7-specific A-L mapping.
 
 figure7_read_delimited <- function(path, delimiter, label) {
   if (!file.exists(path) || file.info(path)$size <= 0) {
@@ -484,23 +484,37 @@ figure7_main_composite_plots <- function(
   source_plots,
   context_plots,
   state_pathway_plot,
+  copy_number_plot,
   config
 ) {
   if (!identical(names(source_plots), LETTERS[1:5]) ||
       !identical(names(context_plots), LETTERS[3:7]) ||
-      !inherits(state_pathway_plot, "ggplot")) {
+      !inherits(state_pathway_plot, "ggplot") ||
+      !inherits(copy_number_plot, c("ggplot", "patchwork", "wrapped_patch"))) {
     figure7_stop("Cannot assemble Figure 7 from an incomplete plot set")
   }
   expected_mapping <- c(
     A = "7A", B = "7C", C = "SI4A", D = "SI4B", E = "SI4C",
-    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7D", K = "7E"
+    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7J",
+    K = "7D", L = "7E"
   )
   configured_mapping <- unlist(
     config$panels$main_composite$panel_order,
     use.names = TRUE
   )
   if (!identical(configured_mapping, expected_mapping)) {
-    figure7_stop("Main Figure 7 panel mapping is not the reviewed A-K order")
+    figure7_stop("Main Figure 7 panel mapping is not the reviewed A-L order")
+  }
+
+  panel_b_components <- attr(
+    source_plots$B, "figure7_panel_b_components", exact = TRUE
+  )
+  if (is.null(panel_b_components) ||
+      !inherits(panel_b_components$ecdf, "ggplot") ||
+      !inherits(panel_b_components$localization, "ggplot")) {
+    figure7_stop(
+      "Figure 7 source panel 7B must expose separate ECDF and localization plots"
+    )
   }
 
   list(
@@ -511,9 +525,10 @@ figure7_main_composite_plots <- function(
     E = context_plots$E,
     F = context_plots$F,
     G = context_plots$G,
-    H = source_plots$B,
+    H = panel_b_components$ecdf,
     I = state_pathway_plot,
-    J = source_plots$D,
-    K = source_plots$E
+    J = copy_number_plot,
+    K = source_plots$D,
+    L = source_plots$E
   )
 }

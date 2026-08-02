@@ -30,7 +30,6 @@ refresh_cloneid_ploidy=false
 lci_analysis_dir=""
 lci_render=false
 lci_panel_only=false
-include_in_vivo=false
 metabolomics_input="Code/Gemcitabine_Metabolomics_Heatmap/Metabolomics_2N_4N_Full.xlsm"
 figure7_full_analysis=false
 figure7_panels_ae_only=false
@@ -55,6 +54,12 @@ figure7_growth_curve_input="Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx"
 figure7_download_missing_raw=true
 si_figures_intermediate_dir=""
 si_figures_cbs_dir="Data/in-vivo/scRNAseq_Numbat"
+endpoint_flow_root="Data/in-vivo/flow_cytometry/endpoint_tumors_20250128"
+endpoint_flow_crosswalk="${endpoint_flow_root}/crosswalk.tsv"
+endpoint_flow_paired_sensitivity="${endpoint_flow_root}/paired_acquisition_sensitivity.tsv"
+endpoint_flow_workspace="${endpoint_flow_root}/workspace/20250129_TumorSamples.wsp"
+endpoint_flow_fcs_dir="${endpoint_flow_root}/fcs"
+endpoint_flow_input_manifest="${endpoint_flow_root}/content_manifest.tsv"
 figure7_reviewed_reference_id="state_pathway_grch_human_only_initial_ploidy_day17_v3"
 figure7_reviewed_reference_kind="reviewed_human_only_initial_ploidy_frozen"
 figure7_canonical_reference_root="${FIGURE7_CANONICAL_REFERENCE_ROOT:-Data/in-vivo/figure7/saved_state_pathway/${figure7_reviewed_reference_id}}"
@@ -90,7 +95,6 @@ Module options:
   --lci-analysis-dir PATH
   --lci-render
   --lci-panel-only
-  --include-in-vivo
   --metabolomics-input PATH
   --figure7-full-analysis          Opt-in legacy pinned-artifact pathway recomputation
   --figure7-panels-ae-only         Generate/materialize an explicit 7A-7E-only panel set
@@ -107,12 +111,17 @@ Module options:
   --figure7-python PATH             Python with scVelo dependencies
   --figure7-cell-ploidy-input PATH  Endpoint-ploidy input
   --figure7-endpoint-cbs-score-input PATH
-                                  Complete CBS inventory backing the QC-passed Figure 7K/SI8 score
+                                  Complete CBS inventory backing the QC-passed Figure 7L/SI8 score
   --figure7-sample-info-input PATH  Sample metadata workbook
   --figure7-growth-curve-input PATH Tumor-volume workbook
   --figure7-no-download-missing-raw Do not download missing deposited raw files
   --si-figures-intermediate-dir DIR Reusable SI4-7 raw-analysis intermediates
-  --si-figures-cbs-dir DIR       Tracked downstream NUMBAT/CBS matrices for SI6E
+  --si-figures-cbs-dir DIR       Tracked downstream NUMBAT/CBS matrices for Figure 7J
+  --endpoint-flow-crosswalk PATH Explicit 16-mouse endpoint-flow crosswalk
+  --endpoint-flow-paired-sensitivity PATH Unresolved paired-acquisition mapping
+  --endpoint-flow-workspace PATH Reviewed FlowJo workspace for endpoint tumors
+  --endpoint-flow-fcs-dir DIR    Directory containing the 16 selected FCS files
+  --endpoint-flow-input-manifest PATH Pinned size/SHA-256 manifest for selected inputs
 EOF
 }
 
@@ -140,7 +149,10 @@ while [[ $# -gt 0 ]]; do
     --lci-analysis-dir) lci_analysis_dir="$2"; shift 2 ;;
     --lci-render) lci_render=true; shift ;;
     --lci-panel-only) lci_panel_only=true; shift ;;
-    --include-in-vivo) include_in_vivo=true; shift ;;
+    --include-in-vivo)
+      echo "--include-in-vivo was removed with the obsolete in_vivo module. Figure 7 is included by default; use --modules in_vivo_figure7 for an isolated run." >&2
+      exit 2
+      ;;
     --metabolomics-input) metabolomics_input="$2"; shift 2 ;;
     --figure7-full-analysis) figure7_full_analysis=true; shift ;;
     --figure7-panels-ae-only) figure7_panels_ae_only=true; shift ;;
@@ -170,6 +182,11 @@ while [[ $# -gt 0 ]]; do
     --figure7-no-download-missing-raw) figure7_download_missing_raw=false; shift ;;
     --si-figures-intermediate-dir) si_figures_intermediate_dir="$2"; shift 2 ;;
     --si-figures-cbs-dir) si_figures_cbs_dir="$2"; shift 2 ;;
+    --endpoint-flow-crosswalk) endpoint_flow_crosswalk="$2"; shift 2 ;;
+    --endpoint-flow-paired-sensitivity) endpoint_flow_paired_sensitivity="$2"; shift 2 ;;
+    --endpoint-flow-workspace) endpoint_flow_workspace="$2"; shift 2 ;;
+    --endpoint-flow-fcs-dir) endpoint_flow_fcs_dir="$2"; shift 2 ;;
+    --endpoint-flow-input-manifest) endpoint_flow_input_manifest="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -243,9 +260,12 @@ if [[ "${lci_render}" == true && "${lci_panel_only}" == true ]]; then
 fi
 
 IFS=',' read -r -a module_list <<< "${modules}"
-if [[ "${include_in_vivo}" == true && ",${modules}," != *",in_vivo,"* ]]; then
-  module_list+=("in_vivo")
-fi
+for module in "${module_list[@]}"; do
+  if [[ "${module}" == "in_vivo" ]]; then
+    echo "Module in_vivo was removed because its TGI-AUC and CellCycle-subset ploidy analyses were superseded. Use --modules in_vivo_figure7 for the canonical QC-filtered Figure 7 workflow." >&2
+    exit 2
+  fi
+done
 if [[ "${mode}" == "full-refit" &&
       "${figure7_full_analysis}" != true &&
       "${figure7_panels_ae_only}" != true ]]; then
@@ -396,13 +416,13 @@ prepare_figure7_endpoint_cbs_score() {
     )"
     if [[ "${observed_manifest_sha256}" != "${endpoint_ploidy_cbs_manifest_sha256}" ]]; then
       echo \
-        "Figure 7K/SI8 reconstruction requires the reviewed CBS manifest: ${cbs_manifest}" \
+        "Figure 7L/SI8 reconstruction requires the reviewed CBS manifest: ${cbs_manifest}" \
         >&2
       return 1
     fi
     if [[ -z "${figure7_python}" ]]; then
       echo \
-        "Figure 7K/SI8 reconstruction requires --figure7-python with pandas and numpy" \
+        "Figure 7L/SI8 reconstruction requires --figure7-python with pandas and numpy" \
         >&2
       return 1
     fi
@@ -433,7 +453,7 @@ prepare_figure7_endpoint_cbs_score() {
   )"
   if [[ "${observed_sha256}" != "${figure7_endpoint_cbs_score_sha256}" ]]; then
     echo \
-      "Figure 7K/SI8 require the canonical 14,125-cell CBS source inventory (subsequently restricted to the exact 9,832-cell QC universe/5,335 treated cells; SHA-256 ${figure7_endpoint_cbs_score_sha256}): ${figure7_endpoint_cbs_score_input}" \
+      "Figure 7L/SI8 require the canonical 14,125-cell CBS source inventory (subsequently restricted to the exact 9,832-cell QC universe/5,335 treated cells; SHA-256 ${figure7_endpoint_cbs_score_sha256}): ${figure7_endpoint_cbs_score_input}" \
       >&2
     return 1
   fi
@@ -472,9 +492,9 @@ module_run_dir() {
     metabolomics) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics" "${output_root}" "${selected_run_id}" ;;
     metabolomics_pathway) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics_pathway" "${output_root}" "${selected_run_id}" ;;
     metabolomics_zscore) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics_zscore" "${output_root}" "${selected_run_id}" ;;
-    in_vivo) printf "%s/in-vivo/pseudotime_associations/runs/%s_in_vivo" "${output_root}" "${selected_run_id}" ;;
     in_vivo_figure7) printf "%s/in-vivo/figure7/runs/%s_figure7" "${output_root}" "${selected_run_id}" ;;
     si_figures) printf "%s/in-vivo/SI_figures/runs/%s_si_figures" "${output_root}" "${selected_run_id}" ;;
+    in_vivo_endpoint_flow) printf "%s/in-vivo/flow_cytometry/runs/%s_endpoint_flow" "${output_root}" "${selected_run_id}" ;;
     *) echo "Unknown module: ${module}" >&2; return 1 ;;
   esac
 }
@@ -489,6 +509,7 @@ figure7_runtime_source_paths() {
     Code/in-vivo/figure7/src/tgi_statistics.R \
     Code/in-vivo/figure7/src/tgi_panels.R \
     Code/in-vivo/figure7/src/context_panels.R \
+    Code/in-vivo/figure7/src/copy_number_panel.R \
     Code/in-vivo/figure7/src/state_pathway_panel.R \
     Code/in-vivo/figure7/src/generated_state_pathway_reference.R \
     Code/in-vivo/figure7/src/state_pathway_analysis.R
@@ -565,27 +586,30 @@ input_paths_for_module() {
       printf "%s\n" "${metabolomics_input}" ;;
     lci_overlays)
       printf "%s\n" "${lci_analysis_dir}" ;;
-    in_vivo)
-      printf "%s\n" Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv ;;
     in_vivo_figure7)
-      local panel_k_endpoint_ploidy="${figure7_endpoint_cbs_score_input:-Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv}"
+      local panel_l_endpoint_ploidy="${figure7_endpoint_cbs_score_input:-Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv}"
+      local figure7_cbs_root="${si_figures_cbs_dir:-Data/in-vivo/scRNAseq_Numbat}"
       printf "%s\n" \
         Code/in-vivo/figure7/run_figure7.R \
         Code/in-vivo/figure7/figure7_config.yaml \
         Code/in-vivo/figure7/density_localization_config.yaml \
-        "${panel_k_endpoint_ploidy}"
+        "${panel_l_endpoint_ploidy}"
       figure7_runtime_source_paths
       if [[ "${figure7_endpoint_cbs_score_will_be_derived:-false}" == true ]]; then
         printf "%s\n" \
           Data/in-vivo/weighted_ploidy.py \
-          "${si_figures_cbs_dir}/cbs_manifest.tsv"
-        printf "%s\n" "${si_figures_cbs_dir}"/*.sps.cbs
+          "${figure7_cbs_root}/cbs_manifest.tsv"
+        printf "%s\n" "${figure7_cbs_root}"/*.sps.cbs
       fi
       if [[ "${figure7_panels_ae_only}" != true ]]; then
         printf "%s\n" \
           Code/tools/validate_si_figures_table_cache.py \
           Code/in-vivo/SI_figures/shared_context_panels.R \
-          Code/in-vivo/SI_figures/normalized_composition.R
+          Code/in-vivo/SI_figures/normalized_composition.R \
+          Code/in-vivo/SI_figures/copy_number_heatmap.R \
+          Data/in-vivo/all_ploidy.tsv \
+          "${figure7_cbs_root}/cbs_manifest.tsv"
+        printf "%s\n" "${figure7_cbs_root}"/*.sps.cbs
         local context_policy=""
         local context_manifest=""
         if [[ -n "${run_dir}" &&
@@ -918,6 +942,11 @@ input_paths_for_module() {
         Code/in-vivo/SI_figures/shared_context_panels.R \
         Code/in-vivo/SI_figures/normalized_composition.R \
         Code/in-vivo/SI_figures/copy_number_heatmap.R \
+        Code/in-vivo/figure7/src/common_io.R \
+        Code/in-vivo/figure7/src/tgi_statistics.R \
+        Code/in-vivo/figure7/src/tgi_panels.R \
+        Code/in-vivo/figure7/density_localization_config.yaml \
+        Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
         Data/in-vivo/weighted_ploidy.py \
         Code/tools/validate_si_figures_table_cache.py \
         "${si_endpoint_ploidy}" \
@@ -980,6 +1009,36 @@ input_paths_for_module() {
                 role_count[role]++
                 next
               }
+              if (role == "figure7_common_io_helper") {
+                if (locator != "Code/in-vivo/figure7/src/common_io.R" ||
+                  seen_figure7_common++) invalid = 1
+                role_count[role]++
+                next
+              }
+              if (role == "figure7_tgi_statistics_helper") {
+                if (locator != "Code/in-vivo/figure7/src/tgi_statistics.R" ||
+                  seen_figure7_statistics++) invalid = 1
+                role_count[role]++
+                next
+              }
+              if (role == "figure7_tgi_panels_helper") {
+                if (locator != "Code/in-vivo/figure7/src/tgi_panels.R" ||
+                  seen_figure7_panels++) invalid = 1
+                role_count[role]++
+                next
+              }
+              if (role == "density_localization_config") {
+                if (locator != "Code/in-vivo/figure7/density_localization_config.yaml" ||
+                  seen_density_config++) invalid = 1
+                role_count[role]++
+                next
+              }
+              if (role == "si4i_cellcycle_pseudotime") {
+                if (locator != "Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv" ||
+                  seen_si4i_cells++) invalid = 1
+                role_count[role]++
+                next
+              }
               if (role == "endpoint_ploidy_source") {
                 if (locator != endpoint_ploidy || seen[locator]++) {
                   invalid = 1
@@ -1032,6 +1091,11 @@ input_paths_for_module() {
                 role_count["normalized_composition_helper"] != 1 ||
                 role_count["shared_context_panels_helper"] != 1 ||
                 role_count["copy_number_heatmap_helper"] != 1 ||
+                role_count["figure7_common_io_helper"] != 1 ||
+                role_count["figure7_tgi_statistics_helper"] != 1 ||
+                role_count["figure7_tgi_panels_helper"] != 1 ||
+                role_count["density_localization_config"] != 1 ||
+                role_count["si4i_cellcycle_pseudotime"] != 1 ||
                 role_count["endpoint_ploidy_source"] != 1 ||
                 role_count["numbat_cbs_manifest"] != 1 ||
                 role_count["numbat_cbs_matrix"] != 16 ||
@@ -1067,6 +1131,19 @@ input_paths_for_module() {
         si_figures_frozen_cache_paths
       fi
       ;;
+    in_vivo_endpoint_flow)
+      printf "%s\n" \
+        Code/in-vivo/flow_cytometry/extract_endpoint_flow.py \
+        "${endpoint_flow_crosswalk}" \
+        "${endpoint_flow_paired_sensitivity}" \
+        "${endpoint_flow_workspace}" \
+        "${endpoint_flow_input_manifest}"
+      if [[ -f "${endpoint_flow_crosswalk}" ]]; then
+        awk -F '\t' -v root="${endpoint_flow_fcs_dir}" \
+          'NR > 1 && $4 != "" { print root "/" $4 }' \
+          "${endpoint_flow_crosswalk}"
+      fi
+      ;;
   esac
 }
 
@@ -1092,24 +1169,29 @@ required_input_paths_for_module() {
   local phase="${2:-final}"
   case "${module}" in
     in_vivo_figure7)
-      local panel_k_endpoint_ploidy="${figure7_endpoint_cbs_score_input:-Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv}"
+      local panel_l_endpoint_ploidy="${figure7_endpoint_cbs_score_input:-Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv}"
+      local figure7_cbs_root="${si_figures_cbs_dir:-Data/in-vivo/scRNAseq_Numbat}"
       printf "%s\n" \
         Code/in-vivo/figure7/run_figure7.R \
         Code/in-vivo/figure7/figure7_config.yaml \
         Code/in-vivo/figure7/density_localization_config.yaml
       figure7_runtime_source_paths
-      printf "%s\n" "${panel_k_endpoint_ploidy}"
+      printf "%s\n" "${panel_l_endpoint_ploidy}"
       if [[ "${figure7_endpoint_cbs_score_will_be_derived:-false}" == true ]]; then
         printf "%s\n" \
           Data/in-vivo/weighted_ploidy.py \
-          "${si_figures_cbs_dir}/cbs_manifest.tsv"
-        printf "%s\n" "${si_figures_cbs_dir}"/*.sps.cbs
+          "${figure7_cbs_root}/cbs_manifest.tsv"
+        printf "%s\n" "${figure7_cbs_root}"/*.sps.cbs
       fi
       if [[ "${figure7_panels_ae_only}" != true ]]; then
         printf "%s\n" \
           Code/tools/validate_si_figures_table_cache.py \
           Code/in-vivo/SI_figures/shared_context_panels.R \
-          Code/in-vivo/SI_figures/normalized_composition.R
+          Code/in-vivo/SI_figures/normalized_composition.R \
+          Code/in-vivo/SI_figures/copy_number_heatmap.R \
+          Data/in-vivo/all_ploidy.tsv \
+          "${figure7_cbs_root}/cbs_manifest.tsv"
+        printf "%s\n" "${figure7_cbs_root}"/*.sps.cbs
         if figure7_uses_generated_si_cache; then
           if [[ "${dry_run}" != true && "${mode}" != "check-only" ]]; then
             local generated_si_run
@@ -1164,6 +1246,11 @@ required_input_paths_for_module() {
         Code/in-vivo/SI_figures/shared_context_panels.R \
         Code/in-vivo/SI_figures/normalized_composition.R \
         Code/in-vivo/SI_figures/copy_number_heatmap.R \
+        Code/in-vivo/figure7/src/common_io.R \
+        Code/in-vivo/figure7/src/tgi_statistics.R \
+        Code/in-vivo/figure7/src/tgi_panels.R \
+        Code/in-vivo/figure7/density_localization_config.yaml \
+        Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
         Data/in-vivo/weighted_ploidy.py \
         "${si_endpoint_ploidy}" \
         "${si_cbs_root}/cbs_manifest.tsv" \
@@ -1285,11 +1372,6 @@ command_for_module() {
         --input "${metabolomics_input}" \
         --output-dir "${run_dir}"
       ;;
-    in_vivo)
-      quote_args Rscript Code/in-vivo/pseudotimeAssociations.R \
-        --input Data/in-vivo/CellCycelCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
-        --output-dir "${run_dir}"
-      ;;
     in_vivo_figure7)
       local figure7_args
       if [[ "${figure7_full_analysis}" == true ]]; then
@@ -1397,6 +1479,17 @@ command_for_module() {
       fi
       quote_args "${si_args[@]}"
       ;;
+    in_vivo_endpoint_flow)
+      quote_args python3 Code/in-vivo/flow_cytometry/extract_endpoint_flow.py \
+        --crosswalk "${endpoint_flow_crosswalk}" \
+        --paired-sensitivity "${endpoint_flow_paired_sensitivity}" \
+        --workspace "${endpoint_flow_workspace}" \
+        --expected-input-manifest "${endpoint_flow_input_manifest}" \
+        --fcs-dir "${endpoint_flow_fcs_dir}" \
+        --expected-samples 16 \
+        --min-human-cells 1000 \
+        --output-dir "${run_dir}"
+      ;;
   esac
 }
 
@@ -1491,13 +1584,13 @@ module_is_publishable_run() {
       if [[ "${reference_id}" == "${figure7_reviewed_reference_id}" &&
             "${reference_kind}" == "${figure7_reviewed_reference_kind}" &&
             "${allowed}" == "true" &&
-            "${composite_set}" == "a-k" &&
+            "${composite_set}" == "a-l" &&
             "${composite_file}" == "Figure7_reviewed_GRCh.png" &&
             "${context_policy}" == "reviewed" &&
             "${si_cache_hash}" == "b624c3f3ff945c51f09b9e6e512a97df57eb4e514b3fba28a65e97a38207f135" ]]; then
         return 0
       fi
-      module_publication_reason="figure7_not_exact_reviewed_a_k_composite"
+      module_publication_reason="figure7_not_exact_reviewed_a_l_composite"
       return 1
       ;;
     si_figures)
@@ -1656,7 +1749,7 @@ add_completed_run() {
 if [[ "${mode}" == "panels-only" ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
-      gdsc|ccle|drug_response|pkpd|in_vivo|in_vivo_figure7|si_figures)
+      gdsc|ccle|drug_response|pkpd|in_vivo_figure7|si_figures)
         run_dir="$(module_run_dir "${module}" "${source_run_id}")"
         [[ -d "${run_dir}" ]] || { echo "Missing panels-only source run: ${run_dir}" >&2; exit 1; }
         if module_is_publishable_run "${module}" "${run_dir}"; then
@@ -1699,18 +1792,13 @@ fi
 if [[ "${skip_analysis_loop}" != true ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
-      gdsc|ccle|drug_response|pkpd|metabolomics|lci_overlays|in_vivo|in_vivo_figure7|si_figures) ;;
+      gdsc|ccle|drug_response|pkpd|metabolomics|lci_overlays|in_vivo_figure7|si_figures|in_vivo_endpoint_flow) ;;
       *) echo "Unknown module in --modules: ${module}" >&2; exit 2 ;;
     esac
     if [[ "${module}" == "lci_overlays" && -z "${lci_analysis_dir}" ]]; then
       echo "Skipping lci_overlays: --lci-analysis-dir was not provided."
       continue
     fi
-    if [[ "${module}" == "in_vivo" && "${include_in_vivo}" != true ]]; then
-      echo "Skipping in_vivo: use --include-in-vivo to include pending in-vivo outputs."
-      continue
-    fi
-
     if [[ "${module}" == "pkpd" && ( "${mode}" == "full-refit" || "${pkpd_refit}" == true ) ]]; then
       fit_run_dir="${pkpd_fit_output:-$(module_run_dir pkpd_fit)}"
       fit_command="$(command_for_module pkpd_fit "${fit_run_dir}")"

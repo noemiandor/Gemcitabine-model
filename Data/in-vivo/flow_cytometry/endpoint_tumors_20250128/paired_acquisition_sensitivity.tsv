@@ -1,0 +1,5 @@
+mouse_id	selected_wsp_sample_name	selected_peak_gate_name	selected_peak_annotation_n	paired_wsp_sample_name	paired_peak_gate_name	paired_peak_annotation_n	relationship_status
+4N-A5-0	Sample_A5-0_007.fcs	1.88N	1.88	Sample_A5-0_M_008.fcs	1.92N	1.92	unresolved
+4N-A5-RR	Sample_A5-RR_013.fcs	1.88N	1.88	Sample_A5-RR_M_014.fcs	1.88N	1.88	unresolved
+4N-A8-RL	Sample_A8-RL_027.fcs	2.04N	2.04	Sample_A8-RL_M_028.fcs	2.2N	2.20	unresolved
+4N-A8-RR	Sample_A8-RR_029.fcs	2.08N	2.08	Sample_A8-RR-M_030.fcs	2.2N	2.20	unresolved

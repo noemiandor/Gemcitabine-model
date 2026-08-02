@@ -11,6 +11,10 @@
     "Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
     "Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
     "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv",
+    "Data/in-vivo/all_ploidy.tsv",
+    "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv",
+    "Data/in-vivo/SIfigures/si_figure6_endpoint_ploidy_join_audit.csv",
+    "Data/in-vivo/SIfigures/si_figures_cell_metadata.csv",
     "Data/in-vivo/SIfigures/manifest.tsv",
     "Data/in-vivo/figure7/saved_state_pathway/state_pathway_grch_human_only_initial_ploidy_day17_v3/panel_7F_pathway_activity_plot_data.tsv"
   ],

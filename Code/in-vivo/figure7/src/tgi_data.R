@@ -69,7 +69,7 @@ figure7_read_endpoint_ploidy_table <- function(path, config) {
     figure7_stop("Missing canonical endpoint-ploidy input: ", path)
   }
   expected_hash <- as.character(
-    config$versioned_source_artifacts$panel_k_endpoint_ploidy$sha256
+    config$versioned_source_artifacts$panel_l_endpoint_ploidy$sha256
   )
   figure7_verify_checksum(
     path,
@@ -183,7 +183,7 @@ figure7_sample_table <- function(
   # the exact 9,832 tumor cells retained in the reviewed final Seurat object
   # and represented by the CellCycle + NonCellCycle tables.  Validate every
   # curated key and value against the canonical inventory before aggregating
-  # only those curated cells for panel K and its endpoint sensitivities.
+  # only those curated cells for panel L and its endpoint sensitivities.
   prefix <- paste0(union$sample_id, "_")
   prefix_matches <- startsWith(union$cell_id, prefix)
   if (any(!prefix_matches)) {

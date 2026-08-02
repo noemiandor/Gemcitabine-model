@@ -390,10 +390,10 @@ PANEL_SPECS = [
         "module": "in_vivo_figure7",
         "source": "figures/Figure7_reviewed_GRCh.png",
         "figure": "Figure7",
-        "panel": "7A-7K_composite",
+        "panel": "7A-7L_composite",
         "asset": "Figure7_reviewed_GRCh.png",
         "caption_role": (
-            "Main Figure 7 A-K composite assembled in first-citation order"
+            "Main Figure 7 A-L composite assembled in manuscript order"
         ),
         "variant": "png",
         "optional": True,
@@ -403,10 +403,10 @@ PANEL_SPECS = [
         "module": "in_vivo_figure7",
         "source": "figures/Figure7_reviewed_GRCh.pdf",
         "figure": "Figure7",
-        "panel": "7A-7K_composite_pdf",
+        "panel": "7A-7L_composite_pdf",
         "asset": "Figure7_reviewed_GRCh.pdf",
         "caption_role": (
-            "Vector PDF of the publication-scale main Figure 7 A-K composite"
+            "Vector PDF of the publication-scale main Figure 7 A-L composite"
         ),
         "variant": "pdf",
         "optional": True,
@@ -498,7 +498,7 @@ SI_INJECTED_REFERENCE_MANIFEST_SHA256 = (
 SI_ENDPOINT_PLOIDY_SHA256 = (
     "6db48ee5f196b37b58aa71d0472dd3deb06aaacb4b637070af1b27d9425db2b3"
 )
-FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256 = (
+FIGURE7_PANEL_L_ENDPOINT_PLOIDY_SHA256 = (
     "80f4e6b78e7b6d8b73030da4889ecb5c09ee97c9f83fb771aec4d3908511b569"
 )
 FIGURE7_PROCESSED_INPUTS = {
@@ -511,12 +511,12 @@ FIGURE7_PROCESSED_INPUTS = {
         "NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"
     ): "1e44794fb2b2c402b49cf9d17abcc54cd7690dc5d1d611e38a6aa3b996093d3c",
 }
-FIGURE7_PANEL_K_SOURCE_INPUTS = (
+FIGURE7_PANEL_L_SOURCE_INPUTS = (
     Path("Code/in-vivo/figure7/src/tgi_data.R"),
     Path("Code/in-vivo/figure7/src/tgi_statistics.R"),
     Path("Code/in-vivo/figure7/src/tgi_panels.R"),
 )
-FIGURE7_PANEL_K_RESULTS = {
+FIGURE7_PANEL_L_RESULTS = {
     17: {
         "estimate": -0.6984010192530142,
         "asymptotic_p": 0.0540069781511847,
@@ -533,7 +533,7 @@ FIGURE7_PANEL_K_RESULTS = {
         "permutation_p_two_sided": 0.4857142857142857,
     },
 }
-FIGURE7_PANEL_K_SAMPLE_DESIGN = {
+FIGURE7_PANEL_L_SAMPLE_DESIGN = {
     ("2N-A2-0", "2N", "30mg/kg", "30"),
     ("2N-A2-L", "2N", "30mg/kg", "30"),
     ("2N-A4-R", "2N", "120mg/kg", "120"),
@@ -543,7 +543,7 @@ FIGURE7_PANEL_K_SAMPLE_DESIGN = {
     ("4N-A8-RL", "4N", "120mg/kg", "120"),
     ("4N-A8-RR", "4N", "120mg/kg", "120"),
 }
-FIGURE7_PANEL_K_SAMPLE_FILES = {
+FIGURE7_PANEL_L_SAMPLE_FILES = {
     "2N-A2-0": "SUM159-2N-30-0_harvest.sps.cbs",
     "2N-A2-L": "SUM159-2N-30-L_harvest.sps.cbs",
     "2N-A4-R": "SUM159-2N-120-R_harvest.sps.cbs",
@@ -571,7 +571,7 @@ FIGURE7_CURATED_SAMPLE_COUNTS = {
     "4N-A8-RL": 1832,
     "4N-A8-RR": 247,
 }
-SI6_COPY_NUMBER_ANNOTATION_COLUMNS = [
+FIGURE7J_COPY_NUMBER_ANNOTATION_COLUMNS = [
     "heatmap_row_id",
     "file",
     "cell_id",
@@ -582,6 +582,12 @@ SI6_COPY_NUMBER_ANNOTATION_COLUMNS = [
     "frac_covered",
     "display_order",
 ]
+
+# Panel identifiers retired by a current compositor contract must not survive
+# targeted materialization as stale aliases in the same figure manifest.
+SUPERSEDED_PANEL_IDS = {
+    "Figure7": {"7A-7K_composite", "7A-7K_composite_pdf"},
+}
 
 EXTERNAL_ROWS = [
     {
@@ -768,32 +774,32 @@ def finite_float(value: str, label: str) -> float:
     return parsed
 
 
-def validate_si6_copy_number_outputs(run_root: Path, repo_root: Path) -> None:
-    """Bind the published SI6 heatmap to the exact final-QC tumor universe."""
+def validate_figure7_copy_number_outputs(run_root: Path, repo_root: Path) -> None:
+    """Bind main Figure 7J to the exact final-QC tumor universe."""
     annotation_path = (
         run_root
         / "metadata"
-        / "si_figure6E_copy_number_cell_annotations.tsv"
+        / "figure7J_copy_number_cell_annotations.tsv"
     ).resolve()
     matrix_path = (
         run_root
         / "metadata"
-        / "si_figure6E_copy_number_heatmap_matrix.rds"
+        / "figure7J_copy_number_heatmap_matrix.rds"
     ).resolve()
     for label, path in (
-        ("SI6 copy-number cell annotations", annotation_path),
-        ("SI6 copy-number heatmap matrix", matrix_path),
+        ("Figure 7J copy-number cell annotations", annotation_path),
+        ("Figure 7J copy-number heatmap matrix", matrix_path),
     ):
         if not path.is_file():
             raise FileNotFoundError(f"Missing {label}: {path}")
 
     annotation_headers, annotation_rows = read_tsv(annotation_path)
     if (
-        annotation_headers != SI6_COPY_NUMBER_ANNOTATION_COLUMNS
+        annotation_headers != FIGURE7J_COPY_NUMBER_ANNOTATION_COLUMNS
         or len(annotation_rows) != 9832
     ):
         raise ValueError(
-            "SI6 copy-number cell annotations must have the exact reviewed "
+            "Figure 7J copy-number cell annotations must have the exact reviewed "
             "schema and 9,832 final-QC tumor rows"
         )
 
@@ -877,7 +883,7 @@ def validate_si6_copy_number_outputs(run_root: Path, repo_root: Path) -> None:
             display_order = int(row["display_order"])
         except (TypeError, ValueError) as exc:
             raise ValueError(
-                "SI6 copy-number display_order must contain integers"
+                "Figure 7J copy-number display_order must contain integers"
             ) from exc
         if (
             canonical is None
@@ -909,7 +915,7 @@ def validate_si6_copy_number_outputs(run_root: Path, repo_root: Path) -> None:
             or display_order in display_orders
         ):
             raise ValueError(
-                "SI6 copy-number annotations do not preserve the exact "
+            "Figure 7J copy-number annotations do not preserve the exact "
                 "canonical cell/file/barcode/ploidy identity and display contract"
             )
         observed_by_key[key] = row
@@ -927,7 +933,7 @@ def validate_si6_copy_number_outputs(run_root: Path, repo_root: Path) -> None:
         or treated_count != 5335
     ):
         raise ValueError(
-            "SI6 copy-number annotations must contain the exact 9,832-cell "
+            "Figure 7J copy-number annotations must contain the exact 9,832-cell "
             "final-QC universe, including 5,335 treated cells and the "
             "reviewed per-sample/origin counts"
         )
@@ -964,7 +970,7 @@ def validate_si6_copy_number_outputs(run_root: Path, repo_root: Path) -> None:
         ]
         if len(matches) != 1:
             raise ValueError(
-                "SI6 output manifest must bind exactly one row for "
+                "Figure 7J output manifest must bind exactly one row for "
                 f"{path.name}; found {len(matches)}"
             )
         manifest_row = matches[0]
@@ -976,12 +982,149 @@ def validate_si6_copy_number_outputs(run_root: Path, repo_root: Path) -> None:
             or manifest_row.get("sha256", "").strip() != sha256_file(path)
         ):
             raise ValueError(
-                "SI6 output-manifest provenance is invalid for "
+                "Figure 7J output-manifest provenance is invalid for "
                 f"{path.name}"
             )
 
 
-def validate_figure7_panel_k_contract(
+def validate_si4i_density_localization_outputs(
+    run_root: Path,
+    repo_root: Path,
+) -> None:
+    """Validate the relocated 2,881-cell density-localization panel."""
+    input_manifest = run_root / "metadata" / "input_manifest.tsv"
+    _, input_rows = read_tsv(input_manifest)
+    observed_inputs = {
+        path.resolve()
+        for row in input_rows
+        if (path := module_manifest_local_path(row, repo_root)) is not None
+    }
+    required_inputs = {
+        (
+            repo_root
+            / "Code/in-vivo/SI_figures/generate_supplementary_figures.R"
+        ).resolve(),
+        (repo_root / "Code/in-vivo/figure7/src/common_io.R").resolve(),
+        (repo_root / "Code/in-vivo/figure7/src/tgi_statistics.R").resolve(),
+        (repo_root / "Code/in-vivo/figure7/src/tgi_panels.R").resolve(),
+        (
+            repo_root / "Code/in-vivo/figure7/density_localization_config.yaml"
+        ).resolve(),
+        (
+            repo_root
+            / "Data/in-vivo/figure7/processed/"
+            "CellCycleCells_pseudotime_distribution_per_sample_"
+            "cell_level_with_ploidy_dose_tgi.csv"
+        ).resolve(),
+    }
+    missing_inputs = sorted(str(path) for path in required_inputs - observed_inputs)
+    if missing_inputs:
+        raise ValueError(
+            "Supplementary Figure 4I input manifest does not bind its exact "
+            f"renderer, method, and 2,881-cell input: missing={missing_inputs}"
+        )
+
+    table_paths = {
+        "grid": run_root / "metadata/si_figure4I_density_localization_grid.tsv",
+        "intervals": (
+            run_root / "metadata/si_figure4I_density_localization_intervals.tsv"
+        ),
+        "test": run_root / "metadata/si_figure4I_density_localization_test.tsv",
+    }
+    output_manifest = run_root / "metadata" / "output_manifest.tsv"
+    _, output_rows = read_tsv(output_manifest)
+    expected_command_id = run_root.name.removesuffix("_si_figures")
+    for label, path in table_paths.items():
+        path = path.resolve()
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"Missing Supplementary Figure 4I {label} table: {path}"
+            )
+        matches = [
+            row
+            for row in output_rows
+            if (
+                (local_path := module_manifest_local_path(
+                    row, repo_root, output_root=run_root
+                ))
+                is not None
+                and local_path.resolve() == path
+            )
+        ]
+        if len(matches) != 1:
+            raise ValueError(
+                "Supplementary Figure 4I output manifest must bind exactly "
+                f"one {label} table"
+            )
+        row = matches[0]
+        if (
+            row.get("role") != "output_table"
+            or row.get("source_kind") != "generated_table"
+            or row.get("module") != "si_figures"
+            or row.get("command_id") != expected_command_id
+            or row.get("sha256", "").strip() != sha256_file(path)
+        ):
+            raise ValueError(
+                "Supplementary Figure 4I output-manifest provenance is "
+                f"invalid for {path.name}"
+            )
+
+    grid_headers, grid_rows = read_tsv(table_paths["grid"])
+    interval_headers, interval_rows = read_tsv(table_paths["intervals"])
+    test_headers, test_rows = read_tsv(table_paths["test"])
+    if (
+        len(grid_rows) != 501
+        or len(interval_rows) != 2
+        or len(test_rows) != 1
+        or "pseudotime" not in grid_headers
+        or not {"support_type", "start", "end"}.issubset(interval_headers)
+        or not {
+            "analysis_id", "cell_universe", "n_cells", "n_samples",
+            "pointwise_start", "pointwise_end", "simultaneous_start",
+            "simultaneous_end", "raw_excess_peak_pseudotime",
+            "max_abs_t_pseudotime", "global_max_t_p_two_sided",
+        }.issubset(test_headers)
+    ):
+        raise ValueError(
+            "Supplementary Figure 4I tables have an invalid schema or row count"
+        )
+    test_row = test_rows[0]
+    if (
+        test_row.get("analysis_id")
+        != "equal_mouse_kde_exact_origin_stratified_max_t_v1"
+        or test_row.get("cell_universe")
+        != "reviewed_qc_retained_cellcycle_2881"
+    ):
+        raise ValueError(
+            "Supplementary Figure 4I does not use the reviewed analysis identity"
+        )
+    expected_numeric = {
+        "n_cells": 2881.0,
+        "n_samples": 16.0,
+        "pointwise_start": 0.296,
+        "pointwise_end": 0.486,
+        "simultaneous_start": 0.414,
+        "simultaneous_end": 0.426,
+        "raw_excess_peak_pseudotime": 0.452,
+        "max_abs_t_pseudotime": 0.420,
+        "global_max_t_p_two_sided": 232.0 / 4900.0,
+    }
+    if any(
+        not math.isclose(
+            finite_float(test_row.get(key, ""), f"SI4I {key}"),
+            value,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        )
+        for key, value in expected_numeric.items()
+    ):
+        raise ValueError(
+            "Supplementary Figure 4I does not reproduce the reviewed intervals, "
+            "peaks, and global exact result"
+        )
+
+
+def validate_figure7_panel_l_contract(
     run_root: Path,
     repo_root: Path,
     input_rows: list[dict[str, str]],
@@ -989,10 +1132,10 @@ def validate_figure7_panel_k_contract(
     source_run_id: str,
     tgi_day: int,
 ) -> None:
-    expected_result = FIGURE7_PANEL_K_RESULTS.get(tgi_day)
+    expected_result = FIGURE7_PANEL_L_RESULTS.get(tgi_day)
     if expected_result is None:
         raise ValueError(
-            "Canonical Figure 7 panel K has reviewed results only for "
+            "Canonical Figure 7 panel L has reviewed results only for "
             "TGI days 17, 24, and 31"
         )
 
@@ -1001,7 +1144,7 @@ def validate_figure7_panel_k_contract(
         "source Figure 7 run config",
     )
     expected_endpoint_metadata = {
-        "endpoint_ploidy_sha256": FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256,
+        "endpoint_ploidy_sha256": FIGURE7_PANEL_L_ENDPOINT_PLOIDY_SHA256,
         "endpoint_ploidy_n_cells": "14125",
         "endpoint_ploidy_n_files": "16",
         "endpoint_ploidy_score_universe_n_cells": "9832",
@@ -1020,7 +1163,7 @@ def validate_figure7_panel_k_contract(
         for key, value in expected_endpoint_metadata.items()
     ):
         raise ValueError(
-            "Figure 7 panel K run metadata does not bind the reviewed "
+            "Figure 7 panel L run metadata does not bind the reviewed "
             "14,125-cell endpoint-CBS inventory and exact 9,832-cell "
             "curated score-universe contract"
         )
@@ -1031,10 +1174,10 @@ def validate_figure7_panel_k_contract(
         or not path_within(endpoint_path, repo_root)
         or not endpoint_path.is_file()
         or sha256_file(endpoint_path)
-        != FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256
+        != FIGURE7_PANEL_L_ENDPOINT_PLOIDY_SHA256
     ):
         raise ValueError(
-            "Figure 7 panel K does not bind the exact portable reviewed "
+            "Figure 7 panel L does not bind the exact portable reviewed "
             "endpoint-ploidy table"
         )
     endpoint_input_rows = [
@@ -1048,7 +1191,7 @@ def validate_figure7_panel_k_contract(
     if (
         len(endpoint_input_rows) != 1
         or endpoint_input_rows[0].get("sha256")
-        != FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256
+        != FIGURE7_PANEL_L_ENDPOINT_PLOIDY_SHA256
     ):
         raise ValueError(
             "Figure 7 source input manifest must bind exactly one reviewed "
@@ -1123,7 +1266,7 @@ def validate_figure7_panel_k_contract(
             or sha256_file(processed_path) != expected_hash
         ):
             raise ValueError(
-                "Figure 7 panel K does not bind the exact portable reviewed "
+                "Figure 7 panel L does not bind the exact portable reviewed "
                 f"{role} score-universe table"
             )
         processed_input_rows = [
@@ -1204,12 +1347,12 @@ def validate_figure7_panel_k_contract(
         or curated_counts != FIGURE7_CURATED_SAMPLE_COUNTS
         or sum(
             curated_counts[sample_id]
-            for sample_id in FIGURE7_PANEL_K_SAMPLE_FILES
+            for sample_id in FIGURE7_PANEL_L_SAMPLE_FILES
         )
         != 5335
     ):
         raise ValueError(
-            "Figure 7 panel K score universe must be the exact 9,832-cell "
+            "Figure 7 panel L score universe must be the exact 9,832-cell "
             "QC-passed CellCycle + NonCellCycle union (5,335 treated cells)"
         )
 
@@ -1229,12 +1372,12 @@ def validate_figure7_panel_k_contract(
     for label, table_path in table_paths.items():
         if not table_path.is_file():
             raise FileNotFoundError(
-                f"Missing Figure 7 panel K {label} table: {table_path}"
+                f"Missing Figure 7 panel L {label} table: {table_path}"
             )
         matches = manifest_rows_by_path.get(table_path, [])
         if len(matches) != 1:
             raise ValueError(
-                "Figure 7 panel K output manifest must bind exactly one "
+                "Figure 7 panel L output manifest must bind exactly one "
                 f"{label} table row; found {len(matches)}"
             )
         row = matches[0]
@@ -1246,7 +1389,7 @@ def validate_figure7_panel_k_contract(
             or row.get("sha256", "").strip() != sha256_file(table_path)
         ):
             raise ValueError(
-                "Figure 7 panel K output-manifest provenance is invalid for "
+                "Figure 7 panel L output-manifest provenance is invalid for "
                 f"{table_path.name}"
             )
 
@@ -1324,7 +1467,7 @@ def validate_figure7_panel_k_contract(
         or "etp_group" in test_headers
     ):
         raise ValueError(
-            "Figure 7 panel K tables do not have the reviewed raw-analysis "
+            "Figure 7 panel L tables do not have the reviewed raw-analysis "
             "schema and eight-tumor scope"
         )
 
@@ -1337,9 +1480,9 @@ def validate_figure7_panel_k_contract(
         )
         for row in plot_rows
     }
-    if observed_design != FIGURE7_PANEL_K_SAMPLE_DESIGN:
+    if observed_design != FIGURE7_PANEL_L_SAMPLE_DESIGN:
         raise ValueError(
-            "Figure 7 panel K does not contain the exact reviewed treated-"
+            "Figure 7 panel L does not contain the exact reviewed treated-"
             "tumor origin-by-dose design"
         )
 
@@ -1356,7 +1499,7 @@ def validate_figure7_panel_k_contract(
         for key, value in metadata.items()
     ):
         raise ValueError(
-            "Figure 7 panel K tables do not bind the selected TGI day and "
+            "Figure 7 panel L tables do not bind the selected TGI day and "
             "initial-ploidy-matched control contract"
         )
 
@@ -1366,17 +1509,17 @@ def validate_figure7_panel_k_contract(
     for row in plot_rows:
         source_score = finite_float(
             row["sample_mean_endpoint_ploidy"],
-            "panel K source terminal CN score",
+            "panel L source terminal CN score",
         )
         outcome_value = finite_float(
             row[tgi_measure],
-            f"panel K {tgi_measure}",
+            f"panel L {tgi_measure}",
         )
-        expected_file = FIGURE7_PANEL_K_SAMPLE_FILES.get(row["sample_id"])
+        expected_file = FIGURE7_PANEL_L_SAMPLE_FILES.get(row["sample_id"])
         file_scores = curated_scores_by_sample.get(row["sample_id"], [])
         endpoint_cell_count_value = finite_float(
             row["n_endpoint_ploidy_cells"],
-            "panel K endpoint CBS cell count",
+            "panel L endpoint CBS cell count",
         )
         endpoint_cell_count = int(endpoint_cell_count_value)
         if (
@@ -1395,14 +1538,14 @@ def validate_figure7_panel_k_contract(
             or row["endpoint_ploidy_score_universe_total_cells"] != "9832"
             or row["endpoint_ploidy_source_file_count"] != "16"
             or row["endpoint_ploidy_source_sha256"]
-            != FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256
+            != FIGURE7_PANEL_L_ENDPOINT_PLOIDY_SHA256
             or row["endpoint_ploidy_score_policy"]
             != expected_endpoint_metadata["endpoint_ploidy_score_policy"]
             or row["endpoint_ploidy_mapping_policy"]
             != expected_endpoint_metadata["endpoint_ploidy_mapping_policy"]
         ):
             raise ValueError(
-                "Figure 7 panel K score is not the per-mouse mean over the "
+                "Figure 7 panel L score is not the per-mouse mean over the "
                 "exact QC-passed curated cells from its mapped CBS file"
             )
         treated_endpoint_cell_count += endpoint_cell_count
@@ -1410,7 +1553,7 @@ def validate_figure7_panel_k_contract(
         outcome.append(outcome_value)
     if treated_endpoint_cell_count != 5335:
         raise ValueError(
-            "Figure 7 panel K must use the exact 5,335 QC-passed curated "
+            "Figure 7 panel L must use the exact 5,335 QC-passed curated "
             "CBS cells from the eight treated tumors"
         )
 
@@ -1424,7 +1567,7 @@ def validate_figure7_panel_k_contract(
         denominator = math.sqrt(left_sum_squares * right_sum_squares)
         if denominator <= 0 or not math.isfinite(denominator):
             raise ValueError(
-                "Figure 7 panel K raw Pearson association is not estimable"
+                "Figure 7 panel L raw Pearson association is not estimable"
             )
         return sum(
             left_value * right_value
@@ -1449,7 +1592,7 @@ def validate_figure7_panel_k_contract(
         "permutation_strata": "none",
         "association_type": "unadjusted_mouse_level_pearson",
         "score_variable": "sample_mean_qc_passed_curated_cbs_cell_ploidy",
-        "score_source_sha256": FIGURE7_PANEL_K_ENDPOINT_PLOIDY_SHA256,
+        "score_source_sha256": FIGURE7_PANEL_L_ENDPOINT_PLOIDY_SHA256,
         "score_source_n_cells": "9832",
         "score_inventory_n_cells": "14125",
         "score_source_n_files": "16",
@@ -1468,7 +1611,7 @@ def validate_figure7_panel_k_contract(
     }
     if any(test.get(key) != value for key, value in expected_method.items()):
         raise ValueError(
-            "Figure 7 panel K does not use the reviewed raw mouse-level "
+            "Figure 7 panel L does not use the reviewed raw mouse-level "
             "Pearson and exact unrestricted permutation method"
         )
     numeric_results = {
@@ -1478,7 +1621,7 @@ def validate_figure7_panel_k_contract(
     }
     if any(
         not math.isclose(
-            finite_float(test.get(key, ""), f"panel K {key}"),
+            finite_float(test.get(key, ""), f"panel L {key}"),
             value,
             rel_tol=0.0,
             abs_tol=1e-12,
@@ -1486,7 +1629,7 @@ def validate_figure7_panel_k_contract(
         for key, value in numeric_results.items()
     ):
         raise ValueError(
-            "Figure 7 panel K does not reproduce the exact reviewed "
+            "Figure 7 panel L does not reproduce the exact reviewed "
             f"Day-{tgi_day} raw Pearson correlation and exact P"
         )
     recomputed_reviewed = {
@@ -1503,7 +1646,7 @@ def validate_figure7_panel_k_contract(
         for key in recomputed_reviewed
     ):
         raise ValueError(
-            "Figure 7 panel K curated-CBS inputs no longer reproduce the "
+            "Figure 7 panel L curated-CBS inputs no longer reproduce the "
             f"reviewed Day-{tgi_day} raw Pearson contract"
         )
 
@@ -1772,27 +1915,27 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
         f"{path.name}={sha256_file(path)}" for path in reference_matrices
     )
     copy_number_expected = {
-        "si6e_copy_number_source": (
+        "figure7j_copy_number_source": (
             "postprocessed NUMBAT-derived cell-by-segment CBS matrices"
         ),
-        "si6e_column_statistic": (
+        "figure7j_column_statistic": (
             "per-cell length-weighted mean across available CBS segments "
             "within each chromosome and file-specific schema"
         ),
-        "si6e_cbs_matrix_count": "16",
-        "si6e_source_cell_count": "14125",
-        "si6e_qc_passed_tumor_cell_count": "9832",
-        "si6e_treated_tumor_cell_count": "5335",
-        "si6e_qc_selection_policy": (
+        "figure7j_cbs_matrix_count": "16",
+        "figure7j_source_cell_count": "14125",
+        "figure7j_qc_passed_tumor_cell_count": "9832",
+        "figure7j_treated_tumor_cell_count": "5335",
+        "figure7j_qc_selection_policy": (
             "exact cells matched by the frozen endpoint-ploidy audit from the "
             "final QC-curated Seurat object; clusters 3, 4, 9, and 9c excluded"
         ),
-        "si6e_chromosome_count": "22",
-        "si6e_row_order": (
+        "figure7j_chromosome_count": "22",
+        "figure7j_row_order": (
             "injected origin, dose, mouse, post-processed copy-number score, "
             "cell ID; no row clustering"
         ),
-        "si6e_column_order": (
+        "figure7j_column_order": (
             "chromosomes 1-22 in genomic order; no column clustering"
         ),
         "si6_postprocessed_copy_number_score_unit": (
@@ -1826,6 +1969,39 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
         ),
         "si6_separation_contraction_percent": "89.80433875214797",
     }
+    si4i_expected = {
+        "si4i_cell_universe": "reviewed_qc_retained_cellcycle_2881",
+        "si4i_n_cells": "2881",
+        "si4i_n_mice": "16",
+        "si4i_pointwise_positive_interval": "0.296-0.486",
+        "si4i_simultaneous_positive_interval": "0.414-0.426",
+        "si4i_global_max_abs_t_p_two_sided": "0.0473469387755102",
+    }
+    si4i_cellcycle = (
+        repo_root
+        / "Data/in-vivo/figure7/processed/"
+        "CellCycleCells_pseudotime_distribution_per_sample_"
+        "cell_level_with_ploidy_dose_tgi.csv"
+    )
+    si4i_config = repo_root / "Code/in-vivo/figure7/density_localization_config.yaml"
+    si4i_provenance_expected = {
+        "si4i_cellcycle_pseudotime": (
+            "Data/in-vivo/figure7/processed/"
+            "CellCycleCells_pseudotime_distribution_per_sample_"
+            "cell_level_with_ploidy_dose_tgi.csv"
+        ),
+        "si4i_cellcycle_pseudotime_sha256": sha256_file(si4i_cellcycle),
+        "si4i_density_localization_config": (
+            "Code/in-vivo/figure7/density_localization_config.yaml"
+        ),
+        "si4i_density_localization_config_sha256": sha256_file(si4i_config),
+        "si4i_density_localization_method": (
+            "equal-mouse Gaussian-kernel treated-minus-vehicle density "
+            "contrast; exact injected-origin-stratified pointwise and "
+            "studentized max-|T| permutation inference on the reviewed "
+            "2,881-cell subset"
+        ),
+    }
     qc_selection_note = (
         "the complete 14,125-cell CBS source is checksum/value validated, "
         "then restricted by the frozen endpoint-ploidy audit to the exact "
@@ -1852,7 +2028,12 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
                 **si7_expected,
                 **composition_expected,
                 **copy_number_expected,
+                **si4i_expected,
             }.items()
+        )
+        or any(
+            provenance.get(key) != value
+            for key, value in si4i_provenance_expected.items()
         )
         or provenance.get("si7_frozen_matrix_note")
         != SI7_REVIEWED_FROZEN_MATRIX_NOTE
@@ -1897,7 +2078,7 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
         != SI_REVIEWED_CBS_MANIFEST_SHA256
         or provenance.get("numbat_cbs_matrix_count") != "16"
         or provenance.get("numbat_cbs_matrix_hashes") != cbs_hashes
-        or provenance.get("si6e_qc_selection") != qc_selection_note
+        or provenance.get("figure7j_qc_selection") != qc_selection_note
         or provenance.get("injected_cell_reference_manifest") != (
             "Data/in-vivo/scRNAseq_Numbat/injected_reference/"
             "reference_manifest.tsv"
@@ -1906,9 +2087,9 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
         != SI_INJECTED_REFERENCE_MANIFEST_SHA256
         or provenance.get("injected_cell_reference_matrix_hashes")
         != reference_hashes
-        or provenance.get("si6f_ploidy_reduction_comparison")
+        or provenance.get("si6e_ploidy_reduction_comparison")
         != ploidy_reduction_note
-        or provenance.get("si6f_summary_analysis_type") != (
+        or provenance.get("si6e_summary_analysis_type") != (
             "descriptive_only; no endpoint cross-origin or "
             "reference-to-endpoint test"
         )
@@ -1919,7 +2100,8 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
             "Canonical SI Figures materialization is prohibited: the run "
             "does not carry the reviewed frozen-table publication contract"
         )
-    validate_si6_copy_number_outputs(run_root, repo_root)
+    validate_figure7_copy_number_outputs(run_root, repo_root)
+    validate_si4i_density_localization_outputs(run_root, repo_root)
 
 
 def validate_figure7_density_localization_contract(
@@ -1929,7 +2111,7 @@ def validate_figure7_density_localization_contract(
     output_rows: list[dict[str, str]],
     source_run_id: str,
 ) -> None:
-    """Validate the exact reviewed 2,881-cell localization behind panel 7H."""
+    """Validate the exact reviewed 2,881-cell localization displayed as SI4I."""
     figure7_config = repo_root / "Code/in-vivo/figure7/figure7_config.yaml"
     localization_config = (
         repo_root / "Code/in-vivo/figure7/density_localization_config.yaml"
@@ -2525,34 +2707,34 @@ def validate_strict_source_run(
             spec
             for spec in selected_specs
             if str(spec["module"]) == module
-            and str(spec["panel"]) == "7A-7K_composite"
+            and str(spec["panel"]) == "7A-7L_composite"
         ]
         if len(composite_specs) != 1:
-            raise ValueError("Figure 7 must define one A-K composite contract")
+            raise ValueError("Figure 7 must define one A-L composite contract")
         composite_path = (
             run_root / str(composite_specs[0]["source"])
         ).resolve()
         if composite_path.is_file() != has_panel_f:
             requirement = "present" if has_panel_f else "absent"
             raise ValueError(
-                "Source Figure 7 A-K composite must be "
+                "Source Figure 7 A-L composite must be "
                 f"{requirement} exactly when panel F is present"
             )
         composite_pdf_specs = [
             spec
             for spec in selected_specs
             if str(spec["module"]) == module
-            and str(spec["panel"]) == "7A-7K_composite_pdf"
+            and str(spec["panel"]) == "7A-7L_composite_pdf"
         ]
         if len(composite_pdf_specs) != 1:
-            raise ValueError("Figure 7 must define one vector A-K composite")
+            raise ValueError("Figure 7 must define one vector A-L composite")
         composite_pdf_path = (
             run_root / str(composite_pdf_specs[0]["source"])
         ).resolve()
         if composite_pdf_path.is_file() != has_panel_f:
             requirement = "present" if has_panel_f else "absent"
             raise ValueError(
-                "Source Figure 7 vector A-K composite must be "
+                "Source Figure 7 vector A-L composite must be "
                 f"{requirement} exactly when panel F is present"
             )
         if has_panel_f:
@@ -2565,7 +2747,7 @@ def validate_strict_source_run(
                 or abs(dpi_y - 300.0) > 0.5
             ):
                 raise ValueError(
-                    "Source Figure 7 A-K PNG must be exactly 2130x3193 pixels "
+                    "Source Figure 7 A-L PNG must be exactly 2130x3193 pixels "
                     "with 300-DPI metadata (7.1x10.645 inches)"
                 )
         expected_panel_set = "a-f" if has_panel_f else "a-e"
@@ -2612,21 +2794,21 @@ def validate_strict_source_run(
                     "Figure 7 processed input differs from its reviewed hash: "
                     f"{relative_path}"
                 )
-        required_panel_k_sources = {
+        required_panel_l_sources = {
             (repo_root / relative_path).resolve()
-            for relative_path in FIGURE7_PANEL_K_SOURCE_INPUTS
+            for relative_path in FIGURE7_PANEL_L_SOURCE_INPUTS
         }
-        missing_panel_k_sources = sorted(
+        missing_panel_l_sources = sorted(
             str(path)
-            for path in required_panel_k_sources - observed_input_paths
+            for path in required_panel_l_sources - observed_input_paths
         )
-        if missing_panel_k_sources:
+        if missing_panel_l_sources:
             raise ValueError(
-                "Figure 7 source input manifest does not bind the panel K "
+                "Figure 7 source input manifest does not bind the panel L "
                 "statistics and plotting helpers: "
-                f"missing={missing_panel_k_sources}"
+                f"missing={missing_panel_l_sources}"
             )
-        validate_figure7_panel_k_contract(
+        validate_figure7_panel_l_contract(
             run_root,
             repo_root,
             input_rows,
@@ -2672,6 +2854,55 @@ def validate_strict_source_run(
                         f"{filename} is not the reviewed "
                         f"{FIGURE7_REVIEWED_REFERENCE_ID} artifact"
                     )
+            copy_cbs_root = repo_root / "Data/in-vivo/scRNAseq_Numbat"
+            copy_cbs_manifest = copy_cbs_root / "cbs_manifest.tsv"
+            if (
+                not copy_cbs_manifest.is_file()
+                or sha256_file(copy_cbs_manifest)
+                != SI_REVIEWED_CBS_MANIFEST_SHA256
+            ):
+                raise ValueError(
+                    "Canonical Figure 7 materialization is prohibited: "
+                    "panel J does not bind the exact reviewed CBS manifest"
+                )
+            copy_cbs_headers, copy_cbs_rows = read_tsv(copy_cbs_manifest)
+            copy_cbs_names = [row.get("filename", "") for row in copy_cbs_rows]
+            if (
+                copy_cbs_headers != ["filename", "bytes", "sha256", "notes"]
+                or len(copy_cbs_names) != 16
+                or len(set(copy_cbs_names)) != 16
+                or any(
+                    not name or Path(name).name != name
+                    for name in copy_cbs_names
+                )
+            ):
+                raise ValueError(
+                    "Canonical Figure 7 panel J requires exactly 16 safe "
+                    "reviewed CBS matrix names"
+                )
+            copy_cbs_paths = {
+                (copy_cbs_root / name).resolve() for name in copy_cbs_names
+            }
+            for row in copy_cbs_rows:
+                path = (copy_cbs_root / row["filename"]).resolve()
+                if (
+                    not path.is_file()
+                    or row.get("bytes") != str(path.stat().st_size)
+                    or row.get("sha256") != sha256_file(path)
+                ):
+                    raise ValueError(
+                        "Canonical Figure 7 panel J requires reviewed CBS "
+                        f"matrix {path.name}"
+                    )
+            copy_ploidy = (repo_root / "Data/in-vivo/all_ploidy.tsv").resolve()
+            if (
+                not copy_ploidy.is_file()
+                or sha256_file(copy_ploidy) != SI_ENDPOINT_PLOIDY_SHA256
+            ):
+                raise ValueError(
+                    "Canonical Figure 7 panel J requires the exact reviewed "
+                    "14,125-cell endpoint-ploidy table"
+                )
             required_input_paths = {
                 (
                     repo_root
@@ -2685,6 +2916,28 @@ def validate_strict_source_run(
                     repo_root
                     / "Code/in-vivo/figure7/density_localization_config.yaml"
                 ).resolve(),
+                (
+                    repo_root
+                    / "Code/in-vivo/figure7/src/copy_number_panel.R"
+                ).resolve(),
+                (
+                    repo_root
+                    / "Code/in-vivo/SI_figures/copy_number_heatmap.R"
+                ).resolve(),
+                (repo_root / "Data/in-vivo/all_ploidy.tsv").resolve(),
+                (
+                    repo_root
+                    / "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv"
+                ).resolve(),
+                (
+                    repo_root
+                    / "Data/in-vivo/SIfigures/si_figure6_endpoint_ploidy_join_audit.csv"
+                ).resolve(),
+                (
+                    repo_root
+                    / "Data/in-vivo/SIfigures/si_figures_cell_metadata.csv"
+                ).resolve(),
+                *copy_cbs_paths,
                 *{
                     (
                         repo_root
@@ -2727,16 +2980,23 @@ def validate_strict_source_run(
                     "reviewed provenance lineage is invalid"
                 )
             expected_composite = {
-                "main_composite_panel_set": "a-k",
+                "main_composite_panel_set": "a-l",
                 "main_composite_filename": "Figure7_reviewed_GRCh.png",
                 "main_composite_panel_order": (
                     "A=7A;B=7C;C=SI4A;D=SI4B;E=SI4C;F=SI4E;"
-                    "G=SI7B;H=7B;I=7F;J=7D;K=7E"
+                    "G=SI7B;H=7B;I=7F;J=7J;K=7D;L=7E"
                 ),
                 "main_composite_width_in": "7.1",
                 "main_composite_height_in": "10.645",
                 "main_composite_png_dpi": "300",
-                "main_composite_layout_rows": "A/B;C/D/E;F/G;H;I;J/K",
+                "main_composite_layout_rows": "A/B;C/D/E;F/G;H;I/J;K/L",
+                "copy_number_panel_qc_cells": "9832",
+                "copy_number_panel_treated_cells": "5335",
+                "copy_number_panel_mice": "16",
+                "copy_number_panel_chromosomes": "22",
+                "copy_number_panel_annotation_bars": (
+                    "injected_origin;gemcitabine_dose;mouse"
+                ),
                 "density_localization_config": (
                     "Code/in-vivo/figure7/density_localization_config.yaml"
                 ),
@@ -2765,7 +3025,7 @@ def validate_strict_source_run(
             ):
                 raise ValueError(
                     "Canonical Figure 7 materialization is prohibited: "
-                    "the A-K composite/cache contract is invalid"
+                    "the A-L composite/cache contract is invalid"
                 )
 
             cache_root = repo_root / "Data/in-vivo/SIfigures"
@@ -2999,10 +3259,18 @@ def main() -> int:
             for row in EXTERNAL_ROWS
             if row["figure"] == figure
         )
+        replaced_asset_paths = {
+            row.get("asset_path", "")
+            for row in rows_by_figure.get(figure, [])
+            if row.get("asset_path", "")
+        }
+        superseded_panels = SUPERSEDED_PANEL_IDS.get(figure, set())
         preserved_rows = [
             row
             for row in existing_rows
             if row.get("panel", "") not in replaced_panels
+            and row.get("panel", "") not in superseded_panels
+            and row.get("asset_path", "") not in replaced_asset_paths
         ]
         rows_by_figure[figure].extend(preserved_rows)
         expected_by_figure.setdefault(figure, set()).update(

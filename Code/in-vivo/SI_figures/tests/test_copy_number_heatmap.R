@@ -363,7 +363,26 @@ stopifnot(
 heatmap <- helper$si_copy_number_heatmap(harmonized)
 stopifnot(
   inherits(heatmap$gtable, "gtable"),
-  identical(names(heatmap$row_annotation), c("Injected origin", "Mouse")),
+  identical(
+    names(heatmap$row_annotation),
+    c("Injected origin", "Gemcitabine dose", "Mouse")
+  ),
+  identical(
+    levels(heatmap$row_annotation$`Gemcitabine dose`),
+    c("Vehicle", "30 mg/kg", "120 mg/kg")
+  ),
+  identical(
+    as.integer(table(heatmap$row_annotation$`Gemcitabine dose`)),
+    c(4497L, 1671L, 3664L)
+  ),
+  identical(
+    heatmap$annotation_colors$`Gemcitabine dose`,
+    c(
+      "Vehicle" = "#666666",
+      "30 mg/kg" = "#D95F02",
+      "120 mg/kg" = "#1B9E77"
+    )
+  ),
   identical(heatmap$labels_col, paste0("chr", seq_len(22L))),
   identical(heatmap$gaps_col, seq_len(21L)),
   identical(heatmap$cluster_rows, FALSE),
@@ -563,11 +582,7 @@ stopifnot(
   grepl("mean_postprocessed_copy_number_score", generator_text, fixed = TRUE),
   !grepl("Endpoint ploidy in", generator_text, fixed = TRUE),
   !grepl('name = "Endpoint ploidy"', generator_text, fixed = TRUE),
-  grepl(
-    "Supplementary Figure 6 | Endpoint tumor ploidy and",
-    generator_text,
-    fixed = TRUE
-  ),
+  grepl("figure7J_copy_number_heatmap_matrix.rds", generator_text, fixed = TRUE),
   !grepl("exact within-dose P", generator_text, fixed = TRUE),
   !grepl(
     "si6_postprocessed_copy_number_score_p_value",
@@ -587,10 +602,11 @@ stopifnot(
   grepl("seed = plot_seed + 61L", generator_text, fixed = TRUE),
   grepl("seed = plot_seed + 62L", generator_text, fixed = TRUE),
   grepl(
-    'shared_context_add_tag(s6e_mouse, "F")',
+    'shared_context_add_tag(s6e_mouse, "E")',
     generator_text,
     fixed = TRUE
-  )
+  ),
+  !grepl("s6e_heatmap", generator_text, fixed = TRUE)
 )
 
-message("SI6E copy-number heatmap and ploidy-reduction tests passed.")
+message("Figure 7J copy-number heatmap and SI6E ploidy-reduction tests passed.")

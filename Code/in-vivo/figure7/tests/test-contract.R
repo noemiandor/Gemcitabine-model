@@ -329,7 +329,8 @@ testthat::test_that("publication compositor pins dimensions, mapping, and vector
   spec <- figure7_publication_spec()
   expected_mapping <- c(
     A = "7A", B = "7C", C = "SI4A", D = "SI4B", E = "SI4C",
-    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7D", K = "7E"
+    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7J",
+    K = "7D", L = "7E"
   )
   configured_mapping <- unlist(
     config$panels$main_composite$panel_order,
@@ -340,9 +341,9 @@ testthat::test_that("publication compositor pins dimensions, mapping, and vector
   testthat::expect_identical(spec$height_in, 10.645)
   testthat::expect_identical(
     spec$row_heights,
-    c(1.20, 0.95, 2.45, 2.295, 2.30, 1.45)
+    c(1.20, 1.35, 2.45, 1.45, 2.745, 1.45)
   )
-  testthat::expect_equal(spec$row_heights[[4L]] / 1.35, 1.70, tolerance = 1e-12)
+  testthat::expect_equal(spec$row_heights[[2L]] / 0.95, 1.4210526, tolerance = 1e-7)
   testthat::expect_true(all(spec$row_heights > 0))
   testthat::expect_equal(sum(spec$row_heights), spec$height_in, tolerance = 0)
   testthat::expect_identical(
@@ -352,8 +353,8 @@ testthat::test_that("publication compositor pins dimensions, mapping, and vector
       paste0(strrep("C", 9L), strrep("D", 10L), strrep("E", 9L)),
       paste0(strrep("F", 10L), strrep("G", 18L)),
       strrep("H", 28L),
-      strrep("I", 28L),
-      paste0(strrep("J", 14L), strrep("K", 14L))
+      paste0(strrep("I", 14L), strrep("J", 14L)),
+      paste0(strrep("K", 14L), strrep("L", 14L))
     )
   )
   testthat::expect_identical(spec$content_left_npc, 0.020)
@@ -377,6 +378,10 @@ testthat::test_that("publication compositor pins dimensions, mapping, and vector
     lapply(paste0("source-", LETTERS[1:5]), make_plot),
     LETTERS[1:5]
   )
+  attr(source_plots$B, "figure7_panel_b_components") <- list(
+    ecdf = source_plots$B,
+    localization = make_plot("localization")
+  )
   context_plots <- stats::setNames(
     lapply(paste0("context-", LETTERS[3:7]), make_plot),
     LETTERS[3:7]
@@ -385,16 +390,17 @@ testthat::test_that("publication compositor pins dimensions, mapping, and vector
     source_plots,
     context_plots,
     make_plot("state-pathway"),
+    make_plot("copy-number"),
     config
   )
-  testthat::expect_identical(names(mapped), LETTERS[1:11])
+  testthat::expect_identical(names(mapped), LETTERS[1:12])
   testthat::expect_identical(
     vapply(mapped, function(plot) plot$labels$tag, character(1L)),
     c(
       A = "source-A", B = "source-C", C = "context-C",
       D = "context-D", E = "context-E", F = "context-F",
       G = "context-G", H = "source-B", I = "state-pathway",
-      J = "source-D", K = "source-E"
+      J = "copy-number", K = "source-D", L = "source-E"
     )
   )
 
@@ -414,7 +420,7 @@ testthat::test_that("publication compositor pins dimensions, mapping, and vector
 
 testthat::test_that("publication styling removes internal prose and uses reader-facing labels", {
   config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
-  plots <- stats::setNames(lapply(LETTERS[1:11], function(panel) {
+  plots <- stats::setNames(lapply(LETTERS[1:12], function(panel) {
     ggplot2::ggplot(
       data.frame(x = 1:2, y = 1:2),
       ggplot2::aes(x = x, y = y)
@@ -426,7 +432,7 @@ testthat::test_that("publication styling removes internal prose and uses reader-
         caption = "methodological prose",
         tag = panel
       )
-  }), LETTERS[1:11])
+  }), LETTERS[1:12])
 
   styled <- figure7_publication_clean_plots(plots, config)
   for (panel in names(styled)) {
@@ -441,22 +447,22 @@ testthat::test_that("publication styling removes internal prose and uses reader-
   testthat::expect_identical(styled$H$labels$y, "Mean ECDF")
   testthat::expect_identical(styled$I$labels$fill, "Mean gene z score")
   testthat::expect_identical(
-    styled$J$labels$x,
+    styled$K$labels$x,
     "Pseudotime-distribution shift\n(dose-centered ECDF RMSE)"
   )
   testthat::expect_identical(
-    styled$K$labels$x,
+    styled$L$labels$x,
     "Mean endpoint tumor-cell ploidy"
   )
 
   composite <- suppressWarnings(figure7_main_composite_object(plots, config))
   testthat::expect_s3_class(composite, "gTree")
   testthat::expect_true(all(
-    paste0("figure7_tag_", LETTERS[1:11]) %in% names(composite$children)
+    paste0("figure7_tag_", LETTERS[1:12]) %in% names(composite$children)
   ))
 })
 
-testthat::test_that("publication panel H includes the inferential localization strip", {
+testthat::test_that("main H keeps ECDFs while localization remains a separate source component", {
   input <- figure7_test_inputs()
   panel <- figure7_panel_b(input$data, input$samples, input$config)
   panel_h <- figure7_panel_b_plot(
@@ -491,24 +497,38 @@ testthat::test_that("publication panel H includes the inferential localization s
       ggplot2::aes(x, y)
     ) + ggplot2::geom_point()
   }
-  plots <- stats::setNames(lapply(LETTERS[1:11], function(...) make_plot()), LETTERS[1:11])
-  plots$H <- panel_h
-  styled <- figure7_publication_clean_plots(plots, input$config)
-  styled_components <- attr(
-    styled$H, "figure7_panel_b_components", exact = TRUE
+  source_plots <- stats::setNames(
+    lapply(LETTERS[1:5], function(...) make_plot()),
+    LETTERS[1:5]
   )
-  testthat::expect_s3_class(styled$H, "patchwork")
+  source_plots$B <- panel_h
+  context_plots <- stats::setNames(
+    lapply(LETTERS[3:7], function(...) make_plot()),
+    LETTERS[3:7]
+  )
+  mapped <- figure7_main_composite_plots(
+    source_plots,
+    context_plots,
+    make_plot(),
+    make_plot(),
+    input$config
+  )
+  testthat::expect_s3_class(mapped$H, "ggplot")
+  testthat::expect_null(attr(
+    mapped$H, "figure7_panel_b_components", exact = TRUE
+  ))
+  styled <- figure7_publication_clean_plots(mapped, input$config)
   testthat::expect_identical(
-    styled_components$ecdf$labels$y,
+    styled$H$labels$y,
     "Mean ECDF"
   )
   testthat::expect_identical(
-    styled_components$localization$labels$x,
+    styled$H$labels$x,
     "Cell-cycle pseudotime"
   )
 })
 
-testthat::test_that("full source panels plus the A-K composite satisfy the exact inventory", {
+testthat::test_that("full source panels plus the A-L composite satisfy the exact inventory", {
   input <- figure7_test_inputs()
   fixture <- figure7_test_reviewed_state_reference()
   reference <- figure7_validate_reviewed_state_reference(
@@ -529,6 +549,7 @@ testthat::test_that("full source panels plus the A-K composite satisfy the exact
     repo_root,
     fixture$config
   )
+  copy_number <- figure7_build_copy_number_panel(repo_root)
   testthat::expect_equal(
     sum(vapply(
       context$plots$C$layers,
@@ -538,18 +559,12 @@ testthat::test_that("full source panels plus the A-K composite satisfy the exact
     1L
   )
   figure7_save_main_composite(
-    list(
-      A = ae$plots$A,
-      B = ae$plots$C,
-      C = context$plots$C,
-      D = context$plots$D,
-      E = context$plots$E,
-      F = context$plots$F,
-      G = context$plots$G,
-      H = ae$plots$B,
-      I = plot_f,
-      J = ae$plots$D,
-      K = ae$plots$E
+    figure7_main_composite_plots(
+      ae$plots,
+      context$plots,
+      plot_f,
+      copy_number$plot,
+      fixture$config
     ),
     out,
     fixture$config,

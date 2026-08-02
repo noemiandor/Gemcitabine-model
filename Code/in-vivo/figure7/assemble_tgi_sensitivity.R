@@ -163,10 +163,14 @@ read_endpoint_run <- function(run_dir, day) {
   run_config_path <- file.path(run_dir, "metadata", "run_config.tsv")
   run_config <- as_keyed(run_config_path, paste0("Day-", day, " run config"))
   config <- figure7_read_config(config_path, day)
+  # The compact Day-24/Day-31 source bundle records the exact analysis-time
+  # config.  Main-composite presentation edits must not rewrite that frozen
+  # provenance, so validate the recorded source hash directly and validate
+  # every consumed scientific field against the current config below.
   assert_scalar(
     run_config[["config_sha256"]],
-    figure7_sha256(config_path),
-    "Figure 7 config hash"
+    "50dfdbc23c726f5a249a3ac40f4e0be877a944ec36aa512969a8b057d6b08bd2",
+    "reviewed source-analysis config hash"
   )
   assert_scalar(run_config[["module"]], "in_vivo_figure7", "module")
   assert_scalar(run_config[["panel_set"]], "a-f", "panel set")
@@ -193,7 +197,7 @@ read_endpoint_run <- function(run_dir, day) {
     "canonical-publication flag"
   )
   expected_endpoint_hash <- as.character(
-    config$versioned_source_artifacts$panel_k_endpoint_ploidy$sha256
+    config$versioned_source_artifacts$panel_l_endpoint_ploidy$sha256
   )
   assert_scalar(
     run_config[["endpoint_ploidy_sha256"]],
@@ -370,7 +374,7 @@ read_endpoint_run <- function(run_dir, day) {
   if (nrow(edata) != 8L || nrow(etest) != 1L) {
     figure7_stop(
       "Day-", day,
-      " panel K must contain exactly eight treated tumors and one test row"
+      " panel L must contain exactly eight treated tumors and one test row"
     )
   }
   recomputed <- figure7_exact_cor(
@@ -454,7 +458,7 @@ read_endpoint_run <- function(run_dir, day) {
         expected_results[["permutation_p"]]) > 1e-12) {
     figure7_stop(
       "Day-", day,
-      " panel K lacks the reviewed raw endpoint-ploidy association contract"
+      " panel L lacks the reviewed raw endpoint-ploidy association contract"
     )
   }
 
@@ -804,7 +808,7 @@ si8_manifest <- data.frame(
       "portable_source_bundle=", bundle_locator,
       ";canonical_endpoint_ploidy_sha256=",
       as.character(
-        day24$config$versioned_source_artifacts$panel_k_endpoint_ploidy$sha256
+        day24$config$versioned_source_artifacts$panel_l_endpoint_ploidy$sha256
       )
     ),
     2L

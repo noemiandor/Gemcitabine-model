@@ -1,49 +1,36 @@
 # Figure 7 print-size visual QC
 
-Status: **PASS** (2026-08-01).
+Status: **PASS** (2026-08-02).
 
-The final composite was inspected directly at its intended full-page size of
-7.1 x 10.645 inches. The PNG is 2130 x 3193 pixels at 300 DPI; the vector PDF is
-a single 511 x 766 point page (7.10 x 10.64 inches after PDF-point rounding).
+The final composite and companion Supplementary Figures 4 and 6 were inspected
+at their exported sizes. Figure 7 is 7.1 x 10.645 inches and 2130 x 3193 pixels
+at 300 DPI.
 
-- Panel identity and order: A--K match `panel_map.csv` and the enforced
-  A=7A; B=7C; C=SI4A; D=SI4B; E=SI4C; F=SI4E; G=SI7B; H=7B; I=7F; J=7D;
-  K=7E contract.
-- Titles and prose: no panel-internal title, subtitle, caption, formula, or
-  methods paragraph remains. Panel letters are uniform, unobstructed, and in
-  row-major reading order.
-- Clipping: axes, tick labels, pathway labels, color bars, dendrograms, panel
-  letters, and data marks remain inside the device. The shortened panel-A y
-  label and outer gutter prevent the former rotated-label clipping.
-- UMAP labels: C displays all nine cluster identifiers without collisions;
-  in particular, 4c and 10 remain separate and legible.
-- Heatmaps: G and I have dedicated enlarged rows for labels. G retains both
-  row and column dendrograms and an explicit NES color scale; I retains its
-  collection strips, interval markers, and mean-gene-z-score color scale.
-- Pseudotime redistribution: H is 2.295 inches high at the target size. The
-  overall, 4N-origin, and 2N-origin vehicle-versus-gemcitabine ECDF curves are
-  separately discernible on their unchanged common 0--1.05 scale. The lower
-  strip clearly shows the equal-mouse density contrast, gray simultaneous null
-  envelope, pale pointwise-support region (0.296--0.486), dark family-wise
-  support (0.414--0.426), raw-excess peak at 0.452, and strongest standardized
-  evidence at 0.420 without implying that the entire rounded 0.30--0.49 state
-  window has simultaneous support.
-- Composition: F's positive-enrichment asterisks are bold and visible above
-  the correct bars at print size.
-- Mouse-level panels: J and K each display all eight mouse identifiers. J's
-  statistics box is in the unoccupied upper-left corner; K's remains in the
-  upper-right. Neither box obscures a point or identifier.
-- Readability, typography, and spacing: reader-facing axis/facet/pathway labels, consistent
-  sans-serif type, margins, gutters, and color-bar typography are legible at
-  the target size. Compatible graphical keys are described once in the
-  manuscript legend rather than repeated inside small panels.
+- Panel identity and order: A--L match `panel_map.csv` and the enforced
+  A=7A; B=7C; C=SI4A; D=SI4B; E=SI4C; F=SI4E; G=SI7B; H=7B-ECDF; I=7F;
+  J=QC-filtered copy-number heatmap; K=7D; L=7E contract.
+- C--E: all three UMAPs are distinct at print size; C retains nine noncolliding
+  cluster labels, including separate 4c and 10 labels.
+- G and I: pathway labels, dendrograms, interval markers, and color scales are
+  legible without clipping.
+- H: the overall, 4N-origin, and 2N-origin vehicle-versus-gemcitabine ECDF
+  curves are separately discernible on their common scale. No compressed lower
+  strip remains.
+- J: the heatmap contains 9,832 rows and 22 chromosome columns. Injected-origin,
+  dose, and mouse annotation bars are visible; sparse chromosome labels
+  (1, 5, 9, 13, 17, 22) do not collide; the copy-number color scale remains
+  visible. The caption, rather than a space-consuming 16-mouse key, defines the
+  annotation bars.
+- F: positive-enrichment asterisks remain visible above the correct bars.
+- K and L: all eight mouse labels and both statistics boxes are legible and do
+  not obscure points.
+- Supplementary Figure 4I: the pointwise-supported 0.296--0.486 region,
+  family-wise-supported 0.414--0.426 region, raw-excess peak at 0.452, and
+  strongest standardized evidence at 0.420 remain distinguishable.
+- Supplementary Figure 6: the former copy-number heatmap is absent and the
+  remaining A--E layout has no empty labeled slot.
+- Readability, typography, and clipping: panel letters, axes, tick labels, pathway labels,
+  color bars, and data marks remain within the devices.
 
-Independent production comparison:
-
-- The polishing PNG and the Figure-7-only Manager PNG are byte-identical
-  (SHA-256 `eb2b522b74b49c391a98624463bb32c3e18fa2ce18a4f2ed4e035903c2b83e03`).
-- Cairo embeds a creation timestamp, so separately exported PDFs are not
-  byte-identical. Rasterizing both vector PDFs independently at 150 DPI with
-  `pdftocairo -png -singlefile -r 150` produced byte-identical 1065 x 1596
-  renders (SHA-256
-  `31a7c4a67950388bbb993a60852b7b6a79796ad81e2dd6cdf7bfa4359f4fea58`).
+The final hash comparison against the independently generated Manager output is
+recorded in `figure_byte_identity_report.tsv`.

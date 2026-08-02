@@ -38,12 +38,12 @@ has one biological sample per displayed mouse; it is therefore explicitly
 descriptive and emits no inferential stars rather than treating cells as
 replicates.
 
-SI6E is reproduced from the 16 tracked downstream
+Main Figure 7J is reproduced from the 16 tracked downstream
 `Data/in-vivo/scRNAseq_Numbat/*.sps.cbs` matrices. The matrices contain 14,125
 cells and use two different segment schemas. Their exact filenames, byte sizes,
 and SHA-256 values are pinned in `scRNAseq_Numbat/cbs_manifest.tsv` and checked
 before rendering. The complete matrix collection is a validated source, not
-the analysis universe: the frozen endpoint-ploidy audit restricts SI6E/F to
+the analysis universe: the frozen endpoint-ploidy audit restricts Figure 7J and SI6E to
 the exact 9,832 tumor cells retained after final Seurat QC (including 5,335
 treated cells), so discarded clusters 3, 4, 9, and 9c cannot re-enter through
 the downstream CBS files. Because those schemas cannot be
@@ -52,11 +52,11 @@ or project them to common loci. Instead, it computes each cell's
 length-weighted mean across the available CBS segments of each autosome and
 plots the resulting 9,832-by-22 matrix in chromosome order. Rows are grouped
 by injected 2N/4N origin, dose, and mouse, then ordered by the post-processed
-copy-number score; neither rows nor columns are clustered. Mouse and injected
-origin are displayed as row annotations. The renderer exports the plotted
+copy-number score; neither rows nor columns are clustered. Mouse, gemcitabine
+dose, and injected origin are displayed as row annotations. The renderer exports the plotted
 matrix, cell order, and per-file/per-schema represented-base-pair audit.
 
-SI6F compares the project-designated injected-cell karyotype references (20 2N
+SI6E compares the project-designated injected-cell karyotype references (20 2N
 A7M and 16 4N A5M metaphases) with one terminal NUMBAT-derived mean per mouse;
 dose is encoded by color. For the karyotype references, the autosomal
 length-weighted estimate is added to the `chr999` value, which is expressed in
@@ -83,9 +83,10 @@ not constitute a complete NUMBAT run: allele-count inputs, clone posteriors,
 consensus segment outputs preceding these matrices, phylogeny, configuration,
 logs, and an executable upstream inference workflow remain unavailable.
 
-SI4A-C/E and SI7A/B are constructed by `shared_context_panels.R`. Main Figure
-7 calls the same helper for its copies of SI4A-C/E and SI7B, with display tags
-assigned by the A-K compositor; fixed shuffle keys keep the UMAP point order
+SI4A-C/E and SI7A/B are constructed by `shared_context_panels.R`. SI4I
+recomputes the shared density-localization analysis from the exact tracked
+2,881-cell pseudotime table. Main Figure 7 calls the same helper for its copies
+of SI4A-C/E and SI7B, with display tags assigned by the A-L compositor; fixed shuffle keys keep the UMAP point order
 identical between main and supplementary copies.
 
 To rebuild Supplementary Figures 4-7 from the shared Seurat source boundary
@@ -98,7 +99,7 @@ bash Manager.sh \
   --run-id example_raw_si
 ```
 
-For a full-refit A-K Figure 7, Manager automatically runs this module before
+For a full-refit A-L Figure 7, Manager automatically runs this module before
 `in_vivo_figure7` (including when only `in_vivo_figure7` was requested). It
 passes the run-scoped table cache, analysis-input manifest, run configuration,
 and SI provenance to Figure 7. That generated-cache composite is a

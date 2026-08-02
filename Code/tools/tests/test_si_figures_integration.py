@@ -23,7 +23,7 @@ from figure_output_contract import (  # noqa: E402
 )
 from materialize_figure_assets import (  # noqa: E402
     PANEL_SPECS,
-    SI6_COPY_NUMBER_ANNOTATION_COLUMNS,
+    FIGURE7J_COPY_NUMBER_ANNOTATION_COLUMNS,
     SI7_REVIEWED_FEATURE_POLICY,
     SI7_REVIEWED_FROZEN_MATRIX_NOTE,
     SI7_REVIEWED_GENE_SET_DATABASE,
@@ -876,6 +876,13 @@ input_paths_for_module si_figures "$1"
                     "shared_context_panels.R",
                     "Code/in-vivo/SI_figures/"
                     "copy_number_heatmap.R",
+                    "Code/in-vivo/figure7/src/common_io.R",
+                    "Code/in-vivo/figure7/src/tgi_statistics.R",
+                    "Code/in-vivo/figure7/src/tgi_panels.R",
+                    "Code/in-vivo/figure7/density_localization_config.yaml",
+                    "Data/in-vivo/figure7/processed/"
+                    "CellCycleCells_pseudotime_distribution_per_sample_"
+                    "cell_level_with_ploidy_dose_tgi.csv",
                     "Data/in-vivo/weighted_ploidy.py",
                     "Code/tools/validate_si_figures_table_cache.py",
                     "Data/in-vivo/all_ploidy.tsv",
@@ -1180,6 +1187,28 @@ printf 'key\\tvalue\\nsi7_canonical_publication_allowed\\ttrue\\n' \\
                 (
                     "copy_number_heatmap_helper",
                     "Code/in-vivo/SI_figures/copy_number_heatmap.R",
+                ),
+                (
+                    "figure7_common_io_helper",
+                    "Code/in-vivo/figure7/src/common_io.R",
+                ),
+                (
+                    "figure7_tgi_statistics_helper",
+                    "Code/in-vivo/figure7/src/tgi_statistics.R",
+                ),
+                (
+                    "figure7_tgi_panels_helper",
+                    "Code/in-vivo/figure7/src/tgi_panels.R",
+                ),
+                (
+                    "density_localization_config",
+                    "Code/in-vivo/figure7/density_localization_config.yaml",
+                ),
+                (
+                    "si4i_cellcycle_pseudotime",
+                    "Data/in-vivo/figure7/processed/"
+                    "CellCycleCells_pseudotime_distribution_per_sample_"
+                    "cell_level_with_ploidy_dose_tgi.csv",
                 ),
                 (
                     "endpoint_ploidy_source",
@@ -1598,7 +1627,7 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             annotation_path = (
                 run_root
                 / "metadata"
-                / "si_figure6E_copy_number_cell_annotations.tsv"
+                / "figure7J_copy_number_cell_annotations.tsv"
             )
             with annotation_path.open(newline="") as handle:
                 rows = list(csv.DictReader(handle, delimiter="\t"))
@@ -1606,7 +1635,7 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             write_tsv(
                 annotation_path,
                 rows,
-                SI6_COPY_NUMBER_ANNOTATION_COLUMNS,
+                FIGURE7J_COPY_NUMBER_ANNOTATION_COLUMNS,
             )
             output_manifest = run_root / "metadata/output_manifest.tsv"
             with output_manifest.open(newline="") as handle:
@@ -1647,7 +1676,7 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 row
                 for row in output_rows
                 if row["repo_relative_path"].endswith(
-                    "si_figure6E_copy_number_heatmap_matrix.rds"
+                    "figure7J_copy_number_heatmap_matrix.rds"
                 )
             ]
             self.assertEqual(len(matches), 1)
@@ -1666,7 +1695,7 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn(
-                "SI6 output-manifest provenance is invalid",
+                "Figure 7J output-manifest provenance is invalid",
                 result.stderr,
             )
 
@@ -1880,6 +1909,27 @@ class SiFiguresMaterializationTest(unittest.TestCase):
         )
         config_target.parent.mkdir(parents=True)
         shutil.copy2(config_source, config_target)
+        figure7_shared_targets = []
+        for relative in (
+            "Code/in-vivo/figure7/src/common_io.R",
+            "Code/in-vivo/figure7/src/tgi_statistics.R",
+            "Code/in-vivo/figure7/src/tgi_panels.R",
+            "Code/in-vivo/figure7/density_localization_config.yaml",
+        ):
+            source = REPO_ROOT / relative
+            target = repo / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+            figure7_shared_targets.append(target)
+        cellcycle_relative = (
+            "Data/in-vivo/figure7/processed/"
+            "CellCycleCells_pseudotime_distribution_per_sample_"
+            "cell_level_with_ploidy_dose_tgi.csv"
+        )
+        cellcycle_source = REPO_ROOT / cellcycle_relative
+        cellcycle_target = repo / cellcycle_relative
+        cellcycle_target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(cellcycle_source, cellcycle_target)
 
         cache_manifest = cache_target / "manifest.tsv"
         provenance_rows = [
@@ -1915,6 +1965,33 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             {
                 "key": "shared_context_panels_helper_sha256",
                 "value": sha256_file(shared_context_target),
+            },
+            {
+                "key": "si4i_cellcycle_pseudotime",
+                "value": cellcycle_relative,
+            },
+            {
+                "key": "si4i_cellcycle_pseudotime_sha256",
+                "value": sha256_file(cellcycle_target),
+            },
+            {
+                "key": "si4i_density_localization_config",
+                "value": (
+                    "Code/in-vivo/figure7/density_localization_config.yaml"
+                ),
+            },
+            {
+                "key": "si4i_density_localization_config_sha256",
+                "value": sha256_file(figure7_shared_targets[3]),
+            },
+            {
+                "key": "si4i_density_localization_method",
+                "value": (
+                    "equal-mouse Gaussian-kernel treated-minus-vehicle "
+                    "density contrast; exact injected-origin-stratified "
+                    "pointwise and studentized max-|T| permutation "
+                    "inference on the reviewed 2,881-cell subset"
+                ),
             },
             {
                 "key": "copy_number_heatmap_helper",
@@ -1959,7 +2036,7 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 ),
             },
             {
-                "key": "si6e_qc_selection",
+                "key": "figure7j_qc_selection",
                 "value": (
                     "the complete 14,125-cell CBS source is checksum/value "
                     "validated, then restricted by the frozen endpoint-ploidy "
@@ -1986,7 +2063,7 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 ),
             },
             {
-                "key": "si6e_harmonization",
+                "key": "figure7j_harmonization",
                 "value": (
                     "each separately postprocessed file-specific CBS schema "
                     "reduced independently to chr1-22 finite-segment "
@@ -1996,21 +2073,21 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 ),
             },
             {
-                "key": "si6f_reference_source",
+                "key": "si6e_reference_source",
                 "value": (
                     "miningcloneid@"
                     "c505cd9159fa2a8c0974c7379f6aacd09fe19abc"
                 ),
             },
             {
-                "key": "si6f_reference_chr999_interpretation",
+                "key": "si6e_reference_chr999_interpretation",
                 "value": (
                     "haploid-genome-equivalent unassigned DNA; "
                     "project-confirmed 2026-08-01"
                 ),
             },
             {
-                "key": "si6f_reference_designation_basis",
+                "key": "si6e_reference_designation_basis",
                 "value": (
                     "2N=project-designated 2N-lineage proxy; not the "
                     "same-passage A6M inoculum;4N=project-designated "
@@ -2018,21 +2095,21 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 ),
             },
             {
-                "key": "si6f_reference_ploidy_policy",
+                "key": "si6e_reference_ploidy_policy",
                 "value": (
                     "autosomal length-weighted estimate plus chr999 "
                     "haploid-genome-equivalent unassigned DNA"
                 ),
             },
             {
-                "key": "si6f_summary_analysis_type",
+                "key": "si6e_summary_analysis_type",
                 "value": (
                     "descriptive_only; no endpoint cross-origin or "
                     "reference-to-endpoint test"
                 ),
             },
             {
-                "key": "si6f_ploidy_reduction_comparison",
+                "key": "si6e_ploidy_reduction_comparison",
                 "value": (
                     "project-designated lineage-matched 2N-A7M/4N-A5M "
                     "karyotype reference distributions, including the "
@@ -2101,46 +2178,64 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             },
             {"key": "composition_fdr_threshold", "value": "0.05"},
             {
-                "key": "si6e_copy_number_source",
+                "key": "si4i_cell_universe",
+                "value": "reviewed_qc_retained_cellcycle_2881",
+            },
+            {"key": "si4i_n_cells", "value": "2881"},
+            {"key": "si4i_n_mice", "value": "16"},
+            {
+                "key": "si4i_pointwise_positive_interval",
+                "value": "0.296-0.486",
+            },
+            {
+                "key": "si4i_simultaneous_positive_interval",
+                "value": "0.414-0.426",
+            },
+            {
+                "key": "si4i_global_max_abs_t_p_two_sided",
+                "value": "0.0473469387755102",
+            },
+            {
+                "key": "figure7j_copy_number_source",
                 "value": (
                     "postprocessed NUMBAT-derived cell-by-segment CBS matrices"
                 ),
             },
             {
-                "key": "si6e_column_statistic",
+                "key": "figure7j_column_statistic",
                 "value": (
                     "per-cell length-weighted mean across available CBS "
                     "segments within each chromosome and file-specific schema"
                 ),
             },
-            {"key": "si6e_cbs_matrix_count", "value": "16"},
-            {"key": "si6e_source_cell_count", "value": "14125"},
+            {"key": "figure7j_cbs_matrix_count", "value": "16"},
+            {"key": "figure7j_source_cell_count", "value": "14125"},
             {
-                "key": "si6e_qc_passed_tumor_cell_count",
+                "key": "figure7j_qc_passed_tumor_cell_count",
                 "value": "9832",
             },
             {
-                "key": "si6e_treated_tumor_cell_count",
+                "key": "figure7j_treated_tumor_cell_count",
                 "value": "5335",
             },
             {
-                "key": "si6e_qc_selection_policy",
+                "key": "figure7j_qc_selection_policy",
                 "value": (
                     "exact cells matched by the frozen endpoint-ploidy audit "
                     "from the final QC-curated Seurat object; clusters 3, 4, "
                     "9, and 9c excluded"
                 ),
             },
-            {"key": "si6e_chromosome_count", "value": "22"},
+            {"key": "figure7j_chromosome_count", "value": "22"},
             {
-                "key": "si6e_row_order",
+                "key": "figure7j_row_order",
                 "value": (
                     "injected origin, dose, mouse, post-processed copy-number "
                     "score, cell ID; no row clustering"
                 ),
             },
             {
-                "key": "si6e_column_order",
+                "key": "figure7j_column_order",
                 "value": (
                     "chromosomes 1-22 in genomic order; no column clustering"
                 ),
@@ -2259,12 +2354,12 @@ class SiFiguresMaterializationTest(unittest.TestCase):
         annotation_path = (
             run_root
             / "metadata"
-            / "si_figure6E_copy_number_cell_annotations.tsv"
+            / "figure7J_copy_number_cell_annotations.tsv"
         )
         matrix_path = (
             run_root
             / "metadata"
-            / "si_figure6E_copy_number_heatmap_matrix.rds"
+            / "figure7J_copy_number_heatmap_matrix.rds"
         )
         audit_path = (
             cache_target / "si_figure6_endpoint_ploidy_join_audit.csv"
@@ -2306,9 +2401,82 @@ class SiFiguresMaterializationTest(unittest.TestCase):
         write_tsv(
             annotation_path,
             annotation_rows,
-            SI6_COPY_NUMBER_ANNOTATION_COLUMNS,
+            FIGURE7J_COPY_NUMBER_ANNOTATION_COLUMNS,
         )
         matrix_path.write_bytes(b"strict SI6 matrix RDS fixture\n")
+
+        si4i_grid_path = (
+            run_root
+            / "metadata/si_figure4I_density_localization_grid.tsv"
+        )
+        si4i_interval_path = (
+            run_root
+            / "metadata/si_figure4I_density_localization_intervals.tsv"
+        )
+        si4i_test_path = (
+            run_root
+            / "metadata/si_figure4I_density_localization_test.tsv"
+        )
+        write_tsv(
+            si4i_grid_path,
+            [
+                {
+                    "pseudotime": f"{index / 500:.3f}",
+                    "treated_minus_vehicle_density": "0",
+                }
+                for index in range(501)
+            ],
+            ["pseudotime", "treated_minus_vehicle_density"],
+        )
+        write_tsv(
+            si4i_interval_path,
+            [
+                {
+                    "support_type": "positive_pointwise_two_sided",
+                    "start": "0.296",
+                    "end": "0.486",
+                },
+                {
+                    "support_type": "positive_simultaneous_max_abs_t",
+                    "start": "0.414",
+                    "end": "0.426",
+                },
+            ],
+            ["support_type", "start", "end"],
+        )
+        write_tsv(
+            si4i_test_path,
+            [
+                {
+                    "analysis_id": (
+                        "equal_mouse_kde_exact_origin_stratified_max_t_v1"
+                    ),
+                    "cell_universe": "reviewed_qc_retained_cellcycle_2881",
+                    "n_cells": "2881",
+                    "n_samples": "16",
+                    "pointwise_start": "0.296",
+                    "pointwise_end": "0.486",
+                    "simultaneous_start": "0.414",
+                    "simultaneous_end": "0.426",
+                    "raw_excess_peak_pseudotime": "0.452",
+                    "max_abs_t_pseudotime": "0.420",
+                    "global_max_t_p_two_sided": "0.0473469387755102",
+                }
+            ],
+            [
+                "analysis_id",
+                "cell_universe",
+                "n_cells",
+                "n_samples",
+                "pointwise_start",
+                "pointwise_end",
+                "simultaneous_start",
+                "simultaneous_end",
+                "raw_excess_peak_pseudotime",
+                "max_abs_t_pseudotime",
+                "global_max_t_p_two_sided",
+            ],
+        )
 
         source_id = run_root.name.removesuffix("_si_figures")
         with cache_manifest.open(newline="") as handle:
@@ -2320,6 +2488,8 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             helper_target,
             shared_context_target,
             copy_number_target,
+            *figure7_shared_targets,
+            cellcycle_target,
             ploidy_derivation_target,
             all_ploidy_target,
             cbs_manifest_target,
@@ -2376,6 +2546,20 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                     role="output_model",
                     source_kind="generated_model",
                 ),
+                *[
+                    cls._manifest_row(
+                        path,
+                        repo,
+                        source_id,
+                        role="output_table",
+                        source_kind="generated_table",
+                    )
+                    for path in (
+                        si4i_grid_path,
+                        si4i_interval_path,
+                        si4i_test_path,
+                    )
+                ],
             ],
             MODULE_MANIFEST_COLUMNS,
         )

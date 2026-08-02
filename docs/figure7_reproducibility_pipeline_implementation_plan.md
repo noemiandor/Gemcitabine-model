@@ -10,12 +10,13 @@ suites. This document summarizes the current architecture and promotion rules.
 ## Scientific and display contract
 
 The module produces six scientific source panels, 7A--7F, as matched PDF and
-PNG files. It also assembles the manuscript-facing A--K composite using the
+PNG files. It also assembles the manuscript-facing A--L composite using the
 configured first-citation mapping:
 
 ```text
 A=7A, B=7C, C=SI4A, D=SI4B, E=SI4C, F=SI4E,
-G=SI7B, H=7B, I=7F, J=7D, K=7E
+G=SI7B, H=7B-ECDF, I=7F, J=QC-filtered copy-number heatmap,
+K=7D, L=7E
 ```
 
 The shared supplementary plotting implementation remains the single source of
@@ -45,7 +46,9 @@ nuisance covariate in that model.
 
 Routine execution recomputes 7A--7E from the tracked, plot-facing cell tables
 and renders 7F from the checksum-pinned reviewed v3 compact reference. It also
-validates the reviewed shared SI cache before assembling the A--K composite.
+validates the reviewed shared SI cache and the exact 9,832-cell copy-number
+inputs before assembling the A--L composite. The density-localization component
+of source 7B is regenerated as Supplementary Figure 4I.
 This mode is intentionally lightweight and does not require raw loom files or
 a large Seurat object.
 
@@ -129,9 +132,10 @@ Publication materialization requires all of the following:
 2. canonical-publication approval in both run metadata and reference
    provenance;
 3. the reviewed shared-SI cache identity and manifest;
-4. the exact A--K panel mapping and output inventory;
-5. the reviewed Figure 7K numerical/statistical contract; and
-6. complete, relocatable input and output manifests.
+4. the exact A--L panel mapping and output inventory;
+5. the reviewed Figure 7L numerical/statistical contract;
+6. the exact 9,832-cell Figure 7J copy-number contract; and
+7. complete, relocatable input and output manifests.
 
 Any missing, duplicated, unexpected, noncanonical, or checksum-mismatched
 asset causes materialization to fail before manuscript-facing files are
@@ -173,7 +177,7 @@ Changes are ready for promotion only when:
 
 - the R contract and workflow tests pass;
 - the Manager CLI and materializer tests pass;
-- standard execution reproduces the reviewed source panels and A--K
+- standard execution reproduces the reviewed source panels and A--L
   composite;
 - full-refit either reuses a valid lineage or reconstructs every missing stage
   from pinned inputs;

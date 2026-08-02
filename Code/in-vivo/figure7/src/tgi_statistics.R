@@ -270,7 +270,7 @@ figure7_density_localization_contract <- function(config) {
   )
   if (is.null(local) || !all(required %in% names(local))) {
     figure7_stop(
-      "Figure 7B/H density-localization config is incomplete: ",
+      "Source Figure 7B/SI4I density-localization config is incomplete: ",
       paste(setdiff(required, names(local)), collapse = ", ")
     )
   }
@@ -291,7 +291,7 @@ figure7_density_localization_contract <- function(config) {
   )
   if (!identical(unname(observed_strings), unname(expected_strings))) {
     figure7_stop(
-      "Figure 7B/H density-localization method must remain the reviewed ",
+      "Source Figure 7B/SI4I density-localization method must remain the reviewed ",
       "equal-mouse, injected-origin-stratified contract"
     )
   }
@@ -323,7 +323,7 @@ figure7_density_localization_contract <- function(config) {
       values[["expected_permutations"]] != 4900 ||
       values[["pointwise_alpha"]] != 0.05 ||
       values[["simultaneous_alpha"]] != 0.05) {
-    figure7_stop("Figure 7B/H density-localization numeric contract is invalid")
+    figure7_stop("Source Figure 7B/SI4I density-localization numeric contract is invalid")
   }
   list(raw = local, numeric = values)
 }
@@ -360,7 +360,7 @@ figure7_density_localization <- function(data, samples, config) {
   required_samples <- c("sample_id", "initial_ploidy", "dose_mg")
   if (!all(required_data %in% names(data)) ||
       !all(required_samples %in% names(samples))) {
-    figure7_stop("Figure 7B/H density localization is missing required inputs")
+    figure7_stop("Source Figure 7B/SI4I density localization is missing required inputs")
   }
   samples <- samples[order(samples$sample_id), , drop = FALSE]
   rownames(samples) <- NULL
@@ -372,20 +372,20 @@ figure7_density_localization <- function(data, samples, config) {
       any(data$pseudotime < values[["grid_start"]] |
           data$pseudotime > values[["grid_end"]])) {
     figure7_stop(
-      "Figure 7B/H density localization requires the exact 2,881-cell, ",
+      "Source Figure 7B/SI4I density localization requires the exact 2,881-cell, ",
       "16-mouse reviewed QC universe"
     )
   }
   treatment <- ifelse(samples$dose_mg == 0, "vehicle", "treated")
   if (sum(treatment == "vehicle") != values[["expected_vehicle_samples"]] ||
       sum(treatment == "treated") != values[["expected_treated_samples"]]) {
-    figure7_stop("Figure 7B/H density-localization treatment balance is invalid")
+    figure7_stop("Source Figure 7B/SI4I density-localization treatment balance is invalid")
   }
   balance <- table(samples$initial_ploidy, treatment)
   if (!identical(sort(unique(as.character(samples$initial_ploidy))), c("2N", "4N")) ||
       !all(balance == values[["expected_samples_per_treatment_within_origin"]])) {
     figure7_stop(
-      "Figure 7B/H density localization requires four vehicle and four ",
+      "Source Figure 7B/SI4I density localization requires four vehicle and four ",
       "treated mice within each injected-origin stratum"
     )
   }
@@ -398,7 +398,7 @@ figure7_density_localization <- function(data, samples, config) {
   ))) {
     figure7_stop(
       "Pooled label-invariant density bandwidth disagrees with the reviewed ",
-      "Figure 7B/H contract"
+      "source Figure 7B/SI4I contract"
     )
   }
   grid <- seq(
@@ -427,7 +427,7 @@ figure7_density_localization <- function(data, samples, config) {
     treatment, "vehicle", "treated", samples$initial_ploidy
   )
   if (length(assignments) != as.integer(values[["expected_permutations"]])) {
-    figure7_stop("Figure 7B/H density-localization permutation count is invalid")
+    figure7_stop("Source Figure 7B/SI4I density-localization permutation count is invalid")
   }
   permuted <- vapply(assignments, function(group) {
     colMeans(density_matrix[group == "treated", , drop = FALSE]) -
@@ -435,7 +435,7 @@ figure7_density_localization <- function(data, samples, config) {
   }, numeric(length(grid)))
   permutation_sd <- apply(permuted, 1L, stats::sd)
   if (any(!is.finite(permutation_sd)) || any(permutation_sd <= 0)) {
-    figure7_stop("Figure 7B/H density-localization permutation variance is invalid")
+    figure7_stop("Source Figure 7B/SI4I density-localization permutation variance is invalid")
   }
   observed_studentized <- observed / permutation_sd
   permutation_studentized <- sweep(permuted, 1L, permutation_sd, "/")
@@ -498,7 +498,7 @@ figure7_density_localization <- function(data, samples, config) {
         check.attributes = FALSE
       ))) {
     figure7_stop(
-      "Figure 7B/H density-localization support intervals disagree with ",
+      "Source Figure 7B/SI4I density-localization support intervals disagree with ",
       "the reviewed 2,881-cell analysis"
     )
   }
@@ -529,7 +529,7 @@ figure7_density_localization <- function(data, samples, config) {
     check.attributes = FALSE
   ))) {
     figure7_stop(
-      "Figure 7B/H density-localization peak or global inference disagrees ",
+      "Source Figure 7B/SI4I density-localization peak or global inference disagrees ",
       "with the reviewed 2,881-cell analysis"
     )
   }
