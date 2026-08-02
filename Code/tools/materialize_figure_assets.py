@@ -280,7 +280,10 @@ PANEL_SPECS = [
         "figure": "Figure7",
         "panel": "7B",
         "asset": "panel_7B_cellcycle_selected_ecdf_comparisons.pdf",
-        "caption_role": "Selected CellCycle mean-ECDF comparisons",
+        "caption_role": (
+            "Equal-mouse CellCycle mean-ECDF comparisons and exact "
+            "treated-cell-excess localization"
+        ),
         "variant": "pdf",
     },
     {
@@ -338,7 +341,10 @@ PANEL_SPECS = [
         "figure": "Figure7",
         "panel": "7B_png",
         "asset": "panel_7B_cellcycle_selected_ecdf_comparisons.png",
-        "caption_role": "PNG derivative of the selected CellCycle mean-ECDF panel",
+        "caption_role": (
+            "PNG derivative of the CellCycle mean-ECDF and "
+            "treated-cell-excess localization panel"
+        ),
         "variant": "png",
     },
     {
@@ -1916,6 +1922,381 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
     validate_si6_copy_number_outputs(run_root, repo_root)
 
 
+def validate_figure7_density_localization_contract(
+    run_root: Path,
+    repo_root: Path,
+    input_rows: list[dict[str, str]],
+    output_rows: list[dict[str, str]],
+    source_run_id: str,
+) -> None:
+    """Validate the exact reviewed 2,881-cell localization behind panel 7H."""
+    figure7_config = repo_root / "Code/in-vivo/figure7/figure7_config.yaml"
+    localization_config = (
+        repo_root / "Code/in-vivo/figure7/density_localization_config.yaml"
+    )
+    run_config = read_unique_key_values(
+        run_root / "metadata" / "run_config.tsv",
+        "source Figure 7 run config",
+    )
+    if (
+        not figure7_config.is_file()
+        or not localization_config.is_file()
+        or run_config.get("config_sha256") != sha256_file(figure7_config)
+        or run_config.get("density_localization_config")
+        != "Code/in-vivo/figure7/density_localization_config.yaml"
+        or run_config.get("density_localization_config_sha256")
+        != sha256_file(localization_config)
+    ):
+        raise ValueError(
+            "Figure 7 density localization does not bind the active reviewed "
+            "configuration"
+        )
+
+    required_inputs = {
+        (
+            repo_root / "Code/in-vivo/figure7/run_figure7.R"
+        ).resolve(),
+        figure7_config.resolve(),
+        localization_config.resolve(),
+        (
+            repo_root / "Code/in-vivo/figure7/src/common_io.R"
+        ).resolve(),
+        (
+            repo_root / "Code/in-vivo/figure7/src/tgi_statistics.R"
+        ).resolve(),
+        (
+            repo_root / "Code/in-vivo/figure7/src/tgi_panels.R"
+        ).resolve(),
+    }
+    observed_inputs = {
+        path.resolve()
+        for row in input_rows
+        if (path := module_manifest_local_path(row, repo_root)) is not None
+    }
+    missing_inputs = sorted(str(path) for path in required_inputs - observed_inputs)
+    if missing_inputs:
+        raise ValueError(
+            "Figure 7 density localization input manifest does not bind its "
+            f"renderer, configs, statistics, and plotting code: missing={missing_inputs}"
+        )
+
+    table_paths = {
+        "grid": (
+            run_root / "tables/panel_7B_density_localization_grid.tsv"
+        ).resolve(),
+        "intervals": (
+            run_root / "tables/panel_7B_density_localization_intervals.tsv"
+        ).resolve(),
+        "test": (
+            run_root / "tables/panel_7B_density_localization_test.tsv"
+        ).resolve(),
+    }
+    manifest_rows_by_path: dict[Path, list[dict[str, str]]] = {}
+    for row in output_rows:
+        path = module_manifest_local_path(
+            row,
+            repo_root,
+            output_root=run_root,
+        )
+        if path is not None:
+            manifest_rows_by_path.setdefault(path.resolve(), []).append(row)
+    for label, table_path in table_paths.items():
+        if not table_path.is_file():
+            raise FileNotFoundError(
+                f"Missing Figure 7 density-localization {label} table: {table_path}"
+            )
+        matches = manifest_rows_by_path.get(table_path, [])
+        if len(matches) != 1:
+            raise ValueError(
+                "Figure 7 density-localization output manifest must bind "
+                f"exactly one {label} table row; found {len(matches)}"
+            )
+        row = matches[0]
+        if (
+            row.get("role") != "output_table"
+            or row.get("source_kind") != "generated_table"
+            or row.get("module") != "in_vivo_figure7"
+            or row.get("command_id") != source_run_id
+            or row.get("sha256", "").strip() != sha256_file(table_path)
+        ):
+            raise ValueError(
+                "Figure 7 density-localization output-manifest provenance is "
+                f"invalid for {table_path.name}"
+            )
+
+    grid_headers, grid_rows = read_tsv(table_paths["grid"])
+    interval_headers, interval_rows = read_tsv(table_paths["intervals"])
+    test_headers, test_rows = read_tsv(table_paths["test"])
+    required_grid_headers = {
+        "pseudotime",
+        "vehicle_mean_density",
+        "treated_mean_density",
+        "treated_minus_vehicle_density",
+        "permutation_sd",
+        "observed_studentized",
+        "pointwise_p_two_sided",
+        "max_t_adjusted_p_two_sided",
+        "simultaneous_critical",
+        "simultaneous_lower_envelope",
+        "simultaneous_upper_envelope",
+        "pointwise_positive_supported",
+        "simultaneous_positive_supported",
+        "frozen_state_interval",
+    }
+    required_interval_headers = {"support_type", "start", "end", "width", "alpha"}
+    required_test_headers = {
+        "analysis_id",
+        "cell_universe",
+        "n_cells",
+        "n_samples",
+        "n_vehicle_samples",
+        "n_treated_samples",
+        "sample_weighting",
+        "density_estimator",
+        "bandwidth_method",
+        "bandwidth",
+        "grid_start",
+        "grid_end",
+        "grid_points",
+        "contrast",
+        "permutation_strata",
+        "n_permutations",
+        "pointwise_test",
+        "pointwise_alpha",
+        "pointwise_start",
+        "pointwise_end",
+        "simultaneous_test",
+        "simultaneous_alpha",
+        "simultaneous_critical",
+        "simultaneous_start",
+        "simultaneous_end",
+        "raw_excess_peak_pseudotime",
+        "raw_excess_peak_density_difference",
+        "max_abs_t_pseudotime",
+        "max_abs_t_observed_statistic",
+        "global_max_abs_t",
+        "global_max_t_p_two_sided",
+    }
+    if (
+        not required_grid_headers.issubset(grid_headers)
+        or not required_interval_headers.issubset(interval_headers)
+        or not required_test_headers.issubset(test_headers)
+        or len(grid_rows) != 501
+        or len(interval_rows) != 2
+        or len(test_rows) != 1
+    ):
+        raise ValueError(
+            "Figure 7 density-localization tables have an invalid schema or row count"
+        )
+
+    test_row = test_rows[0]
+    expected_strings = {
+        "analysis_id": "equal_mouse_kde_exact_origin_stratified_max_t_v1",
+        "cell_universe": "reviewed_qc_retained_cellcycle_2881",
+        "sample_weighting": "equal_mouse",
+        "density_estimator": "stats::density Gaussian kernel",
+        "bandwidth_method": "pooled label-invariant stats::bw.nrd0",
+        "contrast": "treated_minus_vehicle",
+        "permutation_strata": "initial_ploidy",
+        "pointwise_test": "two-sided exact permutation at each grid point",
+        "simultaneous_test": (
+            "studentized max-absolute-T exact permutation null envelope"
+        ),
+    }
+    if any(test_row.get(key) != value for key, value in expected_strings.items()):
+        raise ValueError(
+            "Figure 7 density localization does not use the reviewed "
+            "equal-mouse exact origin-stratified method"
+        )
+
+    expected_numeric = {
+        "n_cells": 2881.0,
+        "n_samples": 16.0,
+        "n_vehicle_samples": 8.0,
+        "n_treated_samples": 8.0,
+        "bandwidth": 0.0506470455660707,
+        "grid_start": 0.0,
+        "grid_end": 1.0,
+        "grid_points": 501.0,
+        "n_permutations": 4900.0,
+        "pointwise_alpha": 0.05,
+        "pointwise_start": 0.296,
+        "pointwise_end": 0.486,
+        "simultaneous_alpha": 0.05,
+        "simultaneous_critical": 2.6737373166169203,
+        "simultaneous_start": 0.414,
+        "simultaneous_end": 0.426,
+        "raw_excess_peak_pseudotime": 0.452,
+        "raw_excess_peak_density_difference": 0.283948126904316,
+        "max_abs_t_pseudotime": 0.420,
+        "max_abs_t_observed_statistic": 2.68138128387289,
+        "global_max_abs_t": 2.68138128387289,
+        "global_max_t_p_two_sided": 232.0 / 4900.0,
+    }
+    if any(
+        not math.isclose(
+            finite_float(test_row.get(key, ""), f"density-localization {key}"),
+            value,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        )
+        for key, value in expected_numeric.items()
+    ):
+        raise ValueError(
+            "Figure 7 density localization does not reproduce the reviewed "
+            "2,881-cell intervals, peaks, or global exact result"
+        )
+
+    expected_intervals = (
+        ("positive_pointwise_two_sided", 0.296, 0.486, 0.190, 0.05),
+        ("positive_simultaneous_max_abs_t", 0.414, 0.426, 0.012, 0.05),
+    )
+    for row, expected in zip(interval_rows, expected_intervals, strict=True):
+        support_type, start, end, width, alpha = expected
+        if row.get("support_type") != support_type or any(
+            not math.isclose(
+                finite_float(row.get(key, ""), f"density-localization {key}"),
+                value,
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            )
+            for key, value in (
+                ("start", start),
+                ("end", end),
+                ("width", width),
+                ("alpha", alpha),
+            )
+        ):
+            raise ValueError(
+                "Figure 7 density-localization interval table is not the "
+                "reviewed pointwise and simultaneous result"
+            )
+
+    raw_values: list[float] = []
+    studentized_values: list[float] = []
+    for index, row in enumerate(grid_rows):
+        x = finite_float(row.get("pseudotime", ""), "density grid pseudotime")
+        vehicle = finite_float(
+            row.get("vehicle_mean_density", ""), "vehicle mean density"
+        )
+        treated = finite_float(
+            row.get("treated_mean_density", ""), "treated mean density"
+        )
+        difference = finite_float(
+            row.get("treated_minus_vehicle_density", ""), "density difference"
+        )
+        permutation_sd = finite_float(
+            row.get("permutation_sd", ""), "density permutation SD"
+        )
+        studentized = finite_float(
+            row.get("observed_studentized", ""), "studentized density difference"
+        )
+        pointwise_p = finite_float(
+            row.get("pointwise_p_two_sided", ""), "pointwise density P"
+        )
+        adjusted_p = finite_float(
+            row.get("max_t_adjusted_p_two_sided", ""), "adjusted density P"
+        )
+        critical = finite_float(
+            row.get("simultaneous_critical", ""), "density critical value"
+        )
+        lower = finite_float(
+            row.get("simultaneous_lower_envelope", ""), "density lower envelope"
+        )
+        upper = finite_float(
+            row.get("simultaneous_upper_envelope", ""), "density upper envelope"
+        )
+        booleans = {
+            key: row.get(key, "")
+            for key in (
+                "pointwise_positive_supported",
+                "simultaneous_positive_supported",
+                "frozen_state_interval",
+            )
+        }
+        if any(value not in {"TRUE", "FALSE"} for value in booleans.values()):
+            raise ValueError(
+                "Figure 7 density-localization support masks must be strict booleans"
+            )
+        pointwise_supported = booleans["pointwise_positive_supported"] == "TRUE"
+        simultaneous_supported = (
+            booleans["simultaneous_positive_supported"] == "TRUE"
+        )
+        frozen = booleans["frozen_state_interval"] == "TRUE"
+        expected_x = index / 500.0
+        expected_pointwise = 0.296 <= expected_x <= 0.486
+        expected_simultaneous = 0.414 <= expected_x <= 0.426
+        expected_frozen = 0.30 <= expected_x <= 0.49
+        if (
+            not math.isclose(x, expected_x, rel_tol=0.0, abs_tol=1e-12)
+            or permutation_sd <= 0
+            or not math.isclose(treated - vehicle, difference, rel_tol=0.0, abs_tol=1e-12)
+            or not math.isclose(
+                difference / permutation_sd,
+                studentized,
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            )
+            or not math.isclose(
+                critical,
+                expected_numeric["simultaneous_critical"],
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            )
+            or not math.isclose(
+                lower,
+                -critical * permutation_sd,
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            )
+            or not math.isclose(
+                upper,
+                critical * permutation_sd,
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            )
+            or not 0 <= pointwise_p <= 1
+            or not 0 <= adjusted_p <= 1
+            or pointwise_supported != (difference > 0 and pointwise_p <= 0.05)
+            or simultaneous_supported != (studentized > critical)
+            or pointwise_supported != expected_pointwise
+            or simultaneous_supported != expected_simultaneous
+            or frozen != expected_frozen
+        ):
+            raise ValueError(
+                "Figure 7 density-localization grid, null envelope, or support "
+                "masks disagree with the reviewed contract"
+            )
+        raw_values.append(difference)
+        studentized_values.append(studentized)
+
+    raw_peak_index = max(range(len(raw_values)), key=raw_values.__getitem__)
+    max_t_index = max(
+        range(len(studentized_values)),
+        key=lambda index: abs(studentized_values[index]),
+    )
+    if (
+        raw_peak_index != 226
+        or max_t_index != 210
+        or not math.isclose(
+            raw_values[raw_peak_index],
+            expected_numeric["raw_excess_peak_density_difference"],
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        )
+        or not math.isclose(
+            abs(studentized_values[max_t_index]),
+            expected_numeric["global_max_abs_t"],
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        )
+    ):
+        raise ValueError(
+            "Figure 7 density-localization grid does not distinguish the raw "
+            "0.452 peak from the 0.420 maximum standardized evidence"
+        )
+
+
 def validate_strict_source_run(
     module: str,
     run_root: Path,
@@ -2177,15 +2558,15 @@ def validate_strict_source_run(
         if has_panel_f:
             width_px, height_px, dpi_x, dpi_y = read_png_geometry(composite_path)
             if (
-                (width_px, height_px) != (2130, 2910)
+                (width_px, height_px) != (2130, 3193)
                 or dpi_x is None
                 or dpi_y is None
                 or abs(dpi_x - 300.0) > 0.5
                 or abs(dpi_y - 300.0) > 0.5
             ):
                 raise ValueError(
-                    "Source Figure 7 A-K PNG must be exactly 2130x2910 pixels "
-                    "with 300-DPI metadata (7.1x9.7 inches)"
+                    "Source Figure 7 A-K PNG must be exactly 2130x3193 pixels "
+                    "with 300-DPI metadata (7.1x10.645 inches)"
                 )
         expected_panel_set = "a-f" if has_panel_f else "a-e"
         run_config = read_unique_key_values(
@@ -2212,6 +2593,10 @@ def validate_strict_source_run(
                 )
             ) is not None
         }
+        figure7_config = repo_root / "Code/in-vivo/figure7/figure7_config.yaml"
+        density_localization_config = (
+            repo_root / "Code/in-vivo/figure7/density_localization_config.yaml"
+        )
         for relative_path, expected_hash in FIGURE7_PROCESSED_INPUTS.items():
             processed_path = (repo_root / relative_path).resolve()
             if processed_path not in observed_input_paths:
@@ -2249,20 +2634,14 @@ def validate_strict_source_run(
             source_run_id,
             figure7_tgi_day,
         )
+        validate_figure7_density_localization_contract(
+            run_root,
+            repo_root,
+            input_rows,
+            output_rows,
+            source_run_id,
+        )
         if has_panel_f:
-            figure7_config = (
-                repo_root
-                / "Code/in-vivo/figure7/figure7_config.yaml"
-            )
-            if (
-                not figure7_config.is_file()
-                or run_config.get("config_sha256")
-                != sha256_file(figure7_config)
-            ):
-                raise ValueError(
-                    "Canonical Figure 7 materialization is prohibited: "
-                    "the run does not bind the active reviewed config"
-                )
             reviewed_identity = {
                 "state_pathway_reference_id": FIGURE7_REVIEWED_REFERENCE_ID,
                 "state_pathway_reference_kind": FIGURE7_REVIEWED_REFERENCE_KIND,
@@ -2301,6 +2680,10 @@ def validate_strict_source_run(
                 (
                     repo_root
                     / "Code/in-vivo/figure7/figure7_config.yaml"
+                ).resolve(),
+                (
+                    repo_root
+                    / "Code/in-vivo/figure7/density_localization_config.yaml"
                 ).resolve(),
                 *{
                     (
@@ -2351,9 +2734,15 @@ def validate_strict_source_run(
                     "G=SI7B;H=7B;I=7F;J=7D;K=7E"
                 ),
                 "main_composite_width_in": "7.1",
-                "main_composite_height_in": "9.7",
+                "main_composite_height_in": "10.645",
                 "main_composite_png_dpi": "300",
                 "main_composite_layout_rows": "A/B;C/D/E;F/G;H;I;J/K",
+                "density_localization_config": (
+                    "Code/in-vivo/figure7/density_localization_config.yaml"
+                ),
+                "density_localization_config_sha256": sha256_file(
+                    density_localization_config
+                ),
                 "reviewed_si_cache_manifest": (
                     "Data/in-vivo/SIfigures/manifest.tsv"
                 ),

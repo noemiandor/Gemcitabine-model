@@ -80,7 +80,7 @@ figure7_panel_a_plot <- function(data, config) {
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1), plot.caption = ggplot2::element_text(hjust = 0))
 }
 
-figure7_panel_b_plot <- function(data, tests) {
+figure7_panel_b_ecdf_plot <- function(data, tests) {
   levels <- c("1. 0 vs treated", "8. 4N: 0 vs treated", "9. 2N: 0 vs treated")
   display_levels <- c(
     "1. 0 vs treated" = "All tumors",
@@ -109,6 +109,134 @@ figure7_panel_b_plot <- function(data, tests) {
     ggplot2::coord_cartesian(xlim = c(0, 1), ylim = c(0, 1.05), clip = "off") +
     ggplot2::labs(title = "CellCycle: selected direct group mean ECDF comparisons (initial_ploidy)",
                   subtitle = "Equal-sample mean ECDFs", x = "Pseudotime", y = "Mean ECDF") + figure7_theme()
+}
+
+figure7_panel_b_localization_plot <- function(grid, intervals, test) {
+  required_grid <- c(
+    "pseudotime", "treated_minus_vehicle_density",
+    "simultaneous_lower_envelope", "simultaneous_upper_envelope",
+    "pointwise_positive_supported", "simultaneous_positive_supported"
+  )
+  required_intervals <- c("support_type", "start", "end")
+  required_test <- c(
+    "raw_excess_peak_pseudotime", "max_abs_t_pseudotime",
+    "global_max_t_p_two_sided", "n_permutations"
+  )
+  if (!all(required_grid %in% names(grid)) ||
+      !all(required_intervals %in% names(intervals)) ||
+      !all(required_test %in% names(test)) || nrow(test) != 1L) {
+    figure7_stop("Panel 7B/H density-localization plotting contract is incomplete")
+  }
+  pointwise <- intervals[
+    intervals$support_type == "positive_pointwise_two_sided",
+    ,
+    drop = FALSE
+  ]
+  simultaneous <- intervals[
+    intervals$support_type == "positive_simultaneous_max_abs_t",
+    ,
+    drop = FALSE
+  ]
+  if (nrow(pointwise) != 1L || nrow(simultaneous) != 1L ||
+      sum(as.logical(grid$pointwise_positive_supported)) < 2L ||
+      sum(as.logical(grid$simultaneous_positive_supported)) < 2L) {
+    figure7_stop(
+      "Panel 7B/H localization must contain the reviewed pointwise and ",
+      "simultaneous positive-support regions"
+    )
+  }
+  ggplot2::ggplot(
+    grid,
+    ggplot2::aes(pseudotime, treated_minus_vehicle_density)
+  ) +
+    ggplot2::annotate(
+      "rect", xmin = pointwise$start, xmax = pointwise$end,
+      ymin = -Inf, ymax = Inf, fill = "#9ECAE1", alpha = 0.32
+    ) +
+    ggplot2::annotate(
+      "rect", xmin = simultaneous$start, xmax = simultaneous$end,
+      ymin = -Inf, ymax = Inf, fill = "#08519C", alpha = 0.55
+    ) +
+    ggplot2::geom_ribbon(
+      ggplot2::aes(
+        ymin = simultaneous_lower_envelope,
+        ymax = simultaneous_upper_envelope
+      ),
+      inherit.aes = TRUE,
+      fill = "grey72",
+      alpha = 0.35,
+      color = NA
+    ) +
+    ggplot2::geom_hline(yintercept = 0, color = "grey35", linewidth = 0.35) +
+    ggplot2::geom_vline(
+      xintercept = c(0.30, 0.49), linetype = "22",
+      color = "#4D4D4D", linewidth = 0.45
+    ) +
+    ggplot2::geom_line(color = "#2171B5", linewidth = 0.85) +
+    ggplot2::geom_line(
+      data = grid[as.logical(grid$simultaneous_positive_supported), , drop = FALSE],
+      color = "#08306B", linewidth = 1.8
+    ) +
+    ggplot2::geom_point(
+      data = grid[
+        which.min(abs(grid$pseudotime - test$raw_excess_peak_pseudotime)),
+        ,
+        drop = FALSE
+      ],
+      shape = 21, fill = "#2171B5", color = "white", stroke = 0.45,
+      size = 2.2
+    ) +
+    ggplot2::geom_point(
+      data = grid[
+        which.min(abs(grid$pseudotime - test$max_abs_t_pseudotime)),
+        ,
+        drop = FALSE
+      ],
+      shape = 23, fill = "#08306B", color = "white", stroke = 0.45,
+      size = 2.1
+    ) +
+    ggplot2::coord_cartesian(xlim = c(0, 1), clip = "off") +
+    ggplot2::labs(
+      title = "Mouse-balanced localization of treated-cell excess",
+      subtitle = sprintf(
+        "Exact origin-stratified max-|T| P = %.3g (%s assignments)",
+        test$global_max_t_p_two_sided,
+        format(test$n_permutations, big.mark = ",", scientific = FALSE)
+      ),
+      x = "Pseudotime",
+      y = "Gemcitabine - vehicle\ndensity difference"
+    ) +
+    figure7_theme() +
+    ggplot2::theme(
+      legend.position = "none",
+      panel.grid.minor = ggplot2::element_blank()
+    )
+}
+
+figure7_panel_b_plot <- function(
+  data,
+  tests,
+  localization_grid,
+  localization_intervals,
+  localization_test
+) {
+  if (!requireNamespace("patchwork", quietly = TRUE)) {
+    figure7_stop("R package 'patchwork' is required for panel 7B/H")
+  }
+  components <- list(
+    ecdf = figure7_panel_b_ecdf_plot(data, tests),
+    localization = figure7_panel_b_localization_plot(
+      localization_grid, localization_intervals, localization_test
+    )
+  )
+  plot <- patchwork::wrap_plots(
+    components,
+    ncol = 1,
+    heights = c(1.35, 0.945),
+    guides = "collect"
+  )
+  attr(plot, "figure7_panel_b_components") <- components
+  plot
 }
 
 figure7_panel_c_plot <- function(data, test, config) {
@@ -303,7 +431,7 @@ figure7_build_ae <- function(cellcycle, data, samples, output_dir, config) {
   tgi_measure <- figure7_tgi_measure(config)
   figures <- file.path(output_dir, "figures"); tables <- file.path(output_dir, "tables")
   trajectory <- figure7_growth_trajectory_data(cellcycle, samples, config)
-  panel_b <- figure7_panel_b(data, samples)
+  panel_b <- figure7_panel_b(data, samples, config)
   treated <- figure7_add_metadata(samples[samples$dose_mg > 0, , drop = FALSE], config)
   test_c <- figure7_add_metadata(figure7_panel_c_test(samples, config), config)
   shifts <- figure7_shift_metrics(data, samples, config); panel_d <- figure7_panel_d(shifts, config)
@@ -311,10 +439,25 @@ figure7_build_ae <- function(cellcycle, data, samples, output_dir, config) {
   panel_e <- figure7_panel_e(samples, config)
   panel_e$data <- figure7_add_metadata(panel_e$data, config); panel_e$test <- figure7_add_metadata(panel_e$test, config)
   panel_b$data <- figure7_add_metadata(panel_b$data, config); panel_b$tests <- figure7_add_metadata(panel_b$tests, config)
+  panel_b$localization_grid <- figure7_add_metadata(panel_b$localization_grid, config)
+  panel_b$localization_intervals <- figure7_add_metadata(panel_b$localization_intervals, config)
+  panel_b$localization_test <- figure7_add_metadata(panel_b$localization_test, config)
 
   figure7_write_tsv(trajectory, file.path(tables, "panel_7A_plot_data.tsv"))
   figure7_write_tsv(panel_b$data, file.path(tables, "panel_7B_plot_data.tsv"))
   figure7_write_tsv(panel_b$tests, file.path(tables, "panel_7B_tests.tsv"))
+  figure7_write_tsv(
+    panel_b$localization_grid,
+    file.path(tables, "panel_7B_density_localization_grid.tsv")
+  )
+  figure7_write_tsv(
+    panel_b$localization_intervals,
+    file.path(tables, "panel_7B_density_localization_intervals.tsv")
+  )
+  figure7_write_tsv(
+    panel_b$localization_test,
+    file.path(tables, "panel_7B_density_localization_test.tsv")
+  )
   figure7_write_tsv(treated, file.path(tables, "panel_7C_plot_data.tsv"))
   figure7_write_tsv(test_c, file.path(tables, "panel_7C_test.tsv"))
   figure7_write_tsv(panel_d$data, file.path(tables, "panel_7D_plot_data.tsv"))
@@ -325,7 +468,13 @@ figure7_build_ae <- function(cellcycle, data, samples, output_dir, config) {
   filenames <- stats::setNames(figure7_panel_filenames(config), figure7_panel_ids(TRUE))
   plots <- list(
     A = figure7_panel_a_plot(trajectory, config),
-    B = figure7_panel_b_plot(panel_b$data, panel_b$tests),
+    B = figure7_panel_b_plot(
+      panel_b$data,
+      panel_b$tests,
+      panel_b$localization_grid,
+      panel_b$localization_intervals,
+      panel_b$localization_test
+    ),
     C = figure7_panel_c_plot(treated, test_c, config),
     D = figure7_scatter_plot(
       panel_d$data,
@@ -343,7 +492,7 @@ figure7_build_ae <- function(cellcycle, data, samples, output_dir, config) {
   )
   sizes <- list(
     A = c(10, 6.5),
-    B = c(15, 5.5),
+    B = c(15, 9.35),
     C = c(6.8, 6.4),
     D = c(6.6, 6.6),
     E = c(6.8, 6.8)

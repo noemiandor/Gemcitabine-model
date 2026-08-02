@@ -1,0 +1,32 @@
+schema_version: 1
+density_localization:
+  analysis_id: equal_mouse_kde_exact_origin_stratified_max_t_v1
+  cell_universe: reviewed_qc_retained_cellcycle_2881
+  expected_cells: 2881
+  expected_samples: 16
+  expected_vehicle_samples: 8
+  expected_treated_samples: 8
+  expected_samples_per_treatment_within_origin: 4
+  estimator: stats_density_gaussian
+  bandwidth_method: pooled_label_invariant_bw_nrd0
+  bandwidth: 0.0506470455660707
+  grid_start: 0.0
+  grid_end: 1.0
+  grid_points: 501
+  mouse_weighting: equal
+  treatment_contrast: treated_minus_vehicle
+  permutation_strata: initial_ploidy
+  expected_permutations: 4900
+  pointwise_alpha: 0.05
+  simultaneous_alpha: 0.05
+  simultaneous_method: studentized_max_abs_t
+  expected_pointwise_start: 0.296
+  expected_pointwise_end: 0.486
+  expected_simultaneous_start: 0.414
+  expected_simultaneous_end: 0.426
+  expected_simultaneous_critical: 2.6737373166169203
+  expected_raw_excess_peak_pseudotime: 0.452
+  expected_raw_excess_peak_density_difference: 0.283948126904316
+  expected_max_abs_t_pseudotime: 0.420
+  expected_global_max_abs_t: 2.68138128387289
+  expected_global_max_t_p_two_sided: 0.0473469387755102

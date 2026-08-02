@@ -1,11 +1,15 @@
 # Figure 7 publication polishing notes
 
-The strict A--K identity and scientific analyses are unchanged. The display is
-rebuilt natively at 7.1 x 9.7 inches instead of scaling a 24 x 28 inch canvas.
+The strict A--K identity and all pre-existing scientific analyses are
+unchanged. Panel H now adds the executable, mouse-balanced treated-cell-density
+localization analysis. The display is rebuilt natively at 7.1 x 10.645 inches
+instead of scaling a 24 x 28 inch canvas.
 The six-row plan preserves row-major order while allocating full width to panel
 I, 4.45 inches to G, and 3.46 inches each to J and K after the outer gutters.
-Panel H receives 1.35 inches of vertical space so its equal-mouse ECDF
-differences remain visible at publication size.
+Panel H receives 2.295 inches of vertical space. Its three equal-mouse ECDF
+comparisons remain visible at publication size, and a lower strip displays the
+treated-minus-vehicle density curve, the pointwise-supported 0.296--0.486
+region, and the family-wise-supported 0.414--0.426 region.
 Titles, subtitles,
 formulas, and methodological prose are removed from final panel objects and
 transferred to the manuscript legend.

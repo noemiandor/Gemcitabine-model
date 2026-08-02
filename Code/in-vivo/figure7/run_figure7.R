@@ -46,6 +46,10 @@ panel_ids <- figure7_panel_ids(include_state_pathway)
 config_path <- normalizePath(figure7_arg(args, "config", file.path(script_dir, "figure7_config.yaml")), mustWork = FALSE)
 tgi_day_arg <- figure7_arg(args, "tgi-day", "")
 config <- figure7_read_config(config_path, if (nzchar(tgi_day_arg)) tgi_day_arg else NULL)
+config <- figure7_attach_density_localization_config(
+  config,
+  file.path(script_dir, "density_localization_config.yaml")
+)
 output_dir <- normalizePath(figure7_arg(args, "output-dir", required = TRUE), mustWork = FALSE)
 si_cache_dir <- ""
 si_cache_policy <- "not_applicable"
@@ -164,6 +168,13 @@ write_metadata <- function(
 ) {
   tgi_day <- figure7_tgi_day(config)
   tgi_measure <- figure7_tgi_measure(config)
+  density_localization_config_path <- attr(
+    config, "density_localization_config_path", exact = TRUE
+  )
+  if (is.null(density_localization_config_path) ||
+      !file.exists(density_localization_config_path)) {
+    figure7_stop("Figure 7 density-localization config is not attached")
+  }
   if (is.null(reference_identity)) {
     reference_identity <- if (!is.null(workflow)) {
       list(
@@ -205,6 +216,8 @@ write_metadata <- function(
             "canonical_publication_allowed",
             "state_interval_start", "state_interval_end",
             "state_pathway_source_results_root", "config_sha256",
+            "density_localization_config",
+            "density_localization_config_sha256",
             "cellcycle_input", "cellcycle_sha256",
             "noncellcycle_input", "noncellcycle_sha256",
             "endpoint_ploidy_input", "endpoint_ploidy_sha256",
@@ -223,6 +236,8 @@ write_metadata <- function(
               as.character(config$state_pathways$accumulated_interval$end),
               if (nzchar(state_pathway_results_root)) state_pathway_results_root else "not_recorded",
               figure7_sha256(config_path),
+              figure7_metadata_locator(density_localization_config_path),
+              figure7_sha256(density_localization_config_path),
               figure7_metadata_locator(cellcycle_input),
               if (nzchar(cellcycle_sha256)) cellcycle_sha256 else "not_recorded",
               figure7_metadata_locator(noncellcycle_input),
@@ -543,6 +558,23 @@ render_from_run <- function(
   if (is.na(config_hash) || !identical(config_hash, figure7_sha256(config_path))) {
     figure7_stop("render-only source run was produced with a different Figure 7 config")
   }
+  density_localization_config_path <- attr(
+    config, "density_localization_config_path", exact = TRUE
+  )
+  if (is.null(density_localization_config_path) ||
+      !identical(
+        source_scalar("density_localization_config"),
+        figure7_metadata_locator(density_localization_config_path)
+      ) ||
+      !identical(
+        source_scalar("density_localization_config_sha256"),
+        figure7_sha256(density_localization_config_path)
+      )) {
+    figure7_stop(
+      "render-only source run was produced with a different Figure 7 ",
+      "density-localization config"
+    )
+  }
   expected_endpoint_hash <- as.character(
     config$versioned_source_artifacts$panel_k_endpoint_ploidy$sha256
   )
@@ -610,6 +642,68 @@ render_from_run <- function(
       "p_ecdf_rmse", "annotation"
     )
   )
+  b_localization_grid <- figure7_read_tsv(
+    table_path("panel_7B_density_localization_grid.tsv"),
+    c(
+      "pseudotime", "treated_minus_vehicle_density",
+      "simultaneous_lower_envelope", "simultaneous_upper_envelope",
+      "pointwise_positive_supported", "simultaneous_positive_supported"
+    )
+  )
+  b_localization_grid$pointwise_positive_supported <-
+    as.character(b_localization_grid$pointwise_positive_supported) %in%
+      c("TRUE", "T", "1")
+  b_localization_grid$simultaneous_positive_supported <-
+    as.character(b_localization_grid$simultaneous_positive_supported) %in%
+      c("TRUE", "T", "1")
+  b_localization_intervals <- figure7_read_tsv(
+    table_path("panel_7B_density_localization_intervals.tsv"),
+    c("support_type", "start", "end", "alpha")
+  )
+  b_localization_test <- figure7_read_tsv(
+    table_path("panel_7B_density_localization_test.tsv"),
+    c(
+      "analysis_id", "cell_universe", "n_cells", "n_samples",
+      "sample_weighting", "bandwidth", "grid_points",
+      "permutation_strata", "n_permutations", "pointwise_start",
+      "pointwise_end", "simultaneous_critical", "simultaneous_start",
+      "simultaneous_end", "raw_excess_peak_pseudotime",
+      "raw_excess_peak_density_difference", "max_abs_t_pseudotime",
+      "global_max_abs_t",
+      "global_max_t_p_two_sided"
+    )
+  )
+  localization_contract <- figure7_density_localization_contract(config)
+  localization_values <- localization_contract$numeric
+  expected_support <- c(
+    "positive_pointwise_two_sided", "positive_simultaneous_max_abs_t"
+  )
+  if (nrow(b_localization_grid) != localization_values[["grid_points"]] ||
+      nrow(b_localization_intervals) != 2L ||
+      nrow(b_localization_test) != 1L ||
+      !identical(b_localization_intervals$support_type, expected_support) ||
+      b_localization_test$analysis_id != localization_contract$raw$analysis_id ||
+      b_localization_test$cell_universe != localization_contract$raw$cell_universe ||
+      b_localization_test$n_cells != localization_values[["expected_cells"]] ||
+      b_localization_test$n_samples != localization_values[["expected_samples"]] ||
+      b_localization_test$sample_weighting != "equal_mouse" ||
+      abs(b_localization_test$bandwidth - localization_values[["bandwidth"]]) > 1e-13 ||
+      b_localization_test$n_permutations != localization_values[["expected_permutations"]] ||
+      b_localization_test$permutation_strata != "initial_ploidy" ||
+      abs(b_localization_test$pointwise_start - localization_values[["expected_pointwise_start"]]) > 1e-12 ||
+      abs(b_localization_test$pointwise_end - localization_values[["expected_pointwise_end"]]) > 1e-12 ||
+      abs(b_localization_test$simultaneous_start - localization_values[["expected_simultaneous_start"]]) > 1e-12 ||
+      abs(b_localization_test$simultaneous_end - localization_values[["expected_simultaneous_end"]]) > 1e-12 ||
+      abs(b_localization_test$simultaneous_critical - localization_values[["expected_simultaneous_critical"]]) > 1e-12 ||
+      abs(b_localization_test$raw_excess_peak_pseudotime - localization_values[["expected_raw_excess_peak_pseudotime"]]) > 1e-12 ||
+      abs(b_localization_test$raw_excess_peak_density_difference - localization_values[["expected_raw_excess_peak_density_difference"]]) > 1e-12 ||
+      abs(b_localization_test$max_abs_t_pseudotime - localization_values[["expected_max_abs_t_pseudotime"]]) > 1e-12 ||
+      abs(b_localization_test$global_max_abs_t - localization_values[["expected_global_max_abs_t"]]) > 1e-12 ||
+      abs(b_localization_test$global_max_t_p_two_sided - localization_values[["expected_global_max_t_p_two_sided"]]) > 1e-12) {
+    figure7_stop(
+      "render-only panel 7B/H density-localization contract is incompatible"
+    )
+  }
   cdata <- figure7_read_tsv(table_path("panel_7C_plot_data.tsv"), c("sample_id", "initial_ploidy", "dose", tgi_measure))
   ct <- figure7_read_tsv(table_path("panel_7C_test.tsv"),
     c("dose_adjusted_difference_high_minus_low", "permutation_p_two_sided", "n_group_low", "n_group_high"))
@@ -938,7 +1032,13 @@ render_from_run <- function(
   )
   legacy_plots <- list(
     A = figure7_panel_a_plot(a, config),
-    B = figure7_panel_b_plot(b, bt),
+    B = figure7_panel_b_plot(
+      b,
+      bt,
+      b_localization_grid,
+      b_localization_intervals,
+      b_localization_test
+    ),
     C = figure7_panel_c_plot(cdata, ct, config),
     D = figure7_scatter_plot(
       d,
@@ -958,7 +1058,7 @@ render_from_run <- function(
     E = figure7_endpoint_ploidy_plot(e, et, config)
   )
   sizes <- list(
-    A = c(10, 6.5), B = c(15, 5.5), C = c(6.8, 6.4),
+    A = c(10, 6.5), B = c(15, 9.35), C = c(6.8, 6.4),
     D = c(6.6, 6.6), E = c(6.8, 6.8)
   )
   for (panel in names(legacy_plots)) {

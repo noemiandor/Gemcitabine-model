@@ -82,13 +82,17 @@ si_cache_dir <- file.path(repo_root, "Data", "in-vivo", "SIfigures")
 
 build_panel_objects <- function() {
   config <- figure7_read_config(config_path)
+  config <- figure7_attach_density_localization_config(
+    config,
+    file.path(module_dir, "density_localization_config.yaml")
+  )
   endpoint <- figure7_read_endpoint_ploidy_table(endpoint_path, config)
   cellcycle <- figure7_read_cell_table(cellcycle_path, "CellCycle", config)
   noncellcycle <- figure7_read_cell_table(noncellcycle_path, "NonCellCycle", config)
   samples <- figure7_sample_table(cellcycle, noncellcycle, config, endpoint)
   cellcycle_analysis <- figure7_prepare_cellcycle(cellcycle, samples, config)
   trajectory <- figure7_growth_trajectory_data(cellcycle, samples, config)
-  ecdf <- figure7_panel_b(cellcycle_analysis, samples)
+  ecdf <- figure7_panel_b(cellcycle_analysis, samples, config)
   treated <- figure7_add_metadata(
     samples[samples$dose_mg > 0, , drop = FALSE], config
   )
@@ -103,7 +107,13 @@ build_panel_objects <- function() {
 
   source_plots <- list(
     A = figure7_panel_a_plot(trajectory, config),
-    B = figure7_panel_b_plot(ecdf$data, ecdf$tests),
+    B = figure7_panel_b_plot(
+      ecdf$data,
+      ecdf$tests,
+      ecdf$localization_grid,
+      ecdf$localization_intervals,
+      ecdf$localization_test
+    ),
     C = figure7_panel_c_plot(treated, tgi_test, config),
     D = figure7_scatter_plot(
       shift_association$data,
@@ -181,8 +191,8 @@ write_subpanels <- function(panel_objects) {
     panel <- toupper(dimensions$panel[[index]])
     path <- file.path(subpanel_dir, paste0("Figure7_", panel, ".png"))
     audit_plot <- styled[[panel]]
-    if (inherits(audit_plot, "ggplot")) {
-      audit_plot <- audit_plot +
+    add_audit_tag <- function(plot) {
+      plot +
         ggplot2::labs(tag = panel) +
         ggplot2::theme(
           plot.tag = ggplot2::element_text(
@@ -191,6 +201,20 @@ write_subpanels <- function(panel_objects) {
           plot.tag.position = c(0, 1),
           plot.tag.location = "plot"
         )
+    }
+    panel_h_components <- attr(
+      audit_plot, "figure7_panel_b_components", exact = TRUE
+    )
+    if (identical(panel, "H") && !is.null(panel_h_components)) {
+      panel_h_components$ecdf <- add_audit_tag(panel_h_components$ecdf)
+      audit_plot <- patchwork::wrap_plots(
+        panel_h_components,
+        ncol = 1,
+        heights = c(1.35, 0.945),
+        guides = "collect"
+      )
+    } else if (inherits(audit_plot, "ggplot")) {
+      audit_plot <- add_audit_tag(audit_plot)
     }
     ggplot2::ggsave(
       path,
@@ -318,6 +342,7 @@ write_final_records <- function(output_paths) {
   )
   dependency_paths <- c(
     relative_repo_path(config_path),
+    "Code/in-vivo/figure7/density_localization_config.yaml",
     "Code/in-vivo/figure7/src/common_io.R",
     "Code/in-vivo/figure7/src/feature_species_policy.R",
     "Code/in-vivo/figure7/src/tgi_data.R",

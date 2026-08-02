@@ -87,6 +87,15 @@ class Figure7MaterializationTest(unittest.TestCase):
             REPO_ROOT / "Code/in-vivo/figure7/figure7_config.yaml",
             self.figure7_config,
         )
+        self.density_localization_config = (
+            self.repo
+            / "Code/in-vivo/figure7/density_localization_config.yaml"
+        )
+        shutil.copy2(
+            REPO_ROOT
+            / "Code/in-vivo/figure7/density_localization_config.yaml",
+            self.density_localization_config,
+        )
         self.figure7_renderer = (
             self.repo / "Code/in-vivo/figure7/run_figure7.R"
         )
@@ -127,6 +136,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.context_inputs = []
         for relative in (
             "Code/in-vivo/figure7/src/context_panels.R",
+            "Code/in-vivo/figure7/src/common_io.R",
             "Code/in-vivo/figure7/src/tgi_data.R",
             "Code/in-vivo/figure7/src/tgi_statistics.R",
             "Code/in-vivo/figure7/src/tgi_panels.R",
@@ -155,6 +165,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         self._write_state_provenance(canonical_publication_allowed="true")
         self._write_input_manifest()
         self._write_panel_k_tables()
+        self._write_density_localization_tables()
         self._write_output_manifest()
 
     def tearDown(self) -> None:
@@ -175,6 +186,20 @@ class Figure7MaterializationTest(unittest.TestCase):
         run_config = [
             {"key": "panel_set", "value": "a-f" if include_f else "a-e"},
             {"key": "tgi_day", "value": "17"},
+            {
+                "key": "config_sha256",
+                "value": sha256_file(self.figure7_config),
+            },
+            {
+                "key": "density_localization_config",
+                "value": (
+                    "Code/in-vivo/figure7/density_localization_config.yaml"
+                ),
+            },
+            {
+                "key": "density_localization_config_sha256",
+                "value": sha256_file(self.density_localization_config),
+            },
             {
                 "key": "cellcycle_input",
                 "value": str(self.processed_inputs[0].relative_to(self.repo)),
@@ -244,10 +269,6 @@ class Figure7MaterializationTest(unittest.TestCase):
                         "key": "canonical_publication_allowed",
                         "value": "true",
                     },
-                    {
-                        "key": "config_sha256",
-                        "value": sha256_file(self.figure7_config),
-                    },
                     {"key": "main_composite_panel_set", "value": "a-k"},
                     {
                         "key": "main_composite_filename",
@@ -261,7 +282,7 @@ class Figure7MaterializationTest(unittest.TestCase):
                         ),
                     },
                     {"key": "main_composite_width_in", "value": "7.1"},
-                    {"key": "main_composite_height_in", "value": "9.7"},
+                    {"key": "main_composite_height_in", "value": "10.645"},
                     {"key": "main_composite_png_dpi", "value": "300"},
                     {
                         "key": "main_composite_layout_rows",
@@ -322,6 +343,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         input_paths = [
             self.input_path,
             self.figure7_config,
+            self.density_localization_config,
             self.figure7_renderer,
             self.endpoint_ploidy,
             *self.processed_inputs,
@@ -569,6 +591,125 @@ class Figure7MaterializationTest(unittest.TestCase):
             list(test_row),
         )
 
+    def _write_density_localization_tables(self) -> None:
+        critical = 2.6737373166169203
+        global_p = 232 / 4900
+        grid_rows = []
+        for index in range(501):
+            pseudotime = index / 500
+            pointwise = 0.296 <= pseudotime <= 0.486
+            simultaneous = 0.414 <= pseudotime <= 0.426
+            if pseudotime == 0.420:
+                difference = 0.271136208738626
+                studentized = 2.68138128387289
+            elif pseudotime == 0.452:
+                difference = 0.283948126904316
+                studentized = 2.49554727755694
+            elif simultaneous:
+                difference = 0.25
+                studentized = 2.68
+            elif pointwise:
+                difference = 0.20
+                studentized = 2.0
+            else:
+                difference = -0.10
+                studentized = -1.0
+            permutation_sd = difference / studentized
+            vehicle = 1.0
+            treated = vehicle + difference
+            pointwise_p = 0.01 if pointwise else 0.50
+            adjusted_p = (
+                global_p
+                if pseudotime == 0.420
+                else (0.049 if simultaneous else (0.20 if pointwise else 0.80))
+            )
+            grid_rows.append(
+                {
+                    "pseudotime": pseudotime,
+                    "vehicle_mean_density": vehicle,
+                    "treated_mean_density": treated,
+                    "treated_minus_vehicle_density": difference,
+                    "permutation_sd": permutation_sd,
+                    "observed_studentized": studentized,
+                    "pointwise_p_two_sided": pointwise_p,
+                    "max_t_adjusted_p_two_sided": adjusted_p,
+                    "simultaneous_critical": critical,
+                    "simultaneous_lower_envelope": -critical * permutation_sd,
+                    "simultaneous_upper_envelope": critical * permutation_sd,
+                    "pointwise_positive_supported": str(pointwise).upper(),
+                    "simultaneous_positive_supported": str(simultaneous).upper(),
+                    "frozen_state_interval": str(
+                        0.30 <= pseudotime <= 0.49
+                    ).upper(),
+                }
+            )
+        write_tsv(
+            self.run_root / "tables/panel_7B_density_localization_grid.tsv",
+            grid_rows,
+            list(grid_rows[0]),
+        )
+        interval_rows = [
+            {
+                "support_type": "positive_pointwise_two_sided",
+                "start": 0.296,
+                "end": 0.486,
+                "width": 0.190,
+                "alpha": 0.05,
+            },
+            {
+                "support_type": "positive_simultaneous_max_abs_t",
+                "start": 0.414,
+                "end": 0.426,
+                "width": 0.012,
+                "alpha": 0.05,
+            },
+        ]
+        write_tsv(
+            self.run_root / "tables/panel_7B_density_localization_intervals.tsv",
+            interval_rows,
+            list(interval_rows[0]),
+        )
+        test_row = {
+            "analysis_id": "equal_mouse_kde_exact_origin_stratified_max_t_v1",
+            "cell_universe": "reviewed_qc_retained_cellcycle_2881",
+            "n_cells": 2881,
+            "n_samples": 16,
+            "n_vehicle_samples": 8,
+            "n_treated_samples": 8,
+            "sample_weighting": "equal_mouse",
+            "density_estimator": "stats::density Gaussian kernel",
+            "bandwidth_method": "pooled label-invariant stats::bw.nrd0",
+            "bandwidth": 0.0506470455660707,
+            "grid_start": 0,
+            "grid_end": 1,
+            "grid_points": 501,
+            "contrast": "treated_minus_vehicle",
+            "permutation_strata": "initial_ploidy",
+            "n_permutations": 4900,
+            "pointwise_test": "two-sided exact permutation at each grid point",
+            "pointwise_alpha": 0.05,
+            "pointwise_start": 0.296,
+            "pointwise_end": 0.486,
+            "simultaneous_test": (
+                "studentized max-absolute-T exact permutation null envelope"
+            ),
+            "simultaneous_alpha": 0.05,
+            "simultaneous_critical": critical,
+            "simultaneous_start": 0.414,
+            "simultaneous_end": 0.426,
+            "raw_excess_peak_pseudotime": 0.452,
+            "raw_excess_peak_density_difference": 0.283948126904316,
+            "max_abs_t_pseudotime": 0.420,
+            "max_abs_t_observed_statistic": 2.68138128387289,
+            "global_max_abs_t": 2.68138128387289,
+            "global_max_t_p_two_sided": global_p,
+        }
+        write_tsv(
+            self.run_root / "tables/panel_7B_density_localization_test.tsv",
+            [test_row],
+            list(test_row),
+        )
+
     def _write_output_manifest(self) -> None:
         rows = []
         for spec in self.figure7_specs:
@@ -594,6 +735,9 @@ class Figure7MaterializationTest(unittest.TestCase):
                 }
             )
         for source in (
+            self.run_root / "tables/panel_7B_density_localization_grid.tsv",
+            self.run_root / "tables/panel_7B_density_localization_intervals.tsv",
+            self.run_root / "tables/panel_7B_density_localization_test.tsv",
             self.run_root / "tables/panel_7E_plot_data.tsv",
             self.run_root / "tables/panel_7E_test.tsv",
         ):
@@ -744,6 +888,60 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
             "output manifest must bind exactly one test table row",
+            result.stderr,
+        )
+
+    def test_rejects_missing_density_localization_output_binding(self) -> None:
+        manifest = self.run_root / "metadata/output_manifest.tsv"
+        with manifest.open(newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        rows = [
+            row
+            for row in rows
+            if not row["repo_relative_path"].endswith(
+                "panel_7B_density_localization_intervals.tsv"
+            )
+        ]
+        write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
+
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "output manifest must bind exactly one intervals table row",
+            result.stderr,
+        )
+
+    def test_rejects_tampered_density_localization_peak_when_rehashed(
+        self,
+    ) -> None:
+        table = (
+            self.run_root / "tables/panel_7B_density_localization_grid.tsv"
+        )
+        with table.open(newline="") as handle:
+            reader = csv.DictReader(handle, delimiter="\t")
+            columns = list(reader.fieldnames or [])
+            rows = list(reader)
+        peak_row = rows[226]
+        peak_row["treated_mean_density"] = "1.30"
+        peak_row["treated_minus_vehicle_density"] = "0.30"
+        peak_row["permutation_sd"] = str(
+            0.30 / float(peak_row["observed_studentized"])
+        )
+        critical = float(peak_row["simultaneous_critical"])
+        permutation_sd = float(peak_row["permutation_sd"])
+        peak_row["simultaneous_lower_envelope"] = str(
+            -critical * permutation_sd
+        )
+        peak_row["simultaneous_upper_envelope"] = str(
+            critical * permutation_sd
+        )
+        write_tsv(table, rows, columns)
+        self._write_output_manifest()
+
+        result = self._run_materializer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "grid does not distinguish the raw 0.452 peak",
             result.stderr,
         )
 
@@ -1120,6 +1318,10 @@ class Figure7MaterializationTest(unittest.TestCase):
             self.input_path,
             self.endpoint_ploidy,
             *self.processed_inputs,
+            self.figure7_renderer,
+            self.figure7_config,
+            self.density_localization_config,
+            self.repo / "Code/in-vivo/figure7/src/common_io.R",
             self.repo / "Code/in-vivo/figure7/src/tgi_data.R",
             self.repo / "Code/in-vivo/figure7/src/tgi_statistics.R",
             self.repo / "Code/in-vivo/figure7/src/tgi_panels.R",

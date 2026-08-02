@@ -250,7 +250,345 @@ figure7_mean_ecdf <- function(data, ids, grid) {
   colMeans(figure7_sample_ecdfs(data, ids, grid))
 }
 
-figure7_panel_b <- function(data, samples) {
+figure7_density_localization_contract <- function(config) {
+  local <- config$density_localization
+  required <- c(
+    "analysis_id", "cell_universe", "expected_cells", "expected_samples",
+    "expected_vehicle_samples", "expected_treated_samples",
+    "expected_samples_per_treatment_within_origin", "estimator",
+    "bandwidth_method", "bandwidth", "grid_start", "grid_end",
+    "grid_points", "mouse_weighting", "treatment_contrast",
+    "permutation_strata", "expected_permutations", "pointwise_alpha",
+    "simultaneous_alpha", "simultaneous_method",
+    "expected_pointwise_start", "expected_pointwise_end",
+    "expected_simultaneous_start", "expected_simultaneous_end",
+    "expected_simultaneous_critical",
+    "expected_raw_excess_peak_pseudotime",
+    "expected_raw_excess_peak_density_difference",
+    "expected_max_abs_t_pseudotime", "expected_global_max_abs_t",
+    "expected_global_max_t_p_two_sided"
+  )
+  if (is.null(local) || !all(required %in% names(local))) {
+    figure7_stop(
+      "Figure 7B/H density-localization config is incomplete: ",
+      paste(setdiff(required, names(local)), collapse = ", ")
+    )
+  }
+  expected_strings <- c(
+    analysis_id = "equal_mouse_kde_exact_origin_stratified_max_t_v1",
+    cell_universe = "reviewed_qc_retained_cellcycle_2881",
+    estimator = "stats_density_gaussian",
+    bandwidth_method = "pooled_label_invariant_bw_nrd0",
+    mouse_weighting = "equal",
+    treatment_contrast = "treated_minus_vehicle",
+    permutation_strata = "initial_ploidy",
+    simultaneous_method = "studentized_max_abs_t"
+  )
+  observed_strings <- vapply(
+    names(expected_strings),
+    function(name) as.character(local[[name]]),
+    character(1L)
+  )
+  if (!identical(unname(observed_strings), unname(expected_strings))) {
+    figure7_stop(
+      "Figure 7B/H density-localization method must remain the reviewed ",
+      "equal-mouse, injected-origin-stratified contract"
+    )
+  }
+  numeric_fields <- c(
+    "expected_cells", "expected_samples", "expected_vehicle_samples",
+    "expected_treated_samples", "expected_samples_per_treatment_within_origin",
+    "bandwidth", "grid_start", "grid_end", "grid_points",
+    "expected_permutations", "pointwise_alpha", "simultaneous_alpha",
+    "expected_pointwise_start", "expected_pointwise_end",
+    "expected_simultaneous_start", "expected_simultaneous_end",
+    "expected_simultaneous_critical",
+    "expected_raw_excess_peak_pseudotime",
+    "expected_raw_excess_peak_density_difference",
+    "expected_max_abs_t_pseudotime", "expected_global_max_abs_t",
+    "expected_global_max_t_p_two_sided"
+  )
+  values <- vapply(
+    numeric_fields,
+    function(name) suppressWarnings(as.numeric(local[[name]])),
+    numeric(1L)
+  )
+  if (any(!is.finite(values)) || values[["expected_cells"]] != 2881 ||
+      values[["expected_samples"]] != 16 ||
+      values[["expected_vehicle_samples"]] != 8 ||
+      values[["expected_treated_samples"]] != 8 ||
+      values[["expected_samples_per_treatment_within_origin"]] != 4 ||
+      values[["grid_start"]] != 0 || values[["grid_end"]] != 1 ||
+      values[["grid_points"]] != 501 ||
+      values[["expected_permutations"]] != 4900 ||
+      values[["pointwise_alpha"]] != 0.05 ||
+      values[["simultaneous_alpha"]] != 0.05) {
+    figure7_stop("Figure 7B/H density-localization numeric contract is invalid")
+  }
+  list(raw = local, numeric = values)
+}
+
+figure7_supported_intervals <- function(grid, supported, support_type, alpha) {
+  if (length(grid) != length(supported) || anyNA(supported)) {
+    figure7_stop("Density-localization support mask is invalid")
+  }
+  runs <- rle(as.logical(supported))
+  end_index <- cumsum(runs$lengths)
+  start_index <- end_index - runs$lengths + 1L
+  keep <- which(runs$values)
+  if (!length(keep)) {
+    return(data.frame(
+      support_type = character(), start = numeric(), end = numeric(),
+      width = numeric(), alpha = numeric(), stringsAsFactors = FALSE
+    ))
+  }
+  data.frame(
+    support_type = rep(support_type, length(keep)),
+    start = grid[start_index[keep]],
+    end = grid[end_index[keep]],
+    width = grid[end_index[keep]] - grid[start_index[keep]],
+    alpha = rep(alpha, length(keep)),
+    stringsAsFactors = FALSE
+  )
+}
+
+figure7_density_localization <- function(data, samples, config) {
+  contract <- figure7_density_localization_contract(config)
+  local <- contract$raw
+  values <- contract$numeric
+  required_data <- c("sample_id", "pseudotime")
+  required_samples <- c("sample_id", "initial_ploidy", "dose_mg")
+  if (!all(required_data %in% names(data)) ||
+      !all(required_samples %in% names(samples))) {
+    figure7_stop("Figure 7B/H density localization is missing required inputs")
+  }
+  samples <- samples[order(samples$sample_id), , drop = FALSE]
+  rownames(samples) <- NULL
+  if (anyDuplicated(samples$sample_id) ||
+      nrow(data) != as.integer(values[["expected_cells"]]) ||
+      nrow(samples) != as.integer(values[["expected_samples"]]) ||
+      !setequal(unique(as.character(data$sample_id)), samples$sample_id) ||
+      any(!is.finite(data$pseudotime)) ||
+      any(data$pseudotime < values[["grid_start"]] |
+          data$pseudotime > values[["grid_end"]])) {
+    figure7_stop(
+      "Figure 7B/H density localization requires the exact 2,881-cell, ",
+      "16-mouse reviewed QC universe"
+    )
+  }
+  treatment <- ifelse(samples$dose_mg == 0, "vehicle", "treated")
+  if (sum(treatment == "vehicle") != values[["expected_vehicle_samples"]] ||
+      sum(treatment == "treated") != values[["expected_treated_samples"]]) {
+    figure7_stop("Figure 7B/H density-localization treatment balance is invalid")
+  }
+  balance <- table(samples$initial_ploidy, treatment)
+  if (!identical(sort(unique(as.character(samples$initial_ploidy))), c("2N", "4N")) ||
+      !all(balance == values[["expected_samples_per_treatment_within_origin"]])) {
+    figure7_stop(
+      "Figure 7B/H density localization requires four vehicle and four ",
+      "treated mice within each injected-origin stratum"
+    )
+  }
+  bandwidth <- stats::bw.nrd0(data$pseudotime)
+  if (!isTRUE(all.equal(
+    bandwidth,
+    values[["bandwidth"]],
+    tolerance = 1e-13,
+    check.attributes = FALSE
+  ))) {
+    figure7_stop(
+      "Pooled label-invariant density bandwidth disagrees with the reviewed ",
+      "Figure 7B/H contract"
+    )
+  }
+  grid <- seq(
+    values[["grid_start"]], values[["grid_end"]],
+    length.out = as.integer(values[["grid_points"]])
+  )
+  density_matrix <- t(vapply(samples$sample_id, function(id) {
+    x <- data$pseudotime[as.character(data$sample_id) == id]
+    if (!length(x)) figure7_stop("No pseudotime values for density sample ", id)
+    stats::density(
+      x,
+      bw = bandwidth,
+      kernel = "gaussian",
+      from = values[["grid_start"]],
+      to = values[["grid_end"]],
+      n = as.integer(values[["grid_points"]]),
+      na.rm = TRUE
+    )$y
+  }, numeric(length(grid))))
+  rownames(density_matrix) <- samples$sample_id
+  vehicle_mean <- colMeans(density_matrix[treatment == "vehicle", , drop = FALSE])
+  treated_mean <- colMeans(density_matrix[treatment == "treated", , drop = FALSE])
+  observed <- treated_mean - vehicle_mean
+
+  assignments <- figure7_group_assignments(
+    treatment, "vehicle", "treated", samples$initial_ploidy
+  )
+  if (length(assignments) != as.integer(values[["expected_permutations"]])) {
+    figure7_stop("Figure 7B/H density-localization permutation count is invalid")
+  }
+  permuted <- vapply(assignments, function(group) {
+    colMeans(density_matrix[group == "treated", , drop = FALSE]) -
+      colMeans(density_matrix[group == "vehicle", , drop = FALSE])
+  }, numeric(length(grid)))
+  permutation_sd <- apply(permuted, 1L, stats::sd)
+  if (any(!is.finite(permutation_sd)) || any(permutation_sd <= 0)) {
+    figure7_stop("Figure 7B/H density-localization permutation variance is invalid")
+  }
+  observed_studentized <- observed / permutation_sd
+  permutation_studentized <- sweep(permuted, 1L, permutation_sd, "/")
+  max_abs_permutation <- apply(abs(permutation_studentized), 2L, max)
+  simultaneous_critical <- as.numeric(stats::quantile(
+    max_abs_permutation,
+    probs = 1 - values[["simultaneous_alpha"]],
+    type = 1,
+    names = FALSE
+  ))
+  tolerance <- 1e-15
+  pointwise_p <- rowMeans(
+    abs(permuted) >= abs(observed) - tolerance
+  )
+  max_t_adjusted_p <- vapply(abs(observed_studentized), function(value) {
+    mean(max_abs_permutation >= value - tolerance)
+  }, numeric(1L))
+  pointwise_supported <- observed > 0 &
+    pointwise_p <= values[["pointwise_alpha"]]
+  simultaneous_supported <- observed_studentized > simultaneous_critical
+  pointwise_intervals <- figure7_supported_intervals(
+    grid, pointwise_supported, "positive_pointwise_two_sided",
+    values[["pointwise_alpha"]]
+  )
+  simultaneous_intervals <- figure7_supported_intervals(
+    grid, simultaneous_supported, "positive_simultaneous_max_abs_t",
+    values[["simultaneous_alpha"]]
+  )
+  intervals <- rbind(pointwise_intervals, simultaneous_intervals)
+  expected_intervals <- data.frame(
+    support_type = c(
+      "positive_pointwise_two_sided", "positive_simultaneous_max_abs_t"
+    ),
+    start = c(
+      values[["expected_pointwise_start"]],
+      values[["expected_simultaneous_start"]]
+    ),
+    end = c(
+      values[["expected_pointwise_end"]],
+      values[["expected_simultaneous_end"]]
+    ),
+    stringsAsFactors = FALSE
+  )
+  observed_intervals <- intervals[, c("support_type", "start", "end"), drop = FALSE]
+  rownames(observed_intervals) <- NULL
+  if (!identical(
+        observed_intervals$support_type,
+        expected_intervals$support_type
+      ) ||
+      !isTRUE(all.equal(
+        observed_intervals$start,
+        expected_intervals$start,
+        tolerance = 1e-12,
+        check.attributes = FALSE
+      )) ||
+      !isTRUE(all.equal(
+        observed_intervals$end,
+        expected_intervals$end,
+        tolerance = 1e-12,
+        check.attributes = FALSE
+      ))) {
+    figure7_stop(
+      "Figure 7B/H density-localization support intervals disagree with ",
+      "the reviewed 2,881-cell analysis"
+    )
+  }
+  raw_excess_peak_index <- which.max(observed)
+  max_abs_t_index <- which.max(abs(observed_studentized))
+  global_max_t <- max(abs(observed_studentized))
+  global_p <- mean(max_abs_permutation >= global_max_t - tolerance)
+  reviewed_values <- c(
+    simultaneous_critical = simultaneous_critical,
+    raw_excess_peak_pseudotime = grid[[raw_excess_peak_index]],
+    raw_excess_peak_density_difference = observed[[raw_excess_peak_index]],
+    max_abs_t_pseudotime = grid[[max_abs_t_index]],
+    global_max_abs_t = global_max_t,
+    global_max_t_p_two_sided = global_p
+  )
+  expected_reviewed_values <- c(
+    simultaneous_critical = values[["expected_simultaneous_critical"]],
+    raw_excess_peak_pseudotime = values[["expected_raw_excess_peak_pseudotime"]],
+    raw_excess_peak_density_difference = values[["expected_raw_excess_peak_density_difference"]],
+    max_abs_t_pseudotime = values[["expected_max_abs_t_pseudotime"]],
+    global_max_abs_t = values[["expected_global_max_abs_t"]],
+    global_max_t_p_two_sided = values[["expected_global_max_t_p_two_sided"]]
+  )
+  if (!isTRUE(all.equal(
+    reviewed_values,
+    expected_reviewed_values,
+    tolerance = 1e-12,
+    check.attributes = FALSE
+  ))) {
+    figure7_stop(
+      "Figure 7B/H density-localization peak or global inference disagrees ",
+      "with the reviewed 2,881-cell analysis"
+    )
+  }
+  grid_data <- data.frame(
+    pseudotime = grid,
+    vehicle_mean_density = vehicle_mean,
+    treated_mean_density = treated_mean,
+    treated_minus_vehicle_density = observed,
+    permutation_sd = permutation_sd,
+    observed_studentized = observed_studentized,
+    pointwise_p_two_sided = pointwise_p,
+    max_t_adjusted_p_two_sided = max_t_adjusted_p,
+    simultaneous_critical = rep(simultaneous_critical, length(grid)),
+    simultaneous_lower_envelope = -simultaneous_critical * permutation_sd,
+    simultaneous_upper_envelope = simultaneous_critical * permutation_sd,
+    pointwise_positive_supported = pointwise_supported,
+    simultaneous_positive_supported = simultaneous_supported,
+    frozen_state_interval = grid >= config$intervals$primary_accumulated_state$start &
+      grid <= config$intervals$primary_accumulated_state$end,
+    stringsAsFactors = FALSE
+  )
+  test <- data.frame(
+    analysis_id = as.character(local$analysis_id),
+    cell_universe = as.character(local$cell_universe),
+    n_cells = nrow(data),
+    n_samples = nrow(samples),
+    n_vehicle_samples = sum(treatment == "vehicle"),
+    n_treated_samples = sum(treatment == "treated"),
+    sample_weighting = "equal_mouse",
+    density_estimator = "stats::density Gaussian kernel",
+    bandwidth_method = "pooled label-invariant stats::bw.nrd0",
+    bandwidth = bandwidth,
+    grid_start = min(grid),
+    grid_end = max(grid),
+    grid_points = length(grid),
+    contrast = "treated_minus_vehicle",
+    permutation_strata = "initial_ploidy",
+    n_permutations = length(assignments),
+    pointwise_test = "two-sided exact permutation at each grid point",
+    pointwise_alpha = values[["pointwise_alpha"]],
+    pointwise_start = pointwise_intervals$start,
+    pointwise_end = pointwise_intervals$end,
+    simultaneous_test = "studentized max-absolute-T exact permutation null envelope",
+    simultaneous_alpha = values[["simultaneous_alpha"]],
+    simultaneous_critical = simultaneous_critical,
+    simultaneous_start = simultaneous_intervals$start,
+    simultaneous_end = simultaneous_intervals$end,
+    raw_excess_peak_pseudotime = grid[[raw_excess_peak_index]],
+    raw_excess_peak_density_difference = observed[[raw_excess_peak_index]],
+    max_abs_t_pseudotime = grid[[max_abs_t_index]],
+    max_abs_t_observed_statistic = observed_studentized[[max_abs_t_index]],
+    global_max_abs_t = global_max_t,
+    global_max_t_p_two_sided = global_p,
+    stringsAsFactors = FALSE
+  )
+  list(grid = grid_data, intervals = intervals, test = test)
+}
+
+figure7_panel_b <- function(data, samples, config) {
   grid <- figure7_grid(data)
   definitions <- list(
     list(id = 1L, label = "1. 0 vs treated", subset = rep(TRUE, nrow(samples))),
@@ -291,5 +629,12 @@ figure7_panel_b <- function(data, samples) {
   tests$annotation <- sprintf("%s n=%d; %s n=%d\nRMSE=%.4f, P=%.3g\nKS=%.4f",
                               tests$group_a, tests$n_group_a, tests$group_b, tests$n_group_b,
                               tests$observed_ecdf_rmse, tests$p_ecdf_rmse, tests$observed_ecdf_ks)
-  list(data = do.call(rbind, curve_rows), tests = tests)
+  localization <- figure7_density_localization(data, samples, config)
+  list(
+    data = do.call(rbind, curve_rows),
+    tests = tests,
+    localization_grid = localization$grid,
+    localization_intervals = localization$intervals,
+    localization_test = localization$test
+  )
 }

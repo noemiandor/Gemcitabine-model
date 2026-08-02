@@ -337,11 +337,12 @@ testthat::test_that("publication compositor pins dimensions, mapping, and vector
   )
 
   testthat::expect_identical(spec$width_in, 7.1)
-  testthat::expect_identical(spec$height_in, 9.7)
+  testthat::expect_identical(spec$height_in, 10.645)
   testthat::expect_identical(
     spec$row_heights,
-    c(1.20, 0.95, 2.45, 1.35, 2.30, 1.45)
+    c(1.20, 0.95, 2.45, 2.295, 2.30, 1.45)
   )
+  testthat::expect_equal(spec$row_heights[[4L]] / 1.35, 1.70, tolerance = 1e-12)
   testthat::expect_true(all(spec$row_heights > 0))
   testthat::expect_equal(sum(spec$row_heights), spec$height_in, tolerance = 0)
   testthat::expect_identical(
@@ -453,6 +454,58 @@ testthat::test_that("publication styling removes internal prose and uses reader-
   testthat::expect_true(all(
     paste0("figure7_tag_", LETTERS[1:11]) %in% names(composite$children)
   ))
+})
+
+testthat::test_that("publication panel H includes the inferential localization strip", {
+  input <- figure7_test_inputs()
+  panel <- figure7_panel_b(input$data, input$samples, input$config)
+  panel_h <- figure7_panel_b_plot(
+    panel$data,
+    panel$tests,
+    panel$localization_grid,
+    panel$localization_intervals,
+    panel$localization_test
+  )
+  components <- attr(panel_h, "figure7_panel_b_components", exact = TRUE)
+
+  testthat::expect_s3_class(panel_h, "patchwork")
+  testthat::expect_identical(names(components), c("ecdf", "localization"))
+  testthat::expect_identical(
+    components$localization$labels$y,
+    "Gemcitabine - vehicle\ndensity difference"
+  )
+  testthat::expect_equal(
+    panel$localization_intervals$start,
+    c(0.296, 0.414),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    panel$localization_intervals$end,
+    c(0.486, 0.426),
+    tolerance = 1e-12
+  )
+
+  make_plot <- function() {
+    ggplot2::ggplot(
+      data.frame(x = 1:2, y = 1:2),
+      ggplot2::aes(x, y)
+    ) + ggplot2::geom_point()
+  }
+  plots <- stats::setNames(lapply(LETTERS[1:11], function(...) make_plot()), LETTERS[1:11])
+  plots$H <- panel_h
+  styled <- figure7_publication_clean_plots(plots, input$config)
+  styled_components <- attr(
+    styled$H, "figure7_panel_b_components", exact = TRUE
+  )
+  testthat::expect_s3_class(styled$H, "patchwork")
+  testthat::expect_identical(
+    styled_components$ecdf$labels$y,
+    "Mean ECDF"
+  )
+  testthat::expect_identical(
+    styled_components$localization$labels$x,
+    "Cell-cycle pseudotime"
+  )
 })
 
 testthat::test_that("full source panels plus the A-K composite satisfy the exact inventory", {

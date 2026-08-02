@@ -723,6 +723,25 @@ figure7_read_config <- function(path, tgi_day = NULL) {
   config
 }
 
+figure7_attach_density_localization_config <- function(config, path) {
+  if (!file.exists(path)) {
+    figure7_stop("Missing Figure 7 density-localization config: ", path)
+  }
+  if (!requireNamespace("yaml", quietly = TRUE)) {
+    figure7_stop("R package 'yaml' is required")
+  }
+  density_config <- yaml::read_yaml(path)
+  if (!identical(as.integer(density_config$schema_version), 1L) ||
+      is.null(density_config$density_localization)) {
+    figure7_stop("Figure 7 density-localization config is invalid")
+  }
+  config$density_localization <- density_config$density_localization
+  attr(config, "density_localization_config_path") <- normalizePath(
+    path, mustWork = TRUE
+  )
+  config
+}
+
 figure7_si_raw_config_contract_values <- function(config) {
   si <- config$si_figures
   mapping <- unlist(si$cellcycle_mapping, use.names = TRUE)
@@ -1178,7 +1197,7 @@ figure7_main_composite_pdf_filename <- function(composite_filename) {
 figure7_publication_spec <- function() {
   list(
     width_in = 7.1,
-    height_in = 9.7,
+    height_in = 10.645,
     png_dpi = 300,
     panel_tag_pt = 11.5,
     axis_title_pt = 8.25,
@@ -1194,7 +1213,7 @@ figure7_publication_spec <- function() {
       paste0(strrep("J", 14L), strrep("K", 14L)),
       sep = "\n"
     ),
-    row_heights = c(1.20, 0.95, 2.45, 1.35, 2.30, 1.45),
+    row_heights = c(1.20, 0.95, 2.45, 2.295, 2.30, 1.45),
     content_left_npc = 0.020,
     content_right_npc = 0.005
   )
@@ -1213,9 +1232,8 @@ figure7_publication_clean_plots <- function(plots, config) {
     )
     plot
   }
-  is_ggplot <- vapply(plots, inherits, logical(1L), what = "ggplot")
-  for (panel in names(plots)[is_ggplot]) {
-    plots[[panel]] <- plots[[panel]] +
+  publication_style <- function(plot) {
+    plot +
       ggplot2::labs(title = NULL, subtitle = NULL, caption = NULL, tag = NULL) +
       ggplot2::theme(
         text = ggplot2::element_text(
@@ -1232,6 +1250,17 @@ figure7_publication_clean_plots <- function(plots, config) {
         legend.key.height = grid::unit(0.75, "lines"),
         legend.key.width = grid::unit(0.90, "lines")
       )
+  }
+  panel_h_components <- attr(
+    plots$H, "figure7_panel_b_components", exact = TRUE
+  )
+  is_ggplot <- vapply(plots, inherits, logical(1L), what = "ggplot")
+  style_panels <- names(plots)[is_ggplot]
+  if (!is.null(panel_h_components)) {
+    style_panels <- setdiff(style_panels, "H")
+  }
+  for (panel in style_panels) {
+    plots[[panel]] <- publication_style(plots[[panel]])
   }
 
   plots$A <- drop_scale(plots$A, "colour")
@@ -1292,29 +1321,83 @@ figure7_publication_clean_plots <- function(plots, config) {
       drop = FALSE
     ) +
     ggplot2::theme(legend.position = "none")
-  plots$H$layers <- Filter(
-    function(layer) !inherits(layer$geom, "GeomText"),
-    plots$H$layers
-  )
-  plots$H <- drop_scale(plots$H, "colour")
-  plots$H <- drop_scale(plots$H, "y")
-  plots$H <- plots$H +
-    ggplot2::labs(
-      x = "Cell-cycle pseudotime", y = "Mean ECDF",
-      color = "Treatment", linetype = NULL
-    ) +
-    ggplot2::scale_color_manual(
-      values = figure7_dose_colors(),
-      breaks = c("0mg/kg", "treated"),
-      labels = c("Vehicle", "Gemcitabine"),
-      name = "Treatment"
-    ) +
-    ggplot2::scale_y_continuous(
-      breaks = c(0, 0.5, 1), limits = c(0, 1.05),
-      expand = ggplot2::expansion(mult = c(0, 0))
-    ) +
-    ggplot2::guides(linetype = "none") +
-    ggplot2::theme(legend.position = "none")
+  clean_panel_h_ecdf <- function(plot) {
+    plot$layers <- Filter(
+      function(layer) !inherits(layer$geom, "GeomText"),
+      plot$layers
+    )
+    plot <- drop_scale(plot, "colour")
+    plot <- drop_scale(plot, "y")
+    publication_style(plot) +
+      ggplot2::labs(
+        x = NULL, y = "Mean ECDF",
+        color = "Treatment", linetype = NULL
+      ) +
+      ggplot2::scale_color_manual(
+        values = figure7_dose_colors(),
+        breaks = c("0mg/kg", "treated"),
+        labels = c("Vehicle", "Gemcitabine"),
+        name = "Treatment"
+      ) +
+      ggplot2::scale_y_continuous(
+        breaks = c(0, 0.5, 1), limits = c(0, 1.05),
+        expand = ggplot2::expansion(mult = c(0, 0))
+      ) +
+      ggplot2::guides(linetype = "none") +
+      ggplot2::theme(
+        legend.position = "none",
+        axis.title.x = ggplot2::element_blank(),
+        axis.text.x = ggplot2::element_blank(),
+        axis.ticks.x = ggplot2::element_blank(),
+        plot.margin = ggplot2::margin(3, 4, 4, 4, unit = "pt")
+      )
+  }
+  if (is.null(panel_h_components)) {
+    plots$H$layers <- Filter(
+      function(layer) !inherits(layer$geom, "GeomText"),
+      plots$H$layers
+    )
+    plots$H <- drop_scale(plots$H, "colour")
+    plots$H <- drop_scale(plots$H, "y")
+    plots$H <- plots$H +
+      ggplot2::labs(
+        x = "Cell-cycle pseudotime", y = "Mean ECDF",
+        color = "Treatment", linetype = NULL
+      ) +
+      ggplot2::scale_color_manual(
+        values = figure7_dose_colors(),
+        breaks = c("0mg/kg", "treated"),
+        labels = c("Vehicle", "Gemcitabine"),
+        name = "Treatment"
+      ) +
+      ggplot2::scale_y_continuous(
+        breaks = c(0, 0.5, 1), limits = c(0, 1.05),
+        expand = ggplot2::expansion(mult = c(0, 0))
+      ) +
+      ggplot2::guides(linetype = "none") +
+      ggplot2::theme(legend.position = "none")
+  } else {
+    ecdf_plot <- clean_panel_h_ecdf(panel_h_components$ecdf)
+    localization_plot <- publication_style(panel_h_components$localization) +
+      ggplot2::labs(
+        x = "Cell-cycle pseudotime",
+        y = "Density difference"
+      ) +
+      ggplot2::theme(
+        legend.position = "none",
+        plot.margin = ggplot2::margin(4, 4, 3, 4, unit = "pt")
+      )
+    plots$H <- patchwork::wrap_plots(
+      list(ecdf_plot, localization_plot),
+      ncol = 1,
+      heights = c(1.35, 0.945),
+      guides = "collect"
+    )
+    attr(plots$H, "figure7_panel_b_components") <- list(
+      ecdf = ecdf_plot,
+      localization = localization_plot
+    )
+  }
   plots$I <- plots$I +
     ggplot2::labs(
       x = "Cell-cycle pseudotime", y = NULL,

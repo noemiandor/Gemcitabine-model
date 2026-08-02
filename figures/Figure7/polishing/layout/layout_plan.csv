@@ -1,12 +1,12 @@
 figure,panel,subpanel_png,x_in,y_in,width_in,height_in,sx,sy,x_npc,y_npc,width_npc,height_npc,layout_width_in,layout_height_in
-Figure 7,a,figures/Figure7/polishing/subpanels/Figure7_A.png,0.142000,8.50,4.450179,1.20,1,1,0.020000,0.876289,0.626786,0.123711,7.1,9.7
-Figure 7,b,figures/Figure7/polishing/subpanels/Figure7_B.png,4.592179,8.50,2.472321,1.20,1,1,0.646786,0.876289,0.348214,0.123711,7.1,9.7
-Figure 7,c,figures/Figure7/polishing/subpanels/Figure7_C.png,0.142000,7.55,2.225089,0.95,1,1,0.020000,0.778351,0.313393,0.097938,7.1,9.7
-Figure 7,d,figures/Figure7/polishing/subpanels/Figure7_D.png,2.367089,7.55,2.472321,0.95,1,1,0.333393,0.778351,0.348214,0.097938,7.1,9.7
-Figure 7,e,figures/Figure7/polishing/subpanels/Figure7_E.png,4.839411,7.55,2.225089,0.95,1,1,0.681607,0.778351,0.313393,0.097938,7.1,9.7
-Figure 7,f,figures/Figure7/polishing/subpanels/Figure7_F.png,0.142000,5.10,2.472321,2.45,1,1,0.020000,0.525773,0.348214,0.252577,7.1,9.7
-Figure 7,g,figures/Figure7/polishing/subpanels/Figure7_G.png,2.614321,5.10,4.450179,2.45,1,1,0.368214,0.525773,0.626786,0.252577,7.1,9.7
-Figure 7,h,figures/Figure7/polishing/subpanels/Figure7_H.png,0.142000,3.75,6.922500,1.35,1,1,0.020000,0.386598,0.975000,0.139175,7.1,9.7
-Figure 7,i,figures/Figure7/polishing/subpanels/Figure7_I.png,0.142000,1.45,6.922500,2.30,1,1,0.020000,0.149485,0.975000,0.237113,7.1,9.7
-Figure 7,j,figures/Figure7/polishing/subpanels/Figure7_J.png,0.142000,0,3.461250,1.45,1,1,0.020000,0,0.487500,0.149485,7.1,9.7
-Figure 7,k,figures/Figure7/polishing/subpanels/Figure7_K.png,3.603250,0,3.461250,1.45,1,1,0.507500,0,0.487500,0.149485,7.1,9.7
+Figure 7,a,figures/Figure7/polishing/subpanels/Figure7_A.png,0.142000,9.445,4.450179,1.20,1,1,0.020000,0.887271,0.626786,0.112729,7.1,10.645
+Figure 7,b,figures/Figure7/polishing/subpanels/Figure7_B.png,4.592179,9.445,2.472321,1.20,1,1,0.646786,0.887271,0.348214,0.112729,7.1,10.645
+Figure 7,c,figures/Figure7/polishing/subpanels/Figure7_C.png,0.142000,8.495,2.225089,0.95,1,1,0.020000,0.798027,0.313393,0.089244,7.1,10.645
+Figure 7,d,figures/Figure7/polishing/subpanels/Figure7_D.png,2.367089,8.495,2.472321,0.95,1,1,0.333393,0.798027,0.348214,0.089244,7.1,10.645
+Figure 7,e,figures/Figure7/polishing/subpanels/Figure7_E.png,4.839411,8.495,2.225089,0.95,1,1,0.681607,0.798027,0.313393,0.089244,7.1,10.645
+Figure 7,f,figures/Figure7/polishing/subpanels/Figure7_F.png,0.142000,6.045,2.472321,2.45,1,1,0.020000,0.567872,0.348214,0.230155,7.1,10.645
+Figure 7,g,figures/Figure7/polishing/subpanels/Figure7_G.png,2.614321,6.045,4.450179,2.45,1,1,0.368214,0.567872,0.626786,0.230155,7.1,10.645
+Figure 7,h,figures/Figure7/polishing/subpanels/Figure7_H.png,0.142000,3.75,6.922500,2.295,1,1,0.020000,0.352278,0.975000,0.215594,7.1,10.645
+Figure 7,i,figures/Figure7/polishing/subpanels/Figure7_I.png,0.142000,1.45,6.922500,2.30,1,1,0.020000,0.136214,0.975000,0.216064,7.1,10.645
+Figure 7,j,figures/Figure7/polishing/subpanels/Figure7_J.png,0.142000,0,3.461250,1.45,1,1,0.020000,0,0.487500,0.136214,7.1,10.645
+Figure 7,k,figures/Figure7/polishing/subpanels/Figure7_K.png,3.603250,0,3.461250,1.45,1,1,0.507500,0,0.487500,0.136214,7.1,10.645

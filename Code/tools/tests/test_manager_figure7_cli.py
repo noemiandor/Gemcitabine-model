@@ -11,11 +11,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TOOLS_DIR = REPO_ROOT / "Code/tools"
+TESTS_DIR = TOOLS_DIR / "tests"
 
 import sys
 
 sys.path.insert(0, str(TOOLS_DIR))
+sys.path.insert(0, str(TESTS_DIR))
 from figure_output_contract import MODULE_MANIFEST_COLUMNS, sha256_file, write_tsv  # noqa: E402
+from figure7_density_fixture import write_density_localization_fixture  # noqa: E402
 from materialize_figure_assets import (  # noqa: E402
     PANEL_SPECS,
     panel_specs_for_figure7_variant,
@@ -367,7 +370,7 @@ input_paths_for_module in_vivo_figure7 "$1"
                 if (
                     spec["module"] != "in_vivo_figure7"
                     or str(spec["panel"]).startswith("7F")
-                    or str(spec["panel"]) == "7A-7K_composite"
+                    or str(spec["panel"]).startswith("7A-7K_composite")
                 ):
                     continue
                 source = run_root / str(spec["source"])
@@ -611,6 +614,26 @@ input_paths_for_module in_vivo_figure7 "$1"
                         "notes": "panel K fixture",
                     }
                 )
+            for source in write_density_localization_fixture(run_root):
+                rows.append(
+                    {
+                        "path": str(source),
+                        "repo_relative_path": "",
+                        "absolute_path": str(source),
+                        "role": "output_table",
+                        "source_kind": "generated_table",
+                        "module": "in_vivo_figure7",
+                        "generated_by": "test",
+                        "command_id": source_id,
+                        "sha256": sha256_file(source),
+                        "checksum_unavailable_reason": "",
+                        "byte_size": source.stat().st_size,
+                        "mtime_utc": "2026-07-16T00:00:00+00:00",
+                        "figure": "",
+                        "panel": "",
+                        "notes": "density-localization fixture",
+                    }
+                )
             write_tsv(run_root / "metadata/output_manifest.tsv", rows, MODULE_MANIFEST_COLUMNS)
             write_tsv(
                 run_root / "metadata/run_config.tsv",
@@ -618,6 +641,28 @@ input_paths_for_module in_vivo_figure7 "$1"
                     {"key": "mode", "value": "standard"},
                     {"key": "panel_set", "value": "a-e"},
                     {"key": "tgi_day", "value": "17"},
+                    {
+                        "key": "config_sha256",
+                        "value": sha256_file(
+                            REPO_ROOT
+                            / "Code/in-vivo/figure7/figure7_config.yaml"
+                        ),
+                    },
+                    {
+                        "key": "density_localization_config",
+                        "value": (
+                            "Code/in-vivo/figure7/"
+                            "density_localization_config.yaml"
+                        ),
+                    },
+                    {
+                        "key": "density_localization_config_sha256",
+                        "value": sha256_file(
+                            REPO_ROOT
+                            / "Code/in-vivo/figure7/"
+                            "density_localization_config.yaml"
+                        ),
+                    },
                     {
                         "key": "cellcycle_input",
                         "value": str(cellcycle_path),
@@ -684,7 +729,7 @@ input_paths_for_module in_vivo_figure7 "$1"
                     for spec in PANEL_SPECS
                     if spec["module"] == "in_vivo_figure7"
                     and not str(spec["panel"]).startswith("7F")
-                    and str(spec["panel"]) != "7A-7K_composite"
+                    and not str(spec["panel"]).startswith("7A-7K_composite")
                     and spec.get("variant", "pdf") == "pdf"
                 ],
                 ["panel_id", "filename"],
@@ -693,6 +738,10 @@ input_paths_for_module in_vivo_figure7 "$1"
                 cellcycle_path,
                 noncellcycle_path,
                 endpoint_path,
+                Path("Code/in-vivo/figure7/run_figure7.R"),
+                Path("Code/in-vivo/figure7/figure7_config.yaml"),
+                Path("Code/in-vivo/figure7/density_localization_config.yaml"),
+                Path("Code/in-vivo/figure7/src/common_io.R"),
                 Path("Code/in-vivo/figure7/src/tgi_data.R"),
                 Path("Code/in-vivo/figure7/src/tgi_statistics.R"),
                 Path("Code/in-vivo/figure7/src/tgi_panels.R"),

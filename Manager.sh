@@ -572,6 +572,7 @@ input_paths_for_module() {
       printf "%s\n" \
         Code/in-vivo/figure7/run_figure7.R \
         Code/in-vivo/figure7/figure7_config.yaml \
+        Code/in-vivo/figure7/density_localization_config.yaml \
         "${panel_k_endpoint_ploidy}"
       figure7_runtime_source_paths
       if [[ "${figure7_endpoint_cbs_score_will_be_derived:-false}" == true ]]; then
@@ -1092,7 +1093,10 @@ required_input_paths_for_module() {
   case "${module}" in
     in_vivo_figure7)
       local panel_k_endpoint_ploidy="${figure7_endpoint_cbs_score_input:-Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv}"
-      printf "%s\n" Code/in-vivo/figure7/run_figure7.R Code/in-vivo/figure7/figure7_config.yaml
+      printf "%s\n" \
+        Code/in-vivo/figure7/run_figure7.R \
+        Code/in-vivo/figure7/figure7_config.yaml \
+        Code/in-vivo/figure7/density_localization_config.yaml
       figure7_runtime_source_paths
       printf "%s\n" "${panel_k_endpoint_ploidy}"
       if [[ "${figure7_endpoint_cbs_score_will_be_derived:-false}" == true ]]; then

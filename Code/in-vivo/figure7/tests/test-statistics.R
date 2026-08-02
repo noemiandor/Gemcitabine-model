@@ -198,12 +198,116 @@ testthat::test_that("panel 7E/K exposes the frozen Day-17/24/31 sensitivity resu
 })
 
 testthat::test_that("selected ECDF panel IDs and linetypes are frozen", {
-  input <- figure7_test_inputs(); panel <- figure7_panel_b(input$data, input$samples)
+  input <- figure7_test_inputs()
+  panel <- figure7_panel_b(input$data, input$samples, input$config)
   testthat::expect_identical(unique(panel$tests$comparison_id), c(1L, 8L, 9L))
   testthat::expect_identical(unique(panel$tests$panel),
     c("1. 0 vs treated", "8. 4N: 0 vs treated", "9. 2N: 0 vs treated"))
   testthat::expect_identical(unique(panel$data$line_group[panel$data$comparison_id == 8L]), "4N")
   testthat::expect_identical(unique(panel$data$line_group[panel$data$comparison_id == 9L]), "2N")
+})
+
+testthat::test_that("treated-cell excess is localized with equal-mouse exact inference", {
+  input <- figure7_test_inputs()
+  result <- figure7_density_localization(
+    input$data, input$samples, input$config
+  )
+  test <- result$test
+
+  testthat::expect_identical(test$cell_universe, "reviewed_qc_retained_cellcycle_2881")
+  testthat::expect_identical(test$n_cells, 2881L)
+  testthat::expect_identical(test$n_samples, 16L)
+  testthat::expect_identical(test$n_vehicle_samples, 8L)
+  testthat::expect_identical(test$n_treated_samples, 8L)
+  testthat::expect_identical(test$sample_weighting, "equal_mouse")
+  testthat::expect_identical(test$permutation_strata, "initial_ploidy")
+  testthat::expect_identical(test$n_permutations, 4900L)
+  testthat::expect_identical(test$grid_points, 501L)
+  testthat::expect_equal(
+    test$bandwidth, 0.0506470455660707, tolerance = 1e-13
+  )
+  testthat::expect_equal(test$pointwise_start, 0.296, tolerance = 1e-12)
+  testthat::expect_equal(test$pointwise_end, 0.486, tolerance = 1e-12)
+  testthat::expect_equal(test$simultaneous_start, 0.414, tolerance = 1e-12)
+  testthat::expect_equal(test$simultaneous_end, 0.426, tolerance = 1e-12)
+  testthat::expect_equal(
+    test$simultaneous_critical,
+    2.6737373166169203,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    test$raw_excess_peak_pseudotime, 0.452, tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    test$raw_excess_peak_density_difference,
+    0.283948126904316,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    test$max_abs_t_pseudotime, 0.420, tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    test$max_abs_t_observed_statistic,
+    2.68138128387289,
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    test$global_max_t_p_two_sided,
+    232 / 4900,
+    tolerance = 1e-12
+  )
+  testthat::expect_identical(
+    result$intervals$support_type,
+    c("positive_pointwise_two_sided", "positive_simultaneous_max_abs_t")
+  )
+  ordered_samples <- input$samples[order(input$samples$sample_id), , drop = FALSE]
+  density_matrix <- t(vapply(ordered_samples$sample_id, function(id) {
+    stats::density(
+      input$data$pseudotime[input$data$sample_id == id],
+      bw = test$bandwidth, from = 0, to = 1, n = 501
+    )$y
+  }, numeric(501L)))
+  vehicle <- ordered_samples$dose_mg == 0
+  treated <- !vehicle
+  testthat::expect_equal(
+    result$grid$vehicle_mean_density,
+    colMeans(density_matrix[vehicle, , drop = FALSE]),
+    tolerance = 1e-13
+  )
+  testthat::expect_equal(
+    result$grid$treated_mean_density,
+    colMeans(density_matrix[treated, , drop = FALSE]),
+    tolerance = 1e-13
+  )
+  cell_weighted_vehicle <- stats::density(
+    input$data$pseudotime[
+      input$data$sample_id %in% ordered_samples$sample_id[vehicle]
+    ],
+    bw = test$bandwidth, from = 0, to = 1, n = 501
+  )$y
+  testthat::expect_gt(
+    max(abs(result$grid$vehicle_mean_density - cell_weighted_vehicle)),
+    1e-3
+  )
+
+  set.seed(71)
+  shuffled <- figure7_density_localization(
+    input$data[sample(seq_len(nrow(input$data))), , drop = FALSE],
+    input$samples[sample(seq_len(nrow(input$samples))), , drop = FALSE],
+    input$config
+  )
+  testthat::expect_equal(
+    shuffled$grid,
+    result$grid,
+    tolerance = 1e-13,
+    check.attributes = FALSE
+  )
+  testthat::expect_equal(
+    shuffled$test,
+    result$test,
+    tolerance = 1e-13,
+    check.attributes = FALSE
+  )
 })
 
 testthat::test_that("panel 7A uses treatment-relative time with the Day_0 baseline", {
@@ -272,4 +376,13 @@ testthat::test_that("all module R files parse and A-E builders emit five PDF/PNG
   testthat::expect_length(list.files(file.path(out, "figures"), pattern = "[.]png$"), 5L)
   testthat::expect_silent(figure7_validate_figure_inventory(out, input$config, figure7_panel_ids(FALSE)))
   testthat::expect_identical(unique(result$panel_b$tests$comparison_id), c(1L, 8L, 9L))
+  testthat::expect_true(all(file.exists(file.path(
+    out,
+    "tables",
+    c(
+      "panel_7B_density_localization_grid.tsv",
+      "panel_7B_density_localization_intervals.tsv",
+      "panel_7B_density_localization_test.tsv"
+    )
+  ))))
 })

@@ -7,6 +7,7 @@
   "panel_map": "figures/Figure7/polishing/panel_map.csv",
   "source_files": [
     "Code/in-vivo/figure7/figure7_config.yaml",
+    "Code/in-vivo/figure7/density_localization_config.yaml",
     "Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
     "Data/in-vivo/figure7/processed/NonCellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv",
     "Data/in-vivo/scRNAseq_Numbat/all_ploidy.csv",
@@ -19,7 +20,7 @@
   "figure_script": "figures/Figure7/polishing/scripts/polish_figures.R",
   "subpanel_dimensions": "figures/Figure7/polishing/layout/subpanel_dimensions.csv",
   "layout_optimizer_script": "figures/Figure7/polishing/scripts/optimize_panel_layout.R",
-  "layout_optimizer_command": "scripts/agentRrunner.sh figures/Figure7/polishing/scripts/optimize_panel_layout.R --input figures/Figure7/polishing/layout/layout_optimizer_groups.csv --output-dir figures/Figure7/polishing/layout --target-width 7.1 --max-height 9.7 --layout-out figures/Figure7/polishing/layout/layout_optimizer_candidate.csv --report-out figures/Figure7/polishing/layout/layout_optimizer_report.md --preview true",
+  "layout_optimizer_command": "scripts/agentRrunner.sh figures/Figure7/polishing/scripts/optimize_panel_layout.R --input figures/Figure7/polishing/layout/layout_optimizer_groups.csv --output-dir figures/Figure7/polishing/layout --target-width 7.1 --max-height 10.645 --layout-out figures/Figure7/polishing/layout/layout_optimizer_candidate.csv --report-out figures/Figure7/polishing/layout/layout_optimizer_report.md --preview true",
   "layout_plan": "figures/Figure7/polishing/layout/layout_plan.csv",
   "layout_report": "figures/Figure7/polishing/layout/layout_report.md",
   "layout_qc_files": [

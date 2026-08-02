@@ -3,7 +3,7 @@
 This module generates six scientific source panels as matched vector PDF and
 300-DPI PNG files and assembles the manuscript-facing A-K composite as
 `Figure7_reviewed_GRCh.{pdf,png}`. The composite is built natively at the
-7.1 x 9.7 inch full-page target rather than by shrinking a large-format
+7.1 x 10.645 inch full-page target rather than by shrinking a large-format
 canvas. Its fixed six-row layout is A/B; C/D/E; F/G; H; I; J/K. The composite
 reuses Supplementary Figure 4A-C/E and Supplementary Figure 7B through the
 shared production plotting helper; their supplementary copies are retained.
@@ -33,6 +33,14 @@ used as a nuisance covariate in the state-pathway model.
   the earlier snapshot.
 - TGI is the Day-17 endpoint statistic, recalculated for each treated mouse using the mean Day-17 growth delta of untreated controls matched by initial ploidy.
 - Panels 7C-7E contain exactly eight treated mice at 30 or 120 mg/kg. Untreated mice contribute references only.
+- Source panel 7B (main panel H) supplements the three equal-mouse ECDF
+  comparisons with an equal-mouse Gaussian-density contrast. A common pooled,
+  label-invariant bandwidth is frozen in `density_localization_config.yaml`.
+  Exact treatment-label enumeration within injected-origin strata gives 4,900
+  assignments: pointwise positive support spans 0.296--0.486, while
+  studentized max-absolute-T family-wise support spans 0.414--0.426 (global
+  exact P = 0.0473469). The raw density excess peaks at pseudotime 0.452;
+  standardized max-absolute-T evidence is strongest at 0.420.
 - Panel 7D (main panel J) uses equal-mouse untreated ECDF references matched by
   injected initial ploidy. The treated-mouse association is Pearson r =
   0.7399455 with exact within-dose permutation P = 0.0173611 (576 labelings).
@@ -296,7 +304,7 @@ generated reference noncanonical until scientific review.
 ## Publication-scale composite and visual-QC package
 
 The normal Figure 7 renderer is the authoritative compositor. It rebuilds the
-A-K figure directly from live ggplot and heatmap grob objects at 7.1 x 9.7
+A-K figure directly from live ggplot and heatmap grob objects at 7.1 x 10.645
 inches, writing a 300-DPI PNG and a vector PDF. It never assembles the final
 figure from exported panel rasters. The fixed six rows allocate extra display
 area to the two heatmaps and the two mouse-level association panels while
@@ -309,8 +317,11 @@ preserving the enforced panel identity and first-citation order:
 5. I
 6. J/K
 
-Panel H receives 1.35 inches of vertical space so the three equal-mouse ECDF
-comparisons remain distinguishable on their shared, unzoomed 0--1.05 scale.
+Panel H receives 2.295 inches of vertical space, exactly 70% more than its prior
+1.35-inch allocation. Its upper section retains the three equal-mouse ECDF
+comparisons on their shared, unzoomed 0--1.05 scale; its lower section displays
+the treated-minus-vehicle density contrast, pointwise-support interval,
+simultaneous max-absolute-T interval, and rounded state-window boundaries.
 
 The presentation-only audit package under `figures/Figure7/polishing/` can be
 rebuilt independently with:
@@ -359,6 +370,11 @@ inputs and outputs. It also excludes the A-K composite because the main figure
 requires the reviewed state-pathway and SI-cache contracts together.
 
 Plotting data, exact-permutation tests, the complete compact state-pathway audit chain, frozen-reference comparison, run settings, panel contract, and session information are retained alongside the PDFs.
+Panel 7B/H additionally writes
+`panel_7B_density_localization_grid.tsv`,
+`panel_7B_density_localization_intervals.tsv`, and
+`panel_7B_density_localization_test.tsv`; render-only mode requires and
+hash-binds the separate density-localization configuration.
 
 ## Tests
 
@@ -367,7 +383,9 @@ Rscript Code/in-vivo/figure7/tests/testthat.R
 ```
 
 The tests parse all module files, reproduce the frozen A-E numerical results,
-enforce treated-only outcomes and selected ECDF IDs 1/8/9, validate the
+enforce treated-only outcomes and selected ECDF IDs 1/8/9, reproduce the
+equal-mouse density localization under all 4,900 origin-stratified assignments,
+pin both support intervals and the simultaneous critical value, validate the
 reviewed-v3 reference and its lineage, exercise the strict panel-F
 reviewed-v2 publication guard and generated human-only contract, verify cached-stage
 fingerprints and tamper rejection, validate the complete Zenodo manifest, and

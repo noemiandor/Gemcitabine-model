@@ -19,6 +19,10 @@ figure7_test_inputs <- local({
   function() {
     if (!is.null(cache)) return(cache)
     config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
+    config <- figure7_attach_density_localization_config(
+      config,
+      file.path(module_dir, "density_localization_config.yaml")
+    )
     cellcycle <- figure7_read_cell_table(file.path(repo_root, "Data/in-vivo/figure7/processed",
       "CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv"), "CellCycle", config)
     noncellcycle <- figure7_read_cell_table(file.path(repo_root, "Data/in-vivo/figure7/processed",
@@ -45,6 +49,10 @@ figure7_test_inputs <- local({
 
 figure7_test_reviewed_state_reference <- function() {
   config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
+  config <- figure7_attach_density_localization_config(
+    config,
+    file.path(module_dir, "density_localization_config.yaml")
+  )
   source <- file.path(
     repo_root,
     config$state_pathways$reviewed_reference_root,
