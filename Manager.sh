@@ -1133,7 +1133,10 @@ input_paths_for_module() {
       ;;
     in_vivo_endpoint_flow)
       printf "%s\n" \
+        Code/in-vivo/flow_cytometry/run_endpoint_flow.sh \
         Code/in-vivo/flow_cytometry/extract_endpoint_flow.py \
+        Code/in-vivo/flow_cytometry/reconstruct_endpoint_flow.R \
+        scripts/agentRrunner.sh \
         "${endpoint_flow_crosswalk}" \
         "${endpoint_flow_paired_sensitivity}" \
         "${endpoint_flow_workspace}" \
@@ -1480,7 +1483,7 @@ command_for_module() {
       quote_args "${si_args[@]}"
       ;;
     in_vivo_endpoint_flow)
-      quote_args python3 Code/in-vivo/flow_cytometry/extract_endpoint_flow.py \
+      quote_args bash Code/in-vivo/flow_cytometry/run_endpoint_flow.sh \
         --crosswalk "${endpoint_flow_crosswalk}" \
         --paired-sensitivity "${endpoint_flow_paired_sensitivity}" \
         --workspace "${endpoint_flow_workspace}" \

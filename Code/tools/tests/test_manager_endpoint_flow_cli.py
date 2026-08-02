@@ -35,8 +35,15 @@ class ManagerEndpointFlowCliTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(
-            "Code/in-vivo/flow_cytometry/extract_endpoint_flow.py", result.stdout
+            "Code/in-vivo/flow_cytometry/run_endpoint_flow.sh", result.stdout
         )
+        wrapper_text = (
+            REPO_ROOT / "Code/in-vivo/flow_cytometry/run_endpoint_flow.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn("extract_endpoint_flow.py", wrapper_text)
+        self.assertIn("reconstruct_endpoint_flow.R", wrapper_text)
+        manager_text = (REPO_ROOT / "Manager.sh").read_text(encoding="utf-8")
+        self.assertIn("scripts/agentRrunner.sh", manager_text)
         self.assertIn(
             "Data/in-vivo/flow_cytometry/endpoint_tumors_20250128/crosswalk.tsv",
             result.stdout,

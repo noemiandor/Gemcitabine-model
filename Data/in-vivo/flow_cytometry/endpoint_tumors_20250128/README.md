@@ -53,3 +53,12 @@ The sum of the `mCh+\2N` and `mCh+\4N` gate counts is not assumed to equal all m
 The selected A1-0 GENOMICS file contains only 174 `HumanCells` events (115 in its `2N` peak gate). The extractor flags samples below its predeclared 1,000-`HumanCells` descriptive-QC threshold but does not silently exclude them. Group output reports the all-sample and QC-pass-only mean peak-gate percentages separately.
 
 Exported histogram images were not imported because they are cropped presentation derivatives and cannot replace scripted extraction from the FCS/workspace pair.
+
+The repository now performs that scripted event-level reconstruction in
+`Code/in-vivo/flow_cytometry/reconstruct_endpoint_flow.R`. The relevant
+workspace transforms are linear with unit gain and the embedded FCS spillover
+matrices are identity, so the renderer applies the per-sample workspace-defined
+polygons and rectangles directly on recorded fluorescence values. Small replay
+differences are retained in an explicit agreement table rather than being
+forced to equal the workspace's frozen FlowJo counts; no specific software
+mechanism is asserted as their cause.

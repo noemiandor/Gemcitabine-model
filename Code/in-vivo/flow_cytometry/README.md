@@ -1,10 +1,23 @@
 # Endpoint tumor flow-cytometry extraction
 
-`extract_endpoint_flow.py` turns the reviewed FlowJo workspace into portable,
-deterministic TSVs. It uses only the Python standard library. It does **not**
-reimplement FlowJo transformations or gates: population membership and counts
-come from the reviewed workspace, while each FCS file supplies acquisition
-metadata and an independent `$TOT` consistency check.
+The endpoint-flow module has two deliberately separate layers:
+
+1. `extract_endpoint_flow.py` turns the reviewed FlowJo workspace into
+   portable, deterministic frozen-count TSVs. It uses only the Python standard
+   library; population membership and counts come from the workspace, while
+   each FCS file supplies acquisition metadata and an independent `$TOT`
+   consistency check.
+2. `reconstruct_endpoint_flow.R` reads the raw FCS event matrices and replays
+   each selected sample's exact workspace geometry in parent-to-child order.
+   It reports replayed counts alongside the frozen FlowJo values and renders a
+   review composite; it never replaces a FlowJo count to manufacture parity.
+
+`run_endpoint_flow.sh` runs both layers in that order.
+
+The event renderer requires R plus `flowCore`, `xml2`, `ggplot2`, `patchwork`,
+and `ragg`. It requires `ragg` rather than silently changing PNG devices, uses
+`cairo_pdf` for the vector figure, and records the R/package/device/Cairo
+versions in `metadata/run_config.tsv`.
 
 ## Explicit input contract
 
@@ -44,10 +57,10 @@ workspace, and all selected FCS files by dataset-relative path, byte size, and
 SHA-256 before gate extraction proceeds. Samples below 1,000 `HumanCells` are
 flagged descriptively by default but are not silently excluded.
 
-Run from the repository root:
+Run the complete module from the repository root:
 
 ```bash
-python3 Code/in-vivo/flow_cytometry/extract_endpoint_flow.py \
+bash Code/in-vivo/flow_cytometry/run_endpoint_flow.sh \
   --crosswalk Data/in-vivo/flow_cytometry/endpoint_tumors_20250128/crosswalk.tsv \
   --paired-sensitivity Data/in-vivo/flow_cytometry/endpoint_tumors_20250128/paired_acquisition_sensitivity.tsv \
   --workspace Data/in-vivo/flow_cytometry/endpoint_tumors_20250128/workspace/20250129_TumorSamples.wsp \
@@ -72,14 +85,63 @@ Outputs are:
 - `paired_workspace_sensitivity.tsv`: selected-versus-paired manual peak gates
   and counts for the four unresolved `_M`/`-M` workspace nodes. It explicitly
   records that the paired raw FCS files were not imported or header-validated.
+- `endpoint_flow_count_agreement.tsv`: frozen FlowJo and raw-event-replay
+  counts for the full hierarchy and the named peak, 2N, and 4N gates. The
+  fixed, documented numerical tolerance accommodates small implementation-level
+  boundary/statistic differences without assigning them a specific cause;
+  every delta and status remains visible. The module fails rather than updating
+  its successful-run pointer if any replay falls outside this tolerance.
+- `endpoint_flow_gate_geometry.tsv`: the parsed numeric per-sample polygon
+  vertices and rectangle bounds read from the workspace.
+- `endpoint_flow_dna_histograms.tsv`: fixed 1,000-a.u. raw DNA-channel bins
+  from 25,000 through 140,000. Probability mass sums to one independently
+  within each mouse; fluorescence values are not centered, peak-aligned, or
+  rescaled.
+- `endpoint_flow_named_2n_4n_summary.tsv`: per-mouse frozen and replayed counts
+  and HumanCells-parent percentages for the workspace-named 2N and 4N sibling
+  gates. These narrow gates are nonexhaustive and are not called cell-state
+  proportions.
+- `endpoint_flow_reconstruction_per_sample.tsv` and
+  `endpoint_flow_representative_selection.tsv`: event-universe, raw-range,
+  low-count, and deterministic representative-selection audit tables.
+- `metadata/run_config.tsv`: the linear-transform, identity-spillover,
+  normalization, raw-axis, tolerance, and package-version contract.
+- `figures/panel_SuppFig9_endpoint_flow_cytometry.{pdf,png}`: a 7.1-by-9-inch
+  review composite containing the representative raw-event gate hierarchy,
+  all 16 within-mouse-normalized DNA-content distributions, and the per-mouse
+  named 2N/4N gate summaries. The 174-HumanCells sample is retained and marked
+  with a dagger.
 
-Percentages are calculated from integer workspace counts and emitted to six
-decimal places. No run timestamp or absolute path is embedded, so identical
-inputs yield byte-identical outputs.
+The representative scatter panels display at most 10,000 deterministic,
+evenly spaced event indices for legibility; their gate counts use every event.
+The histogram and named-gate panels use the full replayed HumanCells sets.
+
+For the selected files, FSC-A, SSC-A, and `450/50 Violet B-A` all use the
+workspace's linear 0--262,144 transform with gain 1, and the FCS spillover
+matrix is the identity. The renderer verifies those statements for every
+sample. It does not apply the FACSDiva `P7BS` display-scaling keyword as an
+event offset. The common 25,000--140,000 display window contains every replayed
+HumanCells DNA event; the complete acquisition range remains recorded in the
+FCS data.
+
+Percentages in the frozen-count extractor are calculated from integer
+workspace counts and emitted to six decimal places. Analysis TSVs and the PNG
+contain no run timestamp or absolute path and are byte-identical for identical
+inputs in the pinned software environment. Cairo embeds a PDF `CreationDate`,
+so independently regenerated PDFs can differ bytewise despite identical visual
+and scientific content; manifests therefore hash each concrete PDF instance.
 
 Run the dependency-free tests without producing bytecode artifacts:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
   -s Code/in-vivo/flow_cytometry/tests -v
+```
+
+Run the event-level integration test, which replays all 16 pinned files and
+checks the figure/table contracts, with:
+
+```bash
+scripts/agentRrunner.sh \
+  Code/in-vivo/flow_cytometry/tests/test_reconstruct_endpoint_flow.R
 ```
