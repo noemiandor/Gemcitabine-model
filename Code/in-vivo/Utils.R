@@ -828,9 +828,19 @@ sort_maybe_numeric <- function(x) {
   if (!any(is.na(nums))) ux[order(nums)] else sort(ux)
 }
 
-save_plot_pdf_png <- function(plot_obj, file_stub, width = 9, height = 7, dpi = 300) {
+save_plot_pdf_png <- function(plot_obj, file_stub, width = 9, height = 7, dpi = 300, include_tiff = FALSE) {
   ggplot2::ggsave(paste0(file_stub, ".pdf"), plot_obj, width = width, height = height)
   ggplot2::ggsave(paste0(file_stub, ".png"), plot_obj, width = width, height = height, dpi = dpi)
+  if (isTRUE(include_tiff)) {
+    ggplot2::ggsave(
+      paste0(file_stub, ".tiff"),
+      plot_obj,
+      width = width,
+      height = height,
+      dpi = dpi,
+      compression = "lzw"
+    )
+  }
 }
 
 resolve_col_case_insensitive <- function(df, candidates) {
@@ -1370,7 +1380,8 @@ write_stackfig_outputs <- function(
   cluster_order_tiebreak_groups = NULL,
   width = 10,
   height = 6,
-  dpi = 300
+  dpi = 300,
+  include_tiff = FALSE
 ) {
   obj_slots <- tryCatch(methods::slotNames(obj), error = function(e) character(0))
   if (!inherits(obj, "Seurat") && !("meta.data" %in% obj_slots)) {
@@ -1467,7 +1478,8 @@ write_stackfig_outputs <- function(
     file.path(output_dir, group_by_cluster_stub),
     width = width,
     height = height,
-    dpi = dpi
+    dpi = dpi,
+    include_tiff = include_tiff
   )
 
   tab_cluster_group <- as.data.frame(
@@ -1555,7 +1567,8 @@ write_stackfig_outputs <- function(
     file.path(output_dir, cluster_by_group_stub),
     width = width,
     height = height,
-    dpi = dpi
+    dpi = dpi,
+    include_tiff = include_tiff
   )
 
   invisible(

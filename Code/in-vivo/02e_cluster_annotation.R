@@ -417,13 +417,17 @@ score_ora_for_annotation <- function(
   ora_df
 }
 
-plot_ora_top <- function(ora_df, out_pdf, out_png, title, top_n = 15) {
+plot_ora_top <- function(ora_df, out_pdf, out_png, out_tiff, title, top_n = 15) {
   if (is.null(ora_df) || nrow(ora_df) == 0) {
     pdf(out_pdf, width = 10, height = 5)
     plot.new()
     text(0.5, 0.5, paste0(title, "\nNo Hallmark ORA results"))
     dev.off()
     png(out_png, width = 3000, height = 1500, res = 300)
+    plot.new()
+    text(0.5, 0.5, paste0(title, "\nNo Hallmark ORA results"))
+    dev.off()
+    tiff(out_tiff, width = 3000, height = 1500, res = 300, compression = "lzw")
     plot.new()
     text(0.5, 0.5, paste0(title, "\nNo Hallmark ORA results"))
     dev.off()
@@ -438,6 +442,10 @@ plot_ora_top <- function(ora_df, out_pdf, out_png, title, top_n = 15) {
     text(0.5, 0.5, paste0(title, "\nNo valid Hallmark ORA rows"))
     dev.off()
     png(out_png, width = 3000, height = 1500, res = 300)
+    plot.new()
+    text(0.5, 0.5, paste0(title, "\nNo valid Hallmark ORA rows"))
+    dev.off()
+    tiff(out_tiff, width = 3000, height = 1500, res = 300, compression = "lzw")
     plot.new()
     text(0.5, 0.5, paste0(title, "\nNo valid Hallmark ORA rows"))
     dev.off()
@@ -469,6 +477,7 @@ plot_ora_top <- function(ora_df, out_pdf, out_png, title, top_n = 15) {
 
   ggsave(out_pdf, p, width = 10, height = max(5, 0.28 * nrow(df)))
   ggsave(out_png, p, width = 10, height = max(5, 0.28 * nrow(df)), dpi = 300)
+  ggsave(out_tiff, p, width = 10, height = max(5, 0.28 * nrow(df)), dpi = 300, compression = "lzw")
   invisible(df)
 }
 
@@ -827,6 +836,7 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
       ora_df = ora_res,
       out_pdf = file.path(ora_dir_cluster, paste0("cluster_", cluster_id, "_Hallmark_ORA_top.pdf")),
       out_png = file.path(ora_dir_cluster, paste0("cluster_", cluster_id, "_Hallmark_ORA_top.png")),
+      out_tiff = file.path(ora_dir_cluster, paste0("cluster_", cluster_id, "_Hallmark_ORA_top.tiff")),
       title = paste0("cluster_final ", cluster_id, " vs rest | Hallmark ORA"),
       top_n = top_plot_terms
     )
@@ -890,7 +900,8 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
     cluster_order_by_group_sum = c("2N-tumor", "4N-tumor"),
     cluster_order_tiebreak_groups = "4N-tumor",
     width = 10,
-    height = 6
+    height = 6,
+    include_tiff = TRUE
   )
   heatmap_cluster_levels <- levels(stackfig_outputs$cluster_group[[analysis_cluster_col]])
   if (is.null(heatmap_cluster_levels) || length(heatmap_cluster_levels) == 0) {
@@ -954,19 +965,45 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
         }
       )
       dev.off()
+
+      tiff(file.path(out_plots, "Hallmark_annotation_heatmap.tiff"), width = 10, height = 8, units = "in", res = 300, compression = "lzw")
+      pheatmap::pheatmap(
+        heatmap_mat,
+        cluster_rows = TRUE,
+        cluster_cols = FALSE,
+        border_color = NA,
+        main = if (use_annotation_heatmap) {
+          "cluster_final Hallmark annotation (integrated score)"
+        } else {
+          "cluster_final Hallmark annotation (-log10 FDR)"
+        }
+      )
+      dev.off()
     }
   }
 
   if ("umap" %in% names(obj@reductions)) {
     p1 <- DimPlot(obj, reduction = "umap", group.by = analysis_cluster_col, label = TRUE, repel = TRUE, raster = FALSE) +
       labs(title = "cluster_final for annotation")
-    ggsave(file.path(out_plots, "umap_cluster_final.pdf"), p1, width = 9, height = 7)
-    ggsave(file.path(out_plots, "umap_cluster_final.png"), p1, width = 9, height = 7, dpi = 300)
+    save_plot_pdf_png(
+      p1,
+      file.path(out_plots, "umap_cluster_final"),
+      width = 9,
+      height = 7,
+      dpi = 300,
+      include_tiff = TRUE
+    )
 
     p2 <- DimPlot(obj, reduction = "umap", group.by = "cluster_final_annotation_primary", label = TRUE, repel = TRUE, raster = FALSE) +
       labs(title = "Primary Hallmark annotation by cluster_final")
-    ggsave(file.path(out_plots, "umap_cluster_final_annotation_primary.pdf"), p2, width = 11, height = 7)
-    ggsave(file.path(out_plots, "umap_cluster_final_annotation_primary.png"), p2, width = 11, height = 7, dpi = 300)
+    save_plot_pdf_png(
+      p2,
+      file.path(out_plots, "umap_cluster_final_annotation_primary"),
+      width = 11,
+      height = 7,
+      dpi = 300,
+      include_tiff = TRUE
+    )
   }
 
   summary_lines <- c(
@@ -993,8 +1030,8 @@ out_objects <- .ensure_dir(file.path(output_root, "04_objects"))
       " after within-cluster min-max scaling."
     ),
     "Stack figure outputs:",
-    "  03_plots/stack_sample_type_by_cluster_final.pdf(.png)",
-    "  03_plots/stack_cluster_final_by_sample_type.pdf(.png)",
+    "  03_plots/stack_sample_type_by_cluster_final.pdf(.png/.tiff)",
+    "  03_plots/stack_cluster_final_by_sample_type.pdf(.png/.tiff)",
     "",
     "UMAP rendering:",
     "  All UMAP outputs are written with raster = FALSE (no point downsampling).",
