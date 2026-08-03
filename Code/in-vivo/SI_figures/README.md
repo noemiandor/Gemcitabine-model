@@ -50,11 +50,14 @@ the downstream CBS files. Because those schemas cannot be
 assumed to share a coordinate build, the renderer does not align breakpoints
 or project them to common loci. Instead, it computes each cell's
 length-weighted mean across the available CBS segments of each autosome and
-plots the resulting 9,832-by-22 matrix in chromosome order. Rows are grouped
-by injected 2N/4N origin, dose, and mouse, then ordered by the post-processed
-copy-number score; neither rows nor columns are clustered. Mouse, gemcitabine
-dose, and injected origin are displayed as row annotations. The renderer exports the plotted
-matrix, cell order, and per-file/per-schema represented-base-pair audit.
+plots the resulting 9,832-by-22 matrix in chromosome order. The supplementary
+cache keeps rows grouped by injected 2N/4N origin, dose, and mouse and then by
+postprocessed copy-number score. Main Figure 7J preserves those mouse blocks
+but hierarchically clusters cells separately within each mouse from the
+displayed 22-chromosome profiles; chromosomes are not clustered. Mouse,
+gemcitabine dose, and injected origin are displayed as row annotations. The
+renderer exports the matrix, main-figure row order, and per-file/per-schema
+represented-base-pair audit.
 
 SI6E compares the project-designated injected-cell karyotype references (20 2N
 A7M and 16 4N A5M metaphases) with one terminal NUMBAT-derived mean per mouse;

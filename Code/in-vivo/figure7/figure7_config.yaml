@@ -96,41 +96,43 @@ etp:
 intervals:
   primary_accumulated_state:
     role: primary
-    label: Primary accumulated state
-    start: 0.30
-    end: 0.49
+    label: Gemcitabine-associated cell-excess interval
+    start: 0.296
+    end: 0.486
     include_start: true
     include_end: true
-    source: "rounded from approximately 0.296-0.486 pointwise treated-cell excess"
+    source: "expected result of the exact density-localization calculation; the support workflow derives and validates this interval from the 2,881-cell table before modeling"
   left_neighbor:
     role: left_flank
     label: Left neighboring state
-    start: 0.11
-    end: 0.30
+    start: 0.106
+    end: 0.296
     include_start: true
     include_end: false
     source: "equal-width state immediately before the primary interval"
   right_neighbor:
     role: right_flank
     label: Right neighboring state
-    start: 0.49
-    end: 0.68
+    start: 0.486
+    end: 0.676
     include_start: false
     include_end: true
     source: "equal-width state immediately after the primary interval"
 state_pathways:
-  reviewed_reference_id: state_pathway_grch_human_only_initial_ploidy_day17_v3
-  reviewed_reference_kind: reviewed_human_only_initial_ploidy_frozen
+  reviewed_reference_id: state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4
+  reviewed_reference_kind: reviewed_human_only_initial_ploidy_computed_pointwise_interval
   reviewed_reference_canonical_publication_allowed: true
   reviewed_reference_root: Data/in-vivo/figure7/saved_state_pathway
-  generated_reference_id: state_pathway_grch_human_only_initial_ploidy_day17_v3_candidate
-  generated_reference_kind: generated_human_only_initial_ploidy_frozen_candidate
+  generated_reference_id: state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4_candidate
+  generated_reference_kind: generated_human_only_initial_ploidy_computed_pointwise_interval_candidate
   generated_canonical_publication_allowed: false
   generated_feature_species_policy: "Retain exact GRCh38-prefixed counts and exclude exact GRCm39-prefixed counts before pseudobulk construction, expression filtering, model fitting, symbol cleanup, duplicate resolution, and Homo sapiens GSEA; reject unrecognized feature prefixes."
-  model: initial_ploidy_adjusted_grch_human_only_v3
-  accumulated_interval: {start: 0.30, end: 0.49, include_start: true, include_end: true}
-  left_neighbor: {start: 0.11, end: 0.30, include_start: true, include_end: false}
-  right_neighbor: {start: 0.49, end: 0.68, include_start: false, include_end: true}
+  model: initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4
+  interval_source: computed_positive_pointwise_density_support_v1
+  interval_selection_rule: "unique connected grid region with positive equal-mouse treated-minus-vehicle density contrast and two-sided exact injected-origin-stratified pointwise permutation P <= 0.05"
+  accumulated_interval: {start: 0.296, end: 0.486, include_start: true, include_end: true}
+  left_neighbor: {start: 0.106, end: 0.296, include_start: true, include_end: false}
+  right_neighbor: {start: 0.486, end: 0.676, include_start: false, include_end: true}
   assay: RNA
   counts_layer: counts
   pseudotime_bins: 20
@@ -155,14 +157,15 @@ state_pathways:
   top_negative_per_collection: 4
   reviewed_pathway_selector: "BH-adjusted P <= 0.05; up to top four per sign and collection; no nonsignificant backfill"
   reviewed_expected_files:
-    panel_7F_pathway_activity_plot_data.tsv: 9913d66a911275fe5c347a6048e0eabc39ec57ff8298eedb18b4b4f4c43c7932
-    panel_7F_selected_pathway_gsea.tsv: 39a1e243725b70f7d8dd907584a5d6f5049d3e84149678b11f985783178a99f0
-    panel_7F_leading_edge_genes.tsv: 18346c2efe9a584c945963fb83d1169238cf8c98b30fe8b01603c9d9e56b710f
-    state_pathway_gene_ranking_complete.tsv: eec9a01d187e3d6fff5d2a83ac9971140404548fce7c488bb0fe631aa5902e15
-    state_pathway_gsea_complete.tsv: 639d79ce9d9116d4c93fc2a5108a8973dd8e7416f826de29c92479e5445912df
+    state_pathway_interval_definition.tsv: 8f51b4c24ebdbb3da6c391be03acaacded60c01acf29c6dde77387bd2a6c8b99
+    panel_7F_pathway_activity_plot_data.tsv: 7d16e7e0ef4a3258c413a43307437282d5d0cdd7f0ec84baabd15c2bbbeefae3
+    panel_7F_selected_pathway_gsea.tsv: 1350e2ed472d0be0a9c809eb85ebb7a4ca05a8d8fb704567ddd65b2e87ebf5bf
+    panel_7F_leading_edge_genes.tsv: 888c75f988c29f39271db03aae1089df894f847b2ec656320abe21e999569a2e
+    state_pathway_gene_ranking_complete.tsv: 150d8f3ce96eade2926b6dd27fae859f36c5bcf3dbaa83f856cdcd73aa4c67b0
+    state_pathway_gsea_complete.tsv: 9659891bc273677832355dbf85a17805e62bbcb10884f6a698ee637d389f540d
     state_pathway_sample_bin_coverage.tsv: 0ef5470eca70272bacdbbd0d416b21a9ad4f9e448ac172cad4ba06cb7f2719aa
-    state_pathway_design_qc.tsv: 8c039ed4ec4e986f2e5f917a88dfade395556b17c31132d889fbbf3a83b44ce6
-    state_pathway_provenance.tsv: 6223465704473a326cdc55d6fded7532d9ab041589117d24702df352df3f05d3
+    state_pathway_design_qc.tsv: b430aafcb4f00c6e1ac42bd380ed540eb84c585c5556e3d724680ddd99a8300d
+    state_pathway_provenance.tsv: 2a5f15402cb54ca67b368ffba4adcf931b642fbb6cec1ba083780fc28f1bce9b
   comparison_tolerances:
     absolute: 1.0e-10
     relative: 1.0e-6

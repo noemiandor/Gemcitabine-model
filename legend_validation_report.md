@@ -6,14 +6,14 @@ Status: **PASS**
 - Present legend blocks: 1 (Figure 7).
 - Missing labels: none.
 - Extra labels: none.
-- Expected panel order: A–K.
-- Described panels: A–K, exactly once and in order.
+- Expected panel order: A–L.
+- Described panels: A–L, exactly once and in order.
 
 The repository did not provide a file named `figure_set_manifest.csv` for
 this one-figure task. The equivalent authoritative inputs were the canonical
-Figure 7 manifest, the A–K panel map, the polishing provenance table, the
+Figure 7 manifest, the A–L panel map, the polishing provenance table, the
 run-scoped panel contract, the final PNG/PDF pair, and the generating R code.
-These identify one rendered scientific figure with 11 displayed panels.
+These identify one rendered scientific figure with 12 displayed panels.
 
 Checks completed:
 
@@ -24,17 +24,22 @@ Checks completed:
 - Panel F states that stars mark positive enrichment only.
 - Panel G states that white zero cells mean no finite NES and that FDR is not
   encoded.
+- Panel H describes the mouse-balanced ECDF construction and no longer
+  describes the density-localization strip that now appears only in the
+  supplementary figure.
 - Panel I states that leading-edge genes were standardized across pseudotime
   before averaging.
-- Panels J and K have separate descriptions; K retains the 5,335/9,832-cell QC
+- Panel J describes the 9,832-cell QC universe, the within-mouse row
+  clustering, fixed mouse-block and chromosome orders, copy-number palette,
+  annotation bars, and cross-run segment-schema caveat.
+- Panels K and L have separate descriptions; L retains the 5,335/9,832-cell QC
   universe and the descriptive, unadjusted NUMBAT calibration caveat.
 - Implementation-level GRCh details and the 8! permutation enumeration count
   are absent.
 - No source paths, commands, checksums, workflow labels, or provenance notes
   appear in the integrated legend body.
-- The feedback-manager handoff was unavailable and is recorded in
-  `feedback_manager_context.md`; every user-specified legend correction was
-  applied.
+- The user-supplied Figure 7 revision history is summarized in
+  `feedback_manager_context.md`; every legend-relevant correction was applied.
 - A two-pass draft-graphics LaTeX proof placed the native-size figure on one
   page and the two continued caption blocks together on the following page,
   with no Figure 7 caption overflow or panel-order mismatch.

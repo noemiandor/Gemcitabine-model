@@ -75,7 +75,7 @@ testthat::test_that(
 )
 
 testthat::test_that(
-  "state-pathway v3 adjusts for injected initial ploidy and excludes endpoint CN score",
+  "state-pathway pointwise v4 adjusts for injected initial ploidy and excludes endpoint CN score",
   {
     support_env <- new.env(parent = globalenv())
     sys.source(
@@ -101,7 +101,7 @@ testthat::test_that(
 
     testthat::expect_identical(
       spec$model_id,
-      "initial_ploidy_adjusted_grch_human_only_v3"
+      "initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4"
     )
     testthat::expect_identical(spec$covariate_mode, "initial_ploidy")
     testthat::expect_identical(spec$covariate_terms, "initial_ploidy_factor")
@@ -118,6 +118,75 @@ testthat::test_that(
         )$state_pathways$nuisance_terms
       )),
       c("dose_mg_factor", "initial_ploidy_factor")
+    )
+  }
+)
+
+testthat::test_that(
+  "state-pathway support derives the interval before expression modeling and GSEA",
+  {
+    support_env <- new.env(parent = globalenv())
+    sys.source(
+      file.path(
+        module_dir,
+        "generate_pseudotime_state_pathways_support.R"
+      ),
+      envir = support_env
+    )
+    workflow <- paste(deparse(body(support_env$run_support_workflow)), collapse = "\n")
+    ordered_calls <- c(
+      "figure7_density_localization\\(",
+      "figure7_apply_density_supported_state_intervals\\(",
+      "construct_pseudobulk\\(",
+      "contrast_vector\\(",
+      "run_all_gsea\\("
+    )
+    positions <- vapply(
+      ordered_calls,
+      function(pattern) regexpr(pattern, workflow)[[1L]],
+      integer(1L)
+    )
+    testthat::expect_true(all(positions > 0L))
+    testthat::expect_true(all(diff(positions) > 0L))
+    testthat::expect_match(
+      workflow,
+      "pathway_activity\\([[:space:][:print:]]*cfg\\$interval_list\\$primary_accumulated_state"
+    )
+  }
+)
+
+testthat::test_that(
+  "state-pathway support requires the exact localization cells in expression",
+  {
+    support_env <- new.env(parent = globalenv())
+    sys.source(
+      file.path(
+        module_dir,
+        "generate_pseudotime_state_pathways_support.R"
+      ),
+      envir = support_env
+    )
+    meta <- data.frame(
+      cell_id = c("cell_a", "cell_b"),
+      stringsAsFactors = FALSE
+    )
+    counts <- matrix(
+      1,
+      nrow = 1L,
+      ncol = 2L,
+      dimnames = list("GRCh38-GENE", c("cell_a", "cell_b"))
+    )
+    testthat::expect_equal(
+      support_env$match_cells(meta, counts, 1)$audit$match_rate[[1L]],
+      1
+    )
+    testthat::expect_error(
+      support_env$match_cells(meta, counts[, "cell_a", drop = FALSE], 1),
+      "not fully represented"
+    )
+    testthat::expect_error(
+      support_env$match_cells(meta, counts, 0.99),
+      "requires --min_match_rate=1"
     )
   }
 )

@@ -332,6 +332,63 @@ stopifnot(
   )
 )
 
+clustered <- helper$si_copy_number_cluster_rows_within_samples(harmonized)
+expected_cluster_order <- unlist(lapply(
+  harmonized$sample_levels,
+  function(sample_id) {
+    index <- which(harmonized$cell_annotations$sample_id == sample_id)
+    index <- index[order(
+      harmonized$cell_annotations$heatmap_row_id[index]
+    )]
+    index[stats::hclust(
+      stats::dist(harmonized$matrix[index, , drop = FALSE]),
+      method = "ward.D2"
+    )$order]
+  }
+), use.names = FALSE)
+stopifnot(
+  identical(
+    clustered$cell_annotations$heatmap_row_id,
+    harmonized$cell_annotations$heatmap_row_id[expected_cluster_order]
+  ),
+  identical(
+    unique(as.character(clustered$cell_annotations$sample_id)),
+    harmonized$sample_levels
+  ),
+  identical(
+    as.integer(table(factor(
+      clustered$cell_annotations$sample_id,
+      levels = harmonized$sample_levels
+    ))),
+    as.integer(table(factor(
+      harmonized$cell_annotations$sample_id,
+      levels = harmonized$sample_levels
+    )))
+  ),
+  identical(
+    clustered$row_ordering_policy,
+    "hierarchical_clustering_separately_within_each_mouse"
+  ),
+  identical(clustered$row_distance_method, "euclidean"),
+  identical(clustered$row_linkage_method, "ward.D2"),
+  identical(
+    clustered$row_tie_break_method,
+    "canonical_heatmap_row_id_input_order"
+  ),
+  nrow(clustered$row_order_audit) == 9832L,
+  identical(
+    clustered$row_order_audit$display_order,
+    seq_len(9832L)
+  )
+)
+expect_error(
+  helper$si_copy_number_cluster_rows_within_samples(
+    harmonized,
+    linkage_method = "single"
+  ),
+  "requires Euclidean distance and Ward.D2 linkage"
+)
+
 # The 2N and 4N schemas have materially different represented spans. The
 # production reduction is therefore chromosome-level and never a false
 # coordinate alignment or direct segment-column bind.

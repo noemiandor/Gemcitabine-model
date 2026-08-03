@@ -9,8 +9,9 @@ reuses Supplementary Figure 4A-C/E and Supplementary Figure 7B through the
 shared production plotting helper; their supplementary copies are retained.
 The former human-only panel-7F v2
 reference is retained for audit but is superseded because its model adjusted
-for a run-confounded endpoint-CN-score group. The reviewed v3 reference instead
-adjusts for injected initial ploidy and is the canonical panel-7F source. Panel
+for a run-confounded endpoint-CN-score group. The reviewed pointwise-v4 reference
+adjusts for injected initial ploidy and directly uses the computed
+0.296--0.486 density-support interval as the canonical panel-7F source. Panel
 L shows the unadjusted mouse-level Pearson association between the
 checksum-pinned mean endpoint tumor-cell ploidy and TGI, with unrestricted
 exact enumeration of all 8! TGI-label permutations; endpoint ploidy is not
@@ -35,7 +36,7 @@ used as a nuisance covariate in the state-pathway model.
 - Panels 7C-7E contain exactly eight treated mice at 30 or 120 mg/kg. Untreated mice contribute references only.
 - Source panel 7B computes the three equal-mouse ECDF comparisons used in main
   panel H and the equal-mouse Gaussian-density contrast displayed as SI4I. A common pooled,
-  label-invariant bandwidth is frozen in `density_localization_config.yaml`.
+  label-invariant bandwidth is pinned in `density_localization_config.yaml`.
   Exact treatment-label enumeration within injected-origin strata gives 4,900
   assignments: pointwise positive support spans 0.296--0.486, while
   studentized max-absolute-T family-wise support spans 0.414--0.426 (global
@@ -45,9 +46,13 @@ used as a nuisance covariate in the state-pathway model.
   injected initial ploidy. The treated-mouse association is Pearson r =
   0.7399455 with exact within-dose permutation P = 0.0173611 (576 labelings).
 - Panel 7F (main panel I) uses model
-  `initial_ploidy_adjusted_grch_human_only_v3`; its nuisance terms are dose and
+  `initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4`; its nuisance terms are dose and
   injected initial ploidy, never endpoint CN score or an endpoint-derived
-  threshold group.
+  threshold group. Its primary interval is computed directly as the unique
+  connected positive pointwise-supported density region (0.296--0.486), and
+  its two equal-width flanks are then derived as [0.106,0.296) and
+  (0.486,0.676]. Static interval fields are validation expectations and cannot
+  select a different modeling contrast.
 - Panel 7E (main panel L) reports the descriptive mouse-level association
   between mean endpoint tumor-cell ploidy and Day-17 TGI (Pearson r =
   -0.6984010; asymptotic P = 0.0540070; exact unrestricted permutation P =
@@ -64,13 +69,15 @@ used as a nuisance covariate in the state-pathway model.
   layout, typography, reader-facing labels, and legend placement; it does not
   change the panel identities, source tables, fitted models, tests, or values.
 
-The eight reviewed v3 panel-7F files retain exact `GRCh38-` features before
+The nine reviewed pointwise-v4 panel-7F files retain exact `GRCh38-` features before
 expression filtering, symbol resolution, model fitting, and Homo sapiens GSEA.
-They use the accumulated pseudotime interval 0.30-0.49. Displayed pathways must
+They include the computed interval definition and use pseudotime 0.296--0.486.
+Displayed pathways must
 have collection-wide BH-adjusted P <= 0.05; the selector takes up to four per
 sign and collection and never backfills with nonsignificant pathways. The
-reviewed provenance authenticates all eight compact tables, the exact input
-hashes, model/design audit, feature-species boundary, MSigDB release, and
+reviewed provenance authenticates all nine compact reference files,
+including the interval definition, together with the exact input hashes, model/design audit,
+feature-species boundary, MSigDB release, and
 selection rule. An embedded report raster is not accepted as plotting data.
 
 ## Raw-data fallback and intermediate reuse
@@ -184,7 +191,7 @@ exact `GRCh38-` count rows before expression filtering, symbol resolution,
 modeling, and GSEA. It writes a separate generated human-only,
 initial-ploidy-adjusted reference with
 `canonical_publication_allowed=false`; raw reruns do not inherit the approval
-of the exact reviewed v3 bytes. GSEA starts with the configured
+of the exact reviewed pointwise-v4 bytes. GSEA starts with the configured
 simple-permutation budget,
 retries only unresolved pathways at increasing pinned budgets, recomputes BH
 adjustment across each complete collection, and fails closed if any pathway
@@ -266,9 +273,9 @@ calculation, plot labels, statistical tables, run metadata, panel contract, and
 day-bearing filenames. Panel 7B and panel 7F are scientifically independent of
 the TGI endpoint and are regenerated unchanged into the selected destination.
 
-Routine and raw-fallback runs do not refresh either tracked frozen reference.
+Routine and raw-fallback runs do not refresh tracked reviewed or audit reference directories.
 Full-workflow instead writes a separately identified
-`state_pathway_grch_human_only_initial_ploidy_day17_v3_candidate` generated reference below the run
+`state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4_candidate` generated reference below the run
 intermediates and marks it noncanonical.
 
 To explicitly generate and materialize only 7A-7E:
@@ -283,7 +290,7 @@ materialize panel 7F. Each included panel is written in both PDF and PNG format.
 
 The superseded v2 directory remains byte-pinned and is exercised by its
 dedicated audit validator and tests. Routine rendering intentionally refuses
-to substitute it for reviewed v3, preventing an endpoint-CN-score-adjusted
+to substitute it for reviewed pointwise-v4, preventing an endpoint-CN-score-adjusted
 panel from re-entering a canonical composite.
 
 Standalone rendering from an immutable completed run (does not rerun statistics):
@@ -360,8 +367,13 @@ It additionally contains the publication-scale
 `Figure7_reviewed_GRCh.{pdf,png}` pair, whose panel contract is: A=7A, B=7C,
 C=SI4A, D=SI4B, E=SI4C, F=SI4E, G=SI7B, H=7B, I=7F, J=7J,
 K=7D, and L=7E. The copy-number heatmap is published only as main J. The
-reviewed SI manifest hash, target dimensions, and ordered mapping are recorded
-in run metadata and enforced during materialization.
+fixed injected-origin/dose/mouse block order is preserved in J, while cells are
+hierarchically clustered separately within each mouse using Euclidean distance
+on the displayed chromosome profiles and Ward.D2 linkage. The reviewed SI
+manifest hash, target dimensions, ordered mapping, and row-ordering policy are
+recorded in run metadata and enforced during materialization. The exact
+9,832-row display order is exported as
+`tables/panel_7J_copy_number_row_order.tsv`.
 
 A full-refit run has the same scientific panel mapping but writes
 `Figure7_generated_GRCh_candidate.{pdf,png}`. Its generated supplementary-cache
@@ -392,7 +404,7 @@ The tests parse all module files, reproduce the frozen A-E numerical results,
 enforce treated-only outcomes and selected ECDF IDs 1/8/9, reproduce the
 equal-mouse density localization under all 4,900 origin-stratified assignments,
 pin both support intervals and the simultaneous critical value, validate the
-reviewed-v3 reference and its lineage, exercise the strict panel-F
+reviewed pointwise-v4 reference and its lineage, exercise the strict panel-F
 reviewed-v2 publication guard and generated human-only contract, verify cached-stage
 fingerprints and tamper rejection, validate the complete Zenodo manifest, and
 confirm that missing raw inputs fail before output is created when downloading

@@ -260,6 +260,74 @@ testthat::test_that("treated-cell excess is localized with equal-mouse exact inf
     result$intervals$support_type,
     c("positive_pointwise_two_sided", "positive_simultaneous_max_abs_t")
   )
+  derived <- figure7_state_intervals_from_density_support(result$intervals)
+  testthat::expect_equal(
+    c(
+      derived$primary_accumulated_state$start,
+      derived$primary_accumulated_state$end
+    ),
+    c(0.296, 0.486),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    c(derived$left_neighbor$start, derived$left_neighbor$end),
+    c(0.106, 0.296),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    c(derived$right_neighbor$start, derived$right_neighbor$end),
+    c(0.486, 0.676),
+    tolerance = 1e-12
+  )
+  testthat::expect_equal(
+    vapply(derived, function(x) x$end - x$start, numeric(1L)),
+    rep(0.190, 3L),
+    tolerance = 1e-12,
+    check.attributes = FALSE
+  )
+  testthat::expect_identical(
+    result$grid$modeled_state_interval,
+    result$grid$pointwise_positive_supported
+  )
+  supported_p <- result$grid$pointwise_p_two_sided[
+    result$grid$modeled_state_interval
+  ]
+  testthat::expect_equal(
+    range(supported_p),
+    c(12 / 4900, 242 / 4900),
+    tolerance = 1e-12
+  )
+  localization_plot <- figure7_panel_b_localization_plot(
+    result$grid, result$intervals, result$test
+  )
+  testthat::expect_match(
+    localization_plot$labels$subtitle,
+    "Exact pointwise P = 0.00245\u20130.0494",
+    fixed = TRUE
+  )
+  testthat::expect_match(
+    localization_plot$labels$subtitle,
+    "max-|T| global P = 0.0473",
+    fixed = TRUE
+  )
+
+  tampered_config <- input$config
+  tampered_config$intervals$primary_accumulated_state$start <- 0.05
+  tampered_config$intervals$primary_accumulated_state$end <- 0.95
+  tampered_config$state_pathways$accumulated_interval$start <- 0.05
+  tampered_config$state_pathways$accumulated_interval$end <- 0.95
+  applied <- figure7_apply_density_supported_state_intervals(
+    tampered_config,
+    result$intervals
+  )
+  testthat::expect_equal(
+    c(
+      applied$state_pathways$accumulated_interval$start,
+      applied$state_pathways$accumulated_interval$end
+    ),
+    c(0.296, 0.486),
+    tolerance = 1e-12
+  )
   ordered_samples <- input$samples[order(input$samples$sample_id), , drop = FALSE]
   density_matrix <- t(vapply(ordered_samples$sample_id, function(id) {
     stats::density(
@@ -307,6 +375,34 @@ testthat::test_that("treated-cell excess is localized with equal-mouse exact inf
     result$test,
     tolerance = 1e-13,
     check.attributes = FALSE
+  )
+})
+
+testthat::test_that("state-interval derivation fails closed", {
+  empty <- data.frame(
+    support_type = character(), start = numeric(), end = numeric()
+  )
+  testthat::expect_error(
+    figure7_state_intervals_from_density_support(empty),
+    "exactly one connected"
+  )
+  multiple <- data.frame(
+    support_type = rep("positive_pointwise_two_sided", 2L),
+    start = c(0.2, 0.6),
+    end = c(0.3, 0.7)
+  )
+  testthat::expect_error(
+    figure7_state_intervals_from_density_support(multiple),
+    "exactly one connected"
+  )
+  no_left_flank <- data.frame(
+    support_type = "positive_pointwise_two_sided",
+    start = 0.05,
+    end = 0.20
+  )
+  testthat::expect_error(
+    figure7_state_intervals_from_density_support(no_left_flank),
+    "equal-width flanks"
   )
 })
 

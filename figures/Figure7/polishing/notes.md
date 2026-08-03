@@ -17,8 +17,10 @@ Main J is generated from all 16 checksum-pinned CBS matrices and restricted by
 exact cell identity to the 9,832-cell final-QC tumor universe, including 5,335
 treated cells. Clusters 3, 4, 9, and 9c remain excluded. Its row annotations
 encode injected origin, gemcitabine dose, and mouse, with a compact key for all
-21 annotation levels. Copy number 3 uses a gold anchor rather than the white
-page color. The former supplementary
+21 annotation levels. Mouse blocks retain their fixed order; within each mouse,
+cells are clustered by Euclidean distance on the displayed 22-chromosome
+profiles using Ward.D2 linkage and canonical cell-ID tie ordering. Copy number
+3 uses a gold anchor rather than the white page color. The former supplementary
 copy-number heatmap is removed; Supplementary Figure 6 now contains panels A--E,
 with the injected-reference comparison as E.
 

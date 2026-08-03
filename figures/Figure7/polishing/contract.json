@@ -16,7 +16,8 @@
     "Data/in-vivo/SIfigures/si_figure6_endpoint_ploidy_join_audit.csv",
     "Data/in-vivo/SIfigures/si_figures_cell_metadata.csv",
     "Data/in-vivo/SIfigures/manifest.tsv",
-    "Data/in-vivo/figure7/saved_state_pathway/state_pathway_grch_human_only_initial_ploidy_day17_v3/panel_7F_pathway_activity_plot_data.tsv"
+    "Data/in-vivo/figure7/saved_state_pathway/state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4/state_pathway_interval_definition.tsv",
+    "Data/in-vivo/figure7/saved_state_pathway/state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4/panel_7F_pathway_activity_plot_data.tsv"
   ],
   "source_pngs": [
     "figures/Figure7/Figure7_reviewed_GRCh.png"

@@ -660,14 +660,14 @@ figure7_read_config <- function(path, tgi_day = NULL) {
   )
   expected_state_identity <- c(
     reviewed_reference_id =
-      "state_pathway_grch_human_only_initial_ploidy_day17_v3",
+      "state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4",
     reviewed_reference_kind =
-      "reviewed_human_only_initial_ploidy_frozen",
+      "reviewed_human_only_initial_ploidy_computed_pointwise_interval",
     reviewed_reference_canonical_publication_allowed = "true",
     generated_reference_kind =
-      "generated_human_only_initial_ploidy_frozen_candidate",
+      "generated_human_only_initial_ploidy_computed_pointwise_interval_candidate",
     generated_reference_id =
-      "state_pathway_grch_human_only_initial_ploidy_day17_v3_candidate",
+      "state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4_candidate",
     generated_canonical_publication_allowed = "false"
   )
   if (!identical(state_identity, expected_state_identity)) {
@@ -677,17 +677,18 @@ figure7_read_config <- function(path, tgi_day = NULL) {
   }
   if (!identical(
         as.character(state$model),
-        "initial_ploidy_adjusted_grch_human_only_v3"
+        "initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4"
       ) ||
       !identical(
         as.character(unlist(state$nuisance_terms)),
         c("dose_mg_factor", "initial_ploidy_factor")
       )) {
     figure7_stop(
-      "Panel-7F v3 must adjust for injected initial ploidy and must not use endpoint CN score"
+      "Panel-7F pointwise-interval v4 must adjust for injected initial ploidy and must not use endpoint CN score"
     )
   }
   expected_reference_files <- c(
+    "state_pathway_interval_definition.tsv",
     "panel_7F_pathway_activity_plot_data.tsv",
     "panel_7F_selected_pathway_gsea.tsv",
     "panel_7F_leading_edge_genes.tsv",
@@ -900,7 +901,7 @@ figure7_state_config_contract_sha256 <- function(config) {
   ]
   values <- c(
     state_pathway_contract_version =
-      "grch_human_only_initial_ploidy_nuisance_v3",
+      "grch_human_only_initial_ploidy_pointwise_interval_v4",
     unlist(config$feature_species, use.names = TRUE),
     unlist(config$intervals, use.names = TRUE),
     unlist(config$gene_sets, use.names = TRUE),

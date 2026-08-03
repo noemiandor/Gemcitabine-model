@@ -417,10 +417,10 @@ PANEL_SPECS = [
 STRICT_FIGURE_MODULES = {"in_vivo_figure7", "si_figures"}
 FIGURE_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".svg", ".tif", ".tiff"}
 FIGURE7_REVIEWED_REFERENCE_ID = (
-    "state_pathway_grch_human_only_initial_ploidy_day17_v3"
+    "state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4"
 )
 FIGURE7_REVIEWED_REFERENCE_KIND = (
-    "reviewed_human_only_initial_ploidy_frozen"
+    "reviewed_human_only_initial_ploidy_computed_pointwise_interval"
 )
 
 
@@ -462,14 +462,15 @@ FIGURE7_REVIEWED_REFERENCE_ROOT = (
     / FIGURE7_REVIEWED_REFERENCE_ID
 )
 FIGURE7_REVIEWED_FILES = {
-    "panel_7F_pathway_activity_plot_data.tsv": "9913d66a911275fe5c347a6048e0eabc39ec57ff8298eedb18b4b4f4c43c7932",
-    "panel_7F_selected_pathway_gsea.tsv": "39a1e243725b70f7d8dd907584a5d6f5049d3e84149678b11f985783178a99f0",
-    "panel_7F_leading_edge_genes.tsv": "18346c2efe9a584c945963fb83d1169238cf8c98b30fe8b01603c9d9e56b710f",
-    "state_pathway_gene_ranking_complete.tsv": "eec9a01d187e3d6fff5d2a83ac9971140404548fce7c488bb0fe631aa5902e15",
-    "state_pathway_gsea_complete.tsv": "639d79ce9d9116d4c93fc2a5108a8973dd8e7416f826de29c92479e5445912df",
+    "state_pathway_interval_definition.tsv": "8f51b4c24ebdbb3da6c391be03acaacded60c01acf29c6dde77387bd2a6c8b99",
+    "panel_7F_pathway_activity_plot_data.tsv": "7d16e7e0ef4a3258c413a43307437282d5d0cdd7f0ec84baabd15c2bbbeefae3",
+    "panel_7F_selected_pathway_gsea.tsv": "1350e2ed472d0be0a9c809eb85ebb7a4ca05a8d8fb704567ddd65b2e87ebf5bf",
+    "panel_7F_leading_edge_genes.tsv": "888c75f988c29f39271db03aae1089df894f847b2ec656320abe21e999569a2e",
+    "state_pathway_gene_ranking_complete.tsv": "150d8f3ce96eade2926b6dd27fae859f36c5bcf3dbaa83f856cdcd73aa4c67b0",
+    "state_pathway_gsea_complete.tsv": "9659891bc273677832355dbf85a17805e62bbcb10884f6a698ee637d389f540d",
     "state_pathway_sample_bin_coverage.tsv": "0ef5470eca70272bacdbbd0d416b21a9ad4f9e448ac172cad4ba06cb7f2719aa",
-    "state_pathway_design_qc.tsv": "8c039ed4ec4e986f2e5f917a88dfade395556b17c31132d889fbbf3a83b44ce6",
-    "state_pathway_provenance.tsv": "6223465704473a326cdc55d6fded7532d9ab041589117d24702df352df3f05d3",
+    "state_pathway_design_qc.tsv": "b430aafcb4f00c6e1ac42bd380ed540eb84c585c5556e3d724680ddd99a8300d",
+    "state_pathway_provenance.tsv": "2a5f15402cb54ca67b368ffba4adcf931b642fbb6cec1ba083780fc28f1bce9b",
 }
 SI7_REVIEWED_FEATURE_POLICY = (
     "Human tumor/cell-line analysis: retain exact GRCh38-prefixed features "
@@ -2223,7 +2224,7 @@ def validate_figure7_density_localization_contract(
         "simultaneous_upper_envelope",
         "pointwise_positive_supported",
         "simultaneous_positive_supported",
-        "frozen_state_interval",
+        "modeled_state_interval",
     }
     required_interval_headers = {"support_type", "start", "end", "width", "alpha"}
     required_test_headers = {
@@ -2393,7 +2394,7 @@ def validate_figure7_density_localization_contract(
             for key in (
                 "pointwise_positive_supported",
                 "simultaneous_positive_supported",
-                "frozen_state_interval",
+                "modeled_state_interval",
             )
         }
         if any(value not in {"TRUE", "FALSE"} for value in booleans.values()):
@@ -2404,11 +2405,11 @@ def validate_figure7_density_localization_contract(
         simultaneous_supported = (
             booleans["simultaneous_positive_supported"] == "TRUE"
         )
-        frozen = booleans["frozen_state_interval"] == "TRUE"
+        modeled = booleans["modeled_state_interval"] == "TRUE"
         expected_x = index / 500.0
         expected_pointwise = 0.296 <= expected_x <= 0.486
         expected_simultaneous = 0.414 <= expected_x <= 0.426
-        expected_frozen = 0.30 <= expected_x <= 0.49
+        expected_modeled = expected_pointwise
         if (
             not math.isclose(x, expected_x, rel_tol=0.0, abs_tol=1e-12)
             or permutation_sd <= 0
@@ -2443,7 +2444,7 @@ def validate_figure7_density_localization_contract(
             or simultaneous_supported != (studentized > critical)
             or pointwise_supported != expected_pointwise
             or simultaneous_supported != expected_simultaneous
-            or frozen != expected_frozen
+            or modeled != expected_modeled
         ):
             raise ValueError(
                 "Figure 7 density-localization grid, null envelope, or support "
@@ -2955,7 +2956,7 @@ def validate_strict_source_run(
                 raise ValueError(
                     "Canonical Figure 7 materialization is prohibited: "
                     "the source input manifest does not bind the reviewed "
-                    "renderer, config, and eight-file panel-7F reference: "
+                    "renderer, config, and nine-file panel-7F reference: "
                     f"missing={missing_input_paths}"
                 )
             provenance = read_unique_key_values(
@@ -2971,8 +2972,8 @@ def validate_strict_source_run(
                 != "true"
                 or provenance.get("reviewed_source_provenance_sha256")
                 != (
-                    "3824db8e7c3b9d3ff1bc0ad361644156a47e4e146ca485110"
-                    "1ea5b52ea04932a"
+                    "c5192325e7c6ebd8531c0dfc2c8343c7032817e891f5f27"
+                    "a69efd2c42fdb384c"
                 )
             ):
                 raise ValueError(
@@ -2996,6 +2997,14 @@ def validate_strict_source_run(
                 "copy_number_panel_chromosomes": "22",
                 "copy_number_panel_annotation_bars": (
                     "injected_origin;gemcitabine_dose;mouse"
+                ),
+                "copy_number_panel_row_ordering_policy": (
+                    "hierarchical_clustering_separately_within_each_mouse"
+                ),
+                "copy_number_panel_row_distance_method": "euclidean",
+                "copy_number_panel_row_linkage_method": "ward.D2",
+                "copy_number_panel_row_tie_break_method": (
+                    "canonical_heatmap_row_id_input_order"
                 ),
                 "density_localization_config": (
                     "Code/in-vivo/figure7/density_localization_config.yaml"

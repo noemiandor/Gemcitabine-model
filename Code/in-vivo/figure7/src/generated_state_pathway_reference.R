@@ -1,8 +1,8 @@
 # Runtime-generated panel-7F reference contract.
 #
 # Generated GRCh-only references are run-scoped, explicitly noncanonical, and
-# validated here. The reviewed-v2 validator reuses this scientific contract
-# only after independently enforcing its exact frozen bytes and approval
+# validated here. The reviewed-reference validator reuses this scientific
+# contract only after independently enforcing its exact versioned bytes and approval
 # identity.
 
 figure7_generated_state_required_files <- function() {
@@ -32,7 +32,7 @@ figure7_validate_generated_state_reference <- function(
   observed_files <- sort(list.files(path, all.files = FALSE))
   if (!identical(observed_files, sort(files))) {
     figure7_stop(
-      "Generated panel-7F reference must contain exactly eight files; missing=",
+      "Generated panel-7F reference must contain exactly nine files; missing=",
       paste(setdiff(files, observed_files), collapse = ","),
       "; unexpected=",
       paste(setdiff(observed_files, files), collapse = ",")
@@ -207,8 +207,58 @@ figure7_validate_generated_state_reference <- function(
     paths[["state_pathway_sample_bin_coverage.tsv"]]
   )
   design <- figure7_read_tsv(paths[["state_pathway_design_qc.tsv"]])
-  if (!nrow(ranking) || !nrow(complete_gsea) || !nrow(coverage) || !nrow(design)) {
+  interval_definition <- figure7_read_tsv(
+    paths[["state_pathway_interval_definition.tsv"]],
+    c(
+      "interval_id", "start", "end", "include_start", "include_end",
+      "derivation_analysis_id", "derivation_support_type",
+      "derivation_pointwise_alpha", "derivation_n_permutations"
+    )
+  )
+  if (!nrow(ranking) || !nrow(complete_gsea) || !nrow(coverage) ||
+      !nrow(design) || !nrow(interval_definition)) {
     figure7_stop("Generated panel-7F audit chain contains an empty table")
+  }
+  expected_intervals <- list(
+    primary_accumulated_state = config$state_pathways$accumulated_interval,
+    left_neighbor = config$state_pathways$left_neighbor,
+    right_neighbor = config$state_pathways$right_neighbor
+  )
+  for (interval_id in names(expected_intervals)) {
+    observed <- interval_definition[
+      interval_definition$interval_id == interval_id,
+      ,
+      drop = FALSE
+    ]
+    expected <- expected_intervals[[interval_id]]
+    if (nrow(observed) != 1L ||
+        abs(figure7_numeric(observed$start) - as.numeric(expected$start)) >
+          1e-12 ||
+        abs(figure7_numeric(observed$end) - as.numeric(expected$end)) >
+          1e-12 ||
+        !identical(as.logical(observed$include_start),
+          isTRUE(expected$include_start)) ||
+        !identical(as.logical(observed$include_end),
+          isTRUE(expected$include_end))) {
+      figure7_stop(
+        "Generated panel-7F computed interval mismatch for ", interval_id
+      )
+    }
+  }
+  if (nrow(interval_definition) != 3L ||
+      any(interval_definition$derivation_analysis_id !=
+        "equal_mouse_kde_exact_origin_stratified_max_t_v1") ||
+      any(interval_definition$derivation_support_type !=
+        "positive_pointwise_two_sided") ||
+      any(figure7_numeric(
+        interval_definition$derivation_pointwise_alpha
+      ) != 0.05) ||
+      any(figure7_numeric(
+        interval_definition$derivation_n_permutations
+      ) != 4900)) {
+    figure7_stop(
+      "Generated panel-7F interval is detached from exact density-localization inference"
+    )
   }
   expected_model_id <- as.character(config$state_pathways$model)
   if (any(ranking$model_id != expected_model_id) ||
@@ -408,6 +458,19 @@ figure7_validate_generated_state_reference <- function(
     "n_human_features_retained", "n_mouse_features_excluded",
     "n_ambiguous_features", "feature_species_audit_sha256",
     "feature_species_policy_code_sha256",
+    "support_common_io_sha256",
+    "density_localization_config_sha256",
+    "density_localization_code_sha256",
+    "interval_definition_sha256",
+    "interval_localization_grid_sha256",
+    "interval_localization_support_sha256",
+    "interval_localization_test_sha256",
+    "cell_expression_match_audit_sha256",
+    "localization_and_expression_n_cells",
+    "metadata_to_expression_match_rate",
+    "interval_selection_rule", "interval_pointwise_p_min",
+    "interval_pointwise_p_max", "accumulated_interval",
+    "left_neighbor_interval", "right_neighbor_interval",
     "gsea_nperm_simple", "gsea_nperm_simple_max",
     "gsea_nperm_simple_multiplier", "gsea_nperm_simple_usage",
     "gsea_adaptive_retry_rule",
@@ -432,6 +495,14 @@ figure7_validate_generated_state_reference <- function(
     "figure7_config_sha256", "activity_table_sha256",
     "feature_species_audit_sha256",
     "feature_species_policy_code_sha256",
+    "support_common_io_sha256",
+    "density_localization_config_sha256",
+    "density_localization_code_sha256",
+    "interval_definition_sha256",
+    "interval_localization_grid_sha256",
+    "interval_localization_support_sha256",
+    "interval_localization_test_sha256",
+    "cell_expression_match_audit_sha256",
     "exporter_script_sha256", "exporter_common_io_sha256"
   )
   if (any(!grepl("^[0-9a-f]{64}$", value[hash_keys])) ||
@@ -464,6 +535,11 @@ figure7_validate_generated_state_reference <- function(
     unknown_feature_policy =
       as.character(config$feature_species$unknown_feature_policy),
     pathway_selection_rule = figure7_generated_pathway_selection_rule(),
+    interval_selection_rule =
+      as.character(config$state_pathways$interval_selection_rule),
+    accumulated_interval = "[0.296,0.486]",
+    left_neighbor_interval = "[0.106,0.296)",
+    right_neighbor_interval = "(0.486,0.676]",
     gsea_nperm_simple_usage = {
       usage <- table(observed_nperm)
       paste(
@@ -511,7 +587,9 @@ figure7_validate_generated_state_reference <- function(
     gsea_nperm_simple_multiplier =
       as.numeric(config$state_pathways$gsea_nperm_simple_multiplier),
     pathway_selection_fdr_threshold =
-      figure7_generated_pathway_fdr_threshold()
+      figure7_generated_pathway_fdr_threshold(),
+    localization_and_expression_n_cells = 2881,
+    metadata_to_expression_match_rate = 1
   )
   for (key in names(expected_numeric)) {
     if (!isTRUE(all.equal(
@@ -521,6 +599,16 @@ figure7_validate_generated_state_reference <- function(
     ))) {
       figure7_stop("Generated panel-7F numeric provenance mismatch for ", key)
     }
+  }
+  pointwise_numerators <- figure7_numeric(value[c(
+    "interval_pointwise_p_min",
+    "interval_pointwise_p_max"
+  )]) * 4900
+  if (any(!is.finite(pointwise_numerators)) ||
+      any(abs(pointwise_numerators - c(12, 242)) > 1e-10)) {
+    figure7_stop(
+      "Generated panel-7F pointwise P-value provenance is invalid"
+    )
   }
   if (!identical(
     value[["activity_table_sha256"]],
@@ -549,7 +637,7 @@ figure7_validate_generated_state_reference <- function(
         unname(vapply(paths[compact_files], figure7_sha256, character(1L)))
       )) {
     figure7_stop(
-      "Generated panel-7F provenance does not authenticate all seven ",
+      "Generated panel-7F provenance does not authenticate all eight ",
       "compact data tables"
     )
   }
@@ -562,6 +650,19 @@ figure7_validate_generated_state_reference <- function(
     )
   }
   if (!is.null(config_path)) {
+    support_script_path <- file.path(
+      dirname(config_path),
+      "generate_pseudotime_state_pathways_support.R"
+    )
+    if (!file.exists(support_script_path) ||
+        !identical(
+          value[["source_code_revision"]],
+          paste0("sha256:", figure7_sha256(support_script_path))
+        )) {
+      figure7_stop(
+        "Generated panel-7F support implementation changed"
+      )
+    }
     policy_path <- file.path(
       dirname(config_path), "src", "feature_species_policy.R"
     )
@@ -578,6 +679,12 @@ figure7_validate_generated_state_reference <- function(
       exporter_script_sha256 =
         file.path(dirname(config_path), "export_state_pathway_reference.R"),
       exporter_common_io_sha256 =
+        file.path(dirname(config_path), "src", "common_io.R"),
+      density_localization_code_sha256 =
+        file.path(dirname(config_path), "src", "tgi_statistics.R"),
+      density_localization_config_sha256 =
+        file.path(dirname(config_path), "density_localization_config.yaml"),
+      support_common_io_sha256 =
         file.path(dirname(config_path), "src", "common_io.R")
     )
     if (any(!file.exists(code_paths)) ||
@@ -631,6 +738,7 @@ figure7_validate_generated_state_reference <- function(
     pathways = pathways,
     selected = selected,
     leading = leading,
+    interval_definition = interval_definition,
     provenance = provenance,
     files = reference_paths,
     reference_id = expected_id,

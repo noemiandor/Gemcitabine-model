@@ -69,12 +69,12 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.reviewed_reference_source = (
             REPO_ROOT
             / "Data/in-vivo/figure7/saved_state_pathway"
-            / "state_pathway_grch_human_only_initial_ploidy_day17_v3"
+            / "state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4"
         )
         self.reviewed_reference_root = (
             self.repo
             / "Data/in-vivo/figure7/saved_state_pathway"
-            / "state_pathway_grch_human_only_initial_ploidy_day17_v3"
+            / "state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4"
         )
         shutil.copytree(
             self.reviewed_reference_source,
@@ -277,13 +277,13 @@ class Figure7MaterializationTest(unittest.TestCase):
                         "key": "state_pathway_reference_id",
                         "value": (
                             "state_pathway_grch_human_only_"
-                            "initial_ploidy_day17_v3"
+                            "initial_ploidy_day17_pointwise_v4"
                         ),
                     },
                     {
                         "key": "state_pathway_reference_kind",
                         "value": (
-                            "reviewed_human_only_initial_ploidy_frozen"
+                            "reviewed_human_only_initial_ploidy_computed_pointwise_interval"
                         ),
                     },
                     {
@@ -319,6 +319,24 @@ class Figure7MaterializationTest(unittest.TestCase):
                     {
                         "key": "copy_number_panel_annotation_bars",
                         "value": "injected_origin;gemcitabine_dose;mouse",
+                    },
+                    {
+                        "key": "copy_number_panel_row_ordering_policy",
+                        "value": (
+                            "hierarchical_clustering_separately_within_each_mouse"
+                        ),
+                    },
+                    {
+                        "key": "copy_number_panel_row_distance_method",
+                        "value": "euclidean",
+                    },
+                    {
+                        "key": "copy_number_panel_row_linkage_method",
+                        "value": "ward.D2",
+                    },
+                    {
+                        "key": "copy_number_panel_row_tie_break_method",
+                        "value": "canonical_heatmap_row_id_input_order",
                     },
                     {
                         "key": "reviewed_si_cache_manifest",
@@ -671,9 +689,7 @@ class Figure7MaterializationTest(unittest.TestCase):
                     "simultaneous_upper_envelope": critical * permutation_sd,
                     "pointwise_positive_supported": str(pointwise).upper(),
                     "simultaneous_positive_supported": str(simultaneous).upper(),
-                    "frozen_state_interval": str(
-                        0.30 <= pseudotime <= 0.49
-                    ).upper(),
+                    "modeled_state_interval": str(pointwise).upper(),
                 }
             )
         write_tsv(
@@ -821,7 +837,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             capture_output=True,
         )
 
-    def test_materializes_exact_reviewed_human_only_initial_ploidy_v3(
+    def test_materializes_exact_reviewed_human_only_initial_ploidy_pointwise_v4(
         self,
     ) -> None:
         result = self._run_materializer()
@@ -1430,7 +1446,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.assertIn(
             (
                 "does not bind the reviewed renderer, config, and "
-                "eight-file"
+                "nine-file"
             ),
             result.stderr,
         )

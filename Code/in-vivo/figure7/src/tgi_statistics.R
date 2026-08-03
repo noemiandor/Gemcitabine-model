@@ -352,6 +352,101 @@ figure7_supported_intervals <- function(grid, supported, support_type, alpha) {
   )
 }
 
+figure7_state_intervals_from_density_support <- function(intervals) {
+  required <- c("support_type", "start", "end")
+  if (!is.data.frame(intervals) || !all(required %in% names(intervals))) {
+    figure7_stop(
+      "State-pathway interval derivation requires density-localization support intervals"
+    )
+  }
+  pointwise <- intervals[
+    as.character(intervals$support_type) == "positive_pointwise_two_sided",
+    ,
+    drop = FALSE
+  ]
+  if (nrow(pointwise) != 1L) {
+    figure7_stop(
+      "State-pathway modeling requires exactly one connected positive pointwise-supported interval"
+    )
+  }
+  start <- suppressWarnings(as.numeric(pointwise$start[[1L]]))
+  end <- suppressWarnings(as.numeric(pointwise$end[[1L]]))
+  width <- end - start
+  left_start <- start - width
+  right_end <- end + width
+  if (any(!is.finite(c(start, end, width, left_start, right_end))) ||
+      width <= 0 || left_start < 0 || right_end > 1) {
+    figure7_stop(
+      "The computed pointwise-supported interval cannot have two adjacent equal-width flanks within [0,1]"
+    )
+  }
+  interval <- function(
+    name, role, label, interval_start, interval_end,
+    include_start, include_end, source
+  ) {
+    list(
+      name = name,
+      role = role,
+      label = label,
+      start = interval_start,
+      end = interval_end,
+      include_start = include_start,
+      include_end = include_end,
+      source = source
+    )
+  }
+  source <- paste(
+    "computed directly from the unique connected region with positive",
+    "treated-minus-vehicle density contrast and two-sided exact",
+    "injected-origin-stratified pointwise permutation P <= 0.05"
+  )
+  out <- list(
+    primary_accumulated_state = interval(
+      "primary_accumulated_state", "primary",
+      "Gemcitabine-associated cell-excess interval",
+      start, end, TRUE, TRUE, source
+    ),
+    left_neighbor = interval(
+      "left_neighbor", "left_flank", "Left neighboring state",
+      left_start, start, TRUE, FALSE,
+      "equal-width state immediately before the computed primary interval"
+    ),
+    right_neighbor = interval(
+      "right_neighbor", "right_flank", "Right neighboring state",
+      end, right_end, FALSE, TRUE,
+      "equal-width state immediately after the computed primary interval"
+    )
+  )
+  widths <- vapply(out, function(x) x$end - x$start, numeric(1L))
+  if (!isTRUE(all.equal(
+    unname(widths), rep(width, 3L),
+    tolerance = 1e-12, check.attributes = FALSE
+  ))) {
+    figure7_stop("Computed state-pathway intervals are not equal width")
+  }
+  out
+}
+
+figure7_apply_density_supported_state_intervals <- function(config, intervals) {
+  derived <- figure7_state_intervals_from_density_support(intervals)
+  config$intervals <- derived
+  config$state_pathways$accumulated_interval <-
+    derived$primary_accumulated_state[c(
+      "start", "end", "include_start", "include_end"
+    )]
+  config$state_pathways$left_neighbor <- derived$left_neighbor[c(
+    "start", "end", "include_start", "include_end"
+  )]
+  config$state_pathways$right_neighbor <- derived$right_neighbor[c(
+    "start", "end", "include_start", "include_end"
+  )]
+  config$state_pathways$interval_source <-
+    "computed_positive_pointwise_density_support_v1"
+  config$interval_list <- derived
+  attr(config, "state_intervals_computed_from_density") <- TRUE
+  config
+}
+
 figure7_density_localization <- function(data, samples, config) {
   contract <- figure7_density_localization_contract(config)
   local <- contract$raw
@@ -547,8 +642,7 @@ figure7_density_localization <- function(data, samples, config) {
     simultaneous_upper_envelope = simultaneous_critical * permutation_sd,
     pointwise_positive_supported = pointwise_supported,
     simultaneous_positive_supported = simultaneous_supported,
-    frozen_state_interval = grid >= config$intervals$primary_accumulated_state$start &
-      grid <= config$intervals$primary_accumulated_state$end,
+    modeled_state_interval = pointwise_supported,
     stringsAsFactors = FALSE
   )
   test <- data.frame(

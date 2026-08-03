@@ -347,7 +347,13 @@ write_final_records <- function(output_paths) {
     relative_repo_path(file.path(
       repo_root,
       "Data/in-vivo/figure7/saved_state_pathway/",
-      "state_pathway_grch_human_only_initial_ploidy_day17_v3/",
+      "state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4/",
+      "state_pathway_interval_definition.tsv"
+    )),
+    relative_repo_path(file.path(
+      repo_root,
+      "Data/in-vivo/figure7/saved_state_pathway/",
+      "state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4/",
       "panel_7F_pathway_activity_plot_data.tsv"
     ))
   )

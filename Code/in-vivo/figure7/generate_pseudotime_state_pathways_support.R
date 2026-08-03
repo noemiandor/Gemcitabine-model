@@ -61,7 +61,7 @@ usage <- function() {
       "This standalone script writes only the Figure 7 support files requested under:",
       "  <output_root>/00_manifest",
       "  <output_root>/binning",
-      "  <output_root>/binning/initial_ploidy_adjusted_grch_human_only_v3",
+      "  <output_root>/binning/initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4",
       sep = "\n"
     ),
     "\n"
@@ -292,7 +292,7 @@ join_assay_layers_for_counts <- function(
 }
 
 model_spec_initial_ploidy <- function(
-  model_id = "initial_ploidy_adjusted_grch_human_only_v3"
+  model_id = "initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4"
 ) {
   list(
     model_id = model_id,
@@ -451,6 +451,18 @@ load_counts <- function(
 match_cells <- function(meta, counts, min_match_rate) {
   metadata_ids <- unique(meta$cell_id)
   expression_ids <- colnames(counts)
+  if (!isTRUE(all.equal(as.numeric(min_match_rate), 1, tolerance = 0))) {
+    stop(
+      "The pointwise-interval state model requires --min_match_rate=1 so its expression universe exactly matches the 2,881 cells used for localization.",
+      call. = FALSE
+    )
+  }
+  if (anyDuplicated(meta$cell_id) || anyDuplicated(expression_ids)) {
+    stop(
+      "Cell metadata and expression matrices require unique cell IDs.",
+      call. = FALSE
+    )
+  }
   meta_match <- metadata_ids %in% expression_ids
   expr_match <- expression_ids %in% metadata_ids
   audit <- data.frame(
@@ -461,8 +473,12 @@ match_cells <- function(meta, counts, min_match_rate) {
     match_rate = c(mean(meta_match), mean(expr_match)),
     stringsAsFactors = FALSE
   )
-  if (audit$match_rate[audit$source == "metadata"] < min_match_rate) {
-    stop("Metadata-to-expression cell-ID match rate is below threshold: ", audit$match_rate[audit$source == "metadata"], call. = FALSE)
+  if (!all(meta_match)) {
+    stop(
+      "The exact 2,881-cell localization universe is not fully represented in the expression matrix: matched ",
+      sum(meta_match), " of ", length(meta_match),
+      call. = FALSE
+    )
   }
   keep_meta <- meta$cell_id %in% expression_ids
   meta <- meta[keep_meta, , drop = FALSE]
@@ -1195,7 +1211,12 @@ fitted_grid <- function(model_fit, grid_size = 501L) {
   list(grid = grid, fitted = fitted)
 }
 
-pathway_activity <- function(fitted_grid, gsea_df, max_pathways = Inf) {
+pathway_activity <- function(
+  fitted_grid,
+  gsea_df,
+  primary_interval,
+  max_pathways = Inf
+) {
   if (is.null(gsea_df) || nrow(gsea_df) == 0L) return(data.frame())
   fg <- fitted_grid$fitted
   gene_symbols <- clean_gene_symbols(rownames(fg))
@@ -1223,7 +1244,7 @@ pathway_activity <- function(fitted_grid, gsea_df, max_pathways = Inf) {
       standardized_activity = as.numeric(activity),
       n_leading_edge_genes_used = length(row_idx),
       peak_pseudotime = peak,
-      peaks_inside_primary = peak >= 0.30 & peak <= 0.49,
+      peaks_inside_primary = interval_hit(peak, primary_interval),
       stringsAsFactors = FALSE
     )
   })
@@ -1281,10 +1302,20 @@ run_support_workflow <- function(args, repo_root) {
   binning_qc <- ensure_dir(file.path(binning_root, "01_qc"))
   binning_pseudobulk <- ensure_dir(file.path(binning_root, "02_pseudobulk"))
   cfg <- read_config(args$config)
+  cfg <- figure7_attach_density_localization_config(
+    cfg,
+    args$density_config
+  )
   model_id <- as.character(cfg$state_pathways$model)
-  if (!identical(model_id, "initial_ploidy_adjusted_grch_human_only_v3")) {
+  if (!identical(
+        model_id,
+        "initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4"
+      )) {
     stop(
-      "State-pathway config must request initial_ploidy_adjusted_grch_human_only_v3",
+      paste(
+        "State-pathway config must request",
+        "initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4"
+      ),
       call. = FALSE
     )
   }
@@ -1317,6 +1348,21 @@ run_support_workflow <- function(args, repo_root) {
     "Code", "in-vivo", "figure7", "src",
     "feature_species_policy.R"
   )
+  support_script_path <- file.path(
+    repo_root,
+    "Code", "in-vivo", "figure7",
+    "generate_pseudotime_state_pathways_support.R"
+  )
+  density_localization_code_path <- file.path(
+    repo_root,
+    "Code", "in-vivo", "figure7", "src",
+    "tgi_statistics.R"
+  )
+  common_io_code_path <- file.path(
+    repo_root,
+    "Code", "in-vivo", "figure7", "src",
+    "common_io.R"
+  )
   if (!file.exists(species_policy_path)) {
     stop("Missing shared feature-species policy helper", call. = FALSE)
   }
@@ -1348,17 +1394,21 @@ run_support_workflow <- function(args, repo_root) {
     stringsAsFactors = FALSE
   )
 
-  write_csv(intervals_table(cfg), file.path(manifest_dir, "frozen_interval_definition.csv"))
   write_csv(package_versions(), file.path(manifest_dir, "package_versions.csv"))
   input_checksums <- data.frame(
     input = c(
       "cell_metadata", "noncell_metadata", "seurat_rds", "config",
-      "feature_species_policy_code"
+      "support_script", "density_localization_config",
+      "feature_species_policy_code",
+      "density_localization_code", "common_io_code"
     ),
     locator = vapply(
       c(
         args$cell_metadata, args$noncell_metadata, seurat_rds,
-        args$config, species_policy_path
+        args$config, support_script_path, args$density_config,
+        species_policy_path,
+        density_localization_code_path,
+        common_io_code_path
       ),
       portable_locator,
       character(1L),
@@ -1369,7 +1419,11 @@ run_support_workflow <- function(args, repo_root) {
       file_checksum(args$noncell_metadata),
       file_checksum(seurat_rds),
       file_checksum(args$config),
-      file_checksum(species_policy_path)
+      file_checksum(support_script_path),
+      file_checksum(args$density_config),
+      file_checksum(species_policy_path),
+      file_checksum(density_localization_code_path),
+      file_checksum(common_io_code_path)
     ),
     stringsAsFactors = FALSE
   )
@@ -1383,6 +1437,42 @@ run_support_workflow <- function(args, repo_root) {
     stop("Cell metadata has inconsistent sample/dose/ploidy assignments.", call. = FALSE)
   }
   check_pseudotime(meta)
+
+  message("Computing the state interval from exact density-localization support")
+  density_localization <- figure7_density_localization(
+    meta,
+    sample_metadata(meta),
+    cfg
+  )
+  cfg <- figure7_apply_density_supported_state_intervals(
+    cfg,
+    density_localization$intervals
+  )
+  state_interval_definition <- intervals_table(cfg)
+  state_interval_definition$derivation_analysis_id <-
+    density_localization$test$analysis_id[[1L]]
+  state_interval_definition$derivation_support_type <-
+    "positive_pointwise_two_sided"
+  state_interval_definition$derivation_pointwise_alpha <-
+    density_localization$test$pointwise_alpha[[1L]]
+  state_interval_definition$derivation_n_permutations <-
+    density_localization$test$n_permutations[[1L]]
+  write_csv(
+    state_interval_definition,
+    file.path(manifest_dir, "state_interval_definition.csv")
+  )
+  write_csv(
+    density_localization$grid,
+    file.path(manifest_dir, "state_interval_localization_grid.csv")
+  )
+  write_csv(
+    density_localization$intervals,
+    file.path(manifest_dir, "state_interval_localization_support.csv")
+  )
+  write_csv(
+    density_localization$test,
+    file.path(manifest_dir, "state_interval_localization_test.csv")
+  )
 
   message("Reading Seurat counts: ", seurat_rds)
   count_source <- load_counts(
@@ -1398,8 +1488,18 @@ run_support_workflow <- function(args, repo_root) {
     file.path(manifest_dir, "feature_species_audit.csv")
   )
   matched <- match_cells(meta, counts, args$min_match_rate)
+  write_csv(
+    matched$audit,
+    file.path(manifest_dir, "cell_expression_match_audit.csv")
+  )
   meta <- matched$meta
   counts <- matched$counts
+  if (nrow(meta) != 2881L || ncol(counts) != 2881L) {
+    stop(
+      "State-pathway expression modeling must retain exactly the same 2,881 cells used for density localization.",
+      call. = FALSE
+    )
+  }
   message("Constructing sample-bin pseudobulk")
   pb <- construct_pseudobulk(meta, counts, args$n_pseudotime_bins, args$min_cells_per_sample_bin)
   write_csv(pb$metadata, file.path(binning_pseudobulk, "sample_bin_metadata.csv"))
@@ -1486,7 +1586,11 @@ run_support_workflow <- function(args, repo_root) {
   if (nrow(leading_edge) > 0L) leading_edge$model_id <- model_spec$model_id
   write_csv(leading_edge, file.path(model_gsea, "all_collections_leading_edge_genes.csv"))
 
-  activity <- pathway_activity(fitted_grid(model_fit, args$grid_size), primary_gsea)
+  activity <- pathway_activity(
+    fitted_grid(model_fit, args$grid_size),
+    primary_gsea,
+    cfg$interval_list$primary_accumulated_state
+  )
   if (nrow(activity) > 0L) activity$model_id <- model_spec$model_id
   write_csv(activity, file.path(model_gsea, "pathway_activity_over_pseudotime.csv"))
 
@@ -1508,7 +1612,15 @@ main <- function() {
   script_dir <- if (!is.na(path)) dirname(path) else getwd()
   repo_root <- normalizePath(file.path(script_dir, "..", "..", ".."), mustWork = FALSE)
   sys.source(
+    file.path(script_dir, "src", "common_io.R"),
+    envir = .GlobalEnv
+  )
+  sys.source(
     file.path(script_dir, "src", "feature_species_policy.R"),
+    envir = .GlobalEnv
+  )
+  sys.source(
+    file.path(script_dir, "src", "tgi_statistics.R"),
     envir = .GlobalEnv
   )
   defaults <- list(
@@ -1516,6 +1628,10 @@ main <- function() {
     noncell_metadata = "",
     seurat_rds = "",
     config = file.path(repo_root, "Code/in-vivo/figure7/figure7_config.yaml"),
+    density_config = file.path(
+      repo_root,
+      "Code/in-vivo/figure7/density_localization_config.yaml"
+    ),
     output_root = "",
     assay = "RNA",
     counts_layer = "counts",
@@ -1525,7 +1641,7 @@ main <- function() {
     gene_set_collections = "H,C2:CP:REACTOME,C5:GO:BP",
     seed = 1L,
     overwrite = FALSE,
-    min_match_rate = 0.99,
+    min_match_rate = 1,
     gsea_min_size = 15L,
     gsea_max_size = 500L,
     gsea_nperm_simple = 10000L,
@@ -1550,6 +1666,11 @@ main <- function() {
   args$cell_metadata <- resolve_path(args$cell_metadata, repo_root, must_work = TRUE)
   args$noncell_metadata <- resolve_path(args$noncell_metadata, repo_root, must_work = TRUE)
   args$config <- resolve_path(args$config, repo_root, must_work = TRUE)
+  args$density_config <- resolve_path(
+    args$density_config,
+    repo_root,
+    must_work = TRUE
+  )
   args$output_root <- resolve_path(args$output_root, repo_root, must_work = FALSE)
   args$seurat_rds <- resolve_path(args$seurat_rds, repo_root, must_work = FALSE)
 

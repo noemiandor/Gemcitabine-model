@@ -243,7 +243,11 @@ write_metadata <- function(
             "copy_number_panel_treated_cells",
             "copy_number_panel_mice",
             "copy_number_panel_chromosomes",
-            "copy_number_panel_annotation_bars"),
+            "copy_number_panel_annotation_bars",
+            "copy_number_panel_row_ordering_policy",
+            "copy_number_panel_row_distance_method",
+            "copy_number_panel_row_linkage_method",
+            "copy_number_panel_row_tie_break_method"),
     value = c("in_vivo_figure7", mode, panel_set, "day", as.character(tgi_day), tgi_measure, "mean", "initial_ploidy",
               "initial_ploidy", "untreated_equal_sample_mean_ecdf",
               config$etp$method, as.character(config$etp$threshold),
@@ -272,7 +276,11 @@ write_metadata <- function(
               if (!is.null(copy_number_panel)) as.character(copy_number_panel$n_treated_cells) else "not_recorded",
               if (!is.null(copy_number_panel)) as.character(copy_number_panel$n_mice) else "not_recorded",
               if (!is.null(copy_number_panel)) as.character(copy_number_panel$n_chromosomes) else "not_recorded",
-              if (!is.null(copy_number_panel)) "injected_origin;gemcitabine_dose;mouse" else "not_recorded"),
+              if (!is.null(copy_number_panel)) "injected_origin;gemcitabine_dose;mouse" else "not_recorded",
+              if (!is.null(copy_number_panel)) copy_number_panel$row_ordering_policy else "not_recorded",
+              if (!is.null(copy_number_panel)) copy_number_panel$row_distance_method else "not_recorded",
+              if (!is.null(copy_number_panel)) copy_number_panel$row_linkage_method else "not_recorded",
+              if (!is.null(copy_number_panel)) copy_number_panel$row_tie_break_method else "not_recorded"),
     stringsAsFactors = FALSE
   )
   if (include_state_pathway) {
@@ -727,6 +735,10 @@ render_from_run <- function(
       "render-only source-panel 7B/SI4I density-localization contract is incompatible"
     )
   }
+  config <- figure7_apply_density_supported_state_intervals(
+    config,
+    b_localization_intervals
+  )
   cdata <- figure7_read_tsv(table_path("panel_7C_plot_data.tsv"), c("sample_id", "initial_ploidy", "dose", tgi_measure))
   ct <- figure7_read_tsv(table_path("panel_7C_test.tsv"),
     c("dose_adjusted_difference_high_minus_low", "permutation_p_two_sided", "n_group_low", "n_group_high"))
@@ -825,6 +837,25 @@ render_from_run <- function(
     canonical_publication_allowed = FALSE
   )
   if (include_state_pathway) {
+    rendered_interval_definition <- figure7_read_tsv(
+      table_path("state_pathway_interval_definition.tsv"),
+      c("interval_id", "start", "end")
+    )
+    rendered_primary_interval <- rendered_interval_definition[
+      rendered_interval_definition$interval_id ==
+        "primary_accumulated_state",
+      ,
+      drop = FALSE
+    ]
+    if (nrow(rendered_primary_interval) != 1L ||
+        abs(figure7_numeric(rendered_primary_interval$start) -
+          config$state_pathways$accumulated_interval$start) > 1e-12 ||
+        abs(figure7_numeric(rendered_primary_interval$end) -
+          config$state_pathways$accumulated_interval$end) > 1e-12) {
+      figure7_stop(
+        "render-only panel 7I interval is detached from panel H/SI4I density support"
+      )
+    }
     f <- figure7_read_tsv(table_path("panel_7F_pathway_activity_plot_data.tsv"),
       c("collection_id", "collection_label", "collection_display_order", "pathway_id", "pathway_label",
         "pathway_display_order", "selected_direction", "selected_rank_within_direction",
@@ -1042,6 +1073,12 @@ render_from_run <- function(
   figure7_prepare_output(output_dir)
   for (file in list.files(file.path(source_dir, "tables"), full.names = TRUE)) {
     figure7_copy_file(file, file.path(output_dir, "tables", basename(file)))
+  }
+  if (include_state_pathway) {
+    figure7_write_tsv(
+      copy_number_panel$row_order_audit,
+      file.path(output_dir, "tables", "panel_7J_copy_number_row_order.tsv")
+    )
   }
   if (include_state_pathway) {
     figure7_copy_file(
@@ -1337,8 +1374,33 @@ if (include_state_pathway &&
   )
 }
 figure7_prepare_output(output_dir)
+if (include_state_pathway) {
+  figure7_write_tsv(
+    copy_number_panel$row_order_audit,
+    file.path(output_dir, "tables", "panel_7J_copy_number_row_order.tsv")
+  )
+}
 ae <- figure7_build_ae(cellcycle, data, samples, output_dir, config)
 if (include_state_pathway) {
+  config <- figure7_apply_density_supported_state_intervals(
+    config,
+    ae$panel_b$localization_intervals
+  )
+  primary_reference_interval <- reference$interval_definition[
+    reference$interval_definition$interval_id ==
+      "primary_accumulated_state",
+    ,
+    drop = FALSE
+  ]
+  if (nrow(primary_reference_interval) != 1L ||
+      abs(figure7_numeric(primary_reference_interval$start) -
+        config$state_pathways$accumulated_interval$start) > 1e-12 ||
+      abs(figure7_numeric(primary_reference_interval$end) -
+        config$state_pathways$accumulated_interval$end) > 1e-12) {
+    figure7_stop(
+      "Panel 7I reference interval does not match the interval computed from panel H/SI4I density support"
+    )
+  }
   plot_f <- if (identical(mode, "full-workflow") || identical(
       reference$reference_id,
       as.character(config$state_pathways$generated_reference_id)

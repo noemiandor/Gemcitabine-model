@@ -104,7 +104,7 @@ input_paths_for_module in_vivo_figure7 "$1"
         reference_root = (
             REPO_ROOT
             / "Data/in-vivo/figure7/saved_state_pathway"
-            / "state_pathway_grch_human_only_initial_ploidy_day17_v3"
+            / "state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4"
         )
         (run_dir / "tables").mkdir(exist_ok=True)
         for source in reference_root.glob("*.tsv"):

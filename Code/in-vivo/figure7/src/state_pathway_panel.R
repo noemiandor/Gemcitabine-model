@@ -1,6 +1,6 @@
-# Frozen plotting-table contract and renderer for panel 7F.
+# Versioned plotting-table contract and renderer for panel 7F.
 
-figure7_state_required_files <- function() c(
+figure7_state_core_required_files <- function() c(
   "panel_7F_pathway_activity_plot_data.tsv",
   "panel_7F_selected_pathway_gsea.tsv",
   "panel_7F_leading_edge_genes.tsv",
@@ -9,6 +9,11 @@ figure7_state_required_files <- function() c(
   "state_pathway_sample_bin_coverage.tsv",
   "state_pathway_design_qc.tsv",
   "state_pathway_provenance.tsv"
+)
+
+figure7_state_required_files <- function() c(
+  "state_pathway_interval_definition.tsv",
+  figure7_state_core_required_files()
 )
 
 
@@ -30,7 +35,7 @@ figure7_validate_superseded_v2_state_reference <- function(
       path
     )
   }
-  files <- figure7_state_required_files()
+  files <- figure7_state_core_required_files()
   observed_files <- sort(list.files(path, all.files = FALSE))
   if (!identical(observed_files, sort(files))) {
     figure7_stop(
@@ -266,7 +271,7 @@ figure7_validate_reviewed_state_reference <- function(
   observed_files <- sort(list.files(path, all.files = FALSE))
   if (!identical(observed_files, sort(files))) {
     figure7_stop(
-      "Reviewed panel-7F reference must contain exactly eight files; missing=",
+      "Reviewed panel-7F reference must contain exactly nine files; missing=",
       paste(setdiff(files, observed_files), collapse = ","),
       "; unexpected=",
       paste(setdiff(observed_files, files), collapse = ",")
@@ -294,6 +299,62 @@ figure7_validate_reviewed_state_reference <- function(
     }
   }
 
+  interval_definition <- figure7_read_tsv(
+    paths[["state_pathway_interval_definition.tsv"]],
+    c(
+      "interval_id", "start", "end", "include_start", "include_end",
+      "derivation_analysis_id", "derivation_support_type",
+      "derivation_pointwise_alpha", "derivation_n_permutations"
+    )
+  )
+  expected_intervals <- list(
+    primary_accumulated_state = config$state_pathways$accumulated_interval,
+    left_neighbor = config$state_pathways$left_neighbor,
+    right_neighbor = config$state_pathways$right_neighbor
+  )
+  for (interval_id in names(expected_intervals)) {
+    observed <- interval_definition[
+      interval_definition$interval_id == interval_id,
+      ,
+      drop = FALSE
+    ]
+    expected <- expected_intervals[[interval_id]]
+    if (nrow(observed) != 1L ||
+        !isTRUE(all.equal(
+          figure7_numeric(observed$start),
+          as.numeric(expected$start),
+          tolerance = 1e-12
+        )) ||
+        !isTRUE(all.equal(
+          figure7_numeric(observed$end),
+          as.numeric(expected$end),
+          tolerance = 1e-12
+        )) ||
+        !identical(as.logical(observed$include_start),
+          isTRUE(expected$include_start)) ||
+        !identical(as.logical(observed$include_end),
+          isTRUE(expected$include_end))) {
+      figure7_stop(
+        "Reviewed panel-7F computed interval mismatch for ", interval_id
+      )
+    }
+  }
+  if (nrow(interval_definition) != 3L ||
+      any(interval_definition$derivation_analysis_id !=
+        "equal_mouse_kde_exact_origin_stratified_max_t_v1") ||
+      any(interval_definition$derivation_support_type !=
+        "positive_pointwise_two_sided") ||
+      any(figure7_numeric(
+        interval_definition$derivation_pointwise_alpha
+      ) != 0.05) ||
+      any(figure7_numeric(
+        interval_definition$derivation_n_permutations
+      ) != 4900)) {
+    figure7_stop(
+      "Reviewed panel-7F interval is detached from the exact pointwise density-support calculation"
+    )
+  }
+
   provenance <- figure7_read_tsv(
     paths[["state_pathway_provenance.tsv"]],
     c("key", "value")
@@ -307,24 +368,24 @@ figure7_validate_reviewed_state_reference <- function(
     canonical_publication_allowed = "true",
     canonical_reference_id = expected_id,
     reviewed_source_reference_id =
-      "state_pathway_grch_human_only_initial_ploidy_day17_v3_candidate",
+      "state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4_candidate",
     reviewed_source_run_id =
-      "20260731_figure7_v3_exact_candidate_review_figure7",
+      "20260802_figure7_pointwise_v4_candidate_review_figure7",
     reviewed_source_provenance_sha256 =
-      "3824db8e7c3b9d3ff1bc0ad361644156a47e4e146ca4851101ea5b52ea04932a",
-    reviewed_source_input_manifest_sha256 =
-      "89bfe81d107ec22336608918d703fdaac596cca11ee61aa62aa1a7bc2af06085",
-    reviewed_source_output_manifest_sha256 =
-      "0f3b9e8f16f3c39541f702f422371f2694c8e90c8abae9288db83a485850eb7f",
+      "c5192325e7c6ebd8531c0dfc2c8343c7032817e891f5f27a69efd2c42fdb384c",
+    reviewed_source_panel_contract_sha256 =
+      "42e3ddbc6fa843d208ac2f7716853da22be2bad06b4eeb822c5288a6c965d869",
     reviewed_source_run_config_sha256 =
-      "8d3add2d01b0cf466a5d00649554d875da6ebe7d9b6f802b94c458bfa53c84a0",
+      "c3187132f434b1645c4ee8f03b0ca64fb7b25d5fb506ae75a200a1420d5bd904",
     reviewed_source_panel_7F_pdf_sha256 =
-      "b09c12d0aa0a38230c6879b506810da138ebde6576cd4a39a57025a70138713f",
+      "0743f7cfa10e4d50f1dccb199c0548684343c165c5c8add29c560e1bcd8ba622",
     reviewed_source_panel_7F_png_sha256 =
-      "a84e8cfdf92832ca5ed245fdd9652dbfa2f5ae6ff7a9bffe07bf7defa7505ea1",
-    reviewed_on = "2026-07-31",
+      "1227c8a06152befdafe4658deea6a5cd8860cf4fce342bd041e7c9a20d6b5ea9",
+    reviewed_source_composite_png_sha256 =
+      "0a35f3427e11bc5adf72d9793e54ce6d112f811dc8d8d9f7d1c48a174b721fa7",
+    reviewed_on = "2026-08-02",
     generated_reference_id =
-      "state_pathway_grch_human_only_initial_ploidy_day17_v3_candidate"
+      "state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4_candidate"
   )
   missing_review <- setdiff(
     c(names(expected_review), "reviewed_decision"),
@@ -334,15 +395,17 @@ figure7_validate_reviewed_state_reference <- function(
       any(value[names(expected_review)] != expected_review)) {
     figure7_stop(
       "Reviewed panel-7F provenance does not identify the exact approved ",
-      "initial-ploidy-adjusted v3 candidate"
+      "initial-ploidy-adjusted pointwise-interval v4 candidate"
     )
   }
   expected_decision <- paste(
-    "Approved exact GRCh-only, injected-initial-ploidy-adjusted v3 result",
-    "after confirming a full-rank mouse-aware design, no endpoint-CN-score",
-    "nuisance term, collection-wide BH-adjusted P <= 0.05, no",
-    "nonsignificant pathway backfill, and unchanged selected-pathway",
-    "directions relative to v2."
+    "Approved exact GRCh-only, injected-initial-ploidy-adjusted",
+    "pointwise-interval v4 after confirming direct derivation of the",
+    "0.296--0.486 interval and equal-width flanks from exact",
+    "density-localization support, an exact 2,881-cell",
+    "localization-to-expression match, a full-rank mouse-aware design,",
+    "collection-wide BH-adjusted P <= 0.05, and no nonsignificant",
+    "pathway backfill."
   )
   if (!identical(value[["reviewed_decision"]], expected_decision)) {
     figure7_stop("Reviewed panel-7F approval decision is invalid")
@@ -365,9 +428,9 @@ figure7_validate_reviewed_state_reference <- function(
   }
 
   # Re-run the full generated scientific contract against an in-memory
-  # identity translation. The seven data tables remain byte-identical to the
+  # identity translation. The eight data tables remain byte-identical to the
   # reviewed candidate; only the publication identity differs.
-  temporary_root <- tempfile("figure7_reviewed_v3_validation_")
+  temporary_root <- tempfile("figure7_reviewed_v4_validation_")
   temporary_reference <- file.path(
     temporary_root,
     as.character(config$state_pathways$generated_reference_id)
@@ -376,7 +439,7 @@ figure7_validate_reviewed_state_reference <- function(
   on.exit(unlink(temporary_root, recursive = TRUE, force = TRUE), add = TRUE)
   copied <- file.copy(paths, file.path(temporary_reference, files))
   if (any(!copied)) {
-    figure7_stop("Could not stage the reviewed v3 scientific validation")
+    figure7_stop("Could not stage the reviewed v4 scientific validation")
   }
   generated_provenance <- provenance
   generated_provenance$value[
@@ -510,7 +573,14 @@ figure7_build_f <- function(reference, output_dir, config) {
     },
     stringsAsFactors = FALSE
   )
-  figure7_write_tsv(comparison, file.path(output_dir, "tables", "state_pathway_frozen_reference_comparison.tsv"))
+  figure7_write_tsv(
+    comparison,
+    file.path(
+      output_dir,
+      "tables",
+      "state_pathway_reviewed_reference_comparison.tsv"
+    )
+  )
   plot <- figure7_panel_f_plot(reference$activity, config)
   figure7_save_panel(
     plot,

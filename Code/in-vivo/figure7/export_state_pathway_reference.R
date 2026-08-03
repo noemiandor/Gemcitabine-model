@@ -18,6 +18,10 @@ sys.source(
   file.path(script_dir, "src", "feature_species_policy.R"),
   envir = .GlobalEnv
 )
+sys.source(
+  file.path(script_dir, "src", "tgi_statistics.R"),
+  envir = .GlobalEnv
+)
 
 required_packages <- c("readr", "digest")
 missing_packages <- required_packages[!vapply(required_packages, requireNamespace, logical(1L), quietly = TRUE)]
@@ -36,6 +40,10 @@ config_path <- normalizePath(
   mustWork = TRUE
 )
 config <- figure7_read_config(config_path)
+config <- figure7_attach_density_localization_config(
+  config,
+  file.path(script_dir, "density_localization_config.yaml")
+)
 output_dir <- normalizePath(
   figure7_arg(
     cli,
@@ -91,6 +99,16 @@ model_root <- file.path(workflow_root, model_id)
 source_paths <- c(
   feature_species_audit =
     file.path(manifest_root, "feature_species_audit.csv"),
+  interval_definition =
+    file.path(manifest_root, "state_interval_definition.csv"),
+  interval_localization_grid =
+    file.path(manifest_root, "state_interval_localization_grid.csv"),
+  interval_localization_support =
+    file.path(manifest_root, "state_interval_localization_support.csv"),
+  interval_localization_test =
+    file.path(manifest_root, "state_interval_localization_test.csv"),
+  cell_expression_match_audit =
+    file.path(manifest_root, "cell_expression_match_audit.csv"),
   primary_gsea = file.path(model_root, "04_gsea", "all_collections_primary_adjacent_state_gsea.csv"),
   activity = file.path(model_root, "04_gsea", "pathway_activity_over_pseudotime.csv"),
   leading_edge = file.path(model_root, "04_gsea", "all_collections_leading_edge_genes.csv"),
@@ -107,7 +125,19 @@ if (length(missing_source_paths)) {
 observed_source_sha256 <- vapply(source_paths, figure7_sha256, character(1L))
 
 analysis_parameters <- read_csv(file.path(workflow_root, "00_manifest", "analysis_parameters.csv"))
-intervals <- read_csv(file.path(manifest_root, "frozen_interval_definition.csv"))
+intervals <- read_csv(source_paths[["interval_definition"]])
+interval_localization_grid <- read_csv(
+  source_paths[["interval_localization_grid"]]
+)
+interval_localization_support <- read_csv(
+  source_paths[["interval_localization_support"]]
+)
+interval_localization_test <- read_csv(
+  source_paths[["interval_localization_test"]]
+)
+cell_expression_match_audit <- read_csv(
+  source_paths[["cell_expression_match_audit"]]
+)
 input_checksums <- read_csv(file.path(manifest_root, "input_checksums.csv"))
 package_versions <- read_csv(file.path(manifest_root, "package_versions.csv"))
 gene_set_contract <- read_csv(file.path(manifest_root, "gene_set_contract.csv"))
@@ -120,7 +150,43 @@ if (!file.exists(gene_set_membership_path)) {
 }
 model_parameters <- read_csv(file.path(model_root, "00_manifest", "model_parameters.csv"))
 assert_columns(analysis_parameters, c("parameter", "value"), "analysis parameters")
-assert_columns(intervals, c("interval_id", "start", "end", "include_start", "include_end"), "frozen intervals")
+assert_columns(
+  intervals,
+  c(
+    "interval_id", "start", "end", "include_start", "include_end",
+    "derivation_analysis_id", "derivation_support_type",
+    "derivation_pointwise_alpha", "derivation_n_permutations"
+  ),
+  "computed state intervals"
+)
+assert_columns(
+  interval_localization_grid,
+  c(
+    "pseudotime", "treated_minus_vehicle_density",
+    "pointwise_p_two_sided", "pointwise_positive_supported",
+    "modeled_state_interval"
+  ),
+  "state-interval localization grid"
+)
+assert_columns(
+  interval_localization_support,
+  c("support_type", "start", "end", "alpha"),
+  "state-interval localization support"
+)
+assert_columns(
+  interval_localization_test,
+  c(
+    "analysis_id", "n_cells", "n_samples", "n_permutations",
+    "pointwise_test", "pointwise_alpha", "pointwise_start",
+    "pointwise_end"
+  ),
+  "state-interval localization test"
+)
+assert_columns(
+  cell_expression_match_audit,
+  c("source", "n_ids", "n_matched", "n_unmatched", "match_rate"),
+  "cell-expression match audit"
+)
 assert_columns(input_checksums, c("input", "locator", "sha256"), "input checksums")
 assert_columns(package_versions, c("package", "version"), "package versions")
 assert_columns(gene_set_contract, c("key", "value"), "gene-set contract")
@@ -173,11 +239,48 @@ if (!all(required_gene_set_keys %in% names(gene_set_value)) ||
 observed_inputs <- setNames(as.character(input_checksums$sha256), as.character(input_checksums$input))
 if (!all(c(
   "cell_metadata", "noncell_metadata", "seurat_rds", "config",
-  "feature_species_policy_code"
+  "support_script", "density_localization_config",
+  "feature_species_policy_code",
+  "density_localization_code", "common_io_code"
 ) %in%
          names(observed_inputs)) ||
     any(!grepl("^[0-9a-f]{64}$", observed_inputs))) {
   figure7_stop("State-pathway input checksum lineage is incomplete")
+}
+current_source_inputs <- c(
+  config = config_path,
+  support_script = file.path(
+    script_dir,
+    "generate_pseudotime_state_pathways_support.R"
+  ),
+  density_localization_config = file.path(
+    script_dir,
+    "density_localization_config.yaml"
+  ),
+  feature_species_policy_code = file.path(
+    script_dir,
+    "src",
+    "feature_species_policy.R"
+  ),
+  density_localization_code = file.path(
+    script_dir,
+    "src",
+    "tgi_statistics.R"
+  ),
+  common_io_code = file.path(script_dir, "src", "common_io.R")
+)
+current_source_hashes <- vapply(
+  current_source_inputs,
+  figure7_sha256,
+  character(1L)
+)
+if (!identical(
+      unname(observed_inputs[names(current_source_hashes)]),
+      unname(current_source_hashes)
+    )) {
+  figure7_stop(
+    "State-pathway support results were generated with different code or config and cannot be re-attested by this exporter"
+  )
 }
 expected_parameters <- c(
   assay = "RNA",
@@ -196,6 +299,7 @@ expected_parameters <- c(
   gsea_nperm_simple_multiplier =
     as.character(config$state_pathways$gsea_nperm_simple_multiplier),
   grid_size = "501",
+  min_match_rate = "1",
   feature_species_policy_id =
     as.character(config$feature_species$policy_id),
   human_feature_prefix =
@@ -239,7 +343,10 @@ if (anyNA(species_counts) ||
       species_counts[["human"]] + species_counts[["mouse"]]) {
   figure7_stop("Generated feature-species audit counts are invalid")
 }
-if (!identical(model_id, "initial_ploidy_adjusted_grch_human_only_v3") ||
+if (!identical(
+      model_id,
+      "initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4"
+    ) ||
     !identical(parameter_value(model_parameters, "model_id", "model parameters"), model_id) ||
     !identical(parameter_value(model_parameters, "covariate_mode", "model parameters"), "initial_ploidy") ||
     !identical(parameter_value(model_parameters, "covariate_terms", "model parameters"), "initial_ploidy_factor") ||
@@ -247,12 +354,99 @@ if (!identical(model_id, "initial_ploidy_adjusted_grch_human_only_v3") ||
   figure7_stop("Unexpected state-pathway injected-initial-ploidy model parameters")
 }
 
-expected_intervals <- data.frame(
-  interval_id = c("primary_accumulated_state", "left_neighbor", "right_neighbor"),
-  start = c(0.30, 0.11, 0.49), end = c(0.49, 0.30, 0.68),
-  include_start = c(TRUE, TRUE, FALSE), include_end = c(TRUE, FALSE, TRUE),
-  stringsAsFactors = FALSE
+derived_intervals <- figure7_state_intervals_from_density_support(
+  interval_localization_support
 )
+expected_intervals <- do.call(rbind, lapply(derived_intervals, function(x) {
+  data.frame(
+    interval_id = x$name,
+    start = x$start,
+    end = x$end,
+    include_start = x$include_start,
+    include_end = x$include_end,
+    stringsAsFactors = FALSE
+  )
+}))
+pointwise_grid <- as.logical(
+  interval_localization_grid$pointwise_positive_supported
+)
+modeled_grid <- as.logical(interval_localization_grid$modeled_state_interval)
+pointwise_p <- as.numeric(interval_localization_grid$pointwise_p_two_sided)
+localization_pseudotime <- as.numeric(
+  interval_localization_grid$pseudotime
+)
+localization_density <- as.numeric(
+  interval_localization_grid$treated_minus_vehicle_density
+)
+recomputed_pointwise_grid <-
+  localization_density > 0 & pointwise_p <= 0.05
+recomputed_pointwise_intervals <- figure7_supported_intervals(
+  localization_pseudotime,
+  recomputed_pointwise_grid,
+  "positive_pointwise_two_sided",
+  0.05
+)
+reported_pointwise_intervals <- interval_localization_support[
+  interval_localization_support$support_type ==
+    "positive_pointwise_two_sided",
+  c("support_type", "start", "end", "width", "alpha"),
+  drop = FALSE
+]
+if (nrow(interval_localization_test) != 1L ||
+    as.integer(interval_localization_test$n_cells[[1L]]) != 2881L ||
+    as.integer(interval_localization_test$n_samples[[1L]]) != 16L ||
+    as.integer(interval_localization_test$n_permutations[[1L]]) != 4900L ||
+    !identical(
+      as.character(interval_localization_test$pointwise_test[[1L]]),
+      "two-sided exact permutation at each grid point"
+    ) ||
+    !isTRUE(all.equal(
+      as.numeric(interval_localization_test$pointwise_alpha[[1L]]),
+      0.05,
+      tolerance = 0
+    )) ||
+    !identical(pointwise_grid, recomputed_pointwise_grid) ||
+    !identical(pointwise_grid, modeled_grid) ||
+    !isTRUE(all.equal(
+      reported_pointwise_intervals,
+      recomputed_pointwise_intervals,
+      tolerance = 1e-12,
+      check.attributes = FALSE
+    )) ||
+    !isTRUE(all.equal(
+      as.numeric(interval_localization_test$pointwise_start[[1L]]),
+      min(localization_pseudotime[pointwise_grid]),
+      tolerance = 1e-12
+    )) ||
+    !isTRUE(all.equal(
+      as.numeric(interval_localization_test$pointwise_end[[1L]]),
+      max(localization_pseudotime[pointwise_grid]),
+      tolerance = 1e-12
+    )) ||
+    any(!is.finite(pointwise_p[modeled_grid])) ||
+    any(pointwise_p[modeled_grid] > 0.05)) {
+  figure7_stop(
+    "Computed state interval does not reproduce its exact pointwise density-support contract"
+  )
+}
+metadata_match <- cell_expression_match_audit[
+  cell_expression_match_audit$source == "metadata",
+  ,
+  drop = FALSE
+]
+if (nrow(metadata_match) != 1L ||
+    as.integer(metadata_match$n_ids[[1L]]) != 2881L ||
+    as.integer(metadata_match$n_matched[[1L]]) != 2881L ||
+    as.integer(metadata_match$n_unmatched[[1L]]) != 0L ||
+    !isTRUE(all.equal(
+      as.numeric(metadata_match$match_rate[[1L]]),
+      1,
+      tolerance = 0
+    ))) {
+  figure7_stop(
+    "The expression model does not use the exact 2,881-cell localization universe"
+  )
+}
 for (i in seq_len(nrow(expected_intervals))) {
   local <- intervals[intervals$interval_id == expected_intervals$interval_id[[i]], , drop = FALSE]
   if (nrow(local) != 1L ||
@@ -260,8 +454,16 @@ for (i in seq_len(nrow(expected_intervals))) {
       !isTRUE(all.equal(as.numeric(local$end), expected_intervals$end[[i]], tolerance = 0)) ||
       !identical(as.logical(local$include_start), expected_intervals$include_start[[i]]) ||
       !identical(as.logical(local$include_end), expected_intervals$include_end[[i]])) {
-    figure7_stop("Frozen interval mismatch for ", expected_intervals$interval_id[[i]])
+    figure7_stop("Computed interval mismatch for ", expected_intervals$interval_id[[i]])
   }
+}
+if (any(as.character(intervals$derivation_analysis_id) !=
+        as.character(interval_localization_test$analysis_id[[1L]])) ||
+    any(as.character(intervals$derivation_support_type) !=
+        "positive_pointwise_two_sided") ||
+    any(as.numeric(intervals$derivation_pointwise_alpha) != 0.05) ||
+    any(as.integer(intervals$derivation_n_permutations) != 4900L)) {
+  figure7_stop("Computed interval definition is detached from localization inference")
 }
 
 gsea_path <- source_paths[["primary_gsea"]]
@@ -590,6 +792,7 @@ write_reference(gene_ranking_export, "state_pathway_gene_ranking_complete.tsv")
 write_reference(gsea_complete_export, "state_pathway_gsea_complete.tsv")
 write_reference(sample_bin_export, "state_pathway_sample_bin_coverage.tsv")
 write_reference(design_qc_export, "state_pathway_design_qc.tsv")
+write_reference(intervals, "state_pathway_interval_definition.tsv")
 
 package_value <- function(package) {
   hit <- which(as.character(package_versions$package) == package)
@@ -632,6 +835,7 @@ if (!identical(
 }
 
 data_table_files <- c(
+  "state_pathway_interval_definition.tsv",
   "panel_7F_pathway_activity_plot_data.tsv",
   "panel_7F_selected_pathway_gsea.tsv",
   "panel_7F_leading_edge_genes.tsv",
@@ -668,7 +872,24 @@ provenance <- c(
   seurat_rds_sha256 = input_value("seurat_rds", "sha256"),
   cellcycle_metadata_sha256 = input_value("cell_metadata", "sha256"),
   noncellcycle_metadata_sha256 = input_value("noncell_metadata", "sha256"),
-  interval_config_sha256 = figure7_sha256(file.path(manifest_root, "frozen_interval_definition.csv")),
+  interval_definition_sha256 =
+    observed_source_sha256[["interval_definition"]],
+  interval_localization_grid_sha256 =
+    observed_source_sha256[["interval_localization_grid"]],
+  interval_localization_support_sha256 =
+    observed_source_sha256[["interval_localization_support"]],
+  interval_localization_test_sha256 =
+    observed_source_sha256[["interval_localization_test"]],
+  cell_expression_match_audit_sha256 =
+    observed_source_sha256[["cell_expression_match_audit"]],
+  localization_and_expression_n_cells = "2881",
+  metadata_to_expression_match_rate = "1",
+  interval_selection_rule =
+    as.character(config$state_pathways$interval_selection_rule),
+  interval_pointwise_p_min =
+    format(min(pointwise_p[modeled_grid]), digits = 17),
+  interval_pointwise_p_max =
+    format(max(pointwise_p[modeled_grid]), digits = 17),
   assay = "RNA",
   counts_layer = "counts",
   nuisance_policy = "injected_initial_ploidy_only_no_endpoint_cn_score",
@@ -726,6 +947,12 @@ provenance <- c(
     observed_source_sha256[["feature_species_audit"]],
   feature_species_policy_code_sha256 =
     input_value("feature_species_policy_code", "sha256"),
+  support_common_io_sha256 =
+    input_value("common_io_code", "sha256"),
+  density_localization_config_sha256 =
+    input_value("density_localization_config", "sha256"),
+  density_localization_code_sha256 =
+    input_value("density_localization_code", "sha256"),
   gsea_ranking_rule = "one row per cleaned gene symbol; descending moderated t; ties retain cleaned-symbol order",
   pathway_selection_fdr_threshold =
     as.character(figure7_generated_pathway_fdr_threshold()),
@@ -740,9 +967,21 @@ provenance <- c(
   generated_reference_id = reference_id,
   workflow_id = workflow_id,
   model_id = model_id,
-  accumulated_interval = "[0.30,0.49]",
-  left_neighbor_interval = "[0.11,0.30)",
-  right_neighbor_interval = "(0.49,0.68]",
+  accumulated_interval = sprintf(
+    "[%.3f,%.3f]",
+    derived_intervals$primary_accumulated_state$start,
+    derived_intervals$primary_accumulated_state$end
+  ),
+  left_neighbor_interval = sprintf(
+    "[%.3f,%.3f)",
+    derived_intervals$left_neighbor$start,
+    derived_intervals$left_neighbor$end
+  ),
+  right_neighbor_interval = sprintf(
+    "(%.3f,%.3f]",
+    derived_intervals$right_neighbor$start,
+    derived_intervals$right_neighbor$end
+  ),
   recorded_cell_metadata_locator = input_value("cell_metadata", "locator"),
   recorded_noncell_metadata_locator = input_value("noncell_metadata", "locator"),
   recorded_seurat_rds_locator = input_value("seurat_rds", "locator"),
@@ -761,6 +1000,7 @@ provenance_export <- data.frame(key = names(provenance), value = unname(provenan
 write_reference(provenance_export, "state_pathway_provenance.tsv")
 
 reference_files <- c(
+  "state_pathway_interval_definition.tsv",
   "panel_7F_pathway_activity_plot_data.tsv",
   "panel_7F_selected_pathway_gsea.tsv",
   "panel_7F_leading_edge_genes.tsv",
@@ -774,7 +1014,7 @@ expected_files <- reference_files
 observed_files <- sort(list.files(staging_dir, all.files = FALSE, recursive = FALSE))
 if (!identical(observed_files, sort(expected_files)) || any(file.info(file.path(staging_dir, expected_files))$size <= 0)) {
   figure7_stop(
-    "Generated staging directory does not contain exactly eight reference ",
+    "Generated staging directory does not contain exactly nine reference ",
     "tables"
   )
 }

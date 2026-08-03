@@ -181,16 +181,11 @@ read_endpoint_run <- function(run_dir, day) {
     figure7_tgi_measure(config),
     "TGI measure"
   )
-  assert_scalar(
-    run_config[["state_pathway_reference_id"]],
-    as.character(config$state_pathways$reviewed_reference_id),
-    "reviewed state-pathway reference"
-  )
-  assert_scalar(
-    run_config[["state_pathway_reference_kind"]],
-    as.character(config$state_pathways$reviewed_reference_kind),
-    "reviewed state-pathway reference kind"
-  )
+  # SI8 consumes only the Day-24/Day-31 TGI and endpoint-ploidy tables. Its
+  # byte-pinned source-run config also records the panel-7F reference that was
+  # current when those unrelated tables were generated, but that identity is
+  # not a scientific dependency of this sensitivity analysis and therefore
+  # must not be coupled to the current panel-7F reference version.
   assert_scalar(
     tolower(run_config[["canonical_publication_allowed"]]),
     "true",

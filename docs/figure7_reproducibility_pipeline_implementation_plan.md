@@ -32,8 +32,9 @@ The source-panel analyses are:
 - 7E: Day-17 TGI versus mean endpoint tumor-cell ploidy, using the raw
   mouse-level Pearson correlation and exact unrestricted enumeration of all
   8! TGI-label permutations;
-- 7F: pathway activity across the accumulated CellCycle pseudotime interval,
-  using the reviewed GRCh-only, injected-initial-ploidy-adjusted v3 reference.
+- 7F: pathway activity across the directly computed 0.296--0.486 CellCycle
+  pseudotime interval, using the reviewed GRCh-only,
+  injected-initial-ploidy-adjusted pointwise-v4 reference.
 
 Panel 7F retains only pathways with collection-wide BH-adjusted P <= 0.05,
 selects up to four pathways per direction and collection, and never fills a
@@ -45,7 +46,7 @@ nuisance covariate in that model.
 ### Routine mode
 
 Routine execution recomputes 7A--7E from the tracked, plot-facing cell tables
-and renders 7F from the checksum-pinned reviewed v3 compact reference. It also
+and renders 7F from the checksum-pinned reviewed pointwise-v4 compact reference. It also
 validates the reviewed shared SI cache and the exact 9,832-cell copy-number
 inputs before assembling the A--L composite. The density-localization component
 of source 7B is regenerated as Supplementary Figure 4I.
@@ -67,8 +68,10 @@ from the earliest available reviewed boundary:
 
 Before expression filtering, symbol resolution, model fitting, or GSEA, the
 state-pathway workflow retains exact `GRCh38-` count rows, excludes exact
-`GRCm39-` rows, and rejects unrecognized prefixes. A raw refit writes a
-versioned generated v3 candidate and marks it noncanonical until its exact
+`GRCm39-` rows, and rejects unrecognized prefixes. It computes the unique
+connected positive pointwise-supported interval before loading expression
+counts and uses that exact interval and its derived equal-width flanks for the
+model and GSEA. A raw refit writes a versioned generated pointwise-v4 candidate and marks it noncanonical until its exact
 scientific outputs are reviewed and promoted.
 
 ### Render-only and panels-only
@@ -100,10 +103,11 @@ inventory. Panel 7E scores the exact QC-passed plot-table tumor-cell union and
 requires every file/barcode/value tuple to match the complete inventory. The
 eight treated tumors contribute 5,335 scored cells.
 
-The reviewed panel-7F reference consists of these eight compact files under a
+The reviewed panel-7F reference consists of these nine compact files under a
 versioned reference directory:
 
 ```text
+state_pathway_interval_definition.tsv
 panel_7F_pathway_activity_plot_data.tsv
 panel_7F_selected_pathway_gsea.tsv
 panel_7F_leading_edge_genes.tsv
@@ -128,7 +132,7 @@ identity, source hashes, and shared-SI cache lineage.
 
 Publication materialization requires all of the following:
 
-1. the exact reviewed v3 reference identity and checksums;
+1. the exact reviewed pointwise-v4 reference identity and checksums;
 2. canonical-publication approval in both run metadata and reference
    provenance;
 3. the reviewed shared-SI cache identity and manifest;

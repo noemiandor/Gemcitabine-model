@@ -115,7 +115,8 @@ figure7_panel_b_localization_plot <- function(grid, intervals, test) {
   required_grid <- c(
     "pseudotime", "treated_minus_vehicle_density",
     "simultaneous_lower_envelope", "simultaneous_upper_envelope",
-    "pointwise_positive_supported", "simultaneous_positive_supported"
+    "pointwise_p_two_sided", "pointwise_positive_supported",
+    "simultaneous_positive_supported"
   )
   required_intervals <- c("support_type", "start", "end")
   required_test <- c(
@@ -145,6 +146,14 @@ figure7_panel_b_localization_plot <- function(grid, intervals, test) {
       "simultaneous positive-support regions"
     )
   }
+  pointwise_p <- as.numeric(grid$pointwise_p_two_sided[
+    as.logical(grid$pointwise_positive_supported)
+  ])
+  if (!length(pointwise_p) || any(!is.finite(pointwise_p))) {
+    figure7_stop(
+      "Source panel 7B/SI4I pointwise-supported region lacks finite P values"
+    )
+  }
   ggplot2::ggplot(
     grid,
     ggplot2::aes(pseudotime, treated_minus_vehicle_density)
@@ -169,7 +178,7 @@ figure7_panel_b_localization_plot <- function(grid, intervals, test) {
     ) +
     ggplot2::geom_hline(yintercept = 0, color = "grey35", linewidth = 0.35) +
     ggplot2::geom_vline(
-      xintercept = c(0.30, 0.49), linetype = "22",
+      xintercept = c(pointwise$start, pointwise$end), linetype = "22",
       color = "#4D4D4D", linewidth = 0.45
     ) +
     ggplot2::geom_line(color = "#2171B5", linewidth = 0.85) +
@@ -199,7 +208,12 @@ figure7_panel_b_localization_plot <- function(grid, intervals, test) {
     ggplot2::labs(
       title = "Mouse-balanced localization of treated-cell excess",
       subtitle = sprintf(
-        "Exact origin-stratified max-|T| P = %.3g (%s assignments)",
+        paste0(
+          "Exact pointwise P = %.3g\u2013%.3g; origin-stratified max-|T| ",
+          "global P = %.3g (%s assignments)"
+        ),
+        min(pointwise_p),
+        max(pointwise_p),
         test$global_max_t_p_two_sided,
         format(test$n_permutations, big.mark = ",", scientific = FALSE)
       ),

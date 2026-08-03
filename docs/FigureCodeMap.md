@@ -115,11 +115,13 @@ treated-mouse scores from the exact 5,335 QC-passed treated cells in the
 remains checksum-pinned as the upstream inventory, and every curated file +
 barcode + value must map to it exactly. Source 7F is rendered from the reviewed, byte-pinned
 human-only reference
-`state_pathway_grch_human_only_initial_ploidy_day17_v3`. That reference retains
+`state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4`. That reference retains
 exact `GRCh38-` features before expression filtering and modeling, uses Homo
 sapiens MSigDB 2026.1.Hs collections, and displays only
 pathways with collection-wide BH-FDR <= 0.05, up to four per direction without
-nonsignificant backfill. The module also validates the reviewed 11-table SI cache and uses
+nonsignificant backfill. Its modeled interval is the directly computed unique
+positive pointwise-supported density run, 0.296--0.486, with equally wide
+flanks [0.106,0.296) and (0.486,0.676]. The module also validates the reviewed 11-table SI cache and uses
 `shared_context_panels.R` to promote SI4A-C/E and SI7B into
 `Figure7_reviewed_GRCh.{pdf,png}` at 7.1 x 10.645 inches. Its six fixed rows are
 A/B; C/D/E; F/G; H; I/J; and K/L. The A-L manuscript reading order is:
@@ -155,7 +157,7 @@ materialized.
 | 7C | Day-17 TGI in treated initial-2N versus initial-4N tumors | `figures/panel_7C_day17_tgi_by_initial_ploidy.pdf` |
 | 7D | Within-dose-centered Day-17 TGI versus centered ECDF shift | `figures/panel_7D_day17_tgi_vs_centered_ecdf_shift.pdf` |
 | 7E | Unadjusted mouse-level Day-17 TGI versus mean endpoint tumor-cell ploidy, with exact unrestricted permutation inference | `figures/panel_7E_day17_tgi_vs_mean_etp.pdf` |
-| 7F | Pathway activity across the accumulated pseudotime interval 0.30-0.49 | `figures/panel_7F_pseudotime_state_pathway_activity.pdf` |
+| 7F | Pathway activity across the directly computed pseudotime interval 0.296-0.486 | `figures/panel_7F_pseudotime_state_pathway_activity.pdf` |
 
 The source IDs above retain their scientific provenance. The manuscript-facing
 panel letters refer to the assembled A-L mapping described above, whose

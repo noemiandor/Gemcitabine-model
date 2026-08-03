@@ -777,6 +777,93 @@ si_copy_number_harmonize <- function(collection) {
   )
 }
 
+si_copy_number_cluster_rows_within_samples <- function(
+  harmonized,
+  distance_method = "euclidean",
+  linkage_method = "ward.D2"
+) {
+  if (!identical(distance_method, "euclidean") ||
+      !identical(linkage_method, "ward.D2")) {
+    stop(
+      "Copy-number row clustering requires Euclidean distance and Ward.D2 linkage",
+      call. = FALSE
+    )
+  }
+  matrix_data <- harmonized$matrix
+  annotation <- harmonized$cell_annotations
+  sample_levels <- as.character(harmonized$sample_levels)
+  if (!is.matrix(matrix_data) || !is.numeric(matrix_data) ||
+      nrow(matrix_data) != nrow(annotation) ||
+      !identical(rownames(matrix_data), annotation$heatmap_row_id) ||
+      any(!is.finite(matrix_data)) ||
+      !setequal(unique(as.character(annotation$sample_id)), sample_levels) ||
+      anyDuplicated(sample_levels)) {
+    stop(
+      "Copy-number row clustering requires a complete aligned matrix and sample order",
+      call. = FALSE
+    )
+  }
+
+  source_order <- seq_len(nrow(matrix_data))
+  ordered_blocks <- vector("list", length(sample_levels))
+  audit_blocks <- vector("list", length(sample_levels))
+  for (sample_index in seq_along(sample_levels)) {
+    sample_id <- sample_levels[[sample_index]]
+    block_index <- which(as.character(annotation$sample_id) == sample_id)
+    if (!length(block_index)) {
+      stop("Copy-number row clustering lost sample: ", sample_id, call. = FALSE)
+    }
+    # Exact duplicate chromosome profiles are common.  Canonical cell IDs set
+    # the deterministic input/tie order without perturbing the copy numbers.
+    block_index <- block_index[order(annotation$heatmap_row_id[block_index])]
+    within_order <- if (length(block_index) == 1L) {
+      1L
+    } else {
+      stats::hclust(
+        stats::dist(
+          matrix_data[block_index, , drop = FALSE],
+          method = distance_method
+        ),
+        method = linkage_method
+      )$order
+    }
+    ordered_blocks[[sample_index]] <- block_index[within_order]
+    audit_blocks[[sample_index]] <- data.frame(
+      sample_id = sample_id,
+      heatmap_row_id = annotation$heatmap_row_id[block_index[within_order]],
+      source_display_order = source_order[block_index[within_order]],
+      within_mouse_cluster_order = seq_along(block_index),
+      stringsAsFactors = FALSE
+    )
+  }
+  ordering <- unlist(ordered_blocks, use.names = FALSE)
+  if (!identical(sort(ordering), source_order)) {
+    stop("Copy-number row clustering did not retain every cell exactly once",
+         call. = FALSE)
+  }
+  matrix_data <- matrix_data[ordering, , drop = FALSE]
+  annotation <- annotation[ordering, , drop = FALSE]
+  annotation$display_order <- seq_len(nrow(annotation))
+  row_order_audit <- do.call(rbind, audit_blocks)
+  rownames(row_order_audit) <- NULL
+  row_order_audit$display_order <- seq_len(nrow(row_order_audit))
+  if (!identical(row_order_audit$heatmap_row_id, annotation$heatmap_row_id) ||
+      !identical(unique(as.character(annotation$sample_id)), sample_levels)) {
+    stop("Copy-number row clustering changed the reviewed mouse block order",
+         call. = FALSE)
+  }
+
+  harmonized$matrix <- matrix_data
+  harmonized$cell_annotations <- annotation
+  harmonized$row_order_audit <- row_order_audit
+  harmonized$row_ordering_policy <-
+    "hierarchical_clustering_separately_within_each_mouse"
+  harmonized$row_distance_method <- distance_method
+  harmonized$row_linkage_method <- linkage_method
+  harmonized$row_tie_break_method <- "canonical_heatmap_row_id_input_order"
+  harmonized
+}
+
 si_copy_number_widen_matrix_columns <- function(gtable, multiplier = 1) {
   if (length(multiplier) != 1L || !is.numeric(multiplier) ||
       !is.finite(multiplier) || multiplier <= 0) {

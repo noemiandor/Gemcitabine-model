@@ -60,8 +60,8 @@ endpoint_flow_paired_sensitivity="${endpoint_flow_root}/paired_acquisition_sensi
 endpoint_flow_workspace="${endpoint_flow_root}/workspace/20250129_TumorSamples.wsp"
 endpoint_flow_fcs_dir="${endpoint_flow_root}/fcs"
 endpoint_flow_input_manifest="${endpoint_flow_root}/content_manifest.tsv"
-figure7_reviewed_reference_id="state_pathway_grch_human_only_initial_ploidy_day17_v3"
-figure7_reviewed_reference_kind="reviewed_human_only_initial_ploidy_frozen"
+figure7_reviewed_reference_id="state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4"
+figure7_reviewed_reference_kind="reviewed_human_only_initial_ploidy_computed_pointwise_interval"
 figure7_canonical_reference_root="${FIGURE7_CANONICAL_REFERENCE_ROOT:-Data/in-vivo/figure7/saved_state_pathway/${figure7_reviewed_reference_id}}"
 figure7_reference_root="${figure7_canonical_reference_root}"
 skip_analysis_loop=false
@@ -1613,6 +1613,7 @@ module_is_publishable_run() {
 
 figure7_reference_filenames() {
   printf "%s\n" \
+    state_pathway_interval_definition.tsv \
     panel_7F_pathway_activity_plot_data.tsv \
     panel_7F_selected_pathway_gsea.tsv \
     panel_7F_leading_edge_genes.tsv \

@@ -51,9 +51,7 @@ def write_density_localization_fixture(run_root: Path) -> list[Path]:
                 "simultaneous_upper_envelope": critical * permutation_sd,
                 "pointwise_positive_supported": str(pointwise).upper(),
                 "simultaneous_positive_supported": str(simultaneous).upper(),
-                "frozen_state_interval": str(
-                    0.30 <= pseudotime <= 0.49
-                ).upper(),
+                "modeled_state_interval": str(pointwise).upper(),
             }
         )
     grid_path = run_root / "tables/panel_7B_density_localization_grid.tsv"

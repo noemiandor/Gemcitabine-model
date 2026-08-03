@@ -89,7 +89,7 @@ testthat::test_that("tracked v2 is byte-pinned but superseded after the endpoint
   )))
 })
 
-testthat::test_that("tracked v3 candidate uses injected initial ploidy and GRCh-only features", {
+testthat::test_that("tracked pointwise v4 candidate uses injected initial ploidy and GRCh-only features", {
   input <- figure7_test_inputs()
   reference_path <- file.path(
     repo_root,
@@ -124,11 +124,11 @@ testthat::test_that("tracked v3 candidate uses injected initial ploidy and GRCh-
 
   testthat::expect_identical(
     reference$reference_id,
-    "state_pathway_grch_human_only_initial_ploidy_day17_v3_candidate"
+    "state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4_candidate"
   )
   testthat::expect_identical(
     reference$reference_kind,
-    "generated_human_only_initial_ploidy_frozen_candidate"
+    "generated_human_only_initial_ploidy_computed_pointwise_interval_candidate"
   )
   testthat::expect_false(reference$canonical_publication_allowed)
   testthat::expect_equal(nrow(reference$selected), 21L)
@@ -162,7 +162,7 @@ testthat::test_that("tracked v3 candidate uses injected initial ploidy and GRCh-
   )))
 })
 
-testthat::test_that("reviewed v3 is the exact promoted initial-ploidy-adjusted result", {
+testthat::test_that("reviewed pointwise v4 is the exact promoted initial-ploidy-adjusted result", {
   input <- figure7_test_inputs()
   reviewed_path <- file.path(
     repo_root,
@@ -195,18 +195,18 @@ testthat::test_that("reviewed v3 is the exact promoted initial-ploidy-adjusted r
 
   testthat::expect_identical(
     reviewed$reference_id,
-    "state_pathway_grch_human_only_initial_ploidy_day17_v3"
+    "state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4"
   )
   testthat::expect_identical(
     reviewed$reference_kind,
-    "reviewed_human_only_initial_ploidy_frozen"
+    "reviewed_human_only_initial_ploidy_computed_pointwise_interval"
   )
   testthat::expect_true(reviewed$canonical_publication_allowed)
   testthat::expect_identical(reviewed$selected[, keys], candidate$selected[, keys])
   testthat::expect_lte(max(figure7_numeric(reviewed$selected$padj)), 0.05)
   testthat::expect_identical(
     provenance[["reviewed_source_run_id"]],
-    "20260731_figure7_v3_exact_candidate_review_figure7"
+    "20260802_figure7_pointwise_v4_candidate_review_figure7"
   )
   testthat::expect_identical(
     provenance[["endpoint_cn_score_covariate_prohibited"]],
@@ -214,7 +214,7 @@ testthat::test_that("reviewed v3 is the exact promoted initial-ploidy-adjusted r
   )
 })
 
-testthat::test_that("reviewed v3 rejects provenance or selected-table tampering", {
+testthat::test_that("reviewed pointwise v4 rejects provenance or selected-table tampering", {
   input <- figure7_test_inputs()
   source <- file.path(
     repo_root,
@@ -246,7 +246,7 @@ testthat::test_that("reviewed v3 rejects provenance or selected-table tampering"
       input$config,
       verify_checksums = FALSE
     ),
-    "initial-ploidy-adjusted v3"
+    "initial-ploidy-adjusted pointwise-interval v4"
   )
 })
 
@@ -562,6 +562,21 @@ testthat::test_that("full source panels plus the A-L composite satisfy the exact
   testthat::expect_identical(
     copy_number$heatmap$column_width_multiplier,
     2
+  )
+  testthat::expect_identical(
+    copy_number$row_ordering_policy,
+    "hierarchical_clustering_separately_within_each_mouse"
+  )
+  testthat::expect_identical(copy_number$row_distance_method, "euclidean")
+  testthat::expect_identical(copy_number$row_linkage_method, "ward.D2")
+  testthat::expect_identical(
+    copy_number$row_tie_break_method,
+    "canonical_heatmap_row_id_input_order"
+  )
+  testthat::expect_equal(nrow(copy_number$row_order_audit), 9832L)
+  testthat::expect_identical(
+    unique(copy_number$row_order_audit$sample_id),
+    names(copy_number$heatmap$annotation_colors$Mouse)
   )
   testthat::expect_equal(
     sum(vapply(

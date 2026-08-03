@@ -22,7 +22,9 @@ at 300 DPI.
   (1, 5, 9, 13, 17, 22) do not collide; the copy-number color scale remains
   visible, copy number 3 is distinguishable from the white background by its
   gold anchor, and the compact key defines both origin states, all three doses,
-  and all 16 mouse colors without overlapping the matrix.
+  and all 16 mouse colors without overlapping the matrix. The fixed mouse-block
+  order is intact and within-mouse clustering exposes contiguous copy-number
+  patterns without mixing cells between mice.
 - F: positive-enrichment asterisks remain visible above the correct bars.
 - K and L: all eight mouse labels and both statistics boxes are legible and do
   not obscure points.

@@ -290,7 +290,11 @@ figure7_quarantine_generated_cache <- function(
 
 figure7_state_result_relative_paths <- function() {
   c(
-    "00_manifest/frozen_interval_definition.csv",
+    "00_manifest/state_interval_definition.csv",
+    "00_manifest/state_interval_localization_grid.csv",
+    "00_manifest/state_interval_localization_support.csv",
+    "00_manifest/state_interval_localization_test.csv",
+    "00_manifest/cell_expression_match_audit.csv",
     "00_manifest/feature_species_audit.csv",
     "00_manifest/gene_set_contract.csv",
     "00_manifest/gene_set_membership.csv",
@@ -299,13 +303,13 @@ figure7_state_result_relative_paths <- function() {
     "binning/00_manifest/analysis_parameters.csv",
     "binning/01_qc/primary_coverage_check.csv",
     "binning/02_pseudobulk/sample_bin_metadata.csv",
-    "binning/initial_ploidy_adjusted_grch_human_only_v3/00_manifest/model_parameters.csv",
-    "binning/initial_ploidy_adjusted_grch_human_only_v3/01_qc/model_design_rank_audit.csv",
-    "binning/initial_ploidy_adjusted_grch_human_only_v3/03_gene_models/gene_primary_adjacent_state_contrast.csv",
-    "binning/initial_ploidy_adjusted_grch_human_only_v3/03_gene_models/gene_symbol_resolution.csv",
-    "binning/initial_ploidy_adjusted_grch_human_only_v3/04_gsea/all_collections_primary_adjacent_state_gsea.csv",
-    "binning/initial_ploidy_adjusted_grch_human_only_v3/04_gsea/all_collections_leading_edge_genes.csv",
-    "binning/initial_ploidy_adjusted_grch_human_only_v3/04_gsea/pathway_activity_over_pseudotime.csv"
+    "binning/initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4/00_manifest/model_parameters.csv",
+    "binning/initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4/01_qc/model_design_rank_audit.csv",
+    "binning/initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4/03_gene_models/gene_primary_adjacent_state_contrast.csv",
+    "binning/initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4/03_gene_models/gene_symbol_resolution.csv",
+    "binning/initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4/04_gsea/all_collections_primary_adjacent_state_gsea.csv",
+    "binning/initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4/04_gsea/all_collections_leading_edge_genes.csv",
+    "binning/initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4/04_gsea/pathway_activity_over_pseudotime.csv"
   )
 }
 
@@ -385,6 +389,9 @@ figure7_state_results_match_inputs <- function(paths, config_path, config) {
     required_keys = c(
       "support_script_sha256",
       "feature_species_policy_code_sha256",
+      "density_localization_config_sha256",
+      "density_localization_code_sha256",
+      "support_common_io_sha256",
       "r_environment_contract_sha256",
       "cellcycle_sha256",
       "noncellcycle_sha256",
@@ -1014,6 +1021,12 @@ figure7_reference_dependency_values <- function(
       state_dependencies[["support_script_sha256"]],
     feature_species_policy_code_sha256 =
       state_dependencies[["feature_species_policy_code_sha256"]],
+    density_localization_config_sha256 =
+      state_dependencies[["density_localization_config_sha256"]],
+    density_localization_code_sha256 =
+      state_dependencies[["density_localization_code_sha256"]],
+    support_common_io_sha256 =
+      state_dependencies[["support_common_io_sha256"]],
     exporter_script_sha256 = figure7_script_hash(
       config_path,
       "export_state_pathway_reference.R"
@@ -1066,6 +1079,9 @@ figure7_reference_stage_manifest_matches <- function(
       "state_result_contract_sha256",
       "support_script_sha256",
       "feature_species_policy_code_sha256",
+      "density_localization_config_sha256",
+      "density_localization_code_sha256",
+      "support_common_io_sha256",
       "exporter_script_sha256",
       "exporter_common_io_sha256",
       "r_environment_contract_sha256",
@@ -1104,6 +1120,20 @@ figure7_state_dependency_values <- function(paths, config_path, config) {
       dirname(config_path),
       "src",
       "feature_species_policy.R"
+    )),
+    density_localization_config_sha256 = figure7_sha256(file.path(
+      dirname(config_path),
+      "density_localization_config.yaml"
+    )),
+    density_localization_code_sha256 = figure7_sha256(file.path(
+      dirname(config_path),
+      "src",
+      "tgi_statistics.R"
+    )),
+    support_common_io_sha256 = figure7_sha256(file.path(
+      dirname(config_path),
+      "src",
+      "common_io.R"
     )),
     r_environment_contract_sha256 =
       figure7_environment_stage_contract_sha256(
@@ -1980,6 +2010,10 @@ figure7_prepare_full_workflow <- function(
             noncell_metadata = paths$noncellcycle,
             seurat_rds = paths$seurat_rds,
             config = config_path,
+            density_config = file.path(
+              script_dir,
+              "density_localization_config.yaml"
+            ),
             output_root = paths$state_pathway_root,
             gsea_nperm_simple =
               as.character(config$state_pathways$gsea_nperm_simple),

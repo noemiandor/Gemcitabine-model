@@ -116,6 +116,7 @@ figure7_build_copy_number_panel <- function(repo_root) {
   required_functions <- c(
     "si_copy_number_read_collection",
     "si_copy_number_harmonize",
+    "si_copy_number_cluster_rows_within_samples",
     "si_copy_number_heatmap"
   )
   missing_functions <- required_functions[!vapply(
@@ -200,6 +201,7 @@ figure7_build_copy_number_panel <- function(repo_root) {
     sample_metadata
   )
   harmonized <- si_copy_number_harmonize(collection)
+  harmonized <- si_copy_number_cluster_rows_within_samples(harmonized)
   chromosome_labels <- rep("", 22L)
   chromosome_labels[c(1L, 5L, 9L, 13L, 17L, 22L)] <-
     as.character(c(1L, 5L, 9L, 13L, 17L, 22L))
@@ -248,6 +250,11 @@ figure7_build_copy_number_panel <- function(repo_root) {
     n_mice = length(unique(harmonized$cell_annotations$sample_id)),
     n_chromosomes = ncol(harmonized$matrix),
     column_width_multiplier = heatmap$column_width_multiplier,
+    row_order_audit = harmonized$row_order_audit,
+    row_ordering_policy = harmonized$row_ordering_policy,
+    row_distance_method = harmonized$row_distance_method,
+    row_linkage_method = harmonized$row_linkage_method,
+    row_tie_break_method = harmonized$row_tie_break_method,
     input_paths = c(
       cell_metadata_path,
       endpoint_audit_path,
