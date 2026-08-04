@@ -12,12 +12,23 @@ Sys.setenv(
 )
 
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 2L) {
-  stop("Usage: cluster_pipeline_standalone.R INPUT_DIR OUTPUT_DIR", call. = FALSE)
+if (length(args) != 3L) {
+  stop(
+    "Usage: cluster_pipeline_standalone.R INPUT_DIR OUTPUT_DIR pre_filter|post_filter",
+    call. = FALSE
+  )
 }
 
 input_dir <- normalizePath(args[[1]], mustWork = TRUE)
 output_dir <- normalizePath(args[[2]], mustWork = FALSE)
+PIPELINE_PHASE <- args[[3]]
+if (!(PIPELINE_PHASE %in% c("pre_filter", "post_filter"))) {
+  stop("Invalid pipeline phase: ", PIPELINE_PHASE, call. = FALSE)
+}
+ACTIVE_SIF <- Sys.getenv("CLUSTER_STANDALONE_ACTIVE_SIF", unset = "")
+if (!nzchar(ACTIVE_SIF)) {
+  stop("CLUSTER_STANDALONE_ACTIVE_SIF must identify the active container.", call. = FALSE)
+}
 all_command_args <- commandArgs(trailingOnly = FALSE)
 script_argument <- grep("^--file=", all_command_args, value = TRUE)
 if (length(script_argument) != 1L) {
@@ -27,11 +38,14 @@ STANDALONE_SCRIPT_DIR <- dirname(normalizePath(
   sub("^--file=", "", script_argument[[1]]), mustWork = TRUE
 ))
 
-private_library_env <- Sys.getenv("CLUSTER_STANDALONE_R_LIBRARY", unset = "")
-if (!nzchar(private_library_env)) {
-  private_library_env <- Sys.getenv("R_LIBS_USER", unset = "")
+private_library_env <- ""
+if (identical(PIPELINE_PHASE, "pre_filter")) {
+  private_library_env <- Sys.getenv("CLUSTER_STANDALONE_R_LIBRARY", unset = "")
+  if (!nzchar(private_library_env)) {
+    private_library_env <- Sys.getenv("R_LIBS_USER", unset = "")
+  }
 }
-if (nzchar(private_library_env)) {
+if (identical(PIPELINE_PHASE, "pre_filter") && nzchar(private_library_env)) {
   private_libraries <- strsplit(
     private_library_env, .Platform$path.sep, fixed = TRUE
   )[[1]]
@@ -42,12 +56,18 @@ if (nzchar(private_library_env)) {
 }
 message("Private R library at pipeline start: ", private_library_env)
 message(".libPaths() at pipeline start: ", paste(.libPaths(), collapse = " | "))
+message("Pipeline phase: ", PIPELINE_PHASE)
+message("Active SIF: ", ACTIVE_SIF)
 
-required_packages <- c(
-  "Seurat", "scDblFinder", "SingleCellExperiment", "Matrix", "RANN",
-  "readxl", "readr", "ggplot2", "xgboost", "BiocNeighbors", "assorthead",
-  "RcppAnnoy", "irlba", "sctransform", "uwot"
-)
+required_packages <- if (identical(PIPELINE_PHASE, "pre_filter")) {
+  c(
+    "Seurat", "scDblFinder", "SingleCellExperiment", "Matrix", "RANN",
+    "readxl", "readr", "ggplot2", "xgboost", "BiocNeighbors", "assorthead",
+    "RcppAnnoy", "irlba", "sctransform", "uwot"
+  )
+} else {
+  c("Seurat", "Matrix", "readr", "ggplot2", "irlba", "uwot")
+}
 missing_packages <- required_packages[
   !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
 ]
@@ -69,19 +89,61 @@ PINNED_PACKAGE_VERSIONS <- c(
   assorthead = "1.2.0",
   uwot = "0.2.3"
 )
-observed_pinned_versions <- vapply(
-  names(PINNED_PACKAGE_VERSIONS),
-  function(package) as.character(utils::packageVersion(package)),
-  character(1)
+POST_FILTER_PACKAGE_VERSIONS <- c(
+  Seurat = "4.4.0",
+  uwot = "0.2.4",
+  irlba = "2.3.7",
+  readr = "2.2.0"
 )
-if (!identical(observed_pinned_versions, PINNED_PACKAGE_VERSIONS)) {
-  stop(
-    "Pinned package version mismatch. Observed: ",
-    paste(names(observed_pinned_versions), observed_pinned_versions, sep = "=", collapse = ", "),
-    "; expected: ",
-    paste(names(PINNED_PACKAGE_VERSIONS), PINNED_PACKAGE_VERSIONS, sep = "=", collapse = ", "),
-    call. = FALSE
+POST_FILTER_PACKAGE_LIBRARY <- "/usr/local/lib/R/site-library"
+if (identical(PIPELINE_PHASE, "pre_filter")) {
+  if (!identical(as.character(getRversion()), "4.5.1")) {
+    stop("The pre-filter phase requires R 4.5.1.", call. = FALSE)
+  }
+  observed_pinned_versions <- vapply(
+    names(PINNED_PACKAGE_VERSIONS),
+    function(package) as.character(utils::packageVersion(package)),
+    character(1)
   )
+  if (!identical(observed_pinned_versions, PINNED_PACKAGE_VERSIONS)) {
+    stop(
+      "Pinned package version mismatch. Observed: ",
+      paste(names(observed_pinned_versions), observed_pinned_versions, sep = "=", collapse = ", "),
+      "; expected: ",
+      paste(names(PINNED_PACKAGE_VERSIONS), PINNED_PACKAGE_VERSIONS, sep = "=", collapse = ", "),
+      call. = FALSE
+    )
+  }
+} else {
+  if (!identical(as.character(getRversion()), "4.5.0")) {
+    stop("The post-filter phase requires R 4.5.0 from the full SIF.", call. = FALSE)
+  }
+  observed_post_versions <- vapply(
+    names(POST_FILTER_PACKAGE_VERSIONS),
+    function(package) as.character(utils::packageVersion(package)),
+    character(1)
+  )
+  if (!identical(observed_post_versions, POST_FILTER_PACKAGE_VERSIONS)) {
+    stop(
+      "Post-filter package version mismatch. Observed: ",
+      paste(names(observed_post_versions), observed_post_versions, sep = "=", collapse = ", "),
+      "; expected: ",
+      paste(names(POST_FILTER_PACKAGE_VERSIONS), POST_FILTER_PACKAGE_VERSIONS, sep = "=", collapse = ", "),
+      call. = FALSE
+    )
+  }
+  observed_post_libraries <- vapply(
+    names(POST_FILTER_PACKAGE_VERSIONS),
+    function(package) normalizePath(dirname(find.package(package)), mustWork = TRUE),
+    character(1)
+  )
+  if (any(observed_post_libraries != POST_FILTER_PACKAGE_LIBRARY)) {
+    stop(
+      "Post-filter packages must load from the full SIF library. Observed: ",
+      paste(names(observed_post_libraries), observed_post_libraries, sep = "=", collapse = ", "),
+      call. = FALSE
+    )
+  }
 }
 
 suppressPackageStartupMessages({
@@ -2749,14 +2811,46 @@ run_final_object <- function(obj, removal_set) {
     features = pca_features,
     npcs = pca_npcs,
     seed.use = SEEDS[["final_PCA"]],
-    verbose = FALSE
+    verbose = TRUE
+  )
+  set.seed(SEEDS[["final_UMAP"]])
+  obj_final <- Seurat::RunUMAP(
+    obj_final,
+    reduction = "pca",
+    dims = 1:30,
+    reduction.name = "umap",
+    reduction.key = "UMAP_",
+    seed.use = SEEDS[["final_UMAP"]],
+    verbose = TRUE
   )
   obj_final <- orient_seurat_pca_to_reference_anchor(
-    obj_final, contract_name = "final", stage_label = "final"
+    obj_final,
+    contract_name = "final",
+    stage_label = "final_full_sif_post_umap"
   )$object
-  obj_final <- run_compatible_umap(
-    obj_final, reduction = "pca", dims = 1:30,
-    seed = SEEDS[["final_UMAP"]], stage_label = "final"
+  write_tsv(
+    data.frame(
+      parameter = c(
+        "phase", "implementation", "active_sif", "R", "Seurat", "uwot",
+        "irlba", "seed", "input_reduction", "input_dimensions",
+        "posthoc_orientation"
+      ),
+      value = c(
+        PIPELINE_PHASE,
+        "native_Seurat_RunUMAP",
+        ACTIVE_SIF,
+        as.character(getRversion()),
+        as.character(utils::packageVersion("Seurat")),
+        as.character(utils::packageVersion("uwot")),
+        as.character(utils::packageVersion("irlba")),
+        as.character(SEEDS[["final_UMAP"]]),
+        "pca",
+        "1:30",
+        "none_on_umap;PCA_sign_alignment_only_after_UMAP"
+      ),
+      stringsAsFactors = FALSE
+    ),
+    file.path(output_dir, "00_provenance", "umap_final_runtime.tsv")
   )
   if (!setequal(names(obj_final@commands), EXPECTED_FINAL_COMMANDS)) {
     stop(
@@ -2817,13 +2911,15 @@ run_final_object <- function(obj, removal_set) {
     data.frame(
       parameter = c(
         "removal_source", "removed_clusters", "pca_assay", "pca_components",
-        "umap_dimensions", "reintegration_run", "find_neighbors_run",
-        "find_clusters_run", "cluster_labels_changed"
+        "umap_dimensions", "pca_sign_alignment_timing", "reintegration_run",
+        "find_neighbors_run", "find_clusters_run", "cluster_labels_changed"
       ),
       value = c(
         "dynamic_union_of_QC_High_and_zero_qualifying_up_DEG",
         paste(removal_set, collapse = ","),
-        "integrated", as.character(pca_npcs), "1:30", "FALSE", "FALSE", "FALSE", "FALSE"
+        "integrated", as.character(pca_npcs), "1:30",
+        "after_native_full_sif_UMAP;UMAP_unchanged",
+        "FALSE", "FALSE", "FALSE", "FALSE"
       ),
       stringsAsFactors = FALSE
     ),
@@ -2843,6 +2939,7 @@ run_final_object <- function(obj, removal_set) {
     "Final"
   )
   saveRDS(obj_final, final_path)
+  write_final_artifact_runtime(final_path)
   write_stage_marker("03_final_cluster", "35513 cells; 9 retained clusters; new PCA and UMAP")
   obj_final
 }
@@ -2954,6 +3051,17 @@ validate_final_resume <- function(obj) {
       ncol(Seurat::Embeddings(obj, "umap")) != 2L) {
     stop("Existing final output PCA/UMAP contract mismatch.", call. = FALSE)
   }
+  final_loadings <- Seurat::Loadings(obj, "pca")
+  final_anchor_sign <- vapply(seq_len(ncol(final_loadings)), function(component) {
+    loading <- final_loadings[, component]
+    sign(loading[which.max(abs(loading))])
+  }, numeric(1))
+  expected_anchor_sign <- SEURAT_PCA_TARGET_MAX_LOADING_SIGN$final[
+    seq_along(final_anchor_sign)
+  ]
+  if (!identical(as.numeric(final_anchor_sign), as.numeric(expected_anchor_sign))) {
+    stop("Existing final output PCA sign-orientation contract mismatch.", call. = FALSE)
+  }
   if (!identical(names(obj@commands), EXPECTED_FINAL_COMMANDS)) {
     stop("Existing final output Seurat command contract mismatch.", call. = FALSE)
   }
@@ -3002,58 +3110,314 @@ initialize_provenance <- function(inputs) {
     file.path(provenance_root, "seed_registry.tsv")
   )
   write_tsv(
-    data.frame(
-      parameter = c(
-        "input_dir", "output_dir", "accepted_raw_file_basename",
-        "integration_features", "initial_pca_npcs", "clustering_resolution",
-        "initial_umap_dims", "similarity_metric", "refine_knn_k",
-        "refine_pca_orientation", "refine_compatibility_steps",
-        "refine_compatibility_rule", "refine_compatibility_workers",
-        "fixed_merge_0", "fixed_merge_10", "deletion_rule",
-        "qualifying_up_rule", "final_umap_dims",
-        "deg_feature_chunk_target", "deg_parallel_workers",
-        "deg_parallel_backend", "deg_cache_reuse",
-        "scdblfinder_version", "rcppannoy_version", "irlba_version",
-        "uwot_version", "sctransform_version", "xgboost_version", "biocneighbors_version",
-        "assorthead_version", "scdbl_pca_orientation_anchor",
-        "scdbl_pca_round_digits", "initial_pca_orientation_anchor",
-        "final_pca_orientation_anchor", "annoy_float_compatibility",
-        "umap_powf_compatibility", "umap_spectral_blas"
-      ),
-      value = c(
-        input_dir, output_dir, "filtered_feature_bc_matrix.h5", "3000", "50", "0.6", "1:30",
-        "signed_lfc_cosine", "50",
-        "largest_absolute_cell_coordinate_positive",
-        paste(names(REFINE_COMPATIBILITY_STEPS), REFINE_COMPATIBILITY_STEPS, sep = "=", collapse = ","),
-        "cluster4=intersection(0.0125,0.03);cluster9=union(0.03,0.09)",
-        as.character(REFINE_COMPATIBILITY_WORKERS),
-        "0,1,7", "10,11,12",
-        "concern_level==High OR zero qualifying upregulated DEG",
-        "p_adj<0.05; avg_log2FC>0; abs(logFC)>=0.25; abs(pct.1-pct.2)>=0.05",
-        "1:30",
-        as.character(DEG_FEATURE_CHUNK_TARGET), as.character(DEG_PARALLEL_WORKERS),
-        "parallel::mclapply_feature_chunks", "TRUE",
-        PINNED_PACKAGE_VERSIONS[["scDblFinder"]],
-        PINNED_PACKAGE_VERSIONS[["RcppAnnoy"]],
-        PINNED_PACKAGE_VERSIONS[["irlba"]],
-        PINNED_PACKAGE_VERSIONS[["uwot"]],
-        PINNED_PACKAGE_VERSIONS[["sctransform"]],
-        PINNED_PACKAGE_VERSIONS[["xgboost"]],
-        PINNED_PACKAGE_VERSIONS[["BiocNeighbors"]],
-        PINNED_PACKAGE_VERSIONS[["assorthead"]],
-        "sign_of_maximum_absolute_gene_loading_per_component",
-        as.character(SCDBL_PCA_ROUND_DIGITS),
-        "reference_sign_of_maximum_absolute_gene_loading_per_component",
-        "reference_sign_of_maximum_absolute_gene_loading_per_component",
-        "explicit_ARM_macOS_accumulation_order_in_vendored_assorthead",
-        "macos_arm64_libsystem_m_powf_in_vendored_uwot",
-        "reference_BLAS_LAPACK_subprocess_with_forced_irlba"
-      ),
-      stringsAsFactors = FALSE
-    ),
+    {
+      parameters <- c(
+        input_dir = input_dir,
+        output_dir = output_dir,
+        accepted_raw_file_basename = "filtered_feature_bc_matrix.h5",
+        integration_features = "3000",
+        initial_pca_npcs = "50",
+        clustering_resolution = "0.6",
+        initial_umap_dims = "1:30",
+        similarity_metric = "signed_lfc_cosine",
+        refine_knn_k = "50",
+        refine_pca_orientation = "largest_absolute_cell_coordinate_positive",
+        refine_compatibility_steps = paste(
+          names(REFINE_COMPATIBILITY_STEPS), REFINE_COMPATIBILITY_STEPS,
+          sep = "=", collapse = ","
+        ),
+        refine_compatibility_rule = "cluster4=intersection(0.0125,0.03);cluster9=union(0.03,0.09)",
+        refine_compatibility_workers = as.character(REFINE_COMPATIBILITY_WORKERS),
+        fixed_merge_0 = "0,1,7",
+        fixed_merge_10 = "10,11,12",
+        deletion_rule = "concern_level==High OR zero qualifying upregulated DEG",
+        qualifying_up_rule = "p_adj<0.05; avg_log2FC>0; abs(logFC)>=0.25; abs(pct.1-pct.2)>=0.05",
+        final_umap_dims = "1:30",
+        deg_feature_chunk_target = as.character(DEG_FEATURE_CHUNK_TARGET),
+        deg_parallel_workers = as.character(DEG_PARALLEL_WORKERS),
+        deg_parallel_backend = "parallel::mclapply_feature_chunks",
+        deg_cache_reuse = "TRUE_within_verified_runtime_phase",
+        pre_filter_R = "4.5.1",
+        pre_filter_scDblFinder = PINNED_PACKAGE_VERSIONS[["scDblFinder"]],
+        pre_filter_RcppAnnoy = PINNED_PACKAGE_VERSIONS[["RcppAnnoy"]],
+        pre_filter_irlba = PINNED_PACKAGE_VERSIONS[["irlba"]],
+        pre_filter_uwot = PINNED_PACKAGE_VERSIONS[["uwot"]],
+        pre_filter_sctransform = PINNED_PACKAGE_VERSIONS[["sctransform"]],
+        pre_filter_xgboost = PINNED_PACKAGE_VERSIONS[["xgboost"]],
+        pre_filter_BiocNeighbors = PINNED_PACKAGE_VERSIONS[["BiocNeighbors"]],
+        pre_filter_assorthead = PINNED_PACKAGE_VERSIONS[["assorthead"]],
+        post_filter_R = "4.5.0",
+        post_filter_Seurat = POST_FILTER_PACKAGE_VERSIONS[["Seurat"]],
+        post_filter_uwot = POST_FILTER_PACKAGE_VERSIONS[["uwot"]],
+        post_filter_irlba = POST_FILTER_PACKAGE_VERSIONS[["irlba"]],
+        post_filter_readr = POST_FILTER_PACKAGE_VERSIONS[["readr"]],
+        scdbl_pca_orientation_anchor = "sign_of_maximum_absolute_gene_loading_per_component",
+        scdbl_pca_round_digits = as.character(SCDBL_PCA_ROUND_DIGITS),
+        initial_pca_orientation_anchor = "reference_sign_of_maximum_absolute_gene_loading_per_component",
+        final_pca_orientation_anchor = "reference_sign_after_native_full_sif_UMAP",
+        annoy_float_compatibility = "explicit_ARM_macOS_accumulation_order_in_vendored_assorthead",
+        initial_umap_powf_compatibility = "macos_arm64_libsystem_m_powf_in_vendored_uwot",
+        initial_umap_spectral_blas = "reference_BLAS_LAPACK_subprocess_with_forced_irlba",
+        final_umap_implementation = "native_Seurat_RunUMAP_in_post_filter_full_sif"
+      )
+      data.frame(
+        parameter = names(parameters),
+        value = unname(parameters),
+        stringsAsFactors = FALSE
+      )
+    },
     file.path(provenance_root, "analysis_parameters.tsv")
   )
-  writeLines(capture.output(sessionInfo()), file.path(provenance_root, "sessionInfo_start.txt"))
+}
+
+active_sif_path <- function() {
+  normalizePath(ACTIVE_SIF, mustWork = FALSE)
+}
+
+active_sif_md5_cache <- NULL
+active_sif_md5 <- function() {
+  if (!is.null(active_sif_md5_cache)) return(active_sif_md5_cache)
+  active_sif_md5_cache <<- if (file.exists(ACTIVE_SIF)) {
+    unname(tools::md5sum(ACTIVE_SIF))
+  } else {
+    NA_character_
+  }
+  active_sif_md5_cache
+}
+
+runtime_values <- function() {
+  packages <- c("Seurat", "uwot", "irlba", "readr")
+  versions <- vapply(packages, function(package) {
+    if (requireNamespace(package, quietly = TRUE)) {
+      as.character(utils::packageVersion(package))
+    } else {
+      NA_character_
+    }
+  }, character(1))
+  package_libraries <- vapply(packages, function(package) {
+    if (requireNamespace(package, quietly = TRUE)) {
+      normalizePath(dirname(find.package(package)), mustWork = TRUE)
+    } else {
+      NA_character_
+    }
+  }, character(1))
+  names(package_libraries) <- paste0(names(package_libraries), "_library")
+  c(
+    phase = PIPELINE_PHASE,
+    active_sif = active_sif_path(),
+    active_sif_md5 = active_sif_md5(),
+    R = as.character(getRversion()),
+    platform = R.version$platform,
+    versions,
+    package_libraries,
+    private_r_library = private_library_env
+  )
+}
+
+write_phase_runtime <- function() {
+  provenance_root <- ensure_dir(file.path(output_dir, "00_provenance"))
+  values <- c(runtime_values(), recorded_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"))
+  write_tsv(
+    data.frame(field = names(values), value = unname(values), stringsAsFactors = FALSE),
+    file.path(provenance_root, paste0("runtime_", PIPELINE_PHASE, ".tsv"))
+  )
+  writeLines(
+    capture.output(sessionInfo()),
+    file.path(provenance_root, paste0("sessionInfo_", PIPELINE_PHASE, ".txt"))
+  )
+}
+
+read_runtime_table <- function(path, label) {
+  if (!file.exists(path)) stop(label, " is missing: ", path, call. = FALSE)
+  table <- utils::read.delim(path, stringsAsFactors = FALSE, check.names = FALSE)
+  if (!identical(colnames(table), c("field", "value")) || anyDuplicated(table$field)) {
+    stop(label, " has an invalid field/value schema: ", path, call. = FALSE)
+  }
+  stats::setNames(as.character(table$value), as.character(table$field))
+}
+
+assert_runtime_fields <- function(observed, expected, label) {
+  missing <- setdiff(names(expected), names(observed))
+  if (length(missing) > 0L) {
+    stop(label, " lacks fields: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+  mismatched <- names(expected)[!vapply(names(expected), function(field) {
+    identical(as.character(observed[[field]]), as.character(expected[[field]]))
+  }, logical(1))]
+  if (length(mismatched) > 0L) {
+    details <- paste0(
+      mismatched, "=", observed[mismatched], " (expected ", expected[mismatched], ")"
+    )
+    stop(label, " mismatch: ", paste(details, collapse = "; "), call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+write_prefilter_complete <- function(removal_set) {
+  path <- file.path(output_dir, "00_provenance", "PREFILTER_COMPLETE.txt")
+  writeLines(
+    c(
+      "status=PASS",
+      "phase=pre_filter",
+      paste0("active_sif=", active_sif_path()),
+      paste0("active_sif_md5=", active_sif_md5()),
+      paste0("R=", getRversion()),
+      paste0("removed_clusters_selected_dynamically=", paste(removal_set, collapse = ",")),
+      paste0("completed_at=", format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"))
+    ),
+    path
+  )
+}
+
+read_key_value_file <- function(path, label) {
+  if (!file.exists(path)) stop(label, " is missing: ", path, call. = FALSE)
+  lines <- readLines(path, warn = FALSE)
+  valid <- grepl("=", lines, fixed = TRUE)
+  keys <- sub("=.*$", "", lines[valid])
+  values <- sub("^[^=]*=", "", lines[valid])
+  if (anyDuplicated(keys)) stop(label, " contains duplicate keys.", call. = FALSE)
+  stats::setNames(values, keys)
+}
+
+validate_prefilter_complete <- function(removal_set) {
+  marker <- read_key_value_file(
+    file.path(output_dir, "00_provenance", "PREFILTER_COMPLETE.txt"),
+    "Pre-filter completion marker"
+  )
+  assert_runtime_fields(
+    marker,
+    c(
+      status = "PASS",
+      phase = "pre_filter",
+      R = "4.5.1",
+      removed_clusters_selected_dynamically = paste(removal_set, collapse = ",")
+    ),
+    "Pre-filter completion marker"
+  )
+  if (!("active_sif_md5" %in% names(marker)) ||
+      is.na(marker[["active_sif_md5"]]) ||
+      !nzchar(marker[["active_sif_md5"]])) {
+    stop("Pre-filter completion marker lacks the cluster SIF checksum.", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+write_final_artifact_runtime <- function(final_path) {
+  info <- file.info(final_path)
+  values <- c(
+    status = "PASS",
+    runtime_values(),
+    final_object = normalizePath(final_path, mustWork = TRUE),
+    final_object_size_bytes = as.character(info$size),
+    final_object_md5 = unname(tools::md5sum(final_path)),
+    recorded_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")
+  )
+  write_tsv(
+    data.frame(field = names(values), value = unname(values), stringsAsFactors = FALSE),
+    file.path(output_dir, "00_provenance", "final_artifact_runtime.tsv")
+  )
+}
+
+validate_final_artifact_runtime <- function(final_path, verify_object_md5 = TRUE) {
+  marker <- read_runtime_table(
+    file.path(output_dir, "00_provenance", "final_artifact_runtime.tsv"),
+    "Final-artifact runtime marker"
+  )
+  expected <- c(
+    status = "PASS",
+    phase = "post_filter",
+    active_sif = active_sif_path(),
+    active_sif_md5 = active_sif_md5(),
+    R = "4.5.0",
+    Seurat = POST_FILTER_PACKAGE_VERSIONS[["Seurat"]],
+    uwot = POST_FILTER_PACKAGE_VERSIONS[["uwot"]],
+    irlba = POST_FILTER_PACKAGE_VERSIONS[["irlba"]],
+    readr = POST_FILTER_PACKAGE_VERSIONS[["readr"]],
+    Seurat_library = POST_FILTER_PACKAGE_LIBRARY,
+    uwot_library = POST_FILTER_PACKAGE_LIBRARY,
+    irlba_library = POST_FILTER_PACKAGE_LIBRARY,
+    readr_library = POST_FILTER_PACKAGE_LIBRARY,
+    final_object = normalizePath(final_path, mustWork = TRUE),
+    final_object_size_bytes = as.character(file.info(final_path)$size),
+    final_object_md5 = if (isTRUE(verify_object_md5)) {
+      unname(tools::md5sum(final_path))
+    } else {
+      marker[["final_object_md5"]]
+    }
+  )
+  assert_runtime_fields(marker, expected, "Final-artifact runtime marker")
+  marker
+}
+
+assert_no_stale_final_deg_for_new_object <- function() {
+  deg_root <- file.path(output_dir, "03a_DEGs")
+  existing <- if (dir.exists(deg_root)) {
+    list.files(deg_root, recursive = TRUE, all.files = TRUE, no.. = TRUE)
+  } else {
+    character(0)
+  }
+  if (length(existing) > 0L) {
+    stop(
+      "Unproven final DEG files exist while the final object will be regenerated. ",
+      "Archive the existing 03a_DEGs directory before the post-filter rerun.",
+      call. = FALSE
+    )
+  }
+}
+
+prepare_final_deg_runtime <- function(final_artifact) {
+  path <- file.path(output_dir, "00_provenance", "final_deg_runtime.tsv")
+  expected <- c(
+    phase = "post_filter",
+    active_sif = active_sif_path(),
+    active_sif_md5 = active_sif_md5(),
+    R = "4.5.0",
+    Seurat = POST_FILTER_PACKAGE_VERSIONS[["Seurat"]],
+    readr = POST_FILTER_PACKAGE_VERSIONS[["readr"]],
+    final_object_md5 = final_artifact[["final_object_md5"]]
+  )
+  if (file.exists(path)) {
+    observed <- read_runtime_table(path, "Final-DEG runtime marker")
+    assert_runtime_fields(observed, expected, "Final-DEG runtime marker")
+    return(invisible(TRUE))
+  }
+  deg_root <- file.path(output_dir, "03a_DEGs")
+  existing <- if (dir.exists(deg_root)) {
+    list.files(deg_root, recursive = TRUE, all.files = TRUE, no.. = TRUE)
+  } else {
+    character(0)
+  }
+  if (length(existing) > 0L) {
+    stop(
+      "Existing final DEG outputs have no matching full-SIF runtime marker. ",
+      "Archive 03a_DEGs before continuing.",
+      call. = FALSE
+    )
+  }
+  values <- c(status = "started", expected, started_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"))
+  write_tsv(
+    data.frame(field = names(values), value = unname(values), stringsAsFactors = FALSE),
+    path
+  )
+}
+
+finish_final_deg_runtime <- function(final_artifact) {
+  path <- file.path(output_dir, "00_provenance", "final_deg_runtime.tsv")
+  values <- c(
+    status = "completed",
+    phase = "post_filter",
+    active_sif = active_sif_path(),
+    active_sif_md5 = active_sif_md5(),
+    R = "4.5.0",
+    Seurat = POST_FILTER_PACKAGE_VERSIONS[["Seurat"]],
+    readr = POST_FILTER_PACKAGE_VERSIONS[["readr"]],
+    final_object_md5 = final_artifact[["final_object_md5"]],
+    completed_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")
+  )
+  write_tsv(
+    data.frame(field = names(values), value = unname(values), stringsAsFactors = FALSE),
+    path
+  )
 }
 
 finish_provenance <- function(removal_set) {
@@ -3063,6 +3427,10 @@ finish_provenance <- function(removal_set) {
     c(
       "status=PASS",
       paste0("completed_at=", format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")),
+      "pre_filter_runtime=runtime_pre_filter.tsv",
+      "post_filter_runtime=runtime_post_filter.tsv",
+      "final_artifact_runtime=final_artifact_runtime.tsv",
+      "final_deg_runtime=final_deg_runtime.tsv",
       "refined_object=02b_cluster_refine/objects/integrated_sct_cca_seurat_cluster_refine.rds",
       "final_object=03_final_cluster/03_objects/integrated_sct_cca_seurat_final_reclustered.rds",
       paste0(
@@ -3076,45 +3444,79 @@ finish_provenance <- function(removal_set) {
 }
 
 ensure_dir(output_dir)
+write_phase_runtime()
+message("Standalone cluster workflow phase started: ", PIPELINE_PHASE)
+message("Input directory: ", input_dir)
+message("Output directory: ", output_dir)
+
+if (identical(PIPELINE_PHASE, "pre_filter")) {
+  inputs <- discover_inputs(input_dir)
+  initialize_provenance(inputs)
+  integrated <- run_raw_integration(inputs)
+  integrated <- run_cell_cycle(integrated)
+  run_initial_deg_similarity(integrated)
+  invisible(gc())
+  refined <- run_cluster_refine(integrated)
+  rm(integrated)
+  invisible(gc())
+  qc_flags <- run_cluster_qc(refined)$flags
+  merged <- apply_fixed_merge_after_gate(refined)
+  rm(refined)
+  invisible(gc())
+  removal_result <- run_prefilter_deg_and_select_removals(merged, qc_flags)
+  write_prefilter_complete(removal_result$removal_set)
+  message(
+    "Pre-filter phase completed successfully. Dynamic removal set: ",
+    paste(removal_result$removal_set, collapse = ",")
+  )
+  quit(save = "no", status = 0L)
+}
+
+removal_set <- read_verified_removal_set()
+validate_prefilter_complete(removal_set)
+refined_path <- file.path(
+  output_dir, "02b_cluster_refine", "objects",
+  "integrated_sct_cca_seurat_cluster_refine.rds"
+)
+manual_merge_path <- file.path(
+  output_dir, "02d_manual_cluster_merge", "objects",
+  "integrated_sct_cca_seurat_cluster_refine_manual_merge_test.rds"
+)
+if (!file.exists(refined_path) || !file.exists(manual_merge_path)) {
+  stop(
+    "Post-filter phase requires the verified refined and manual-merge RDS outputs from pre_filter.",
+    call. = FALSE
+  )
+}
+message("[post_filter] Reading verified refined object: ", refined_path)
+refined <- readRDS(refined_path)
+validate_refined_resume(refined, refined)
+message("[post_filter] Reading verified manual-merge object: ", manual_merge_path)
+merged <- readRDS(manual_merge_path)
+validate_manual_merge_resume(merged, refined)
+rm(refined)
+invisible(gc())
+
 final_existing <- file.path(
   output_dir,
   "03_final_cluster", "03_objects", "integrated_sct_cca_seurat_final_reclustered.rds"
 )
-inputs <- discover_inputs(input_dir)
-initialize_provenance(inputs)
-message("Standalone cluster workflow started.")
-message("Input directory: ", input_dir)
-message("Output directory: ", output_dir)
-
 if (file.exists(final_existing)) {
-  message("[resume] Reading verified final object: ", final_existing)
+  final_artifact <- validate_final_artifact_runtime(final_existing, verify_object_md5 = TRUE)
+  message("[resume] Reading verified full-SIF final object: ", final_existing)
   final_obj <- readRDS(final_existing)
   validate_final_resume(final_obj)
-  removal_set <- read_verified_removal_set()
-  run_final_deg(final_obj)
-  finish_provenance(removal_set)
-  message("Standalone cluster workflow completed successfully from verified final-object resume.")
-  message("Final object: ", final_existing)
-  quit(save = "no", status = 0L)
+} else {
+  assert_no_stale_final_deg_for_new_object()
+  final_obj <- run_final_object(merged, removal_set)
+  final_artifact <- validate_final_artifact_runtime(final_existing, verify_object_md5 = FALSE)
 }
-
-integrated <- run_raw_integration(inputs)
-integrated <- run_cell_cycle(integrated)
-run_initial_deg_similarity(integrated)
-invisible(gc())
-refined <- run_cluster_refine(integrated)
-rm(integrated)
-invisible(gc())
-qc_flags <- run_cluster_qc(refined)$flags
-merged <- apply_fixed_merge_after_gate(refined)
-rm(refined)
-invisible(gc())
-removal_result <- run_prefilter_deg_and_select_removals(merged, qc_flags)
-final_obj <- run_final_object(merged, removal_result$removal_set)
 rm(merged)
 invisible(gc())
+prepare_final_deg_runtime(final_artifact)
 run_final_deg(final_obj)
-finish_provenance(removal_result$removal_set)
+finish_final_deg_runtime(final_artifact)
+finish_provenance(removal_set)
 
 message("Standalone cluster workflow completed successfully.")
 message(

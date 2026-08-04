@@ -8,8 +8,24 @@ other downstream analyses.
 ## Public entry point
 
 ```bash
-bash run_cluster_standalone.sh INPUT_DIR OUTPUT_DIR
+CLUSTER_STANDALONE_PRE_FILTER_SIF=/path/to/gemcitabine-model_in-vivo-cluster-r4.5.1.sif \
+CLUSTER_STANDALONE_POST_FILTER_SIF=/path/to/gemcitabine-model_full.sif \
+  bash run_cluster_standalone.sh INPUT_DIR OUTPUT_DIR
 ```
+
+The public interface still has exactly two positional arguments. The two SIF
+paths are runtime parameters supplied at the call site; neither image path is
+hard-coded in the scripts. The entry point executes two phases in order:
+
+1. `pre_filter` uses the R 4.5.1 cluster SIF through the completed dynamic
+   selection of clusters `3,4,9,9c`.
+2. `post_filter` uses `gemcitabine-model_full.sif` for every operation after
+   that selection: loading and validating the pre-filter objects, subsetting,
+   deriving final metadata, final PCA, final UMAP, all final plots, final RDS
+   serialization, and final cluster-vs-rest DEG.
+
+The verified post-filter contract is R 4.5.0, Seurat 4.4.0, uwot 0.2.4,
+irlba 2.3.7, and readr 2.2.0. The phase stops on a version mismatch.
 
 `INPUT_DIR` must contain exactly the required source locations:
 
@@ -30,14 +46,16 @@ The workflow does not read any external pre-existing Seurat object, DEG table,
 QC flag table, annotation result, or gene-set result. A retry with the same
 `OUTPUT_DIR` may resume from its own initial, cell-cycle, refined, manual-merge,
 and final RDS only after the corresponding cell-order, metadata, label,
-cluster-count, assay, reduction, and command contracts pass. A verified final
-RDS resume runs only missing final cluster-vs-rest DEG outputs and never
-overwrites the object. The workflow may also reuse its own validated DEG chunk
-caches and complete DEG CSV files.
+cluster-count, assay, reduction, command, and runtime contracts pass. A final
+RDS is reusable only when `final_artifact_runtime.tsv` proves that its checksum
+was produced by the configured full SIF with the exact post-filter package
+versions. Final DEG caches are reusable only within a matching full-SIF DEG
+runtime contract. Unproven older final outputs cause a safe stop and must be
+archived before rerunning.
 Paths are supplied only through the two positional arguments above; no
 machine-specific input or output path is embedded in the source.
 
-Before analysis, the entry point creates a runtime-specific private library
+During `pre_filter`, the entry point creates a runtime-specific private library
 under `OUTPUT_DIR/cluster_standalone_r_library/R-<version>-<platform>` and
 installs seven vendored source dependencies: RcppAnnoy 0.0.22, irlba 2.3.5.1,
 sctransform 0.4.2, uwot 0.2.3, xgboost 1.7.11.1,
@@ -56,7 +74,7 @@ and the target Linux container; they contain no barcode whitelist or cluster
 deletion list.
 
 The vendored uwot source implements the Apple `libsystem_m` single-precision
-`powf` path used by the reference macOS run. UMAP is executed in a small
+`powf` path used by the reference macOS run. Pre-filter UMAP is executed in a small
 subprocess with the container's reference BLAS/LAPACK preloaded and uwot's
 irlba spectral initializer forced, matching the R 4.5.1 macOS reference rather
 than the container's default OpenBLAS/RSpectra path. The private package and
@@ -69,13 +87,13 @@ matrix is byte-identical.
 
 Because irlba component signs are mathematically arbitrary and differed between
 Apple Accelerate and the Linux reference BLAS, the stored 50-component initial
-and final PCA reductions are oriented to the reference sign convention using
-the sign of each component's maximum-absolute gene loading. This contract
-contains only 50 signs per PCA stage, not gene names, barcodes, or cluster
-assignments. After sign alignment, the observed platform residual was about
-`3.22e-7` for refined PCA coordinates and `2.41e-7` for final PCA coordinates;
-those remaining differences reflect BLAS arithmetic and are not hidden by the
-validator.
+PCA reduction is oriented to the reference sign convention using the sign of
+each component's maximum-absolute gene loading. This pre-filter contract
+contains only 50 signs, not gene names, barcodes, or cluster assignments. The
+final PCA is recomputed natively by Seurat inside the full SIF. Only after the
+native full-SIF UMAP is complete, its stored component signs are aligned to the
+reference sign convention. PCA signs are mathematically arbitrary; applying
+this storage convention after UMAP cannot alter the full-SIF UMAP coordinates.
 
 For the platform-sensitive 4c/9c boundary only, the pipeline creates three
 auxiliary compatibility UMAPs. It orients each PCA component by requiring the
@@ -113,11 +131,14 @@ single main UMAP remains the UMAP stored in the Seurat object.
    has zero qualifying upregulated genes.
 10. Assert that the selected set is the reference set `3,4,9,9c`; this is a
     reproduction check only and is never used as a fallback deletion rule.
-11. Subset, retain the merge labels as `clusters`, derive the reference
-    `Ploidy` (`2N`/`4N`, with the reference's unused `Unknown` level) and `TN`
-    (`CellLine`/`Tumor`) factor metadata from `IDs`, recompute PCA/UMAP, save
-    the final object, and run final
-    cluster-vs-rest DEG.
+11. Write `PREFILTER_COMPLETE.txt`, exit the R 4.5.1 cluster SIF, and enter the
+    full SIF.
+12. In the full SIF, validate the refined/manual-merge objects and dynamic
+    removal decision, subset, retain the merge labels as `clusters`, derive the
+    reference `Ploidy` (`2N`/`4N`, with the reference's unused `Unknown` level)
+    and `TN` (`CellLine`/`Tumor`) factor metadata from `IDs`, run native Seurat
+    PCA and UMAP with recorded seeds, write all final plots and the final RDS,
+    and run final cluster-vs-rest DEG.
 
 Independent cluster-vs-rest Wilcoxon comparisons are decomposed into about 62
 `(cluster, feature-chunk)` tasks and use up to 8 Unix fork workers on HPC. The
@@ -139,7 +160,7 @@ before their corresponding object is saved.
 Final cluster-vs-rest DEG files use the original `03a_DEGs.R` 17-column schema
 (`scope` through `p_val_adj`) and `readr::write_csv` serialization. All nine
 files were verified byte-for-byte against the formal reference outputs after
-the R 4.5.1 HPC run.
+the split-runtime HPC run; the final DEG phase used the full SIF.
 
 The qualifying upregulated-gene rule is:
 
@@ -171,7 +192,9 @@ OUTPUT_DIR/
 
 `run_manifest.tsv`, `seed_registry.tsv`, stage completion markers, and
 `sessionInfo.txt` are written under `OUTPUT_DIR/00_provenance`. The same folder
-also records source checksums and the private dependency build contract.
+also records source checksums, the private dependency build contract,
+`runtime_pre_filter.tsv`, `runtime_post_filter.tsv`,
+`final_artifact_runtime.tsv`, and `final_deg_runtime.tsv`.
 
 ## Reproduction validator
 
@@ -190,14 +213,19 @@ The analysis entry point never overwrites an existing final RDS; it resumes
 only after the final-object contract passes and then fills missing final DEG
 outputs.
 
-On the validated R 4.5.1 Linux HPC run, 128 of 144 strict object checks passed.
+On the validated split-runtime Linux HPC run, 128 of 144 strict object checks
+passed. The post-filter phase used R 4.5.0 from the full SIF.
 Cell IDs and order, cluster values and levels, active identities, metadata
 schema and values (including `Ploidy` and `TN`), assay dimensions/features, and
 Seurat command order all matched the formal macOS reference. The 16 remaining
 strict failures are the exact hashes of the SCT/integrated floating-point
 matrices, a `1.192092895507812e-7` `scDblFinder.score` residual, PCA coordinate
 residuals of `3.214471973045363e-7` (refined) and
-`2.408718611790484e-7` (final), non-identical PCA-loading hashes, and the UMAP
-coordinates amplified from those platform-specific inputs. The strict report
-therefore intentionally remains `FAIL`; the workflow does not weaken the
-tolerances or label a non-bitwise object as identical.
+`2.408718596247361e-7` (final), non-identical PCA-loading hashes, and UMAP
+coordinates amplified from those platform-specific inputs. The final UMAP has
+positive same-axis correlations of `0.9978394` and `0.9945430` with the formal
+coordinates, so it is not 180-degree reversed; its maximum coordinate residual
+is `10.70232841542118`. Rerunning UMAP from the formal PCA in the same full SIF
+reproduced the stored formal UMAP with zero numeric difference. The strict
+report therefore intentionally remains `FAIL`; the workflow does not weaken
+the tolerances or label a non-bitwise object as identical.
