@@ -10,7 +10,7 @@ modify the SIF.
 `run_cluster_standalone.sh` creates a runtime-specific private library at:
 
 ```text
-$OUTPUT_DIR/cluster_standalone_r_library/R-<version>-<platform>
+$OUTPUT_DIR/scRNA_Seq_analysis_r_library/R-<version>-<platform>
 ```
 
 It prepends that library to `.libPaths()`, then calls

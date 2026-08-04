@@ -1,4 +1,4 @@
-# Standalone in-vivo cluster workflow
+# Standalone in-vivo scRNA-seq analysis workflow
 
 This directory contains the shortest standalone path from the three accepted
 input sources to the refined and final Seurat objects. It intentionally omits
@@ -10,10 +10,12 @@ other downstream analyses.
 ```bash
 CLUSTER_STANDALONE_PRE_FILTER_SIF=/path/to/gemcitabine-model_in-vivo-cluster-r4.5.1.sif \
 CLUSTER_STANDALONE_POST_FILTER_SIF=/path/to/gemcitabine-model_full.sif \
-  bash run_cluster_standalone.sh INPUT_DIR OUTPUT_DIR
+  bash run_cluster_standalone.sh INPUT_DIR /path/to/Results/scRNA_Seq_analysis
 ```
 
-The public interface still has exactly two positional arguments. The two SIF
+The public interface still has exactly two positional arguments: the input
+directory and the output directory. Pass the desired `scRNA_Seq_analysis`
+result directory as the second argument. The two SIF
 paths are runtime parameters supplied at the call site; neither image path is
 hard-coded in the scripts. The entry point executes two phases in order:
 
@@ -56,7 +58,7 @@ Paths are supplied only through the two positional arguments above; no
 machine-specific input or output path is embedded in the source.
 
 During `pre_filter`, the entry point creates a runtime-specific private library
-under `OUTPUT_DIR/cluster_standalone_r_library/R-<version>-<platform>` and
+under `OUTPUT_DIR/scRNA_Seq_analysis_r_library/R-<version>-<platform>` and
 installs seven vendored source dependencies: RcppAnnoy 0.0.22, irlba 2.3.5.1,
 sctransform 0.4.2, uwot 0.2.3, xgboost 1.7.11.1,
 BiocNeighbors 2.2.0, and assorthead 1.2.0.

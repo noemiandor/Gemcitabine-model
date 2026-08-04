@@ -71,7 +71,7 @@ if [[ ! "${runtime_id}" =~ ^R-[A-Za-z0-9._-]+$ ]]; then
   echo "Cannot derive a safe R runtime identifier: ${runtime_id}" >&2
   exit 70
 fi
-private_r_library="${output_dir}/cluster_standalone_r_library/${runtime_id}"
+private_r_library="${output_dir}/scRNA_Seq_analysis_r_library/${runtime_id}"
 mkdir -p "${private_r_library}"
 # On the target shared filesystem, R's access(2)-based writability check runs
 # through the container user mapping and requires the "other" write bit. The
