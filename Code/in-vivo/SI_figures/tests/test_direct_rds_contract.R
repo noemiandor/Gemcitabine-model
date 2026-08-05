@@ -1044,6 +1044,156 @@ stopifnot(isTRUE(wrapper_env$si_cache_candidate_dependencies(
   sample_info = "/archived/sample_info.xlsx"
 )$reconstructed))
 
+# Standalone H5 reconstruction uses per-file transitive roles and its own
+# scientific-code roles rather than the legacy staged reconstruction roles.
+standalone_transitive_roles <- c(
+  paste0(
+    "seurat_transitive_dependency:h5_sample",
+    sprintf("%02d", seq_len(18L))
+  ),
+  paste0(
+    "seurat_transitive_dependency:",
+    c("all_ploidy", "sample_info", "semantic_audit_reference_rds")
+  )
+)
+standalone_scientific_roles <- paste0(
+  "seurat_scientific_code_contract:",
+  c(
+    "standalone_orchestrator", "standalone_pipeline",
+    "standalone_bootstrap", "semantic_rds_audit"
+  )
+)
+standalone_source_dependencies <- c(
+  source_seurat_rds = candidate_source_hash,
+  stats::setNames(
+    vapply(seq_along(standalone_transitive_roles), function(index) {
+      strrep(sprintf("%x", ((index - 1L) %% 15L) + 1L), 64L)
+    }, character(1L)),
+    standalone_transitive_roles
+  ),
+  stats::setNames(
+    vapply(seq_along(standalone_scientific_roles), function(index) {
+      strrep(sprintf("%x", index + 9L), 64L)
+    }, character(1L)),
+    standalone_scientific_roles
+  ),
+  seurat_upstream_scientific_common_contract = strrep("8", 64L)
+)
+standalone_source_dependencies[[
+  "seurat_transitive_dependency:all_ploidy"
+]] <- reconstruction_contract$fixed[[
+  "seurat_transitive_dependency:all_ploidy"
+]]
+standalone_source_dependencies[[
+  "seurat_transitive_dependency:sample_info"
+]] <- reconstruction_contract$fixed[[
+  "seurat_transitive_dependency:sample_info"
+]]
+standalone_dependencies <- c(
+  base_candidate_dependencies,
+  standalone_source_dependencies
+)
+standalone_fingerprint <- wrapper_env$computational_fingerprint(
+  standalone_dependencies
+)
+standalone_candidate_dir <- file.path(
+  candidate_root,
+  paste0(
+    "generated_human_only_",
+    substr(standalone_fingerprint, 1L, 20L)
+  )
+)
+dir.create(
+  file.path(standalone_candidate_dir, "metadata"),
+  recursive = TRUE
+)
+standalone_manifest <- data.frame(
+  role = c(names(standalone_dependencies), candidate_audit_roles),
+  locator = c(
+    paste0("contract:", names(standalone_dependencies)),
+    paste0("audit:", candidate_audit_roles)
+  ),
+  sha256 = c(
+    unname(standalone_dependencies),
+    vapply(seq_along(candidate_audit_roles), function(index) {
+      strrep(sprintf("%x", index), 64L)
+    }, character(1L))
+  ),
+  bytes = c(
+    rep(0, length(standalone_dependencies)),
+    rep(123, length(candidate_audit_roles))
+  ),
+  stringsAsFactors = FALSE
+)
+utils::write.table(
+  standalone_manifest,
+  file.path(standalone_candidate_dir, "metadata", "input_manifest.tsv"),
+  sep = "\t",
+  row.names = FALSE,
+  quote = FALSE
+)
+standalone_run_config <- candidate_run_config
+standalone_run_config[["work_dependency_fingerprint"]] <-
+  standalone_fingerprint
+utils::write.table(
+  data.frame(
+    key = names(standalone_run_config),
+    value = unname(standalone_run_config),
+    stringsAsFactors = FALSE
+  ),
+  file.path(standalone_candidate_dir, "metadata", "run_config.tsv"),
+  sep = "\t",
+  row.names = FALSE,
+  quote = FALSE
+)
+standalone_candidate <- wrapper_env$si_cache_candidate_dependencies(
+  standalone_candidate_dir,
+  base_candidate_dependencies,
+  strrep("0", 64L),
+  reconstruction_contract,
+  fake_generator,
+  explicit_rds = candidate_source,
+  upstream_dir = absent_upstream,
+  cellranger_root = stale_h5,
+  sample_info = "/archived/sample_info.xlsx"
+)
+stopifnot(
+  !is.null(standalone_candidate),
+  isTRUE(standalone_candidate$reconstructed),
+  identical(standalone_candidate$fingerprint, standalone_fingerprint)
+)
+incomplete_standalone_manifest <- standalone_manifest[
+  standalone_manifest$role !=
+    "seurat_scientific_code_contract:semantic_rds_audit",
+  ,
+  drop = FALSE
+]
+utils::write.table(
+  incomplete_standalone_manifest,
+  file.path(standalone_candidate_dir, "metadata", "input_manifest.tsv"),
+  sep = "\t",
+  row.names = FALSE,
+  quote = FALSE
+)
+stopifnot(is.null(wrapper_env$si_cache_candidate_dependencies(
+  standalone_candidate_dir,
+  base_candidate_dependencies,
+  strrep("0", 64L),
+  reconstruction_contract,
+  fake_generator,
+  explicit_rds = candidate_source,
+  upstream_dir = absent_upstream,
+  cellranger_root = stale_h5,
+  sample_info = "/archived/sample_info.xlsx"
+)))
+utils::write.table(
+  standalone_manifest,
+  file.path(standalone_candidate_dir, "metadata", "input_manifest.tsv"),
+  sep = "\t",
+  row.names = FALSE,
+  quote = FALSE
+)
+
 # Audit hashes do not affect reuse.
 candidate_manifest$sha256[
   candidate_manifest$role == "audit_si_table_builder"
