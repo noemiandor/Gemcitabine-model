@@ -1525,3 +1525,28 @@ testthat::test_that("standalone cluster completion chain is reusable downstream"
     "size/MD5 verification failed"
   )
 })
+
+testthat::test_that("standalone completion contract ignores only the run timestamp", {
+  first <- c(
+    status = "PASS",
+    completed_at = "2026-08-05T15:00:00-0400",
+    final_object = paste0(
+      "03_final_cluster/03_objects/",
+      "integrated_sct_cca_seurat_final_reclustered.rds"
+    ),
+    removed_clusters_selected_dynamically = "3,4,9,9c"
+  )
+  second <- first
+  second[["completed_at"]] <- "2026-08-05T16:00:00-0400"
+  changed <- second
+  changed[["removed_clusters_selected_dynamically"]] <- "3,4,9"
+
+  testthat::expect_identical(
+    figure7_standalone_completion_contract_sha256(first),
+    figure7_standalone_completion_contract_sha256(second)
+  )
+  testthat::expect_false(identical(
+    figure7_standalone_completion_contract_sha256(first),
+    figure7_standalone_completion_contract_sha256(changed)
+  ))
+})

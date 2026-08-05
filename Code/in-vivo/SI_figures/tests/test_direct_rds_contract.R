@@ -1146,6 +1146,15 @@ utils::write.table(
   row.names = FALSE,
   quote = FALSE
 )
+standalone_overlap_upstream <- file.path(
+  candidate_root,
+  "standalone-overlap-upstream"
+)
+dir.create(standalone_overlap_upstream)
+writeLines(
+  "standalone cell-cycle object using a legacy-overlapping path",
+  file.path(standalone_overlap_upstream, "cell_cycle.rds")
+)
 standalone_candidate <- wrapper_env$si_cache_candidate_dependencies(
   standalone_candidate_dir,
   base_candidate_dependencies,
@@ -1153,7 +1162,7 @@ standalone_candidate <- wrapper_env$si_cache_candidate_dependencies(
   reconstruction_contract,
   fake_generator,
   explicit_rds = candidate_source,
-  upstream_dir = absent_upstream,
+  upstream_dir = standalone_overlap_upstream,
   cellranger_root = stale_h5,
   sample_info = "/archived/sample_info.xlsx"
 )
@@ -1182,7 +1191,7 @@ stopifnot(is.null(wrapper_env$si_cache_candidate_dependencies(
   reconstruction_contract,
   fake_generator,
   explicit_rds = candidate_source,
-  upstream_dir = absent_upstream,
+  upstream_dir = standalone_overlap_upstream,
   cellranger_root = stale_h5,
   sample_info = "/archived/sample_info.xlsx"
 )))

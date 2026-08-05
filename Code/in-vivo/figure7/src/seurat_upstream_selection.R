@@ -65,6 +65,11 @@ figure7_read_standalone_completion <- function(path) {
   stats::setNames(values, keys)
 }
 
+figure7_standalone_completion_contract_sha256 <- function(completion) {
+  stable_fields <- completion[setdiff(names(completion), "completed_at")]
+  figure7_contract_sha256(stable_fields)
+}
+
 figure7_validate_semantic_rds_audit <- function(output_root, final_path) {
   audit_root <- file.path(
     output_root,
@@ -398,7 +403,8 @@ figure7_validate_standalone_seurat_artifact <- function(
     post_filter_r = runtime[["R"]],
     post_filter_seurat = runtime[["Seurat"]],
     post_filter_sif_md5 = tolower(runtime[["active_sif_md5"]]),
-    completion_sha256 = figure7_sha256(completion_path),
+    completion_contract_sha256 =
+      figure7_standalone_completion_contract_sha256(completion),
     semantic_audit_marker_sha256 = semantic_audit$marker_sha256,
     semantic_audit_summary_sha256 = semantic_audit$summary_sha256,
     semantic_audit_identity_sha256 = semantic_audit$identity_sha256,

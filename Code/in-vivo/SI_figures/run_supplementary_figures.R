@@ -586,7 +586,7 @@ si_cache_candidate_dependencies <- function(
     return(NULL)
   }
 
-  if (reconstructed) {
+  if (reconstructed && identical(reconstruction_profile$kind, "legacy")) {
     relevant_upstream_dir <- upstream_dir
     if (nzchar(explicit_rds) && file.exists(explicit_rds)) {
       inferred_upstream_dir <- figure7_infer_seurat_upstream_root(
