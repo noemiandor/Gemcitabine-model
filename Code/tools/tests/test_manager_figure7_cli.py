@@ -215,6 +215,48 @@ input_paths_for_module in_vivo_figure7 "$1"
         self.assertEqual(result.returncode, 2)
         self.assertIn("must be rds or h5", result.stderr)
 
+    def test_generated_candidate_requires_h5_full_refit_and_isolated_root(self) -> None:
+        result = self._run("--publish-generated-candidate")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("requires --mode full-refit", result.stderr)
+
+        result = self._run(
+            "--mode", "full-refit",
+            "--figure7-scrna-source", "h5",
+            "--publish-generated-candidate",
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("explicit isolated --figure-root", result.stderr)
+
+        result = self._run(
+            "--mode", "full-refit",
+            "--figure7-scrna-source", "h5",
+            "--publish-generated-candidate",
+            "--figure-root", str(REPO_ROOT / "figures"),
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("cannot write to the canonical figures root", result.stderr)
+
+    def test_generated_candidate_specs_use_noncanonical_composite_name(self) -> None:
+        specs = panel_specs_for_figure7_variant(
+            17,
+            "Figure7",
+            "generated-candidate",
+        )
+        composite_assets = {
+            str(spec["asset"])
+            for spec in specs
+            if str(spec["panel"]).startswith("7A-7L_composite")
+        }
+        self.assertEqual(
+            composite_assets,
+            {
+                "Figure7_generated_GRCh_candidate.png",
+                "Figure7_generated_GRCh_candidate.pdf",
+            },
+        )
+        self.assertNotIn("Figure7_reviewed_GRCh.png", composite_assets)
+
     def test_rds_scrna_source_plans_full_sif_preflight_and_downstream(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -307,6 +349,7 @@ input_paths_for_module in_vivo_figure7 "$1"
             self.assertIn("status\tFAIL", (gate_dir / "rds_equivalence.tsv").read_text())
 
     def test_standalone_uses_explicit_inputs_and_sample_prefixed_h5(self) -> None:
+        manager_text = (REPO_ROOT / "Manager.sh").read_text()
         shell_text = (
             REPO_ROOT / "Code/in-vivo/scRNA_Seq_analysis/run_cluster_standalone.sh"
         ).read_text()
@@ -324,6 +367,14 @@ input_paths_for_module in_vivo_figure7 "$1"
         self.assertNotIn(
             'file.path(sample_dir, "outs", "filtered_feature_bc_matrix.h5")',
             pipeline_text,
+        )
+        self.assertIn(
+            '${figure7_seurat_upstream_dir}/scRNA_Seq_analysis/00_provenance',
+            manager_text,
+        )
+        self.assertIn(
+            'scRNA_Seq_analysis/00_validation/rds_equivalence.tsv',
+            manager_text,
         )
 
     def test_ae_only_rejects_full_panel_f_analysis(self) -> None:

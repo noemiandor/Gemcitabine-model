@@ -104,11 +104,17 @@ stage needs the final Seurat object, select the source boundary explicitly:
   and skips `Code/in-vivo/scRNA_Seq_analysis`;
 - `--figure7-scrna-source h5` requires the reviewed 18-sample Cell Ranger
   inventory, runs the cluster-SIF/full-SIF standalone workflow, and accepts its
-  final RDS only when its MD5 equals the deposited RDS MD5.
+  final RDS only when its MD5 equals the deposited RDS MD5. Downstream reuse
+  additionally validates the standalone `run_manifest.tsv`,
+  `final_artifact_runtime.tsv`, and `PIPELINE_COMPLETE.txt` chain before the
+  RDS is accepted by Figure 7 or Supplementary Figures.
 
 The complete deposited bundle includes 18 loom files, one final Seurat RDS,
 18 Cell Ranger H5 files, and 11 support/provenance files. All 48 manifest rows
-are size/MD5 validated when selected. The canonical H5 layout is
+are size/MD5 validated when selected. For every Zenodo-hosted object, including
+support/provenance files, the Zenodo manifest/API size and MD5 are the
+authoritative integrity contract; narrative values inside a support document
+are not used as replacement checksums. The canonical H5 layout is
 `Data/in-vivo/figure7/raw/zenodo_21463392/SUM-159/A02_cellRanger/*-Count-HM/outs/*-Count-HM_filtered_feature_bc_matrix.h5`.
 Zenodo publishes the H5 files with flat basenames; the downloader materializes
 each one under its sample-specific canonical directory above.
@@ -141,6 +147,13 @@ silently fall back to the reviewed supplementary cache. The resulting
 `Figure7_generated_GRCh_candidate.{pdf,png}` pair is explicitly noncanonical.
 Only the exact reviewed cache may produce `Figure7_reviewed_GRCh.{pdf,png}` in
 routine mode.
+
+To copy a completed H5 full-refit candidate into a reviewable figure tree,
+use `--publish-generated-candidate` together with an explicit isolated
+`--figure-root`, for example `figures/H5_fullrefit_<run_id>`. This opt-in never
+writes the canonical `figures/` tree, never updates canonical `latest`
+pointers, and records `canonical_publication_allowed=false` in the published
+manifest rows.
 
 The upstream Seurat reconstruction is the exact narrow sequence needed from
 Tao's `01_data.R`, `01a_cell_cycle.R`, `02b_cluster_refine.R`,
@@ -388,7 +401,9 @@ A full-refit run has the same scientific panel mapping but writes
 `Figure7_generated_GRCh_candidate.{pdf,png}`. Its generated supplementary-cache
 manifest, analysis-input manifest, run configuration, and provenance are all
 hash-bound in Figure 7 metadata; `canonical_publication_allowed=false` prevents
-the candidate from being materialized as a manuscript asset.
+the candidate from being materialized as a canonical manuscript asset. It may
+be copied only as an explicitly labeled generated candidate under an isolated
+figure root.
 
 An explicit `--panel-set=a-e`/`--figure7-panels-ae-only` run instead contains
 exactly the first five pairs, records `panel_set=a-e`, and excludes all panel-F

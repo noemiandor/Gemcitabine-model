@@ -10,6 +10,7 @@ mode="standard"
 modules="gdsc,ccle,drug_response,pkpd,metabolomics,in_vivo_figure7,si_figures"
 output_root="Results"
 figure_root="figures"
+figure_root_explicit=false
 module_registry="docs/manuscript_figure_module_registry.tsv"
 overwrite=false
 dry_run=false
@@ -53,6 +54,7 @@ figure7_sample_info_input="Data/in-vivo/sample_info.xlsx"
 figure7_growth_curve_input="Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx"
 figure7_download_missing_raw=true
 figure7_scrna_source=""
+publish_generated_candidate=false
 si_figures_intermediate_dir=""
 si_figures_cbs_dir="Data/in-vivo/scRNAseq_Numbat"
 endpoint_flow_root="Data/in-vivo/flow_cytometry/endpoint_tumors_20250128"
@@ -116,6 +118,7 @@ usage() {
     '  --figure7-growth-curve-input PATH Tumor-volume workbook' \
     '  --figure7-no-download-missing-raw Do not download missing deposited raw files' \
     '  --figure7-scrna-source rds|h5    Use deposited RDS or rebuild from Cell Ranger H5' \
+    '  --publish-generated-candidate    Materialize noncanonical H5 full-refit outputs under an isolated --figure-root' \
     '  --si-figures-intermediate-dir DIR Reusable SI4-7 raw-analysis intermediates' \
     '  --si-figures-cbs-dir DIR          Tracked downstream NUMBAT/CBS matrices' \
     '  --endpoint-flow-crosswalk PATH' \
@@ -132,7 +135,7 @@ while [[ $# -gt 0 ]]; do
     --mode) mode="$2"; shift 2 ;;
     --modules) modules="$2"; shift 2 ;;
     --output-root) output_root="$2"; shift 2 ;;
-    --figure-root) figure_root="$2"; shift 2 ;;
+    --figure-root) figure_root="$2"; figure_root_explicit=true; shift 2 ;;
     --overwrite) overwrite=true; shift ;;
     --jobs) jobs="$2"; shift 2 ;;
     --dry-run) dry_run=true; shift ;;
@@ -181,6 +184,7 @@ while [[ $# -gt 0 ]]; do
     --figure7-growth-curve-input) figure7_growth_curve_input="$2"; shift 2 ;;
     --figure7-no-download-missing-raw) figure7_download_missing_raw=false; shift ;;
     --figure7-scrna-source) figure7_scrna_source="$2"; shift 2 ;;
+    --publish-generated-candidate) publish_generated_candidate=true; shift ;;
     --si-figures-intermediate-dir) si_figures_intermediate_dir="$2"; shift 2 ;;
     --si-figures-cbs-dir) si_figures_cbs_dir="$2"; shift 2 ;;
     --endpoint-flow-crosswalk) endpoint_flow_crosswalk="$2"; shift 2 ;;
@@ -252,6 +256,25 @@ if [[ -n "${figure7_scrna_source}" &&
       "${mode}" != "full-refit" && "${mode}" != "check-only" ]]; then
   echo "--figure7-scrna-source is valid only with --mode full-refit or check-only" >&2
   exit 2
+fi
+if [[ "${publish_generated_candidate}" == true ]]; then
+  if [[ "${mode}" != "full-refit" ||
+        "${figure7_scrna_source}" != "h5" ]]; then
+    echo "--publish-generated-candidate requires --mode full-refit and --figure7-scrna-source h5" >&2
+    exit 2
+  fi
+  if [[ "${figure_root_explicit}" != true ]]; then
+    echo "--publish-generated-candidate requires an explicit isolated --figure-root" >&2
+    exit 2
+  fi
+  canonical_figure_root="$(
+    python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' \
+      "${figure_root}"
+  )"
+  if [[ "${canonical_figure_root}" == "${repo_root}/figures" ]]; then
+    echo "--publish-generated-candidate cannot write to the canonical figures root" >&2
+    exit 2
+  fi
 fi
 if [[ -z "${si_figures_intermediate_dir}" ]]; then
   si_figures_intermediate_dir="${output_root}/in-vivo/SI_figures/intermediates"
@@ -343,6 +366,7 @@ figure7_scrna_is_selected() {
 figure7_scrna_full_sif=""
 figure7_scrna_cluster_sif=""
 figure7_active_scrna_rds=""
+figure7_apptainer_ca_args=()
 
 prepare_figure7_scrna_runtime() {
   figure7_scrna_is_selected || return 0
@@ -364,12 +388,25 @@ prepare_figure7_scrna_runtime() {
     echo "apptainer is required when --figure7-scrna-source is used" >&2
     return 1
   fi
+  local host_ca_bundle="${FIGURE7_HOST_CA_BUNDLE:-}"
+  if [[ -z "${host_ca_bundle}" &&
+        -f /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem ]]; then
+    host_ca_bundle="/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
+  fi
+  if [[ -n "${host_ca_bundle}" ]]; then
+    require_file "${host_ca_bundle}"
+    figure7_apptainer_ca_args=(
+      --bind
+      "${host_ca_bundle}:/etc/ssl/certs/ca-certificates.crt:ro"
+    )
+  fi
 }
 
 figure7_full_sif_command() {
   local inner_command="$1"
   quote_args \
     apptainer exec --cleanenv \
+    "${figure7_apptainer_ca_args[@]}" \
     "${figure7_scrna_full_sif}" \
     bash -lc "${inner_command}"
 }
@@ -449,6 +486,7 @@ prepare_figure7_scrna_source() {
   fi
   local download_command=(
     apptainer exec --cleanenv
+    "${figure7_apptainer_ca_args[@]}"
     "${figure7_scrna_full_sif}"
     Rscript --vanilla Code/in-vivo/figure7/download_figure7_raw_data.R
     "--raw-data-dir=${figure7_raw_data_dir}"
@@ -706,6 +744,15 @@ figure7_runtime_source_paths() {
     Code/in-vivo/figure7/src/state_pathway_analysis.R
 }
 
+figure7_standalone_provenance_paths() {
+  local provenance_root="${figure7_seurat_upstream_dir}/scRNA_Seq_analysis/00_provenance"
+  printf "%s\n" \
+    "${provenance_root}/run_manifest.tsv" \
+    "${provenance_root}/final_artifact_runtime.tsv" \
+    "${provenance_root}/PIPELINE_COMPLETE.txt" \
+    "${figure7_seurat_upstream_dir}/scRNA_Seq_analysis/00_validation/rds_equivalence.tsv"
+}
+
 figure7_stage_was_executed() {
   local executed_stages="$1"
   local expected_stage="$2"
@@ -799,6 +846,7 @@ input_paths_for_module() {
             Code/in-vivo/scRNA_Seq_analysis/run_cluster_standalone.sh \
             Code/in-vivo/scRNA_Seq_analysis/cluster_pipeline_standalone.R \
             Code/in-vivo/scRNA_Seq_analysis/bootstrap_dependencies.R
+          figure7_standalone_provenance_paths
         fi
       fi
       if [[ "${figure7_endpoint_cbs_score_will_be_derived:-false}" == true ]]; then
@@ -1167,6 +1215,9 @@ input_paths_for_module() {
           "${figure7_active_scrna_rds}"
         if [[ -d "${figure7_raw_data_dir}/support" ]]; then
           find "${figure7_raw_data_dir}/support" -type f -print
+        fi
+        if [[ "${figure7_scrna_source}" == "h5" ]]; then
+          figure7_standalone_provenance_paths
         fi
       fi
       local rendered_input_manifest="${run_dir}/metadata/analysis_input_manifest.tsv"
@@ -1808,6 +1859,14 @@ module_is_publishable_run() {
             "${si_cache_hash}" == "b624c3f3ff945c51f09b9e6e512a97df57eb4e514b3fba28a65e97a38207f135" ]]; then
         return 0
       fi
+      if [[ "${publish_generated_candidate}" == true &&
+            "${allowed}" == "false" &&
+            "${composite_set}" == "a-l" &&
+            "${composite_file}" == "Figure7_generated_GRCh_candidate.png" &&
+            "${context_policy}" == "generated-human-only" ]]; then
+        module_publication_reason="generated_candidate_explicitly_allowed"
+        return 0
+      fi
       module_publication_reason="figure7_not_exact_reviewed_a_l_composite"
       return 1
       ;;
@@ -1815,6 +1874,11 @@ module_is_publishable_run() {
       local allowed
       allowed="$(metadata_value "${run_config}" si7_canonical_publication_allowed)" || true
       if [[ "${allowed}" == "true" ]]; then
+        return 0
+      fi
+      if [[ "${publish_generated_candidate}" == true &&
+            "${allowed}" == "false" ]]; then
+        module_publication_reason="generated_candidate_explicitly_allowed"
         return 0
       fi
       module_publication_reason="noncanonical_generated_human_only_SI7"
@@ -1936,10 +2000,20 @@ run_module() {
       module_notes="${module_notes};"
     fi
     module_notes="${module_notes}canonical_publication_allowed=false;publication_skip_reason=${module_publication_reason}"
+  elif [[ "${publish_generated_candidate}" == true &&
+          ( "${module}" == "in_vivo_figure7" || "${module}" == "si_figures" ) ]]; then
+    recorded_status="ok_noncanonical_candidate"
+    if [[ -n "${module_notes}" ]]; then
+      module_notes="${module_notes};"
+    fi
+    module_notes="${module_notes}canonical_publication_allowed=false;publication_kind=generated_candidate"
   fi
 
   if [[ "${no_update_latest}" != true && "${last_module_publishable}" == true ]]; then
-    write_latest "${module}" "${run_dir}" "${command_string}"
+    if [[ "${publish_generated_candidate}" != true ||
+          ( "${module}" != "in_vivo_figure7" && "${module}" != "si_figures" ) ]]; then
+      write_latest "${module}" "${run_dir}" "${command_string}"
+    fi
   fi
   record_module_run "${module}" "${recorded_status}" "${command_string}" "${run_dir}" "${stdout_log}" "${stderr_log}" "${module_notes}" "${started_at}" "${finished_at}"
 }
@@ -2091,6 +2165,9 @@ if [[ "${mode}" != "check-only" && "${dry_run}" != true ]]; then
     --operation-id "${run_id}"
     --overwrite
   )
+  if [[ "${publish_generated_candidate}" == true ]]; then
+    materialize_args+=(--publication-kind generated-candidate)
+  fi
   for i in "${!completed_modules[@]}"; do
     materialize_args+=(--module-run "${completed_modules[$i]}=${completed_run_dirs[$i]}")
   done

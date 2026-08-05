@@ -1280,3 +1280,106 @@ testthat::test_that("trimmed upstream source excludes non-figure diagnostics", {
   }
   testthat::expect_false(any(grepl("/Volumes/", source_text, fixed = TRUE)))
 })
+
+testthat::test_that("standalone cluster completion chain is reusable downstream", {
+  root <- tempfile("standalone_cluster_")
+  provenance <- file.path(root, "00_provenance")
+  object_dir <- file.path(root, "03_final_cluster", "03_objects")
+  h5_root <- file.path(root, "raw", "SUM-159", "A02_cellRanger")
+  dir.create(provenance, recursive = TRUE)
+  dir.create(object_dir, recursive = TRUE)
+  h5_paths <- vapply(sprintf("sample%02d", seq_len(18L)), function(sample) {
+    path <- file.path(
+      h5_root,
+      paste0(sample, "-Count-HM"),
+      "outs",
+      paste0(sample, "-Count-HM_filtered_feature_bc_matrix.h5")
+    )
+    dir.create(dirname(path), recursive = TRUE)
+    writeBin(charToRaw(paste0("h5-", sample)), path)
+    path
+  }, character(1))
+  all_ploidy <- file.path(root, "all_ploidy.tsv")
+  sample_info <- file.path(root, "sample_info.xlsx")
+  writeLines("cell\tploidy", all_ploidy)
+  writeBin(charToRaw("xlsx fixture"), sample_info)
+  inputs <- c(h5_paths, all_ploidy, sample_info)
+  input_types <- c(
+    rep("filtered_feature_bc_matrix.h5", 18L),
+    "all_ploidy.tsv",
+    "sample_info.xlsx"
+  )
+  run_manifest <- data.frame(
+    input_type = input_types,
+    path = normalizePath(inputs, mustWork = TRUE),
+    size_bytes = as.character(file.info(inputs)$size),
+    md5 = unname(tools::md5sum(inputs)),
+    modified_time = rep("2026-08-05T00:00:00-0400", 20L),
+    stringsAsFactors = FALSE
+  )
+  utils::write.table(
+    run_manifest,
+    file.path(provenance, "run_manifest.tsv"),
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+  final_rds <- file.path(
+    object_dir,
+    "integrated_sct_cca_seurat_final_reclustered.rds"
+  )
+  writeBin(charToRaw("standalone rds fixture"), final_rds)
+  runtime <- c(
+    status = "PASS",
+    phase = "post_filter",
+    active_sif_md5 = paste(rep("a", 32L), collapse = ""),
+    R = "4.5.0",
+    Seurat = "5.3.0",
+    final_object = normalizePath(final_rds, mustWork = TRUE),
+    final_object_size_bytes = as.character(file.info(final_rds)$size),
+    final_object_md5 = unname(tools::md5sum(final_rds))
+  )
+  utils::write.table(
+    data.frame(field = names(runtime), value = unname(runtime)),
+    file.path(provenance, "final_artifact_runtime.tsv"),
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+  writeLines(
+    c(
+      "status=PASS",
+      "final_object=03_final_cluster/03_objects/integrated_sct_cca_seurat_final_reclustered.rds"
+    ),
+    file.path(provenance, "PIPELINE_COMPLETE.txt")
+  )
+
+  validation <- figure7_validate_standalone_seurat_artifact(
+    output_root = root,
+    module_dir = module_dir,
+    all_ploidy = all_ploidy,
+    sample_info = sample_info,
+    expected_rds = final_rds,
+    cellranger_root = h5_root
+  )
+  testthat::expect_true(validation$valid)
+  testthat::expect_identical(validation$rds, normalizePath(final_rds))
+  testthat::expect_length(validation$dependencies, 20L)
+  testthat::expect_identical(
+    figure7_infer_seurat_upstream_root(final_rds),
+    normalizePath(root)
+  )
+
+  writeLines("tampered", h5_paths[[1L]])
+  testthat::expect_error(
+    figure7_validate_standalone_seurat_artifact(
+      output_root = root,
+      module_dir = module_dir,
+      all_ploidy = all_ploidy,
+      sample_info = sample_info,
+      expected_rds = final_rds,
+      cellranger_root = h5_root
+    ),
+    "size/MD5 verification failed"
+  )
+})

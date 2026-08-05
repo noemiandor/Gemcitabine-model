@@ -497,7 +497,7 @@ figure7_read_config <- function(path, tgi_day = NULL) {
       !identical(as.integer(config$raw_data$required_loom_files), 18L) ||
       !identical(
         as.character(config$raw_data$seurat_rds_sha256),
-        "727b8a5e5868da911c3b0873838fb1b0023377ed21ea5498dc6493acbbef6d98"
+        "4dfd2da22d664c58c38bffe1a721d5572ba8a64422ee6d043175b055a4a10348"
       )) {
     figure7_stop("Figure 7 raw-data contract is not the reviewed Zenodo record")
   }

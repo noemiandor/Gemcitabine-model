@@ -194,6 +194,10 @@ recorded in the run metadata. The exact approved retry3 SI7 matrices are now
 the reviewed routine cache. Future raw-rebuilt matrices and composites remain
 marked `canonical_publication_allowed=false`; they cannot overwrite or
 impersonate the reviewed cache without a new explicit promotion.
+For review, an H5 full-refit may copy these composites only when Manager is
+given `--publish-generated-candidate` and an explicit isolated `--figure-root`;
+the resulting manifest rows remain noncanonical and canonical `latest`
+pointers are not changed.
 
 Individual subpanels are constructed in memory as part of each composite and
 are not published as duplicate derivatives.
