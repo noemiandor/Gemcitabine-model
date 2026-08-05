@@ -314,3 +314,96 @@ testthat::test_that("verified local download atomically replaces corrupt cache",
   testthat::expect_identical(reused$reused, 1L)
   testthat::expect_identical(reused$audit$action, "reused")
 })
+
+testthat::test_that("support files are materialized and verified under support", {
+  root <- tempfile("support_download_contract_")
+  dir.create(root)
+  source <- file.path(root, "source_readme.md")
+  writeChar("reviewed support bytes", source, eos = NULL)
+  raw_root <- file.path(root, "raw")
+  manifest <- data.frame(
+    role = "support",
+    filename = "readme.md",
+    size_bytes = as.numeric(file.info(source)$size),
+    md5 = unname(tools::md5sum(source)),
+    sha256 = figure7_sha256(source),
+    url = paste0("file://", normalizePath(source, mustWork = TRUE)),
+    stringsAsFactors = FALSE
+  )
+  manifest_path <- file.path(root, "manifest.tsv")
+  utils::write.table(
+    manifest,
+    manifest_path,
+    sep = "\t",
+    row.names = FALSE,
+    quote = FALSE
+  )
+
+  result <- download_env$download_figure7_raw_data(
+    raw_data_dir = raw_root,
+    manifest_path = manifest_path,
+    roles = "support",
+    aria2_bin = "",
+    wget_bin = "",
+    curl_bin = "",
+    download_workers = 1L,
+    connections_per_file = 1L,
+    allow_download = TRUE
+  )
+  target <- file.path(raw_root, "support", "readme.md")
+  testthat::expect_true(file.exists(target))
+  testthat::expect_identical(result$audit$path, "support/readme.md")
+  testthat::expect_identical(
+    unname(tools::md5sum(target)),
+    manifest$md5
+  )
+})
+
+testthat::test_that("Cell Ranger H5 files are materialized under canonical sample paths", {
+  root <- tempfile("cellranger_h5_download_contract_")
+  dir.create(root)
+  filename <- "2N-A1-0-Count-HM_filtered_feature_bc_matrix.h5"
+  source <- file.path(root, filename)
+  writeChar("reviewed H5 fixture bytes", source, eos = NULL)
+  raw_root <- file.path(root, "raw")
+  manifest <- data.frame(
+    role = "cellranger_h5",
+    filename = filename,
+    size_bytes = as.numeric(file.info(source)$size),
+    md5 = unname(tools::md5sum(source)),
+    sha256 = figure7_sha256(source),
+    url = paste0("file://", normalizePath(source, mustWork = TRUE)),
+    stringsAsFactors = FALSE
+  )
+  manifest_path <- file.path(root, "manifest.tsv")
+  utils::write.table(
+    manifest,
+    manifest_path,
+    sep = "\t",
+    row.names = FALSE,
+    quote = FALSE
+  )
+
+  result <- download_env$download_figure7_raw_data(
+    raw_data_dir = raw_root,
+    manifest_path = manifest_path,
+    roles = "cellranger_h5",
+    aria2_bin = "",
+    wget_bin = "",
+    curl_bin = "",
+    download_workers = 1L,
+    connections_per_file = 1L,
+    allow_download = TRUE
+  )
+  target <- file.path(
+    raw_root, "SUM-159", "A02_cellRanger", "2N-A1-0-Count-HM", "outs", filename
+  )
+  testthat::expect_true(file.exists(target))
+  testthat::expect_identical(
+    result$audit$path,
+    file.path(
+      "SUM-159", "A02_cellRanger", "2N-A1-0-Count-HM", "outs", filename
+    )
+  )
+  testthat::expect_identical(unname(tools::md5sum(target)), manifest$md5)
+})

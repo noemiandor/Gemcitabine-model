@@ -10,12 +10,16 @@ other downstream analyses.
 ```bash
 CLUSTER_STANDALONE_PRE_FILTER_SIF=/path/to/gemcitabine-model_in-vivo-cluster-r4.5.1.sif \
 CLUSTER_STANDALONE_POST_FILTER_SIF=/path/to/gemcitabine-model_full.sif \
-  bash run_cluster_standalone.sh INPUT_DIR /path/to/Results/scRNA_Seq_analysis
+  bash run_cluster_standalone.sh \
+    Data/in-vivo/figure7/raw/zenodo_21463392/SUM-159/A02_cellRanger \
+    Data/in-vivo/all_ploidy.tsv \
+    Data/in-vivo/sample_info.xlsx \
+    /path/to/Results/scRNA_Seq_analysis
 ```
 
-The public interface still has exactly two positional arguments: the input
-directory and the output directory. Pass the desired `scRNA_Seq_analysis`
-result directory as the second argument. The two SIF
+The public interface has four explicit positional arguments: the Cell Ranger
+root, endpoint-ploidy TSV, sample metadata workbook, and output directory. This
+avoids recursive, machine-dependent input discovery. The two SIF
 paths are runtime parameters supplied at the call site; neither image path is
 hard-coded in the scripts. The entry point executes two phases in order:
 
@@ -29,20 +33,18 @@ hard-coded in the scripts. The entry point executes two phases in order:
 The verified post-filter contract is R 4.5.0, Seurat 4.4.0, uwot 0.2.4,
 irlba 2.3.7, and readr 2.2.0. The phase stops on a version mismatch.
 
-`INPUT_DIR` must contain exactly the required source locations:
+The Cell Ranger root must contain exactly the reviewed 18-sample inventory:
 
 ```text
-INPUT_DIR/
-├── .../
-│   └── A02_cellRanger/
-│       └── *-Count-HM/outs/filtered_feature_bc_matrix.h5
-├── all_ploidy.tsv
-└── sample_info.xlsx
+A02_cellRanger/
+└── *-Count-HM/
+    └── outs/
+        └── *-Count-HM_filtered_feature_bc_matrix.h5
 ```
 
-`A02_cellRanger` may be nested below `INPUT_DIR` (for example under a model
-name), but exactly one such directory must be present. The two auxiliary files
-must be directly under `INPUT_DIR`.
+The H5 basename must equal the sample-directory basename plus
+`_filtered_feature_bc_matrix.h5`. The two auxiliary files are supplied
+explicitly and are not copied below the raw-data cache.
 
 The workflow does not read any external pre-existing Seurat object, DEG table,
 QC flag table, annotation result, or gene-set result. A retry with the same
@@ -54,7 +56,7 @@ was produced by the configured full SIF with the exact post-filter package
 versions. Final DEG caches are reusable only within a matching full-SIF DEG
 runtime contract. Unproven older final outputs cause a safe stop and must be
 archived before rerunning.
-Paths are supplied only through the two positional arguments above; no
+Paths are supplied only through the four positional arguments above; no
 machine-specific input or output path is embedded in the source.
 
 During `pre_filter`, the entry point creates a runtime-specific private library

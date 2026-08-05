@@ -278,12 +278,14 @@ testthat::test_that("Zenodo manifest pins the complete raw Figure 7 deposit", {
     stringsAsFactors = FALSE,
     colClasses = "character"
   )
-  testthat::expect_equal(nrow(manifest), 19L)
+  testthat::expect_equal(nrow(manifest), 48L)
   testthat::expect_equal(sum(manifest$role == "loom"), 18L)
   testthat::expect_equal(sum(manifest$role == "seurat_rds"), 1L)
+  testthat::expect_equal(sum(manifest$role == "cellranger_h5"), 18L)
+  testthat::expect_equal(sum(manifest$role == "support"), 11L)
   testthat::expect_equal(
     sum(as.numeric(manifest$size_bytes)),
-    11395115098
+    12414936215
   )
   testthat::expect_true(all(grepl("^[0-9a-f]{32}$", manifest$md5)))
   testthat::expect_true(all(basename(manifest$filename) == manifest$filename))

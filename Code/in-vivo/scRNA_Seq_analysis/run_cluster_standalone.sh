@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "$#" -ne 2 ]]; then
-  echo "Usage: $0 INPUT_DIR OUTPUT_DIR" >&2
+if [[ "$#" -ne 4 ]]; then
+  echo "Usage: $0 CELLRANGER_ROOT ALL_PLOIDY_TSV SAMPLE_INFO_XLSX OUTPUT_DIR" >&2
   exit 64
 fi
 
-input_dir="$1"
-output_dir="$2"
+cellranger_root="$1"
+all_ploidy_tsv="$2"
+sample_info_xlsx="$3"
+output_dir="$4"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 phase="${CLUSTER_STANDALONE_PHASE:-orchestrate}"
 
@@ -36,13 +38,15 @@ if [[ "${phase}" == "orchestrate" ]]; then
     --env CLUSTER_STANDALONE_PHASE=pre_filter \
     --env CLUSTER_STANDALONE_ACTIVE_SIF="${pre_filter_sif}" \
     "${pre_filter_sif}" \
-    bash "${script_dir}/run_cluster_standalone.sh" "${input_dir}" "${output_dir}"
+    bash "${script_dir}/run_cluster_standalone.sh" \
+      "${cellranger_root}" "${all_ploidy_tsv}" "${sample_info_xlsx}" "${output_dir}"
 
   apptainer exec --cleanenv \
     --env CLUSTER_STANDALONE_PHASE=post_filter \
     --env CLUSTER_STANDALONE_ACTIVE_SIF="${post_filter_sif}" \
     "${post_filter_sif}" \
-    bash "${script_dir}/run_cluster_standalone.sh" "${input_dir}" "${output_dir}"
+    bash "${script_dir}/run_cluster_standalone.sh" \
+      "${cellranger_root}" "${all_ploidy_tsv}" "${sample_info_xlsx}" "${output_dir}"
   exit 0
 fi
 
@@ -58,7 +62,9 @@ if [[ "${phase}" == "post_filter" ]]; then
   export R_LIBS_USER="${post_filter_empty_library}"
   unset CLUSTER_STANDALONE_R_LIBRARY R_MAKEVARS_USER MAKEFLAGS || true
   exec Rscript --vanilla "${script_dir}/cluster_pipeline_standalone.R" \
-    "${input_dir}" \
+    "${cellranger_root}" \
+    "${all_ploidy_tsv}" \
+    "${sample_info_xlsx}" \
     "${output_dir}" \
     "${phase}"
 fi
@@ -94,6 +100,8 @@ Rscript --vanilla "${script_dir}/bootstrap_dependencies.R" \
   "${script_dir}/vendor"
 
 exec Rscript --vanilla "${script_dir}/cluster_pipeline_standalone.R" \
-  "${input_dir}" \
+  "${cellranger_root}" \
+  "${all_ploidy_tsv}" \
+  "${sample_info_xlsx}" \
   "${output_dir}" \
   "${phase}"

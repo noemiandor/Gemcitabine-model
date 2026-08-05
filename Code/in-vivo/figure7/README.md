@@ -98,14 +98,20 @@ before `in_vivo_figure7`, even if only the latter was listed. It first validates
 corrected generated caches; the reviewed frozen panel-7F reference and reviewed
 SI plot-only cache do not satisfy an explicit full refit. A complete,
 lineage-valid generated cache avoids raw-data access. When a missing downstream
-stage needs the final Seurat object, there are two supported source boundaries:
+stage needs the final Seurat object, select the source boundary explicitly:
 
-- pass `--figure7-cellranger-root /path/to/cellranger` to reconstruct the final
-  object from the 18 `filtered_feature_bc_matrix.h5` inputs and reuse the five
-  fingerprinted Seurat stages under the shared
-  `--figure7-seurat-upstream-dir`; or
-- omit that option to reuse or download the deposited final Seurat RDS pinned
-  by `zenodo_required_files.tsv`.
+- `--figure7-scrna-source rds` validates or downloads the deposited final RDS
+  and skips `Code/in-vivo/scRNA_Seq_analysis`;
+- `--figure7-scrna-source h5` requires the reviewed 18-sample Cell Ranger
+  inventory, runs the cluster-SIF/full-SIF standalone workflow, and accepts its
+  final RDS only when its MD5 equals the deposited RDS MD5.
+
+The complete deposited bundle includes 18 loom files, one final Seurat RDS,
+18 Cell Ranger H5 files, and 11 support/provenance files. All 48 manifest rows
+are size/MD5 validated when selected. The canonical H5 layout is
+`Data/in-vivo/figure7/raw/zenodo_21463392/SUM-159/A02_cellRanger/*-Count-HM/outs/*-Count-HM_filtered_feature_bc_matrix.h5`.
+Zenodo publishes the H5 files with flat basenames; the downloader materializes
+each one under its sample-specific canonical directory above.
 
 Figure 7A-7D additionally reuse or download the 18 deposited loom files. Source
 panel 7E/main panel L binds the complete combined CBS inventory; in
@@ -113,7 +119,9 @@ panel 7E/main panel L binds the complete combined CBS inventory; in
 16 CBS matrices and requires it to reproduce the canonical checksum. It then
 restricts scoring to exact file+barcode keys retained in the final Seurat tumor
 universe and represented by the two processed tables. The
-complete Zenodo fallback is about 10.61 GiB. Manager then runs only the missing
+complete Zenodo deposit is about 11.56 GiB. The RDS workflow selects the loom,
+RDS, and support roles without downloading the alternative H5 inputs. Manager
+then runs only the missing
 figure-facing stages:
 
 1. reconstruct or validate the shared final Seurat object when required;
@@ -171,8 +179,9 @@ is unavailable.
 
 The endpoint-ploidy table, sample workbook, and growth-curve workbook are
 versioned source artifacts. Their revision and SHA-256 values are pinned in
-`figure7_config.yaml`. Raw downloads and generated intermediates stay below
-`Results/`; they are not publication inputs and are not committed.
+`figure7_config.yaml`. Deposited raw inputs stay below
+`Data/in-vivo/figure7/raw/zenodo_21463392`; generated intermediates stay below
+`Results/`. Neither is a publication input or committed.
 If the reduced endpoint-ploidy TSV is missing while the 16 reviewed CBS files
 are present, Manager regenerates the exact checksum-pinned table in the current
 run's artifact directory and reuses it without modifying tracked inputs.

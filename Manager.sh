@@ -52,6 +52,7 @@ figure7_endpoint_cbs_score_will_be_derived=false
 figure7_sample_info_input="Data/in-vivo/sample_info.xlsx"
 figure7_growth_curve_input="Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx"
 figure7_download_missing_raw=true
+figure7_scrna_source=""
 si_figures_intermediate_dir=""
 si_figures_cbs_dir="Data/in-vivo/scRNAseq_Numbat"
 endpoint_flow_root="Data/in-vivo/flow_cytometry/endpoint_tumors_20250128"
@@ -67,62 +68,61 @@ figure7_reference_root="${figure7_canonical_reference_root}"
 skip_analysis_loop=false
 
 usage() {
-  cat <<'EOF'
-Usage: bash Manager.sh [options]
-
-Core options:
-  --run-id ID
-  --source-run-id ID              Required only for panels-only; immutable source manager run
-  --mode check-only|saved-fit|standard|full-refit|panels-only
-  --modules comma,separated,names
-  --output-root DIR
-  --figure-root DIR
-  --overwrite
-  --jobs N
-  --dry-run
-  --check-inputs                 Alias for --mode check-only
-  --no-update-latest
-
-Module options:
-  --gdsc-analysis-mode dev|manuscript
-  --gdsc-enrichment-permute-n N
-  --gdsc-drug-class-workbook PATH
-  --pkpd-saved-fit PATH
-  --pkpd-refit
-  --pkpd-smoke-fit
-  --pkpd-fit-output PATH
-  --refresh-cloneid-ploidy
-  --lci-analysis-dir PATH
-  --lci-render
-  --lci-panel-only
-  --metabolomics-input PATH
-  --figure7-full-analysis          Opt-in legacy pinned-artifact pathway recomputation
-  --figure7-panels-ae-only         Generate/materialize an explicit 7A-7E-only panel set
-  --figure7-tgi-day DAY            TGI endpoint day (default: 17)
-  --figure7-figure-name NAME       Materialization folder under --figure-root (default: Figure7)
-  --figure7-intermediate-dir DIR    Reusable Figure 7 raw-analysis intermediates
-  --figure7-raw-data-dir DIR        Verified Zenodo download/cache directory
-  --figure7-loom-root DIR           Explicit local loom directory instead of Zenodo cache
-  --figure7-cellranger-root DIR     Cell Ranger filtered-feature H5 root for earliest-source reconstruction
-  --figure7-seurat-upstream-dir DIR Shared reusable Seurat reconstruction cache for Figure 7 and SI4-7
-  --figure7-seurat-rds ABSOLUTE_PATH
-  --figure7-gene-set-artifact PATH  Pinned, versioned local gene-set artifact for --figure7-full-analysis
-  --figure7-raw-seurat-rds PATH     Explicit deposited Seurat RDS instead of Zenodo cache
-  --figure7-python PATH             Python with scVelo dependencies
-  --figure7-cell-ploidy-input PATH  Endpoint-ploidy input
-  --figure7-endpoint-cbs-score-input PATH
-                                  Complete CBS inventory backing the QC-passed Figure 7L/SI8 score
-  --figure7-sample-info-input PATH  Sample metadata workbook
-  --figure7-growth-curve-input PATH Tumor-volume workbook
-  --figure7-no-download-missing-raw Do not download missing deposited raw files
-  --si-figures-intermediate-dir DIR Reusable SI4-7 raw-analysis intermediates
-  --si-figures-cbs-dir DIR       Tracked downstream NUMBAT/CBS matrices for Figure 7J
-  --endpoint-flow-crosswalk PATH Explicit 16-mouse endpoint-flow crosswalk
-  --endpoint-flow-paired-sensitivity PATH Unresolved paired-acquisition mapping
-  --endpoint-flow-workspace PATH Reviewed FlowJo workspace for endpoint tumors
-  --endpoint-flow-fcs-dir DIR    Directory containing the 16 selected FCS files
-  --endpoint-flow-input-manifest PATH Pinned size/SHA-256 manifest for selected inputs
-EOF
+  printf '%s\n' \
+    'Usage: bash Manager.sh [options]' \
+    '' \
+    'Core options:' \
+    '  --run-id ID' \
+    '  --source-run-id ID              Required only for panels-only; immutable source manager run' \
+    '  --mode check-only|saved-fit|standard|full-refit|panels-only' \
+    '  --modules comma,separated,names' \
+    '  --output-root DIR' \
+    '  --figure-root DIR' \
+    '  --overwrite' \
+    '  --jobs N' \
+    '  --dry-run' \
+    '  --check-inputs                  Alias for --mode check-only' \
+    '  --no-update-latest' \
+    '' \
+    'Module options:' \
+    '  --gdsc-analysis-mode dev|manuscript' \
+    '  --gdsc-enrichment-permute-n N' \
+    '  --gdsc-drug-class-workbook PATH' \
+    '  --pkpd-saved-fit PATH' \
+    '  --pkpd-refit' \
+    '  --pkpd-smoke-fit' \
+    '  --pkpd-fit-output PATH' \
+    '  --refresh-cloneid-ploidy' \
+    '  --lci-analysis-dir PATH' \
+    '  --lci-render' \
+    '  --lci-panel-only' \
+    '  --metabolomics-input PATH' \
+    '  --figure7-full-analysis          Opt-in legacy pinned-artifact pathway recomputation' \
+    '  --figure7-panels-ae-only         Generate/materialize an explicit 7A-7E-only panel set' \
+    '  --figure7-tgi-day DAY            TGI endpoint day (default: 17)' \
+    '  --figure7-figure-name NAME       Materialization folder under --figure-root (default: Figure7)' \
+    '  --figure7-intermediate-dir DIR    Reusable Figure 7 raw-analysis intermediates' \
+    '  --figure7-raw-data-dir DIR        Verified Zenodo download/cache directory' \
+    '  --figure7-loom-root DIR           Explicit local loom directory instead of Zenodo cache' \
+    '  --figure7-cellranger-root DIR     Cell Ranger filtered-feature H5 root' \
+    '  --figure7-seurat-upstream-dir DIR Shared reusable Seurat reconstruction cache' \
+    '  --figure7-seurat-rds ABSOLUTE_PATH' \
+    '  --figure7-gene-set-artifact PATH  Pinned local gene-set artifact for --figure7-full-analysis' \
+    '  --figure7-raw-seurat-rds PATH     Explicit deposited Seurat RDS' \
+    '  --figure7-python PATH             Python with scVelo dependencies' \
+    '  --figure7-cell-ploidy-input PATH  Endpoint-ploidy input' \
+    '  --figure7-endpoint-cbs-score-input PATH' \
+    '  --figure7-sample-info-input PATH  Sample metadata workbook' \
+    '  --figure7-growth-curve-input PATH Tumor-volume workbook' \
+    '  --figure7-no-download-missing-raw Do not download missing deposited raw files' \
+    '  --figure7-scrna-source rds|h5    Use deposited RDS or rebuild from Cell Ranger H5' \
+    '  --si-figures-intermediate-dir DIR Reusable SI4-7 raw-analysis intermediates' \
+    '  --si-figures-cbs-dir DIR          Tracked downstream NUMBAT/CBS matrices' \
+    '  --endpoint-flow-crosswalk PATH' \
+    '  --endpoint-flow-paired-sensitivity PATH' \
+    '  --endpoint-flow-workspace PATH' \
+    '  --endpoint-flow-fcs-dir DIR' \
+    '  --endpoint-flow-input-manifest PATH'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -180,6 +180,7 @@ while [[ $# -gt 0 ]]; do
     --figure7-sample-info-input) figure7_sample_info_input="$2"; shift 2 ;;
     --figure7-growth-curve-input) figure7_growth_curve_input="$2"; shift 2 ;;
     --figure7-no-download-missing-raw) figure7_download_missing_raw=false; shift ;;
+    --figure7-scrna-source) figure7_scrna_source="$2"; shift 2 ;;
     --si-figures-intermediate-dir) si_figures_intermediate_dir="$2"; shift 2 ;;
     --si-figures-cbs-dir) si_figures_cbs_dir="$2"; shift 2 ;;
     --endpoint-flow-crosswalk) endpoint_flow_crosswalk="$2"; shift 2 ;;
@@ -240,7 +241,17 @@ if [[ -z "${figure7_seurat_upstream_dir}" ]]; then
   figure7_seurat_upstream_dir="${figure7_intermediate_dir}/seurat_upstream"
 fi
 if [[ -z "${figure7_raw_data_dir}" ]]; then
-  figure7_raw_data_dir="${output_root}/in-vivo/figure7/raw/zenodo_21463392"
+  figure7_raw_data_dir="Data/in-vivo/figure7/raw/zenodo_21463392"
+fi
+
+case "${figure7_scrna_source}" in
+  ""|rds|h5) ;;
+  *) echo "--figure7-scrna-source must be rds or h5" >&2; exit 2 ;;
+esac
+if [[ -n "${figure7_scrna_source}" &&
+      "${mode}" != "full-refit" && "${mode}" != "check-only" ]]; then
+  echo "--figure7-scrna-source is valid only with --mode full-refit or check-only" >&2
+  exit 2
 fi
 if [[ -z "${si_figures_intermediate_dir}" ]]; then
   si_figures_intermediate_dir="${output_root}/in-vivo/SI_figures/intermediates"
@@ -316,6 +327,186 @@ require_dir() {
     echo "Missing required directory: ${path}" >&2
     return 1
   fi
+}
+
+figure7_scrna_is_selected() {
+  [[ -n "${figure7_scrna_source}" ]] || return 1
+  local selected_module
+  for selected_module in "${module_list[@]}"; do
+    case "${selected_module}" in
+      in_vivo_figure7|si_figures) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+figure7_scrna_full_sif=""
+figure7_scrna_cluster_sif=""
+figure7_active_scrna_rds=""
+
+prepare_figure7_scrna_runtime() {
+  figure7_scrna_is_selected || return 0
+  figure7_scrna_full_sif="${CLUSTER_STANDALONE_POST_FILTER_SIF:-}"
+  figure7_scrna_cluster_sif="${CLUSTER_STANDALONE_PRE_FILTER_SIF:-}"
+  if [[ -z "${figure7_scrna_full_sif}" ]]; then
+    echo "CLUSTER_STANDALONE_POST_FILTER_SIF must point to the full SIF when --figure7-scrna-source is used" >&2
+    return 1
+  fi
+  require_file "${figure7_scrna_full_sif}"
+  if [[ "${figure7_scrna_source}" == "h5" ]]; then
+    if [[ -z "${figure7_scrna_cluster_sif}" ]]; then
+      echo "CLUSTER_STANDALONE_PRE_FILTER_SIF must point to the cluster SIF for --figure7-scrna-source h5" >&2
+      return 1
+    fi
+    require_file "${figure7_scrna_cluster_sif}"
+  fi
+  if ! command -v apptainer >/dev/null 2>&1; then
+    echo "apptainer is required when --figure7-scrna-source is used" >&2
+    return 1
+  fi
+}
+
+figure7_full_sif_command() {
+  local inner_command="$1"
+  quote_args \
+    apptainer exec --cleanenv \
+    "${figure7_scrna_full_sif}" \
+    bash -lc "${inner_command}"
+}
+
+portable_md5() {
+  local path="$1"
+  if command -v md5sum >/dev/null 2>&1; then
+    md5sum "${path}" | awk '{print $1}'
+  else
+    md5 -q "${path}"
+  fi
+}
+
+require_sha256() {
+  local path="$1"
+  local expected="$2"
+  local label="$3"
+  require_file "${path}"
+  local observed
+  if command -v sha256sum >/dev/null 2>&1; then
+    observed="$(sha256sum "${path}" | awk '{print $1}')"
+  else
+    observed="$(shasum -a 256 "${path}" | awk '{print $1}')"
+  fi
+  if [[ "${observed}" != "${expected}" ]]; then
+    echo "${label} SHA-256 mismatch: ${path}" >&2
+    return 1
+  fi
+}
+
+write_figure7_rds_md5_gate() {
+  local generated_rds="$1"
+  local deposited_rds="$2"
+  local gate_dir="$3"
+  local generated_md5 deposited_md5 status
+  generated_md5="$(portable_md5 "${generated_rds}")"
+  deposited_md5="$(portable_md5 "${deposited_rds}")"
+  status="FAIL"
+  [[ "${generated_md5}" == "${deposited_md5}" ]] && status="PASS"
+  mkdir -p "${gate_dir}"
+  {
+    printf "artifact\tpath\tsize_bytes\tmd5\n"
+    printf "generated\t%s\t%s\t%s\n" \
+      "${generated_rds}" "$(wc -c < "${generated_rds}" | tr -d ' ')" "${generated_md5}"
+    printf "deposited\t%s\t%s\t%s\n" \
+      "${deposited_rds}" "$(wc -c < "${deposited_rds}" | tr -d ' ')" "${deposited_md5}"
+    printf "status\t%s\t\t\n" "${status}"
+  } > "${gate_dir}/rds_equivalence.tsv"
+  if [[ "${status}" != "PASS" ]]; then
+    echo "Generated Seurat RDS MD5 does not match the deposited reference; see ${gate_dir}/rds_equivalence.tsv" >&2
+    return 1
+  fi
+}
+
+prepare_figure7_scrna_source() {
+  figure7_scrna_is_selected || return 0
+  prepare_figure7_scrna_runtime
+
+  require_sha256 \
+    "${figure7_cell_ploidy_input}" \
+    "6db48ee5f196b37b58aa71d0472dd3deb06aaacb4b637070af1b27d9425db2b3" \
+    "Figure 7 endpoint-ploidy support file"
+  require_sha256 \
+    "${figure7_sample_info_input}" \
+    "3e8a86b189a4ec61a7cbd3bbf1d0cb7cb30dd2ab3a326d91a67f83aaca63b784" \
+    "Figure 7 sample-info support file"
+  require_sha256 \
+    "${figure7_growth_curve_input}" \
+    "b0132aa24427805a500f354b45e812c1424a77deddd09489f92710c0b7353a58" \
+    "Figure 7 growth-curve support file"
+
+  local raw_manifest="Code/in-vivo/figure7/zenodo_required_files.tsv"
+  local deposited_rds="${figure7_raw_data_dir}/integrated_sct_cca_seurat_final_reclustered.rds"
+  local download_roles="loom,seurat_rds,support"
+  if [[ "${figure7_scrna_source}" == "h5" ]]; then
+    download_roles="${download_roles},cellranger_h5"
+  fi
+  local download_command=(
+    apptainer exec --cleanenv
+    "${figure7_scrna_full_sif}"
+    Rscript --vanilla Code/in-vivo/figure7/download_figure7_raw_data.R
+    "--raw-data-dir=${figure7_raw_data_dir}"
+    "--manifest=${raw_manifest}"
+    "--roles=${download_roles}"
+    "--allow-download=${figure7_download_missing_raw}"
+  )
+
+  if [[ "${mode}" == "check-only" || "${dry_run}" == true ]]; then
+    printf "[figure7_scrna_raw_preflight] %s\n" "$(quote_args "${download_command[@]}")"
+  else
+    "${download_command[@]}"
+    require_file "${deposited_rds}"
+    require_dir "${figure7_raw_data_dir}/support"
+  fi
+
+  if [[ "${figure7_scrna_source}" == "rds" ]]; then
+    figure7_active_scrna_rds="${deposited_rds}"
+    figure7_raw_seurat_rds="${figure7_active_scrna_rds}"
+    figure7_cellranger_root=""
+    return 0
+  fi
+
+  local cellranger_root="${figure7_cellranger_root}"
+  if [[ -z "${cellranger_root}" ]]; then
+    cellranger_root="${figure7_raw_data_dir}/SUM-159/A02_cellRanger"
+  fi
+  local h5_files=(
+    "${cellranger_root}"/*-Count-HM/outs/*-Count-HM_filtered_feature_bc_matrix.h5
+  )
+  if [[ "${#h5_files[@]}" -ne 18 || ! -f "${h5_files[0]}" ]]; then
+    echo "Expected 18 downloaded and checksum-validated Cell Ranger H5 files below ${cellranger_root}" >&2
+    return 1
+  fi
+
+  local standalone_output="${figure7_seurat_upstream_dir}/scRNA_Seq_analysis"
+  local generated_rds="${standalone_output}/03_final_cluster/03_objects/integrated_sct_cca_seurat_final_reclustered.rds"
+  local standalone_command=(
+    env
+    "CLUSTER_STANDALONE_PRE_FILTER_SIF=${figure7_scrna_cluster_sif}"
+    "CLUSTER_STANDALONE_POST_FILTER_SIF=${figure7_scrna_full_sif}"
+    bash Code/in-vivo/scRNA_Seq_analysis/run_cluster_standalone.sh
+    "${cellranger_root}"
+    "${figure7_cell_ploidy_input}"
+    "${figure7_sample_info_input}"
+    "${standalone_output}"
+  )
+  if [[ "${mode}" == "check-only" || "${dry_run}" == true ]]; then
+    printf "[figure7_scrna_h5] %s\n" "$(quote_args "${standalone_command[@]}")"
+  else
+    "${standalone_command[@]}"
+    require_file "${generated_rds}"
+    write_figure7_rds_md5_gate \
+      "${generated_rds}" "${deposited_rds}" "${standalone_output}/00_validation"
+  fi
+  figure7_active_scrna_rds="${generated_rds}"
+  figure7_raw_seurat_rds="${figure7_active_scrna_rds}"
+  figure7_cellranger_root=""
 }
 
 endpoint_ploidy_fallback_sha256="6db48ee5f196b37b58aa71d0472dd3deb06aaacb4b637070af1b27d9425db2b3"
@@ -595,6 +786,21 @@ input_paths_for_module() {
         Code/in-vivo/figure7/density_localization_config.yaml \
         "${panel_l_endpoint_ploidy}"
       figure7_runtime_source_paths
+      if [[ -n "${figure7_scrna_source:-}" ]]; then
+        printf "%s\n" \
+          Code/in-vivo/figure7/download_figure7_raw_data.R \
+          Code/in-vivo/figure7/zenodo_required_files.tsv \
+          "${figure7_active_scrna_rds}"
+        if [[ -d "${figure7_raw_data_dir}/support" ]]; then
+          find "${figure7_raw_data_dir}/support" -type f -print
+        fi
+        if [[ "${figure7_scrna_source}" == "h5" ]]; then
+          printf "%s\n" \
+            Code/in-vivo/scRNA_Seq_analysis/run_cluster_standalone.sh \
+            Code/in-vivo/scRNA_Seq_analysis/cluster_pipeline_standalone.R \
+            Code/in-vivo/scRNA_Seq_analysis/bootstrap_dependencies.R
+        fi
+      fi
       if [[ "${figure7_endpoint_cbs_score_will_be_derived:-false}" == true ]]; then
         printf "%s\n" \
           Data/in-vivo/weighted_ploidy.py \
@@ -954,6 +1160,15 @@ input_paths_for_module() {
         "${si_cbs_root}/injected_reference/reference_manifest.tsv"
       printf "%s\n" "${si_cbs_root}"/*.sps.cbs
       printf "%s\n" "${si_cbs_root}/injected_reference"/*.sps.cbs
+      if [[ -n "${figure7_scrna_source:-}" ]]; then
+        printf "%s\n" \
+          Code/in-vivo/figure7/download_figure7_raw_data.R \
+          Code/in-vivo/figure7/zenodo_required_files.tsv \
+          "${figure7_active_scrna_rds}"
+        if [[ -d "${figure7_raw_data_dir}/support" ]]; then
+          find "${figure7_raw_data_dir}/support" -type f -print
+        fi
+      fi
       local rendered_input_manifest="${run_dir}/metadata/analysis_input_manifest.tsv"
       if [[ -n "${run_dir}" && -f "${rendered_input_manifest}" ]]; then
         printf "%s\n" "${rendered_input_manifest}"
@@ -1121,7 +1336,7 @@ input_paths_for_module() {
               return 1
             fi
             printf "%s\n" "${canonical_si_path}"
-          done <<< "${canonical_si_paths}"
+          done < <(printf "%s\n" "${canonical_si_paths}")
         fi
       elif [[ -n "${run_dir}" ]]; then
         echo "Missing retained SI analysis input manifest: ${rendered_input_manifest}" >&2
@@ -1221,7 +1436,7 @@ required_input_paths_for_module() {
             printf "%s\n" "${figure7_reference_root}/${filename}"
           done < <(figure7_reference_filenames)
         fi
-      elif [[ "${mode}" == "full-refit" ]]; then
+      elif [[ "${mode}" == "full-refit" || -n "${figure7_scrna_source}" ]]; then
         printf "%s\n" \
           "${figure7_cell_ploidy_input}" \
           "${figure7_sample_info_input}" \
@@ -1260,7 +1475,7 @@ required_input_paths_for_module() {
         "${si_cbs_root}/injected_reference/reference_manifest.tsv"
       printf "%s\n" "${si_cbs_root}"/*.sps.cbs
       printf "%s\n" "${si_cbs_root}/injected_reference"/*.sps.cbs
-      if [[ "${mode}" == "full-refit" ]]; then
+      if [[ "${mode}" == "full-refit" || -n "${figure7_scrna_source}" ]]; then
         printf "%s\n" \
           Code/in-vivo/figure7/environment_lock.tsv \
           Code/in-vivo/figure7/src/common_io.R \
@@ -1391,7 +1606,7 @@ command_for_module() {
           "--tgi-day=${figure7_tgi_day}"
           "--output-dir=${run_dir}"
         )
-      elif [[ "${mode}" == "full-refit" ]]; then
+      elif [[ "${mode}" == "full-refit" || -n "${figure7_scrna_source}" ]]; then
         figure7_args=(
           Rscript Code/in-vivo/figure7/run_figure7.R
           --mode=full-workflow
@@ -1455,7 +1670,7 @@ command_for_module() {
       ;;
     si_figures)
       local si_mode="plot-only"
-      if [[ "${mode}" == "full-refit" ]]; then
+      if [[ "${mode}" == "full-refit" || -n "${figure7_scrna_source}" ]]; then
         si_mode="full-workflow"
       fi
       local si_args=(
@@ -1630,6 +1845,13 @@ run_module() {
   local command_string="$3"
   local module_notes=""
   last_module_publishable=true
+  case "${module}" in
+    in_vivo_figure7|si_figures)
+      if figure7_scrna_is_selected; then
+        command_string="$(figure7_full_sif_command "${command_string}")"
+      fi
+      ;;
+  esac
   if [[ "${module}" == "in_vivo_figure7" ]]; then
     module_notes="tgi_day=${figure7_tgi_day};figure_name=${figure7_figure_name}"
   fi
@@ -1789,6 +2011,7 @@ if [[ "${mode}" == "panels-only" ]]; then
 fi
 
 if [[ "${skip_analysis_loop}" != true ]]; then
+  prepare_figure7_scrna_source
   prepare_endpoint_ploidy_if_missing
   prepare_figure7_endpoint_cbs_score
 fi

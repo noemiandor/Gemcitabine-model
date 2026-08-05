@@ -210,6 +210,122 @@ input_paths_for_module in_vivo_figure7 "$1"
         self.assertEqual(result.returncode, 2)
         self.assertIn("non-negative integer", result.stderr)
 
+    def test_scrna_source_rejects_unknown_value(self) -> None:
+        result = self._run("--figure7-scrna-source", "automatic")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("must be rds or h5", result.stderr)
+
+    def test_rds_scrna_source_plans_full_sif_preflight_and_downstream(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            full_sif = tmp_path / "full.sif"
+            full_sif.write_text("fixture full sif")
+            fake_bin = tmp_path / "bin"
+            fake_bin.mkdir()
+            apptainer = fake_bin / "apptainer"
+            apptainer.write_text("#!/usr/bin/env bash\nexit 99\n")
+            apptainer.chmod(0o755)
+            env = os.environ.copy()
+            env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+            env["CLUSTER_STANDALONE_POST_FILTER_SIF"] = str(full_sif)
+            result = self._run(
+                "--mode", "check-only",
+                "--modules", "in_vivo_figure7",
+                "--figure7-panels-ae-only",
+                "--figure7-scrna-source", "rds",
+                env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("[figure7_scrna_raw_preflight]", result.stdout)
+            self.assertIn("--roles=loom\\,seurat_rds\\,support", result.stdout)
+            self.assertNotIn("cellranger_h5", result.stdout)
+            self.assertIn("integrated_sct_cca_seurat_final_reclustered.rds", result.stdout)
+            self.assertIn("apptainer exec --cleanenv", result.stdout)
+
+    def test_h5_scrna_source_fails_preflight_when_canonical_h5_are_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            full_sif = tmp_path / "full.sif"
+            cluster_sif = tmp_path / "cluster.sif"
+            full_sif.write_text("fixture full sif")
+            cluster_sif.write_text("fixture cluster sif")
+            fake_bin = tmp_path / "bin"
+            fake_bin.mkdir()
+            apptainer = fake_bin / "apptainer"
+            apptainer.write_text("#!/usr/bin/env bash\nexit 99\n")
+            apptainer.chmod(0o755)
+            env = os.environ.copy()
+            env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+            env["CLUSTER_STANDALONE_POST_FILTER_SIF"] = str(full_sif)
+            env["CLUSTER_STANDALONE_PRE_FILTER_SIF"] = str(cluster_sif)
+            result = self._run(
+                "--mode", "check-only",
+                "--modules", "in_vivo_figure7",
+                "--figure7-panels-ae-only",
+                "--figure7-scrna-source", "h5",
+                "--figure7-raw-data-dir", str(tmp_path / "raw"),
+                env=env,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(
+                "Expected 18 downloaded and checksum-validated Cell Ranger H5 files",
+                result.stderr,
+            )
+            self.assertIn("cellranger_h5", result.stdout)
+
+    def test_generated_rds_md5_gate_passes_equal_bytes_and_rejects_mismatch(self) -> None:
+        manager_text = (REPO_ROOT / "Manager.sh").read_text()
+        start = manager_text.index("portable_md5()")
+        end = manager_text.index("\nprepare_figure7_scrna_source()", start)
+        function_block = manager_text[start:end]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            generated = tmp_path / "generated.rds"
+            deposited = tmp_path / "deposited.rds"
+            generated.write_bytes(b"identical serialized fixture")
+            deposited.write_bytes(generated.read_bytes())
+            gate_dir = tmp_path / "gate"
+            script = f"set -euo pipefail\n{function_block}\nwrite_figure7_rds_md5_gate \"$1\" \"$2\" \"$3\""
+            passed = subprocess.run(
+                ["bash", "-c", script, "fixture", str(generated), str(deposited), str(gate_dir)],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(passed.returncode, 0, passed.stderr)
+            self.assertIn("status\tPASS", (gate_dir / "rds_equivalence.tsv").read_text())
+
+            generated.write_bytes(b"different serialized fixture")
+            failed = subprocess.run(
+                ["bash", "-c", script, "fixture", str(generated), str(deposited), str(gate_dir)],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn("does not match", failed.stderr)
+            self.assertIn("status\tFAIL", (gate_dir / "rds_equivalence.tsv").read_text())
+
+    def test_standalone_uses_explicit_inputs_and_sample_prefixed_h5(self) -> None:
+        shell_text = (
+            REPO_ROOT / "Code/in-vivo/scRNA_Seq_analysis/run_cluster_standalone.sh"
+        ).read_text()
+        pipeline_text = (
+            REPO_ROOT / "Code/in-vivo/scRNA_Seq_analysis/cluster_pipeline_standalone.R"
+        ).read_text()
+        self.assertIn(
+            "CELLRANGER_ROOT ALL_PLOIDY_TSV SAMPLE_INFO_XLSX OUTPUT_DIR",
+            shell_text,
+        )
+        self.assertIn(
+            'paste0(sample_folder, "_filtered_feature_bc_matrix.h5")',
+            pipeline_text,
+        )
+        self.assertNotIn(
+            'file.path(sample_dir, "outs", "filtered_feature_bc_matrix.h5")',
+            pipeline_text,
+        )
+
     def test_ae_only_rejects_full_panel_f_analysis(self) -> None:
         result = self._run(
             "--mode", "full-refit", "--modules", "in_vivo_figure7",

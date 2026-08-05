@@ -12,16 +12,21 @@ Sys.setenv(
 )
 
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 3L) {
+if (length(args) != 5L) {
   stop(
-    "Usage: cluster_pipeline_standalone.R INPUT_DIR OUTPUT_DIR pre_filter|post_filter",
+    paste(
+      "Usage: cluster_pipeline_standalone.R CELLRANGER_ROOT ALL_PLOIDY_TSV",
+      "SAMPLE_INFO_XLSX OUTPUT_DIR pre_filter|post_filter"
+    ),
     call. = FALSE
   )
 }
 
-input_dir <- normalizePath(args[[1]], mustWork = TRUE)
-output_dir <- normalizePath(args[[2]], mustWork = FALSE)
-PIPELINE_PHASE <- args[[3]]
+cellranger_root <- normalizePath(args[[1]], mustWork = TRUE)
+all_ploidy_file <- normalizePath(args[[2]], mustWork = TRUE)
+sample_info_file <- normalizePath(args[[3]], mustWork = TRUE)
+output_dir <- normalizePath(args[[4]], mustWork = FALSE)
+PIPELINE_PHASE <- args[[5]]
 if (!(PIPELINE_PHASE %in% c("pre_filter", "post_filter"))) {
   stop("Invalid pipeline phase: ", PIPELINE_PHASE, call. = FALSE)
 }
@@ -564,50 +569,42 @@ save_umap_plot <- function(obj, group_by, file_stub, title) {
   invisible(TRUE)
 }
 
-discover_inputs <- function(input_dir) {
-  ploidy_file <- file.path(input_dir, "all_ploidy.tsv")
-  sample_info_file <- file.path(input_dir, "sample_info.xlsx")
-
-  candidate_directories <- list.dirs(
-    input_dir,
-    recursive = TRUE,
-    full.names = TRUE
-  )
-  cellranger_candidates <- candidate_directories[
-    basename(candidate_directories) == "A02_cellRanger"
-  ]
-  cellranger_candidates <- unique(normalizePath(
-    cellranger_candidates,
-    mustWork = TRUE
-  ))
-  if (length(cellranger_candidates) != 1L) {
-    stop(
-      "INPUT_DIR must contain exactly one A02_cellRanger directory; found ",
-      length(cellranger_candidates),
-      if (length(cellranger_candidates) > 0L) {
-        paste0(": ", paste(cellranger_candidates, collapse = ", "))
-      } else {
-        ""
-      },
-      call. = FALSE
-    )
-  }
-  cellranger_root <- cellranger_candidates[[1L]]
-  for (required_file in c(ploidy_file, sample_info_file)) {
-    if (!file.exists(required_file)) {
-      stop("Required input file is missing: ", required_file, call. = FALSE)
-    }
-  }
-
+discover_inputs <- function(cellranger_root, ploidy_file, sample_info_file) {
   sample_dirs <- sort(list.dirs(cellranger_root, recursive = FALSE, full.names = TRUE))
   sample_dirs <- sample_dirs[grepl("-Count-HM$", basename(sample_dirs))]
-  h5_files <- file.path(sample_dirs, "outs", "filtered_feature_bc_matrix.h5")
+  h5_files <- file.path(
+    sample_dirs,
+    "outs",
+    paste0(basename(sample_dirs), "_filtered_feature_bc_matrix.h5")
+  )
   missing_h5 <- h5_files[!file.exists(h5_files)]
   if (length(missing_h5) > 0L) {
     stop("Missing required H5 file(s): ", paste(missing_h5, collapse = ", "), call. = FALSE)
   }
   if (length(h5_files) == 0L) {
-    stop("No *-Count-HM/outs/filtered_feature_bc_matrix.h5 inputs found.", call. = FALSE)
+    stop(
+      "No *-Count-HM/outs/*-Count-HM_filtered_feature_bc_matrix.h5 inputs found.",
+      call. = FALSE
+    )
+  }
+
+  sample_info <- read_sample_info(sample_info_file)
+  id_col <- resolve_col(sample_info, c("IDs", "ID"), 3L)
+  expected_samples <- sort(c(
+    as.character(sample_info[[id_col]]),
+    "2N-Cell-Culture", "4N-Cell-Culture"
+  ))
+  observed_samples <- sort(sub("-Count-HM$", "", basename(sample_dirs)))
+  if (anyNA(expected_samples) || any(!nzchar(expected_samples)) ||
+      anyDuplicated(expected_samples) || anyDuplicated(observed_samples) ||
+      !identical(observed_samples, expected_samples)) {
+    stop(
+      "Cell Ranger sample inventory differs from the reviewed 18-sample contract; ",
+      "missing=[", paste(setdiff(expected_samples, observed_samples), collapse = ","),
+      "]; unexpected=[", paste(setdiff(observed_samples, expected_samples), collapse = ","),
+      "]",
+      call. = FALSE
+    )
   }
 
   list(
@@ -883,7 +880,11 @@ run_raw_integration <- function(inputs) {
   for (sample_dir in inputs$sample_dirs) {
     sample_folder <- basename(sample_dir)
     sample_id <- sub("-Count-HM$", "", sample_folder)
-    h5_file <- file.path(sample_dir, "outs", "filtered_feature_bc_matrix.h5")
+    h5_file <- file.path(
+      sample_dir,
+      "outs",
+      paste0(sample_folder, "_filtered_feature_bc_matrix.h5")
+    )
     message("Reading sample: ", sample_id)
     obj <- Seurat::CreateSeuratObject(
       counts = read_counts(h5_file),
@@ -3101,6 +3102,7 @@ initialize_provenance <- function(inputs) {
     input_type = input_types,
     path = normalizePath(input_files, mustWork = TRUE),
     size_bytes = as.numeric(file_info$size),
+    md5 = unname(tools::md5sum(input_files)),
     modified_time = format(file_info$mtime, "%Y-%m-%dT%H:%M:%S%z"),
     stringsAsFactors = FALSE
   )
@@ -3112,9 +3114,11 @@ initialize_provenance <- function(inputs) {
   write_tsv(
     {
       parameters <- c(
-        input_dir = input_dir,
+        cellranger_root = cellranger_root,
+        all_ploidy_file = all_ploidy_file,
+        sample_info_file = sample_info_file,
         output_dir = output_dir,
-        accepted_raw_file_basename = "filtered_feature_bc_matrix.h5",
+        accepted_raw_file_pattern = "*-Count-HM_filtered_feature_bc_matrix.h5",
         integration_features = "3000",
         initial_pca_npcs = "50",
         clustering_resolution = "0.6",
@@ -3446,11 +3450,13 @@ finish_provenance <- function(removal_set) {
 ensure_dir(output_dir)
 write_phase_runtime()
 message("Standalone cluster workflow phase started: ", PIPELINE_PHASE)
-message("Input directory: ", input_dir)
+message("Cell Ranger root: ", cellranger_root)
+message("Ploidy input: ", all_ploidy_file)
+message("Sample metadata input: ", sample_info_file)
 message("Output directory: ", output_dir)
 
 if (identical(PIPELINE_PHASE, "pre_filter")) {
-  inputs <- discover_inputs(input_dir)
+  inputs <- discover_inputs(cellranger_root, all_ploidy_file, sample_info_file)
   initialize_provenance(inputs)
   integrated <- run_raw_integration(inputs)
   integrated <- run_cell_cycle(integrated)
