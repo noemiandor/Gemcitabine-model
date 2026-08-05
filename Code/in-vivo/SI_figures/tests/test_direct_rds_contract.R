@@ -41,6 +41,48 @@ sys.source(
   envir = builder_env
 )
 
+# Validation helpers must be loaded into the builder functions' lexical
+# environment. Loading them only into main()'s transient call frame leaves
+# resolve_si_seurat_source_lineage() unable to find the strict validator.
+isolated_builder_env <- new.env(parent = globalenv())
+sys.source(
+  file.path(
+    repo_root,
+    "Code", "in-vivo", "SI_figures",
+    "build_raw_supplementary_tables.R"
+  ),
+  envir = isolated_builder_env
+)
+isolated_builder_env$load_si_seurat_validation_runtime(
+  file.path(
+    repo_root,
+    "Code", "in-vivo", "figure7", "src", "common_io.R"
+  ),
+  file.path(
+    repo_root,
+    "Code", "in-vivo", "figure7", "src",
+    "seurat_upstream_selection.R"
+  )
+)
+builder_runtime <- environment(
+  isolated_builder_env$resolve_si_seurat_source_lineage
+)
+stopifnot(
+  identical(builder_runtime, isolated_builder_env),
+  exists(
+    "figure7_read_config",
+    envir = builder_runtime,
+    mode = "function",
+    inherits = FALSE
+  ),
+  exists(
+    "figure7_validate_any_seurat_upstream_artifact",
+    envir = builder_runtime,
+    mode = "function",
+    inherits = FALSE
+  )
+)
+
 authoritative_fingerprint <- strrep("a", 64L)
 stopifnot(
   identical(
