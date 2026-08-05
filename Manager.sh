@@ -10,7 +10,7 @@ mode="standard"
 modules="gdsc,ccle,drug_response,pkpd,metabolomics,in_vivo_figure7,si_figures"
 output_root="Results"
 figure_root="figures"
-figure_root_explicit=false
+figure7_data_root="Data/in-vivo/figure7"
 module_registry="docs/manuscript_figure_module_registry.tsv"
 overwrite=false
 dry_run=false
@@ -118,7 +118,8 @@ usage() {
     '  --figure7-growth-curve-input PATH Tumor-volume workbook' \
     '  --figure7-no-download-missing-raw Do not download missing deposited raw files' \
     '  --figure7-scrna-source rds|h5    Use deposited RDS or rebuild from Cell Ranger H5' \
-    '  --publish-generated-candidate    Materialize noncanonical H5 full-refit outputs under an isolated --figure-root' \
+    '  --publish-generated-candidate    Publish audited H5 full-refit figures and reusable data artifacts' \
+    '  --figure7-data-root DIR          Figure 7 reusable-data publication root (default: Data/in-vivo/figure7)' \
     '  --si-figures-intermediate-dir DIR Reusable SI4-7 raw-analysis intermediates' \
     '  --si-figures-cbs-dir DIR          Tracked downstream NUMBAT/CBS matrices' \
     '  --endpoint-flow-crosswalk PATH' \
@@ -135,7 +136,8 @@ while [[ $# -gt 0 ]]; do
     --mode) mode="$2"; shift 2 ;;
     --modules) modules="$2"; shift 2 ;;
     --output-root) output_root="$2"; shift 2 ;;
-    --figure-root) figure_root="$2"; figure_root_explicit=true; shift 2 ;;
+    --figure-root) figure_root="$2"; shift 2 ;;
+    --figure7-data-root) figure7_data_root="$2"; shift 2 ;;
     --overwrite) overwrite=true; shift ;;
     --jobs) jobs="$2"; shift 2 ;;
     --dry-run) dry_run=true; shift ;;
@@ -261,18 +263,6 @@ if [[ "${publish_generated_candidate}" == true ]]; then
   if [[ "${mode}" != "full-refit" ||
         "${figure7_scrna_source}" != "h5" ]]; then
     echo "--publish-generated-candidate requires --mode full-refit and --figure7-scrna-source h5" >&2
-    exit 2
-  fi
-  if [[ "${figure_root_explicit}" != true ]]; then
-    echo "--publish-generated-candidate requires an explicit isolated --figure-root" >&2
-    exit 2
-  fi
-  canonical_figure_root="$(
-    python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' \
-      "${figure_root}"
-  )"
-  if [[ "${canonical_figure_root}" == "${repo_root}/figures" ]]; then
-    echo "--publish-generated-candidate cannot write to the canonical figures root" >&2
     exit 2
   fi
 fi
@@ -2265,6 +2255,37 @@ if [[ "${mode}" != "check-only" && "${dry_run}" != true ]]; then
     materialize_args+=(--module-run "${completed_modules[$i]}=${completed_run_dirs[$i]}")
   done
   "${materialize_args[@]}"
+  if [[ "${publish_generated_candidate}" == true ]]; then
+    figure7_candidate_run_dir=""
+    si_candidate_run_dir=""
+    for i in "${!completed_modules[@]}"; do
+      case "${completed_modules[$i]}" in
+        in_vivo_figure7)
+          figure7_candidate_run_dir="${completed_run_dirs[$i]}"
+          ;;
+        si_figures)
+          si_candidate_run_dir="${completed_run_dirs[$i]}"
+          ;;
+      esac
+    done
+    if [[ -n "${figure7_candidate_run_dir}" ]]; then
+      data_materialize_args=(
+        python3 Code/tools/materialize_figure7_data.py
+        --repo-root "${repo_root}"
+        --data-root "${figure7_data_root}"
+        --source-run-id "${materialize_source_run_id}"
+        --figure7-run-dir "${figure7_candidate_run_dir}"
+        --figure7-tgi-day "${figure7_tgi_day}"
+      )
+      if [[ -n "${si_candidate_run_dir}" ]]; then
+        data_materialize_args+=(--si-run-dir "${si_candidate_run_dir}")
+      fi
+      if [[ "${overwrite}" == true ]]; then
+        data_materialize_args+=(--overwrite)
+      fi
+      "${data_materialize_args[@]}"
+    fi
+  fi
   for manifest in \
     "${figure_root}"/Figure*/manifest.tsv \
     "${figure_root}"/Figure*/si8_manifest.tsv \

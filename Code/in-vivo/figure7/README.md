@@ -201,8 +201,14 @@ is unavailable.
 The endpoint-ploidy table, sample workbook, and growth-curve workbook are
 versioned source artifacts. Their revision and SHA-256 values are pinned in
 `figure7_config.yaml`. Deposited raw inputs stay below
-`Data/in-vivo/figure7/raw/zenodo_21463392`; generated intermediates stay below
-`Results/`. Neither is a publication input or committed.
+`Data/in-vivo/figure7/raw/zenodo_21463392`; active generated intermediates stay
+below `Results/`. When an audited H5 full-refit is explicitly published with
+`--publish-generated-candidate`, Manager also materializes the final Figure 7
+and Supplementary assets under `figures/` and publishes the reusable data
+contract below `Data/in-vivo/figure7/`: the two processed cell tables, the
+nine-file compact state-pathway reference, and a run-scoped
+`generated_candidates/<run_id>/` bundle containing the generated RDS,
+semantic audit, Figure 7/SI tables, metadata, and a SHA-256 manifest.
 If the reduced endpoint-ploidy TSV is missing while the 16 reviewed CBS files
 are present, Manager regenerates the exact checksum-pinned table in the current
 run's artifact directory and reuses it without modifying tracked inputs.

@@ -217,7 +217,7 @@ input_paths_for_module in_vivo_figure7 "$1"
         self.assertEqual(result.returncode, 2)
         self.assertIn("must be rds or h5", result.stderr)
 
-    def test_generated_candidate_requires_h5_full_refit_and_isolated_root(self) -> None:
+    def test_generated_candidate_requires_h5_full_refit_and_allows_figures_root(self) -> None:
         result = self._run("--publish-generated-candidate")
         self.assertEqual(result.returncode, 2)
         self.assertIn("requires --mode full-refit", result.stderr)
@@ -226,18 +226,24 @@ input_paths_for_module in_vivo_figure7 "$1"
             "--mode", "full-refit",
             "--figure7-scrna-source", "h5",
             "--publish-generated-candidate",
+            "--dry-run",
         )
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("explicit isolated --figure-root", result.stderr)
+        self.assertNotIn("isolated --figure-root", result.stderr)
 
         result = self._run(
             "--mode", "full-refit",
             "--figure7-scrna-source", "h5",
             "--publish-generated-candidate",
             "--figure-root", str(REPO_ROOT / "figures"),
+            "--dry-run",
         )
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("cannot write to the canonical figures root", result.stderr)
+        self.assertNotIn("cannot write to the canonical figures root", result.stderr)
+
+    def test_help_describes_generated_candidate_data_publication_root(self) -> None:
+        result = self._run("--help")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--figure7-data-root DIR", result.stdout)
+        self.assertIn("Data/in-vivo/figure7", result.stdout)
 
     def test_generated_candidate_specs_use_noncanonical_composite_name(self) -> None:
         specs = panel_specs_for_figure7_variant(
