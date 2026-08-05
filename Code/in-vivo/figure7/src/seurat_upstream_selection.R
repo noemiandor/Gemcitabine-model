@@ -38,9 +38,12 @@ figure7_read_standalone_key_values <- function(path, label) {
     comment.char = "",
     colClasses = "character"
   )
+  empty_values <- !nzchar(table$value)
+  allowed_empty_fields <- "private_r_library"
   if (!identical(names(table), c("field", "value")) ||
       !nrow(table) || anyNA(table) || any(!nzchar(table$field)) ||
-      any(!nzchar(table$value)) || anyDuplicated(table$field)) {
+      any(empty_values & !table$field %in% allowed_empty_fields) ||
+      anyDuplicated(table$field)) {
     figure7_stop(label, " has an invalid field/value schema: ", path)
   }
   stats::setNames(table$value, table$field)

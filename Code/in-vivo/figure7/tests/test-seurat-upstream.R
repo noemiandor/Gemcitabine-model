@@ -1335,6 +1335,7 @@ testthat::test_that("standalone cluster completion chain is reusable downstream"
     active_sif_md5 = paste(rep("a", 32L), collapse = ""),
     R = "4.5.0",
     Seurat = "5.3.0",
+    private_r_library = "",
     final_object = normalizePath(final_rds, mustWork = TRUE),
     final_object_size_bytes = as.character(file.info(final_rds)$size),
     final_object_md5 = unname(tools::md5sum(final_rds))
@@ -1461,6 +1462,34 @@ testthat::test_that("standalone cluster completion chain is reusable downstream"
   testthat::expect_identical(
     figure7_infer_seurat_upstream_root(final_rds),
     normalizePath(root)
+  )
+
+  invalid_runtime <- runtime
+  invalid_runtime[["Seurat"]] <- ""
+  utils::write.table(
+    data.frame(field = names(invalid_runtime), value = unname(invalid_runtime)),
+    file.path(provenance, "final_artifact_runtime.tsv"),
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+  testthat::expect_error(
+    figure7_validate_standalone_seurat_artifact(
+      output_root = root,
+      module_dir = module_dir,
+      all_ploidy = all_ploidy,
+      sample_info = sample_info,
+      expected_rds = final_rds,
+      cellranger_root = h5_root
+    ),
+    "invalid field/value schema"
+  )
+  utils::write.table(
+    data.frame(field = names(runtime), value = unname(runtime)),
+    file.path(provenance, "final_artifact_runtime.tsv"),
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
   )
 
   writeLines("tampered", audit_summary_path)
