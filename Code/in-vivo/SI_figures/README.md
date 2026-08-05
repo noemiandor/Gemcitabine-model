@@ -116,9 +116,12 @@ object plus the versioned endpoint-ploidy table. The Seurat object can be
 reused/reconstructed from the same five-stage
 Cell Ranger H5 cache as Figure 7 by passing `--figure7-cellranger-root` through
 Manager; both modules use `--figure7-seurat-upstream-dir`. If that boundary is
-unavailable, the checksum-pinned deposited final RDS is the fallback. SI
-Figures 4-7 do not require scVelo; an explicitly supplied scVelo table is
-audit-only.
+unavailable in automatic SI source selection, the checksum-pinned deposited
+final RDS is the fallback. An explicit Manager H5 run is stricter: the generated
+RDS must pass the semantic audit, is then bound by size/MD5/SHA-256, and becomes
+the mandatory SI and Figure 7 input; that path never falls back to the deposited
+RDS after an audit failure. SI Figures 4-7 do not require scVelo; an explicitly
+supplied scVelo table is audit-only.
 
 A previously generated 11-table cache is reused before selecting or opening a
 Seurat source. Its manifest binds the exact source RDS, transitive upstream

@@ -104,10 +104,17 @@ stage needs the final Seurat object, select the source boundary explicitly:
   and skips `Code/in-vivo/scRNA_Seq_analysis`;
 - `--figure7-scrna-source h5` requires the reviewed 18-sample Cell Ranger
   inventory, runs the cluster-SIF/full-SIF standalone workflow, and accepts its
-  final RDS only when its MD5 equals the deposited RDS MD5. Downstream reuse
-  additionally validates the standalone `run_manifest.tsv`,
-  `final_artifact_runtime.tsv`, and `PIPELINE_COMPLETE.txt` chain before the
-  RDS is accepted by Figure 7 or Supplementary Figures.
+  final RDS only after the semantic audit against the deposited Zenodo RDS
+  passes. Metadata, cluster assignments, identities, count matrices, and graphs
+  must match exactly; floating assay and PCA values use the recorded numerical
+  tolerances, and UMAP uses same-axis correlation plus per-cell displacement
+  limits. Seurat command timestamps are non-gating, while command parameters,
+  calls, assays, and seeds must match exactly. Downstream reuse additionally
+  validates the standalone `run_manifest.tsv`, `final_artifact_runtime.tsv`,
+  `PIPELINE_COMPLETE.txt`, and `rds_semantic_audit/AUDIT_COMPLETE.txt` chain.
+  A passed H5 audit makes that generated RDS the mandatory input to both
+  Supplementary Figures and Figure 7; failure stops the run without falling
+  back to the deposited RDS.
 
 The complete deposited bundle includes 18 loom files, one final Seurat RDS,
 18 Cell Ranger H5 files, and 11 support/provenance files. All 48 manifest rows
@@ -153,7 +160,8 @@ use `--publish-generated-candidate` together with an explicit isolated
 `--figure-root`, for example `figures/H5_fullrefit_<run_id>`. This opt-in never
 writes the canonical `figures/` tree, never updates canonical `latest`
 pointers, and records `canonical_publication_allowed=false` in the published
-manifest rows.
+manifest rows. Candidate publication revalidates the complete semantic-audit
+report set and the bound generated/Zenodo RDS identities.
 
 The upstream Seurat reconstruction is the exact narrow sequence needed from
 Tao's `01_data.R`, `01a_cell_cycle.R`, `02b_cluster_refine.R`,

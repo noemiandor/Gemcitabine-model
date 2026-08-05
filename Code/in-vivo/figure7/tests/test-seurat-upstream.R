@@ -1353,6 +1353,95 @@ testthat::test_that("standalone cluster completion chain is reusable downstream"
     ),
     file.path(provenance, "PIPELINE_COMPLETE.txt")
   )
+  audit_dir <- file.path(
+    root,
+    "00_validation",
+    "rds_semantic_audit"
+  )
+  dir.create(audit_dir, recursive = TRUE)
+  reference_rds <- file.path(root, "zenodo_reference.rds")
+  writeBin(charToRaw("different Zenodo reference serialization"), reference_rds)
+  audit_summary <- data.frame(
+    group = "object",
+    check = "synthetic_semantic_contract",
+    status = "PASS",
+    observed = "equivalent",
+    reference = "equivalent",
+    threshold = "fixture",
+    details = "standalone selection fixture",
+    stringsAsFactors = FALSE
+  )
+  audit_summary_path <- file.path(audit_dir, "audit_summary.tsv")
+  utils::write.table(
+    audit_summary,
+    audit_summary_path,
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+  identities <- data.frame(
+    artifact = c("generated", "zenodo_reference"),
+    path = normalizePath(c(final_rds, reference_rds), mustWork = TRUE),
+    size_bytes = as.character(file.info(c(final_rds, reference_rds))$size),
+    md5 = unname(tools::md5sum(c(final_rds, reference_rds))),
+    sha256 = vapply(
+      c(final_rds, reference_rds),
+      figure7_sha256,
+      character(1L)
+    ),
+    role = c("candidate_downstream_input", "semantic_reference"),
+    stringsAsFactors = FALSE
+  )
+  utils::write.table(
+    identities,
+    file.path(audit_dir, "rds_file_identity.tsv"),
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+  audit_report_names <- c(
+    "audit_summary.tsv", "metadata_comparison.tsv",
+    "cluster_comparison.tsv", "graph_comparison.tsv",
+    "assay_numeric_comparison.tsv", "pca_comparison.tsv",
+    "umap_displacement_summary.tsv", "umap_largest_displacements.tsv",
+    "command_comparison.tsv", "rds_file_identity.tsv"
+  )
+  missing_report_names <- setdiff(
+    audit_report_names,
+    c("audit_summary.tsv", "rds_file_identity.tsv")
+  )
+  for (name in missing_report_names) {
+    writeLines("check\tstatus\nsynthetic\tPASS", file.path(audit_dir, name))
+  }
+  audit_report_hash_lines <- vapply(audit_report_names, function(name) {
+    paste0(
+      "report_sha256.", name, "=",
+      figure7_sha256(file.path(audit_dir, name))
+    )
+  }, character(1L))
+  writeLines(
+    c(
+      "schema_version=semantic_rds_audit_v1",
+      "status=PASS",
+      "checks_total=1",
+      "checks_passed=1",
+      "checks_failed=0",
+      paste0("generated_rds=", normalizePath(final_rds)),
+      paste0("generated_rds_size_bytes=", file.info(final_rds)$size),
+      paste0("generated_rds_md5=", unname(tools::md5sum(final_rds))),
+      paste0("generated_rds_sha256=", figure7_sha256(final_rds)),
+      paste0("zenodo_reference_rds=", normalizePath(reference_rds)),
+      paste0("zenodo_reference_rds_size_bytes=", file.info(reference_rds)$size),
+      paste0("zenodo_reference_rds_md5=", unname(tools::md5sum(reference_rds))),
+      paste0("zenodo_reference_rds_sha256=", figure7_sha256(reference_rds)),
+      paste0("downstream_rds=", normalizePath(final_rds)),
+      paste0("audit_summary=", normalizePath(audit_summary_path)),
+      paste0("audit_summary_sha256=", figure7_sha256(audit_summary_path)),
+      audit_report_hash_lines,
+      "validated_at=2026-08-05T00:00:00-0400"
+    ),
+    file.path(audit_dir, "AUDIT_COMPLETE.txt")
+  )
 
   validation <- figure7_validate_standalone_seurat_artifact(
     output_root = root,
@@ -1364,10 +1453,34 @@ testthat::test_that("standalone cluster completion chain is reusable downstream"
   )
   testthat::expect_true(validation$valid)
   testthat::expect_identical(validation$rds, normalizePath(final_rds))
-  testthat::expect_length(validation$dependencies, 20L)
+  testthat::expect_length(validation$dependencies, 21L)
+  testthat::expect_identical(
+    unname(validation$dependencies[["semantic_audit_reference_rds"]]),
+    figure7_sha256(reference_rds)
+  )
   testthat::expect_identical(
     figure7_infer_seurat_upstream_root(final_rds),
     normalizePath(root)
+  )
+
+  writeLines("tampered", audit_summary_path)
+  testthat::expect_error(
+    figure7_validate_standalone_seurat_artifact(
+      output_root = root,
+      module_dir = module_dir,
+      all_ploidy = all_ploidy,
+      sample_info = sample_info,
+      expected_rds = final_rds,
+      cellranger_root = h5_root
+    ),
+    "audit summary is inconsistent"
+  )
+  utils::write.table(
+    audit_summary,
+    audit_summary_path,
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
   )
 
   writeLines("tampered", h5_paths[[1L]])

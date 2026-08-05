@@ -995,7 +995,7 @@ resolve_si_seurat_source_lineage <- function(
       call. = FALSE
     )
   }
-  validation <- figure7_validate_seurat_upstream_artifact(
+  validation <- figure7_validate_any_seurat_upstream_artifact(
     output_root = upstream_dir,
     module_dir = module_dir,
     environment_lock = environment_lock,

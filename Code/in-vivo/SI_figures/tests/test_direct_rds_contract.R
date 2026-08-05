@@ -590,7 +590,7 @@ expect_error(
   "requires --seurat-upstream-dir"
 )
 validated_hash <- builder_env$file_sha256(nondeposited_rds)
-builder_env$figure7_validate_seurat_upstream_artifact <- function(...) {
+builder_env$figure7_validate_any_seurat_upstream_artifact <- function(...) {
   list(
     rds_sha256 = validated_hash,
     dependencies = c(all_ploidy = strrep("1", 64L)),

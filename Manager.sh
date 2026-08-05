@@ -366,6 +366,11 @@ figure7_scrna_is_selected() {
 figure7_scrna_full_sif=""
 figure7_scrna_cluster_sif=""
 figure7_active_scrna_rds=""
+figure7_deposited_scrna_rds=""
+figure7_audited_generated_rds=""
+figure7_audited_generated_rds_size=""
+figure7_audited_generated_rds_md5=""
+figure7_audited_generated_rds_sha256=""
 figure7_apptainer_ca_args=()
 
 prepare_figure7_scrna_runtime() {
@@ -420,43 +425,83 @@ portable_md5() {
   fi
 }
 
+portable_sha256() {
+  local path="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "${path}" | awk '{print $1}'
+  else
+    shasum -a 256 "${path}" | awk '{print $1}'
+  fi
+}
+
 require_sha256() {
   local path="$1"
   local expected="$2"
   local label="$3"
   require_file "${path}"
   local observed
-  if command -v sha256sum >/dev/null 2>&1; then
-    observed="$(sha256sum "${path}" | awk '{print $1}')"
-  else
-    observed="$(shasum -a 256 "${path}" | awk '{print $1}')"
-  fi
+  observed="$(portable_sha256 "${path}")"
   if [[ "${observed}" != "${expected}" ]]; then
     echo "${label} SHA-256 mismatch: ${path}" >&2
     return 1
   fi
 }
 
-write_figure7_rds_md5_gate() {
+figure7_audit_marker_value() {
+  local marker="$1"
+  local key="$2"
+  awk -F '=' -v expected="${key}" '
+    $1 == expected {
+      count += 1
+      value = substr($0, length($1) + 2)
+    }
+    END {
+      if (count != 1 || value == "") exit 1
+      print value
+    }
+  ' "${marker}"
+}
+
+bind_figure7_audited_generated_rds() {
   local generated_rds="$1"
-  local deposited_rds="$2"
-  local gate_dir="$3"
-  local generated_md5 deposited_md5 status
-  generated_md5="$(portable_md5 "${generated_rds}")"
-  deposited_md5="$(portable_md5 "${deposited_rds}")"
-  status="FAIL"
-  [[ "${generated_md5}" == "${deposited_md5}" ]] && status="PASS"
-  mkdir -p "${gate_dir}"
-  {
-    printf "artifact\tpath\tsize_bytes\tmd5\n"
-    printf "generated\t%s\t%s\t%s\n" \
-      "${generated_rds}" "$(wc -c < "${generated_rds}" | tr -d ' ')" "${generated_md5}"
-    printf "deposited\t%s\t%s\t%s\n" \
-      "${deposited_rds}" "$(wc -c < "${deposited_rds}" | tr -d ' ')" "${deposited_md5}"
-    printf "status\t%s\t\t\n" "${status}"
-  } > "${gate_dir}/rds_equivalence.tsv"
-  if [[ "${status}" != "PASS" ]]; then
-    echo "Generated Seurat RDS MD5 does not match the deposited reference; see ${gate_dir}/rds_equivalence.tsv" >&2
+  local marker="$2"
+  require_file "${generated_rds}"
+  require_file "${marker}"
+  local generated_abs marker_status marker_rds marker_downstream
+  generated_abs="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${generated_rds}")"
+  marker_status="$(figure7_audit_marker_value "${marker}" status)"
+  marker_rds="$(figure7_audit_marker_value "${marker}" generated_rds)"
+  marker_downstream="$(figure7_audit_marker_value "${marker}" downstream_rds)"
+  if [[ "$(figure7_audit_marker_value "${marker}" schema_version)" != "semantic_rds_audit_v1" ||
+        "${marker_status}" != "PASS" ||
+        "${marker_rds}" != "${generated_abs}" ||
+        "${marker_downstream}" != "${generated_abs}" ]]; then
+    echo "Semantic RDS audit completion marker is inconsistent: ${marker}" >&2
+    return 1
+  fi
+  figure7_audited_generated_rds="${generated_abs}"
+  figure7_audited_generated_rds_size="$(wc -c < "${generated_abs}" | tr -d ' ')"
+  figure7_audited_generated_rds_md5="$(portable_md5 "${generated_abs}")"
+  figure7_audited_generated_rds_sha256="$(portable_sha256 "${generated_abs}")"
+  if [[ "$(figure7_audit_marker_value "${marker}" generated_rds_size_bytes)" != "${figure7_audited_generated_rds_size}" ||
+        "$(figure7_audit_marker_value "${marker}" generated_rds_md5)" != "${figure7_audited_generated_rds_md5}" ||
+        "$(figure7_audit_marker_value "${marker}" generated_rds_sha256)" != "${figure7_audited_generated_rds_sha256}" ]]; then
+    echo "Generated RDS no longer matches its semantic audit marker: ${generated_abs}" >&2
+    return 1
+  fi
+}
+
+verify_figure7_audited_generated_rds() {
+  [[ "${figure7_scrna_source}" == "h5" ]] || return 0
+  require_file "${figure7_audited_generated_rds}"
+  local observed_size observed_md5 observed_sha256
+  observed_size="$(wc -c < "${figure7_audited_generated_rds}" | tr -d ' ')"
+  observed_md5="$(portable_md5 "${figure7_audited_generated_rds}")"
+  observed_sha256="$(portable_sha256 "${figure7_audited_generated_rds}")"
+  if [[ "${observed_size}" != "${figure7_audited_generated_rds_size}" ||
+        "${observed_md5}" != "${figure7_audited_generated_rds_md5}" ||
+        "${observed_sha256}" != "${figure7_audited_generated_rds_sha256}" ]]; then
+    echo "Audited generated RDS changed before downstream use: ${figure7_audited_generated_rds}" >&2
     return 1
   fi
 }
@@ -480,6 +525,7 @@ prepare_figure7_scrna_source() {
 
   local raw_manifest="Code/in-vivo/figure7/zenodo_required_files.tsv"
   local deposited_rds="${figure7_raw_data_dir}/integrated_sct_cca_seurat_final_reclustered.rds"
+  figure7_deposited_scrna_rds="${deposited_rds}"
   local download_roles="loom,seurat_rds,support"
   if [[ "${figure7_scrna_source}" == "h5" ]]; then
     download_roles="${download_roles},cellranger_h5"
@@ -524,6 +570,8 @@ prepare_figure7_scrna_source() {
 
   local standalone_output="${figure7_seurat_upstream_dir}/scRNA_Seq_analysis"
   local generated_rds="${standalone_output}/03_final_cluster/03_objects/integrated_sct_cca_seurat_final_reclustered.rds"
+  local semantic_audit_dir="${standalone_output}/00_validation/rds_semantic_audit"
+  local semantic_audit_marker="${semantic_audit_dir}/AUDIT_COMPLETE.txt"
   local standalone_command=(
     env
     "CLUSTER_STANDALONE_PRE_FILTER_SIF=${figure7_scrna_cluster_sif}"
@@ -539,10 +587,29 @@ prepare_figure7_scrna_source() {
   else
     "${standalone_command[@]}"
     require_file "${generated_rds}"
-    write_figure7_rds_md5_gate \
-      "${generated_rds}" "${deposited_rds}" "${standalone_output}/00_validation"
+    apptainer exec --cleanenv \
+      "${figure7_apptainer_ca_args[@]}" \
+      "${figure7_scrna_full_sif}" \
+      Rscript --vanilla \
+      Code/in-vivo/scRNA_Seq_analysis/audit_generated_seurat_rds.R \
+      "${generated_rds}" \
+      "${deposited_rds}" \
+      "${semantic_audit_dir}"
+    bind_figure7_audited_generated_rds \
+      "${generated_rds}" "${semantic_audit_marker}"
   fi
-  figure7_active_scrna_rds="${generated_rds}"
+  if [[ "${mode}" == "check-only" || "${dry_run}" == true ]]; then
+    printf "[figure7_scrna_semantic_audit] %s\n" "$(quote_args \
+      apptainer exec --cleanenv \
+      "${figure7_apptainer_ca_args[@]}" \
+      "${figure7_scrna_full_sif}" \
+      Rscript --vanilla \
+      Code/in-vivo/scRNA_Seq_analysis/audit_generated_seurat_rds.R \
+      "${generated_rds}" \
+      "${deposited_rds}" \
+      "${semantic_audit_dir}")"
+  fi
+  figure7_active_scrna_rds="${figure7_audited_generated_rds:-${generated_rds}}"
   figure7_raw_seurat_rds="${figure7_active_scrna_rds}"
   figure7_cellranger_root=""
 }
@@ -746,11 +813,22 @@ figure7_runtime_source_paths() {
 
 figure7_standalone_provenance_paths() {
   local provenance_root="${figure7_seurat_upstream_dir}/scRNA_Seq_analysis/00_provenance"
+  local audit_root="${figure7_seurat_upstream_dir}/scRNA_Seq_analysis/00_validation/rds_semantic_audit"
   printf "%s\n" \
     "${provenance_root}/run_manifest.tsv" \
     "${provenance_root}/final_artifact_runtime.tsv" \
     "${provenance_root}/PIPELINE_COMPLETE.txt" \
-    "${figure7_seurat_upstream_dir}/scRNA_Seq_analysis/00_validation/rds_equivalence.tsv"
+    "${audit_root}/audit_summary.tsv" \
+    "${audit_root}/metadata_comparison.tsv" \
+    "${audit_root}/cluster_comparison.tsv" \
+    "${audit_root}/graph_comparison.tsv" \
+    "${audit_root}/assay_numeric_comparison.tsv" \
+    "${audit_root}/pca_comparison.tsv" \
+    "${audit_root}/umap_displacement_summary.tsv" \
+    "${audit_root}/umap_largest_displacements.tsv" \
+    "${audit_root}/command_comparison.tsv" \
+    "${audit_root}/rds_file_identity.tsv" \
+    "${audit_root}/AUDIT_COMPLETE.txt"
 }
 
 figure7_stage_was_executed() {
@@ -845,7 +923,9 @@ input_paths_for_module() {
           printf "%s\n" \
             Code/in-vivo/scRNA_Seq_analysis/run_cluster_standalone.sh \
             Code/in-vivo/scRNA_Seq_analysis/cluster_pipeline_standalone.R \
-            Code/in-vivo/scRNA_Seq_analysis/bootstrap_dependencies.R
+            Code/in-vivo/scRNA_Seq_analysis/bootstrap_dependencies.R \
+            Code/in-vivo/scRNA_Seq_analysis/audit_generated_seurat_rds.R \
+            "${figure7_deposited_scrna_rds}"
           figure7_standalone_provenance_paths
         fi
       fi
@@ -1217,6 +1297,9 @@ input_paths_for_module() {
           find "${figure7_raw_data_dir}/support" -type f -print
         fi
         if [[ "${figure7_scrna_source}" == "h5" ]]; then
+          printf "%s\n" \
+            Code/in-vivo/scRNA_Seq_analysis/audit_generated_seurat_rds.R \
+            "${figure7_deposited_scrna_rds}"
           figure7_standalone_provenance_paths
         fi
       fi
@@ -1911,6 +1994,9 @@ run_module() {
   last_module_publishable=true
   case "${module}" in
     in_vivo_figure7|si_figures)
+      if [[ "${dry_run}" != true && "${mode}" != "check-only" ]]; then
+        verify_figure7_audited_generated_rds
+      fi
       if figure7_scrna_is_selected; then
         command_string="$(figure7_full_sif_command "${command_string}")"
       fi
@@ -1952,6 +2038,12 @@ run_module() {
     echo "Module failed: ${module}; see ${stderr_log}" >&2
     return "${status}"
   fi
+
+  case "${module}" in
+    in_vivo_figure7|si_figures)
+      verify_figure7_audited_generated_rds
+      ;;
+  esac
 
   retain_module_analysis_manifest "${module}" "${run_dir}"
 
@@ -2156,6 +2248,7 @@ if [[ "${mode}" != "check-only" && "${dry_run}" != true ]]; then
   if [[ "${mode}" == "panels-only" ]]; then
     materialize_source_run_id="${source_run_id}"
   fi
+  verify_figure7_audited_generated_rds
   materialize_args=(
     python3 Code/tools/materialize_figure_assets.py
     --figure-root "${figure_root}"

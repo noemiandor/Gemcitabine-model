@@ -217,6 +217,28 @@ The analysis entry point never overwrites an existing final RDS; it resumes
 only after the final-object contract passes and then fills missing final DEG
 outputs.
 
+Manager's H5 workflow uses the separate publication handoff audit:
+
+```bash
+Rscript --vanilla audit_generated_seurat_rds.R \
+  OUTPUT_DIR/03_final_cluster/03_objects/integrated_sct_cca_seurat_final_reclustered.rds \
+  ZENODO_REFERENCE_RDS \
+  OUTPUT_DIR/00_validation/rds_semantic_audit
+```
+
+This audit does not require the two serialized RDS files to share an MD5.
+Instead, it requires exact metadata, cluster/identity, graph, count, object, and
+command contracts; assay/PCA maximum absolute error, RMSE, and correlation
+tolerances (`1e-6`, `1e-8`, and `0.999999`, respectively); and direct UMAP
+limits (each-axis correlation `>=0.99`, median displacement `<=0.10`, 99th
+percentile displacement `<=0.50`, fraction displaced by more than 1 unit
+`<=0.005`, and maximum displacement `<=15`). It writes
+`AUDIT_COMPLETE.txt` plus detailed TSV reports and exits nonzero on any failed
+gate. Manager runs it only for the H5 source path. A PASS binds the generated
+RDS by size, MD5, and SHA-256 and makes that exact file the downstream SI/Figure
+7 input. Zenodo-hosted H5, loom, RDS, and support inputs remain independently
+subject to strict Zenodo MD5 validation.
+
 On the validated split-runtime Linux HPC run, 128 of 144 strict object checks
 passed. The post-filter phase used R 4.5.0 from the full SIF.
 Cell IDs and order, cluster values and levels, active identities, metadata

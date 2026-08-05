@@ -2599,29 +2599,150 @@ def validate_generated_candidate_source_run(
             "Generated-candidate input lineage does not bind the standalone "
             f"completion chain: missing={sorted(required_provenance - provenance_names)}"
         )
-    gate_paths = [
+    audit_paths = [
         path
         for path in observed_input_paths
-        if path.name == "rds_equivalence.tsv"
+        if path.parent.name == "rds_semantic_audit"
     ]
-    if len(gate_paths) != 1:
-        raise ValueError(
-            "Generated-candidate input lineage must bind one RDS MD5 equivalence gate"
-        )
-    gate_headers, gate_rows = read_tsv(gate_paths[0])
-    gate_by_artifact = {
-        row.get("artifact", ""): row for row in gate_rows
+    audit_by_name: dict[str, Path] = {}
+    for path in audit_paths:
+        if path.name in audit_by_name:
+            raise ValueError(
+                "Generated-candidate input lineage contains duplicate semantic "
+                f"audit files: {path.name}"
+            )
+        audit_by_name[path.name] = path
+    required_audit = {
+        "audit_summary.tsv",
+        "metadata_comparison.tsv",
+        "cluster_comparison.tsv",
+        "graph_comparison.tsv",
+        "assay_numeric_comparison.tsv",
+        "pca_comparison.tsv",
+        "umap_displacement_summary.tsv",
+        "umap_largest_displacements.tsv",
+        "command_comparison.tsv",
+        "rds_file_identity.tsv",
+        "AUDIT_COMPLETE.txt",
     }
+    if not required_audit.issubset(audit_by_name):
+        raise ValueError(
+            "Generated-candidate input lineage does not bind the complete "
+            "semantic RDS audit: "
+            f"missing={sorted(required_audit - set(audit_by_name))}"
+        )
+
+    marker_lines = audit_by_name["AUDIT_COMPLETE.txt"].read_text().splitlines()
+    if any("=" not in line for line in marker_lines):
+        raise ValueError("Generated-candidate semantic RDS audit marker is malformed")
+    marker_pairs = [line.split("=", 1) for line in marker_lines]
+    marker: dict[str, str] = {}
+    for key, value in marker_pairs:
+        if not key or not value or key in marker:
+            raise ValueError(
+                "Generated-candidate semantic RDS audit marker is malformed"
+            )
+        marker[key] = value
+    required_marker = {
+        "schema_version",
+        "status",
+        "checks_total",
+        "checks_passed",
+        "checks_failed",
+        "generated_rds",
+        "generated_rds_size_bytes",
+        "generated_rds_md5",
+        "generated_rds_sha256",
+        "zenodo_reference_rds",
+        "zenodo_reference_rds_size_bytes",
+        "zenodo_reference_rds_md5",
+        "zenodo_reference_rds_sha256",
+        "downstream_rds",
+        "audit_summary",
+        "audit_summary_sha256",
+    }
+    required_marker.update(
+        f"report_sha256.{name}" for name in sorted(required_audit - {"AUDIT_COMPLETE.txt"})
+    )
     if (
-        gate_headers != ["artifact", "path", "size_bytes", "md5"]
-        or set(gate_by_artifact) != {"generated", "deposited", "status"}
-        or gate_by_artifact["status"].get("path") != "PASS"
-        or not gate_by_artifact["generated"].get("md5")
-        or gate_by_artifact["generated"].get("md5")
-        != gate_by_artifact["deposited"].get("md5")
+        not required_marker.issubset(marker)
+        or marker["schema_version"] != "semantic_rds_audit_v1"
+        or marker["status"] != "PASS"
+        or marker["checks_failed"] != "0"
+        or marker["generated_rds"] != marker["downstream_rds"]
     ):
         raise ValueError(
-            "Generated-candidate RDS MD5 equivalence gate is invalid"
+            "Generated-candidate semantic RDS audit completion marker is invalid"
+        )
+    for name in required_audit - {"AUDIT_COMPLETE.txt"}:
+        if sha256_file(audit_by_name[name]) != marker[f"report_sha256.{name}"].lower():
+            raise ValueError(
+                "Generated-candidate semantic RDS audit report was modified: "
+                f"{name}"
+            )
+
+    summary_path = audit_by_name["audit_summary.tsv"]
+    if Path(marker["audit_summary"]).resolve() != summary_path.resolve():
+        raise ValueError("Semantic RDS audit marker binds a different summary")
+    summary_headers, summary_rows = read_tsv(summary_path)
+    if (
+        summary_headers
+        != [
+            "group",
+            "check",
+            "status",
+            "observed",
+            "reference",
+            "threshold",
+            "details",
+        ]
+        or not summary_rows
+        or any(row.get("status") != "PASS" for row in summary_rows)
+        or marker["checks_total"] != str(len(summary_rows))
+        or marker["checks_passed"] != str(len(summary_rows))
+        or sha256_file(summary_path) != marker["audit_summary_sha256"].lower()
+    ):
+        raise ValueError("Generated-candidate semantic RDS audit summary is invalid")
+
+    identity_headers, identity_rows = read_tsv(
+        audit_by_name["rds_file_identity.tsv"]
+    )
+    identity_by_artifact = {
+        row.get("artifact", ""): row for row in identity_rows
+    }
+    if (
+        identity_headers
+        != ["artifact", "path", "size_bytes", "md5", "sha256", "role"]
+        or set(identity_by_artifact) != {"generated", "zenodo_reference"}
+    ):
+        raise ValueError("Generated-candidate RDS identity audit is invalid")
+    generated_identity = identity_by_artifact["generated"]
+    reference_identity = identity_by_artifact["zenodo_reference"]
+    generated_path = Path(marker["generated_rds"]).resolve()
+    reference_path = Path(marker["zenodo_reference_rds"]).resolve()
+    if (
+        generated_path not in observed_input_paths
+        or reference_path not in observed_input_paths
+        or Path(generated_identity.get("path", "")).resolve() != generated_path
+        or Path(reference_identity.get("path", "")).resolve() != reference_path
+        or generated_identity.get("size_bytes") != marker["generated_rds_size_bytes"]
+        or generated_identity.get("md5", "").lower()
+        != marker["generated_rds_md5"].lower()
+        or generated_identity.get("sha256", "").lower()
+        != marker["generated_rds_sha256"].lower()
+        or reference_identity.get("size_bytes")
+        != marker["zenodo_reference_rds_size_bytes"]
+        or reference_identity.get("md5", "").lower()
+        != marker["zenodo_reference_rds_md5"].lower()
+        or reference_identity.get("sha256", "").lower()
+        != marker["zenodo_reference_rds_sha256"].lower()
+        or sha256_file(generated_path) != marker["generated_rds_sha256"].lower()
+        or sha256_file(reference_path)
+        != marker["zenodo_reference_rds_sha256"].lower()
+    ):
+        raise ValueError(
+            "Generated-candidate semantic RDS audit does not bind the selected "
+            "generated RDS and Zenodo reference RDS"
         )
 
     expected_sources = {

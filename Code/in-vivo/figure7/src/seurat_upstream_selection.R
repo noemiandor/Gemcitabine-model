@@ -62,6 +62,167 @@ figure7_read_standalone_completion <- function(path) {
   stats::setNames(values, keys)
 }
 
+figure7_validate_semantic_rds_audit <- function(output_root, final_path) {
+  audit_root <- file.path(
+    output_root,
+    "00_validation",
+    "rds_semantic_audit"
+  )
+  marker_path <- file.path(audit_root, "AUDIT_COMPLETE.txt")
+  marker <- figure7_read_standalone_completion(marker_path)
+  report_names <- c(
+    "audit_summary.tsv", "metadata_comparison.tsv",
+    "cluster_comparison.tsv", "graph_comparison.tsv",
+    "assay_numeric_comparison.tsv", "pca_comparison.tsv",
+    "umap_displacement_summary.tsv", "umap_largest_displacements.tsv",
+    "command_comparison.tsv", "rds_file_identity.tsv"
+  )
+  report_keys <- paste0("report_sha256.", report_names)
+  required_keys <- c(
+    "schema_version", "status", "checks_total", "checks_passed",
+    "checks_failed", "generated_rds", "generated_rds_size_bytes",
+    "generated_rds_md5", "generated_rds_sha256",
+    "zenodo_reference_rds", "zenodo_reference_rds_size_bytes",
+    "zenodo_reference_rds_md5", "zenodo_reference_rds_sha256",
+    "downstream_rds", "audit_summary", "audit_summary_sha256",
+    report_keys
+  )
+  if (!all(required_keys %in% names(marker)) ||
+      !identical(marker[["schema_version"]], "semantic_rds_audit_v1") ||
+      !identical(marker[["status"]], "PASS") ||
+      !identical(marker[["checks_failed"]], "0")) {
+    figure7_stop("Semantic RDS audit completion marker is invalid")
+  }
+  final_path <- normalizePath(final_path, mustWork = TRUE)
+  if (!identical(
+        normalizePath(marker[["generated_rds"]], mustWork = TRUE),
+        final_path
+      ) ||
+      !identical(
+        normalizePath(marker[["downstream_rds"]], mustWork = TRUE),
+        final_path
+      ) ||
+      !identical(
+        marker[["generated_rds_size_bytes"]],
+        as.character(file.info(final_path)$size)
+      ) ||
+      !identical(
+        tolower(marker[["generated_rds_md5"]]),
+        tolower(unname(tools::md5sum(final_path)))
+      ) ||
+      !identical(
+        tolower(marker[["generated_rds_sha256"]]),
+        figure7_sha256(final_path)
+      )) {
+    figure7_stop("Generated RDS no longer matches its semantic audit")
+  }
+  reference_path <- normalizePath(
+    marker[["zenodo_reference_rds"]],
+    mustWork = TRUE
+  )
+  if (!identical(
+        marker[["zenodo_reference_rds_size_bytes"]],
+        as.character(file.info(reference_path)$size)
+      ) ||
+      !identical(
+        tolower(marker[["zenodo_reference_rds_md5"]]),
+        tolower(unname(tools::md5sum(reference_path)))
+      ) ||
+      !identical(
+        tolower(marker[["zenodo_reference_rds_sha256"]]),
+        figure7_sha256(reference_path)
+      )) {
+    figure7_stop("Zenodo reference RDS no longer matches the semantic audit")
+  }
+  summary_path <- normalizePath(marker[["audit_summary"]], mustWork = TRUE)
+  expected_summary <- normalizePath(
+    file.path(audit_root, "audit_summary.tsv"),
+    mustWork = TRUE
+  )
+  summary <- utils::read.delim(
+    summary_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    quote = "",
+    comment.char = "",
+    colClasses = "character"
+  )
+  if (!identical(summary_path, expected_summary) ||
+      !identical(
+        names(summary),
+        c(
+          "group", "check", "status", "observed", "reference",
+          "threshold", "details"
+        )
+      ) ||
+      !nrow(summary) || anyNA(summary) || any(summary$status != "PASS") ||
+      !identical(as.character(nrow(summary)), marker[["checks_total"]]) ||
+      !identical(as.character(nrow(summary)), marker[["checks_passed"]]) ||
+      !identical(
+        tolower(marker[["audit_summary_sha256"]]),
+        figure7_sha256(summary_path)
+      )) {
+    figure7_stop("Semantic RDS audit summary is inconsistent")
+  }
+  identity_path <- file.path(audit_root, "rds_file_identity.tsv")
+  identity <- utils::read.delim(
+    identity_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    quote = "",
+    comment.char = "",
+    colClasses = "character"
+  )
+  if (!identical(
+        names(identity),
+        c("artifact", "path", "size_bytes", "md5", "sha256", "role")
+      ) ||
+      !identical(identity$artifact, c("generated", "zenodo_reference")) ||
+      !identical(
+        normalizePath(identity$path, mustWork = TRUE),
+        c(final_path, reference_path)
+      ) ||
+      !identical(
+        tolower(identity$md5),
+        tolower(c(
+          marker[["generated_rds_md5"]],
+          marker[["zenodo_reference_rds_md5"]]
+        ))
+      ) ||
+      !identical(
+        tolower(identity$sha256),
+        tolower(c(
+          marker[["generated_rds_sha256"]],
+          marker[["zenodo_reference_rds_sha256"]]
+        ))
+      )) {
+    figure7_stop("Semantic RDS audit file-identity table is inconsistent")
+  }
+  report_paths <- file.path(audit_root, report_names)
+  if (any(!file.exists(report_paths)) || any(!vapply(
+        seq_along(report_paths),
+        function(index) identical(
+          tolower(marker[[report_keys[[index]]]]),
+          figure7_sha256(report_paths[[index]])
+        ),
+        logical(1L)
+      ))) {
+    figure7_stop("Semantic RDS audit report set is incomplete or modified")
+  }
+  list(
+    marker = normalizePath(marker_path, mustWork = TRUE),
+    marker_sha256 = figure7_sha256(marker_path),
+    summary = summary_path,
+    summary_sha256 = figure7_sha256(summary_path),
+    identity = normalizePath(identity_path, mustWork = TRUE),
+    identity_sha256 = figure7_sha256(identity_path),
+    reference_rds = reference_path,
+    reference_rds_sha256 = figure7_sha256(reference_path),
+    generated_rds_md5 = tolower(marker[["generated_rds_md5"]]),
+    reference_rds_md5 = tolower(marker[["zenodo_reference_rds_md5"]])
+  )
+}
+
 figure7_validate_standalone_seurat_artifact <- function(
   output_root,
   module_dir,
@@ -185,6 +346,10 @@ figure7_validate_standalone_seurat_artifact <- function(
       )) {
     figure7_stop("Standalone pipeline completion marker is inconsistent")
   }
+  semantic_audit <- figure7_validate_semantic_rds_audit(
+    output_root,
+    final_path
+  )
 
   dependency_names <- ifelse(
     run_manifest$input_type == "filtered_feature_bc_matrix.h5",
@@ -198,6 +363,10 @@ figure7_validate_standalone_seurat_artifact <- function(
     vapply(normalized_inputs, figure7_sha256, character(1)),
     dependency_names
   )
+  dependencies <- c(
+    dependencies,
+    semantic_audit_reference_rds = semantic_audit$reference_rds_sha256
+  )
   if (anyDuplicated(names(dependencies))) {
     figure7_stop("Standalone input dependency roles are not unique")
   }
@@ -207,7 +376,8 @@ figure7_validate_standalone_seurat_artifact <- function(
     c(
       "run_cluster_standalone.sh",
       "cluster_pipeline_standalone.R",
-      "bootstrap_dependencies.R"
+      "bootstrap_dependencies.R",
+      "audit_generated_seurat_rds.R"
     )
   )
   standalone_sources <- normalizePath(standalone_sources, mustWork = TRUE)
@@ -216,7 +386,8 @@ figure7_validate_standalone_seurat_artifact <- function(
     c(
       "scientific_code_contract:standalone_orchestrator",
       "scientific_code_contract:standalone_pipeline",
-      "scientific_code_contract:standalone_bootstrap"
+      "scientific_code_contract:standalone_bootstrap",
+      "scientific_code_contract:semantic_rds_audit"
     )
   )
   common_contract <- c(
@@ -224,7 +395,12 @@ figure7_validate_standalone_seurat_artifact <- function(
     post_filter_r = runtime[["R"]],
     post_filter_seurat = runtime[["Seurat"]],
     post_filter_sif_md5 = tolower(runtime[["active_sif_md5"]]),
-    completion_sha256 = figure7_sha256(completion_path)
+    completion_sha256 = figure7_sha256(completion_path),
+    semantic_audit_marker_sha256 = semantic_audit$marker_sha256,
+    semantic_audit_summary_sha256 = semantic_audit$summary_sha256,
+    semantic_audit_identity_sha256 = semantic_audit$identity_sha256,
+    generated_rds_md5 = semantic_audit$generated_rds_md5,
+    zenodo_reference_rds_md5 = semantic_audit$reference_rds_md5
   )
   list(
     valid = TRUE,
@@ -334,6 +510,17 @@ figure7_probe_any_seurat_upstream_artifact <- function(
       "; figure7 reconstruction: ", legacy$error
     )
   )
+}
+
+figure7_validate_any_seurat_upstream_artifact <- function(...) {
+  result <- figure7_probe_any_seurat_upstream_artifact(...)
+  if (!isTRUE(result$valid)) {
+    figure7_stop(
+      "Seurat source lacks a valid standalone or Figure 7 reconstruction ",
+      "chain: ", result$error
+    )
+  }
+  result
 }
 
 figure7_probe_resumable_seurat_upstream_artifact <- function(
