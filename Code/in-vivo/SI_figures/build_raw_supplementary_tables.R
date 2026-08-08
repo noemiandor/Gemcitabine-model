@@ -995,7 +995,7 @@ resolve_si_seurat_source_lineage <- function(
       call. = FALSE
     )
   }
-  validation <- figure7_validate_seurat_upstream_artifact(
+  validation <- figure7_validate_any_seurat_upstream_artifact(
     output_root = upstream_dir,
     module_dir = module_dir,
     environment_lock = environment_lock,
@@ -1021,6 +1021,34 @@ resolve_si_seurat_source_lineage <- function(
     ),
     validation = validation
   )
+}
+
+load_si_seurat_validation_runtime <- function(
+  environment_validator_path,
+  seurat_selection_path
+) {
+  runtime_environment <- environment(resolve_si_seurat_source_lineage)
+  sys.source(environment_validator_path, envir = runtime_environment)
+  sys.source(seurat_selection_path, envir = runtime_environment)
+  required_functions <- c(
+    "figure7_read_config",
+    "figure7_validate_any_seurat_upstream_artifact"
+  )
+  loaded <- vapply(
+    required_functions,
+    exists,
+    logical(1L),
+    envir = runtime_environment,
+    mode = "function",
+    inherits = FALSE
+  )
+  if (any(!loaded)) {
+    stop(
+      "Failed to load SI Seurat validation helpers into the builder runtime",
+      call. = FALSE
+    )
+  }
+  invisible(runtime_environment)
 }
 
 si_science_marker <- function(name) {
@@ -1168,13 +1196,15 @@ environment_validator_path <- file.path(
   repo_root,
   "Code", "in-vivo", "figure7", "src", "common_io.R"
 )
-sys.source(environment_validator_path, envir = environment())
 seurat_selection_path <- file.path(
   repo_root,
   "Code", "in-vivo", "figure7", "src",
   "seurat_upstream_selection.R"
 )
-sys.source(seurat_selection_path, envir = environment())
+load_si_seurat_validation_runtime(
+  environment_validator_path,
+  seurat_selection_path
+)
 seurat_generator_path <- file.path(
   repo_root,
   "Code", "in-vivo", "figure7",

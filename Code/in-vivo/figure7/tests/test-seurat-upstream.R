@@ -1280,3 +1280,273 @@ testthat::test_that("trimmed upstream source excludes non-figure diagnostics", {
   }
   testthat::expect_false(any(grepl("/Volumes/", source_text, fixed = TRUE)))
 })
+
+testthat::test_that("standalone cluster completion chain is reusable downstream", {
+  root <- tempfile("standalone_cluster_")
+  provenance <- file.path(root, "00_provenance")
+  object_dir <- file.path(root, "03_final_cluster", "03_objects")
+  h5_root <- file.path(root, "raw", "SUM-159", "A02_cellRanger")
+  dir.create(provenance, recursive = TRUE)
+  dir.create(object_dir, recursive = TRUE)
+  h5_paths <- vapply(sprintf("sample%02d", seq_len(18L)), function(sample) {
+    path <- file.path(
+      h5_root,
+      paste0(sample, "-Count-HM"),
+      "outs",
+      paste0(sample, "-Count-HM_filtered_feature_bc_matrix.h5")
+    )
+    dir.create(dirname(path), recursive = TRUE)
+    writeBin(charToRaw(paste0("h5-", sample)), path)
+    path
+  }, character(1))
+  all_ploidy <- file.path(root, "all_ploidy.tsv")
+  sample_info <- file.path(root, "sample_info.xlsx")
+  writeLines("cell\tploidy", all_ploidy)
+  writeBin(charToRaw("xlsx fixture"), sample_info)
+  inputs <- c(h5_paths, all_ploidy, sample_info)
+  input_types <- c(
+    rep("filtered_feature_bc_matrix.h5", 18L),
+    "all_ploidy.tsv",
+    "sample_info.xlsx"
+  )
+  run_manifest <- data.frame(
+    input_type = input_types,
+    path = normalizePath(inputs, mustWork = TRUE),
+    size_bytes = as.character(file.info(inputs)$size),
+    md5 = unname(tools::md5sum(inputs)),
+    modified_time = rep("2026-08-05T00:00:00-0400", 20L),
+    stringsAsFactors = FALSE
+  )
+  utils::write.table(
+    run_manifest,
+    file.path(provenance, "run_manifest.tsv"),
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+  final_rds <- file.path(
+    object_dir,
+    "integrated_sct_cca_seurat_final_reclustered.rds"
+  )
+  writeBin(charToRaw("standalone rds fixture"), final_rds)
+  runtime <- c(
+    status = "PASS",
+    phase = "post_filter",
+    active_sif_md5 = paste(rep("a", 32L), collapse = ""),
+    R = "4.5.0",
+    Seurat = "5.3.0",
+    private_r_library = "",
+    final_object = normalizePath(final_rds, mustWork = TRUE),
+    final_object_size_bytes = as.character(file.info(final_rds)$size),
+    final_object_md5 = unname(tools::md5sum(final_rds))
+  )
+  utils::write.table(
+    data.frame(field = names(runtime), value = unname(runtime)),
+    file.path(provenance, "final_artifact_runtime.tsv"),
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+  writeLines(
+    c(
+      "status=PASS",
+      "final_object=03_final_cluster/03_objects/integrated_sct_cca_seurat_final_reclustered.rds"
+    ),
+    file.path(provenance, "PIPELINE_COMPLETE.txt")
+  )
+  audit_dir <- file.path(
+    root,
+    "00_validation",
+    "rds_semantic_audit"
+  )
+  dir.create(audit_dir, recursive = TRUE)
+  reference_rds <- file.path(root, "zenodo_reference.rds")
+  writeBin(charToRaw("different Zenodo reference serialization"), reference_rds)
+  audit_summary <- data.frame(
+    group = "object",
+    check = "synthetic_semantic_contract",
+    status = "PASS",
+    observed = "equivalent",
+    reference = "equivalent",
+    threshold = "fixture",
+    details = "standalone selection fixture",
+    stringsAsFactors = FALSE
+  )
+  audit_summary_path <- file.path(audit_dir, "audit_summary.tsv")
+  utils::write.table(
+    audit_summary,
+    audit_summary_path,
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+  identities <- data.frame(
+    artifact = c("generated", "zenodo_reference"),
+    path = normalizePath(c(final_rds, reference_rds), mustWork = TRUE),
+    size_bytes = as.character(file.info(c(final_rds, reference_rds))$size),
+    md5 = unname(tools::md5sum(c(final_rds, reference_rds))),
+    sha256 = vapply(
+      c(final_rds, reference_rds),
+      figure7_sha256,
+      character(1L)
+    ),
+    role = c("candidate_downstream_input", "semantic_reference"),
+    stringsAsFactors = FALSE
+  )
+  utils::write.table(
+    identities,
+    file.path(audit_dir, "rds_file_identity.tsv"),
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+  audit_report_names <- c(
+    "audit_summary.tsv", "metadata_comparison.tsv",
+    "cluster_comparison.tsv", "graph_comparison.tsv",
+    "assay_numeric_comparison.tsv", "pca_comparison.tsv",
+    "umap_displacement_summary.tsv", "umap_largest_displacements.tsv",
+    "command_comparison.tsv", "rds_file_identity.tsv"
+  )
+  missing_report_names <- setdiff(
+    audit_report_names,
+    c("audit_summary.tsv", "rds_file_identity.tsv")
+  )
+  for (name in missing_report_names) {
+    writeLines("check\tstatus\nsynthetic\tPASS", file.path(audit_dir, name))
+  }
+  audit_report_hash_lines <- vapply(audit_report_names, function(name) {
+    paste0(
+      "report_sha256.", name, "=",
+      figure7_sha256(file.path(audit_dir, name))
+    )
+  }, character(1L))
+  writeLines(
+    c(
+      "schema_version=semantic_rds_audit_v1",
+      "status=PASS",
+      "checks_total=1",
+      "checks_passed=1",
+      "checks_failed=0",
+      paste0("generated_rds=", normalizePath(final_rds)),
+      paste0("generated_rds_size_bytes=", file.info(final_rds)$size),
+      paste0("generated_rds_md5=", unname(tools::md5sum(final_rds))),
+      paste0("generated_rds_sha256=", figure7_sha256(final_rds)),
+      paste0("zenodo_reference_rds=", normalizePath(reference_rds)),
+      paste0("zenodo_reference_rds_size_bytes=", file.info(reference_rds)$size),
+      paste0("zenodo_reference_rds_md5=", unname(tools::md5sum(reference_rds))),
+      paste0("zenodo_reference_rds_sha256=", figure7_sha256(reference_rds)),
+      paste0("downstream_rds=", normalizePath(final_rds)),
+      paste0("audit_summary=", normalizePath(audit_summary_path)),
+      paste0("audit_summary_sha256=", figure7_sha256(audit_summary_path)),
+      audit_report_hash_lines,
+      "validated_at=2026-08-05T00:00:00-0400"
+    ),
+    file.path(audit_dir, "AUDIT_COMPLETE.txt")
+  )
+
+  validation <- figure7_validate_standalone_seurat_artifact(
+    output_root = root,
+    module_dir = module_dir,
+    all_ploidy = all_ploidy,
+    sample_info = sample_info,
+    expected_rds = final_rds,
+    cellranger_root = h5_root
+  )
+  testthat::expect_true(validation$valid)
+  testthat::expect_identical(validation$rds, normalizePath(final_rds))
+  testthat::expect_length(validation$dependencies, 21L)
+  testthat::expect_identical(
+    unname(validation$dependencies[["semantic_audit_reference_rds"]]),
+    figure7_sha256(reference_rds)
+  )
+  testthat::expect_identical(
+    figure7_infer_seurat_upstream_root(final_rds),
+    normalizePath(root)
+  )
+
+  invalid_runtime <- runtime
+  invalid_runtime[["Seurat"]] <- ""
+  utils::write.table(
+    data.frame(field = names(invalid_runtime), value = unname(invalid_runtime)),
+    file.path(provenance, "final_artifact_runtime.tsv"),
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+  testthat::expect_error(
+    figure7_validate_standalone_seurat_artifact(
+      output_root = root,
+      module_dir = module_dir,
+      all_ploidy = all_ploidy,
+      sample_info = sample_info,
+      expected_rds = final_rds,
+      cellranger_root = h5_root
+    ),
+    "invalid field/value schema"
+  )
+  utils::write.table(
+    data.frame(field = names(runtime), value = unname(runtime)),
+    file.path(provenance, "final_artifact_runtime.tsv"),
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+
+  writeLines("tampered", audit_summary_path)
+  testthat::expect_error(
+    figure7_validate_standalone_seurat_artifact(
+      output_root = root,
+      module_dir = module_dir,
+      all_ploidy = all_ploidy,
+      sample_info = sample_info,
+      expected_rds = final_rds,
+      cellranger_root = h5_root
+    ),
+    "audit summary is inconsistent"
+  )
+  utils::write.table(
+    audit_summary,
+    audit_summary_path,
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+
+  writeLines("tampered", h5_paths[[1L]])
+  testthat::expect_error(
+    figure7_validate_standalone_seurat_artifact(
+      output_root = root,
+      module_dir = module_dir,
+      all_ploidy = all_ploidy,
+      sample_info = sample_info,
+      expected_rds = final_rds,
+      cellranger_root = h5_root
+    ),
+    "size/MD5 verification failed"
+  )
+})
+
+testthat::test_that("standalone completion contract ignores only the run timestamp", {
+  first <- c(
+    status = "PASS",
+    completed_at = "2026-08-05T15:00:00-0400",
+    final_object = paste0(
+      "03_final_cluster/03_objects/",
+      "integrated_sct_cca_seurat_final_reclustered.rds"
+    ),
+    removed_clusters_selected_dynamically = "3,4,9,9c"
+  )
+  second <- first
+  second[["completed_at"]] <- "2026-08-05T16:00:00-0400"
+  changed <- second
+  changed[["removed_clusters_selected_dynamically"]] <- "3,4,9"
+
+  testthat::expect_identical(
+    figure7_standalone_completion_contract_sha256(first),
+    figure7_standalone_completion_contract_sha256(second)
+  )
+  testthat::expect_false(identical(
+    figure7_standalone_completion_contract_sha256(first),
+    figure7_standalone_completion_contract_sha256(changed)
+  ))
+})

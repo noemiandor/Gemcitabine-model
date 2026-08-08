@@ -56,7 +56,8 @@ read_download_manifest <- function(path, enforce_published_contract = FALSE) {
   missing <- setdiff(required, names(manifest))
   if (length(missing)) stop("Zenodo manifest is missing column(s): ", paste(missing, collapse = ", "), call. = FALSE)
   manifest$size_bytes <- suppressWarnings(as.numeric(manifest$size_bytes))
-  if (!nrow(manifest) || any(!manifest$role %in% c("loom", "seurat_rds")) ||
+  if (!nrow(manifest) ||
+      any(!manifest$role %in% c("loom", "seurat_rds", "cellranger_h5", "support")) ||
       any(!is.finite(manifest$size_bytes) | manifest$size_bytes <= 0) ||
       any(basename(manifest$filename) != manifest$filename) || anyDuplicated(manifest$filename) ||
       any(!grepl("^[0-9a-f]{32}$", manifest$md5)) ||
@@ -67,16 +68,45 @@ read_download_manifest <- function(path, enforce_published_contract = FALSE) {
   if (any(has_sha & !grepl("^[0-9a-f]{64}$", manifest$sha256))) {
     stop("Zenodo manifest contains an invalid SHA-256", call. = FALSE)
   }
+  h5_rows <- manifest$role == "cellranger_h5"
+  if (any(h5_rows & !grepl(
+    "^[A-Za-z0-9-]+-Count-HM_filtered_feature_bc_matrix[.]h5$",
+    manifest$filename
+  ))) {
+    stop("Zenodo manifest contains an invalid Cell Ranger H5 filename", call. = FALSE)
+  }
   if (isTRUE(enforce_published_contract) &&
-      (sum(manifest$role == "loom") != 18L || sum(manifest$role == "seurat_rds") != 1L ||
-       sum(manifest$size_bytes) != 11395115098)) {
-    stop("Pinned Zenodo manifest must contain 18 loom files and one Seurat RDS", call. = FALSE)
+      (sum(manifest$role == "loom") != 18L ||
+       sum(manifest$role == "seurat_rds") != 1L ||
+       sum(manifest$role == "cellranger_h5") != 18L ||
+       sum(manifest$role == "support") != 11L ||
+       sum(manifest$size_bytes) != 12414936215)) {
+    stop(
+      paste(
+        "Pinned Zenodo manifest must contain 18 loom files, one Seurat RDS,",
+        "18 Cell Ranger H5 files, and 11 support files"
+      ),
+      call. = FALSE
+    )
   }
   manifest
 }
 
 manifest_target_path <- function(raw_data_dir, role, filename) {
-  if (identical(role, "loom")) file.path(raw_data_dir, "velocyto_loom", filename) else file.path(raw_data_dir, filename)
+  if (identical(role, "loom")) {
+    file.path(raw_data_dir, "velocyto_loom", filename)
+  } else if (identical(role, "cellranger_h5")) {
+    sample_name <- sub(
+      "_filtered_feature_bc_matrix[.]h5$", "", filename
+    )
+    file.path(
+      raw_data_dir, "SUM-159", "A02_cellRanger", sample_name, "outs", filename
+    )
+  } else if (identical(role, "support")) {
+    file.path(raw_data_dir, "support", filename)
+  } else {
+    file.path(raw_data_dir, filename)
+  }
 }
 
 file_checksum_status <- function(path, expected_size, expected_md5, expected_sha256 = "") {
@@ -279,7 +309,7 @@ write_download_provenance <- function(raw_data_dir, source_manifest, audit) {
 download_figure7_raw_data <- function(
   raw_data_dir,
   manifest_path,
-  roles = c("loom", "seurat_rds"),
+  roles = c("loom", "seurat_rds", "cellranger_h5", "support"),
   aria2_bin = Sys.which("aria2c"),
   wget_bin = Sys.which("wget"),
   curl_bin = Sys.which("curl"),
@@ -289,7 +319,13 @@ download_figure7_raw_data <- function(
   allow_download = TRUE
 ) {
   roles <- unique(roles)
-  if (!length(roles) || any(!roles %in% c("loom", "seurat_rds"))) stop("--roles must select loom, seurat_rds, or all", call. = FALSE)
+  if (!length(roles) ||
+      any(!roles %in% c("loom", "seurat_rds", "cellranger_h5", "support"))) {
+    stop(
+      "--roles must select loom, seurat_rds, cellranger_h5, support, or all",
+      call. = FALSE
+    )
+  }
   download_workers <- parse_positive_integer(download_workers, "download-workers", maximum = 16L)
   connections_per_file <- parse_positive_integer(connections_per_file, "download-connections-per-file", maximum = 16L)
   has_aria2 <- nzchar(aria2_bin) && file.exists(aria2_bin)
@@ -444,7 +480,11 @@ main <- function() {
   manifest_arg <- arg_value(args, "manifest", file.path(script_dir, "zenodo_required_files.tsv"))
   if (!grepl("^/", manifest_arg)) manifest_arg <- file.path(repo_root, manifest_arg)
   roles_arg <- strsplit(arg_value(args, "roles", "all"), ",", fixed = TRUE)[[1L]]
-  roles <- if ("all" %in% roles_arg) c("loom", "seurat_rds") else trimws(roles_arg)
+  roles <- if ("all" %in% roles_arg) {
+    c("loom", "seurat_rds", "cellranger_h5", "support")
+  } else {
+    trimws(roles_arg)
+  }
   default_manifest <- normalizePath(file.path(script_dir, "zenodo_required_files.tsv"), mustWork = TRUE)
   result <- download_figure7_raw_data(
     raw_data_dir = normalizePath(raw_data_dir, mustWork = FALSE),

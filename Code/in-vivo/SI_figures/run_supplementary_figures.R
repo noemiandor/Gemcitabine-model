@@ -421,6 +421,61 @@ si_present_reconstruction_hashes <- function(generator, upstream_dir) {
   )
 }
 
+si_reconstruction_dependency_profile <- function(
+  observed,
+  reconstruction_contract
+) {
+  observed_roles <- names(observed)
+  legacy_roles <- c(
+    reconstruction_contract$transitive_roles,
+    reconstruction_contract$scientific_roles,
+    "seurat_upstream_scientific_common_contract"
+  )
+  reconstruction_roles <- observed_roles[
+    startsWith(observed_roles, "seurat_transitive_dependency:") |
+      startsWith(observed_roles, "seurat_scientific_code_contract:") |
+      observed_roles == "seurat_upstream_scientific_common_contract"
+  ]
+  if (!length(reconstruction_roles)) {
+    return(list(kind = "deposited", roles = character(), reconstructed = FALSE))
+  }
+  if (setequal(reconstruction_roles, legacy_roles)) {
+    return(list(kind = "legacy", roles = legacy_roles, reconstructed = TRUE))
+  }
+
+  transitive_roles <- reconstruction_roles[
+    startsWith(reconstruction_roles, "seurat_transitive_dependency:")
+  ]
+  scientific_roles <- reconstruction_roles[
+    startsWith(reconstruction_roles, "seurat_scientific_code_contract:")
+  ]
+  h5_roles <- transitive_roles[
+    startsWith(transitive_roles, "seurat_transitive_dependency:h5_")
+  ]
+  standalone_non_h5_roles <- paste0(
+    "seurat_transitive_dependency:",
+    c("all_ploidy", "sample_info", "semantic_audit_reference_rds")
+  )
+  standalone_scientific_roles <- paste0(
+    "seurat_scientific_code_contract:",
+    c(
+      "standalone_orchestrator", "standalone_pipeline",
+      "standalone_bootstrap", "semantic_rds_audit"
+    )
+  )
+  standalone_valid <-
+    length(h5_roles) == 18L &&
+    setequal(transitive_roles, c(h5_roles, standalone_non_h5_roles)) &&
+    setequal(scientific_roles, standalone_scientific_roles) &&
+    "seurat_upstream_scientific_common_contract" %in% reconstruction_roles
+  if (!standalone_valid) return(NULL)
+  list(
+    kind = "standalone",
+    roles = reconstruction_roles,
+    reconstructed = TRUE
+  )
+}
+
 si_cache_candidate_dependencies <- function(
   build_dir,
   base_dependencies,
@@ -447,25 +502,13 @@ si_cache_candidate_dependencies <- function(
   source_role <- "source_seurat_rds"
   if (!source_role %in% names(observed)) return(NULL)
   source_hash <- unname(observed[[source_role]])
-  reconstructed_roles <- c(
-    reconstruction_contract$transitive_roles,
-    reconstruction_contract$scientific_roles,
-    "seurat_upstream_scientific_common_contract"
+  reconstruction_profile <- si_reconstruction_dependency_profile(
+    observed,
+    reconstruction_contract
   )
-  present_reconstructed_roles <- intersect(
-    names(observed),
-    reconstructed_roles
-  )
-  reconstructed <- if (!length(present_reconstructed_roles)) {
-    FALSE
-  } else if (setequal(
-    present_reconstructed_roles,
-    reconstructed_roles
-  )) {
-    TRUE
-  } else {
-    return(NULL)
-  }
+  if (is.null(reconstruction_profile)) return(NULL)
+  reconstructed <- reconstruction_profile$reconstructed
+  reconstructed_roles <- reconstruction_profile$roles
   if (!reconstructed &&
       !identical(source_hash, tolower(deposited_sha256))) {
     return(NULL)
@@ -500,11 +543,24 @@ si_cache_candidate_dependencies <- function(
   )) {
     return(NULL)
   }
-  if (reconstructed && !identical(
-    unname(observed[names(reconstruction_contract$fixed)]),
-    unname(tolower(as.character(reconstruction_contract$fixed)))
-  )) {
-    return(NULL)
+  if (reconstructed) {
+    fixed_roles <- if (identical(reconstruction_profile$kind, "legacy")) {
+      names(reconstruction_contract$fixed)
+    } else {
+      intersect(
+        names(reconstruction_contract$fixed),
+        paste0(
+          "seurat_transitive_dependency:",
+          c("all_ploidy", "sample_info")
+        )
+      )
+    }
+    if (!identical(
+          unname(observed[fixed_roles]),
+          unname(tolower(as.character(reconstruction_contract$fixed[fixed_roles])))
+        )) {
+      return(NULL)
+    }
   }
 
   present_sources <- character()
@@ -530,7 +586,7 @@ si_cache_candidate_dependencies <- function(
     return(NULL)
   }
 
-  if (reconstructed) {
+  if (reconstructed && identical(reconstruction_profile$kind, "legacy")) {
     relevant_upstream_dir <- upstream_dir
     if (nzchar(explicit_rds) && file.exists(explicit_rds)) {
       inferred_upstream_dir <- figure7_infer_seurat_upstream_root(

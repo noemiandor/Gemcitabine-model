@@ -1,0 +1,257 @@
+# Standalone in-vivo scRNA-seq analysis workflow
+
+This directory contains the shortest standalone path from the three accepted
+input sources to the refined and final Seurat objects. It intentionally omits
+annotation, ORA/GSEA, Dose/Ploidy/TN differential expression, trajectory, and
+other downstream analyses.
+
+## Public entry point
+
+```bash
+CLUSTER_STANDALONE_PRE_FILTER_SIF=/path/to/gemcitabine-model_in-vivo-cluster-r4.5.1.sif \
+CLUSTER_STANDALONE_POST_FILTER_SIF=/path/to/gemcitabine-model_full.sif \
+  bash run_cluster_standalone.sh \
+    Data/in-vivo/figure7/raw/zenodo_21463392/SUM-159/A02_cellRanger \
+    Data/in-vivo/all_ploidy.tsv \
+    Data/in-vivo/sample_info.xlsx \
+    /path/to/Results/scRNA_Seq_analysis
+```
+
+The public interface has four explicit positional arguments: the Cell Ranger
+root, endpoint-ploidy TSV, sample metadata workbook, and output directory. This
+avoids recursive, machine-dependent input discovery. The two SIF
+paths are runtime parameters supplied at the call site; neither image path is
+hard-coded in the scripts. The entry point executes two phases in order:
+
+1. `pre_filter` uses the R 4.5.1 cluster SIF through the completed dynamic
+   selection of clusters `3,4,9,9c`.
+2. `post_filter` uses `gemcitabine-model_full.sif` for every operation after
+   that selection: loading and validating the pre-filter objects, subsetting,
+   deriving final metadata, final PCA, final UMAP, all final plots, final RDS
+   serialization, and final cluster-vs-rest DEG.
+
+The verified post-filter contract is R 4.5.0, Seurat 4.4.0, uwot 0.2.4,
+irlba 2.3.7, and readr 2.2.0. The phase stops on a version mismatch.
+
+The Cell Ranger root must contain exactly the reviewed 18-sample inventory:
+
+```text
+A02_cellRanger/
+└── *-Count-HM/
+    └── outs/
+        └── *-Count-HM_filtered_feature_bc_matrix.h5
+```
+
+The H5 basename must equal the sample-directory basename plus
+`_filtered_feature_bc_matrix.h5`. The two auxiliary files are supplied
+explicitly and are not copied below the raw-data cache.
+
+The workflow does not read any external pre-existing Seurat object, DEG table,
+QC flag table, annotation result, or gene-set result. A retry with the same
+`OUTPUT_DIR` may resume from its own initial, cell-cycle, refined, manual-merge,
+and final RDS only after the corresponding cell-order, metadata, label,
+cluster-count, assay, reduction, command, and runtime contracts pass. A final
+RDS is reusable only when `final_artifact_runtime.tsv` proves that its checksum
+was produced by the configured full SIF with the exact post-filter package
+versions. Final DEG caches are reusable only within a matching full-SIF DEG
+runtime contract. Unproven older final outputs cause a safe stop and must be
+archived before rerunning.
+Paths are supplied only through the four positional arguments above; no
+machine-specific input or output path is embedded in the source.
+
+During `pre_filter`, the entry point creates a runtime-specific private library
+under `OUTPUT_DIR/scRNA_Seq_analysis_r_library/R-<version>-<platform>` and
+installs seven vendored source dependencies: RcppAnnoy 0.0.22, irlba 2.3.5.1,
+sctransform 0.4.2, uwot 0.2.3, xgboost 1.7.11.1,
+BiocNeighbors 2.2.0, and assorthead 1.2.0.
+This requires no network access. The assorthead source contains an explicit
+Annoy floating-point accumulation order. The sctransform source contains
+macOS arm64 `libsystem_m` compatibility routines for the sparse geometric mean
+and `log10`, plus the R 4.5.1 Apple Silicon fused-multiply-add path used by
+the density-weighted step-1 gene sampler. This preserves the original
+SCTransform step-1 genes and variable features without storing a gene
+whitelist. The two cell-culture PCA matrices
+are oriented by their maximum-absolute gene loading and rounded to 10 decimal
+places. These platform-stability rules were verified to retain exactly the
+original 16,050 2N and 12,709 4N singlet barcode sets on both the source Mac
+and the target Linux container; they contain no barcode whitelist or cluster
+deletion list.
+
+The vendored uwot source implements the Apple `libsystem_m` single-precision
+`powf` path used by the reference macOS run. Pre-filter UMAP is executed in a small
+subprocess with the container's reference BLAS/LAPACK preloaded and uwot's
+irlba spectral initializer forced, matching the R 4.5.1 macOS reference rather
+than the container's default OpenBLAS/RSpectra path. The private package and
+subprocess do not replace or modify any package inside the SIF. Given the exact
+reference PCA matrix, this helper reproduces the 42,884-cell reference initial
+UMAP with zero numeric difference. The Linux integration/PCA matrix itself is
+not bitwise identical to the Apple Accelerate result, so this helper contract
+must not be interpreted as an end-to-end claim that every stored floating-point
+matrix is byte-identical.
+
+Because irlba component signs are mathematically arbitrary and differed between
+Apple Accelerate and the Linux reference BLAS, the stored 50-component initial
+PCA reduction is oriented to the reference sign convention using the sign of
+each component's maximum-absolute gene loading. This pre-filter contract
+contains only 50 signs, not gene names, barcodes, or cluster assignments. The
+final PCA is recomputed natively by Seurat inside the full SIF. Only after the
+native full-SIF UMAP is complete, its stored component signs are aligned to the
+reference sign convention. PCA signs are mathematically arbitrary; applying
+this storage convention after UMAP cannot alter the full-SIF UMAP coordinates.
+
+For the platform-sensitive 4c/9c boundary only, the pipeline creates three
+auxiliary compatibility UMAPs. It orients each PCA component by requiring the
+cell with the largest absolute coordinate to be positive, then quantizes the
+oriented PCA at fixed steps. Cluster 4 uses the intersection of the standard
+refinement calls at steps `0.0125` and `0.03`; cluster 9 uses the union of the
+calls at steps `0.03` and `0.09`. All three quantized PCA matrices were
+verified to be element-for-element identical between the reference macOS PCA
+and the standalone Linux PCA. The resulting sets reproduce the reference
+4c=103 and 9c=409 cell IDs exactly, without a barcode/cell whitelist. These
+auxiliary embeddings are used only for refinement membership; the original
+single main UMAP remains the UMAP stored in the Seurat object.
+
+## Analysis order
+
+1. Read the `filtered_feature_bc_matrix.h5` files and the two auxiliary files.
+2. Apply the original cell-culture QC/doublet rules and the `all_ploidy.tsv`
+   barcode whitelist for tumor samples.
+3. Run per-sample SCTransform, SCT-CCA integration, PCA, graph clustering, and
+   the initial UMAP.
+4. Score the cell cycle and add the original cluster-level cell-cycle flag.
+5. On all initial clusters, run cluster-vs-rest DEG and calculate signed-LFC
+   cosine similarity under eight feature definitions. A filesystem gate must
+   pass before any fixed merge label can be created.
+6. Reproduce the UMAP-neighborhood split of clusters 4 and 9 into 4c and 9c.
+   Use the three platform-stable auxiliary UMAP calls described above to resolve
+   only the numerical boundary cells, then save
+   `integrated_sct_cca_seurat_cluster_refine.rds`.
+7. Compute refined-cluster QC flags without adding QC columns to the saved
+   Seurat objects.
+8. After the expression-similarity gate, apply the fixed merges 0/1/7 -> 0 and
+   10/11/12 -> 10.
+9. On all pre-filter cells, run merged/refined cluster-vs-rest DEG. Select
+   clusters dynamically when either `concern_level == "High"` or the cluster
+   has zero qualifying upregulated genes.
+10. Assert that the selected set is the reference set `3,4,9,9c`; this is a
+    reproduction check only and is never used as a fallback deletion rule.
+11. Write `PREFILTER_COMPLETE.txt`, exit the R 4.5.1 cluster SIF, and enter the
+    full SIF.
+12. In the full SIF, validate the refined/manual-merge objects and dynamic
+    removal decision, subset, retain the merge labels as `clusters`, derive the
+    reference `Ploidy` (`2N`/`4N`, with the reference's unused `Unknown` level)
+    and `TN` (`CellLine`/`Tumor`) factor metadata from `IDs`, run native Seurat
+    PCA and UMAP with recorded seeds, write all final plots and the final RDS,
+    and run final cluster-vs-rest DEG.
+
+Independent cluster-vs-rest Wilcoxon comparisons are decomposed into about 62
+`(cluster, feature-chunk)` tasks and use up to 8 Unix fork workers on HPC. The
+allocation provides 64 CPUs but has a 512 GiB memory cgroup limit. A 56-worker
+run recorded 39 OOM-killed calls, and a subsequent 32-worker run reached
+`MaxRSS=1,116,308,464 KiB` before Slurm marked the step `OUT_OF_MEMORY`; active
+workers used approximately 39--42 GiB each. The 8-worker cap therefore keeps
+substantial memory headroom while preserving the same deterministic 62-chunk
+decomposition; all 62 allocated CPUs remain available to the Slurm step.
+Chunk-level Bonferroni correction still uses the full RNA-assay feature count;
+the reassembled CSV was verified byte-for-byte against the sequential result.
+Every worker explicitly receives the registered stage seed; fork RNG stream
+generation is disabled. Completed feature chunks are cached until their cluster
+CSV is assembled, and completed DEG CSV files are validated and reused on a
+retry. Before each large RDS write, the complete cluster-count table is printed
+to the live log; the initial, refined, and final count contracts must pass
+before their corresponding object is saved.
+
+Final cluster-vs-rest DEG files use the original `03a_DEGs.R` 17-column schema
+(`scope` through `p_val_adj`) and `readr::write_csv` serialization. All nine
+files were verified byte-for-byte against the formal reference outputs after
+the split-runtime HPC run; the final DEG phase used the full SIF.
+
+The qualifying upregulated-gene rule is:
+
+```text
+p_val_adj < 0.05
+avg_log2FC > 0
+abs(avg_log2FC) >= 0.25
+abs(pct.1 - pct.2) >= 0.05
+```
+
+The DEG check is performed before any cluster deletion and therefore covers all
+42,884 cells expected in the refined object.
+
+## Main outputs
+
+```text
+OUTPUT_DIR/
+├── 02b_cluster_refine/objects/
+│   └── integrated_sct_cca_seurat_cluster_refine.rds
+├── 02c_cluster_quality/summaries/
+│   └── cluster_qc_outlier_flags.csv
+├── 02e_prefilter_DEGs/summaries/
+│   └── data_driven_cluster_removal_decision.csv
+├── 03_final_cluster/03_objects/
+│   └── integrated_sct_cca_seurat_final_reclustered.rds
+└── 03a_DEGs/01_clusters_vs_rest/
+    └── cluster_*_vs_rest_markers.csv
+```
+
+`run_manifest.tsv`, `seed_registry.tsv`, stage completion markers, and
+`sessionInfo.txt` are written under `OUTPUT_DIR/00_provenance`. The same folder
+also records source checksums, the private dependency build contract,
+`runtime_pre_filter.tsv`, `runtime_post_filter.tsv`,
+`final_artifact_runtime.tsv`, and `final_deg_runtime.tsv`.
+
+## Reproduction validator
+
+After a run, compare the two generated objects against reference objects with:
+
+```bash
+Rscript validate_reproduction.R \
+  OUTPUT_DIR \
+  REFERENCE_REFINED_RDS \
+  REFERENCE_FINAL_RDS
+```
+
+The validator writes a machine-readable report under
+`OUTPUT_DIR/00_validation` and exits nonzero if a required comparison fails.
+The analysis entry point never overwrites an existing final RDS; it resumes
+only after the final-object contract passes and then fills missing final DEG
+outputs.
+
+Manager's H5 workflow uses the separate publication handoff audit:
+
+```bash
+Rscript --vanilla audit_generated_seurat_rds.R \
+  OUTPUT_DIR/03_final_cluster/03_objects/integrated_sct_cca_seurat_final_reclustered.rds \
+  ZENODO_REFERENCE_RDS \
+  OUTPUT_DIR/00_validation/rds_semantic_audit
+```
+
+This audit does not require the two serialized RDS files to share an MD5.
+Instead, it requires exact metadata, cluster/identity, graph, count, object, and
+command contracts; assay/PCA maximum absolute error, RMSE, and correlation
+tolerances (`1e-6`, `1e-8`, and `0.999999`, respectively); and direct UMAP
+limits (each-axis correlation `>=0.99`, median displacement `<=0.10`, 99th
+percentile displacement `<=0.50`, fraction displaced by more than 1 unit
+`<=0.005`, and maximum displacement `<=15`). It writes
+`AUDIT_COMPLETE.txt` plus detailed TSV reports and exits nonzero on any failed
+gate. Manager runs it only for the H5 source path. A PASS binds the generated
+RDS by size, MD5, and SHA-256 and makes that exact file the downstream SI/Figure
+7 input. Zenodo-hosted H5, loom, RDS, and support inputs remain independently
+subject to strict Zenodo MD5 validation.
+
+On the validated split-runtime Linux HPC run, 128 of 144 strict object checks
+passed. The post-filter phase used R 4.5.0 from the full SIF.
+Cell IDs and order, cluster values and levels, active identities, metadata
+schema and values (including `Ploidy` and `TN`), assay dimensions/features, and
+Seurat command order all matched the formal macOS reference. The 16 remaining
+strict failures are the exact hashes of the SCT/integrated floating-point
+matrices, a `1.192092895507812e-7` `scDblFinder.score` residual, PCA coordinate
+residuals of `3.214471973045363e-7` (refined) and
+`2.408718596247361e-7` (final), non-identical PCA-loading hashes, and UMAP
+coordinates amplified from those platform-specific inputs. The final UMAP has
+positive same-axis correlations of `0.9978394` and `0.9945430` with the formal
+coordinates, so it is not 180-degree reversed; its maximum coordinate residual
+is `10.70232841542118`. Rerunning UMAP from the formal PCA in the same full SIF
+reproduced the stored formal UMAP with zero numeric difference. The strict
+report therefore intentionally remains `FAIL`; the workflow does not weaken
+the tolerances or label a non-bitwise object as identical.

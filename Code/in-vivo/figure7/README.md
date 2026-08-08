@@ -98,14 +98,33 @@ before `in_vivo_figure7`, even if only the latter was listed. It first validates
 corrected generated caches; the reviewed frozen panel-7F reference and reviewed
 SI plot-only cache do not satisfy an explicit full refit. A complete,
 lineage-valid generated cache avoids raw-data access. When a missing downstream
-stage needs the final Seurat object, there are two supported source boundaries:
+stage needs the final Seurat object, select the source boundary explicitly:
 
-- pass `--figure7-cellranger-root /path/to/cellranger` to reconstruct the final
-  object from the 18 `filtered_feature_bc_matrix.h5` inputs and reuse the five
-  fingerprinted Seurat stages under the shared
-  `--figure7-seurat-upstream-dir`; or
-- omit that option to reuse or download the deposited final Seurat RDS pinned
-  by `zenodo_required_files.tsv`.
+- `--figure7-scrna-source rds` validates or downloads the deposited final RDS
+  and skips `Code/in-vivo/scRNA_Seq_analysis`;
+- `--figure7-scrna-source h5` requires the reviewed 18-sample Cell Ranger
+  inventory, runs the cluster-SIF/full-SIF standalone workflow, and accepts its
+  final RDS only after the semantic audit against the deposited Zenodo RDS
+  passes. Metadata, cluster assignments, identities, count matrices, and graphs
+  must match exactly; floating assay and PCA values use the recorded numerical
+  tolerances, and UMAP uses same-axis correlation plus per-cell displacement
+  limits. Seurat command timestamps are non-gating, while command parameters,
+  calls, assays, and seeds must match exactly. Downstream reuse additionally
+  validates the standalone `run_manifest.tsv`, `final_artifact_runtime.tsv`,
+  `PIPELINE_COMPLETE.txt`, and `rds_semantic_audit/AUDIT_COMPLETE.txt` chain.
+  A passed H5 audit makes that generated RDS the mandatory input to both
+  Supplementary Figures and Figure 7; failure stops the run without falling
+  back to the deposited RDS.
+
+The complete deposited bundle includes 18 loom files, one final Seurat RDS,
+18 Cell Ranger H5 files, and 11 support/provenance files. All 48 manifest rows
+are size/MD5 validated when selected. For every Zenodo-hosted object, including
+support/provenance files, the Zenodo manifest/API size and MD5 are the
+authoritative integrity contract; narrative values inside a support document
+are not used as replacement checksums. The canonical H5 layout is
+`Data/in-vivo/figure7/raw/zenodo_21463392/SUM-159/A02_cellRanger/*-Count-HM/outs/*-Count-HM_filtered_feature_bc_matrix.h5`.
+Zenodo publishes the H5 files with flat basenames; the downloader materializes
+each one under its sample-specific canonical directory above.
 
 Figure 7A-7D additionally reuse or download the 18 deposited loom files. Source
 panel 7E/main panel L binds the complete combined CBS inventory; in
@@ -113,7 +132,9 @@ panel 7E/main panel L binds the complete combined CBS inventory; in
 16 CBS matrices and requires it to reproduce the canonical checksum. It then
 restricts scoring to exact file+barcode keys retained in the final Seurat tumor
 universe and represented by the two processed tables. The
-complete Zenodo fallback is about 10.61 GiB. Manager then runs only the missing
+complete Zenodo deposit is about 11.56 GiB. The RDS workflow selects the loom,
+RDS, and support roles without downloading the alternative H5 inputs. Manager
+then runs only the missing
 figure-facing stages:
 
 1. reconstruct or validate the shared final Seurat object when required;
@@ -133,6 +154,14 @@ silently fall back to the reviewed supplementary cache. The resulting
 `Figure7_generated_GRCh_candidate.{pdf,png}` pair is explicitly noncanonical.
 Only the exact reviewed cache may produce `Figure7_reviewed_GRCh.{pdf,png}` in
 routine mode.
+
+To copy a completed H5 full-refit candidate into a reviewable figure tree,
+use `--publish-generated-candidate` together with an explicit isolated
+`--figure-root`, for example `figures/H5_fullrefit_<run_id>`. This opt-in never
+writes the canonical `figures/` tree, never updates canonical `latest`
+pointers, and records `canonical_publication_allowed=false` in the published
+manifest rows. Candidate publication revalidates the complete semantic-audit
+report set and the bound generated/Zenodo RDS identities.
 
 The upstream Seurat reconstruction is the exact narrow sequence needed from
 Tao's `01_data.R`, `01a_cell_cycle.R`, `02b_cluster_refine.R`,
@@ -171,8 +200,15 @@ is unavailable.
 
 The endpoint-ploidy table, sample workbook, and growth-curve workbook are
 versioned source artifacts. Their revision and SHA-256 values are pinned in
-`figure7_config.yaml`. Raw downloads and generated intermediates stay below
-`Results/`; they are not publication inputs and are not committed.
+`figure7_config.yaml`. Deposited raw inputs stay below
+`Data/in-vivo/figure7/raw/zenodo_21463392`; active generated intermediates stay
+below `Results/`. When an audited H5 full-refit is explicitly published with
+`--publish-generated-candidate`, Manager also materializes the final Figure 7
+and Supplementary assets under `figures/` and publishes the reusable data
+contract below `Data/in-vivo/figure7/`: the two processed cell tables, the
+nine-file compact state-pathway reference, and a run-scoped
+`generated_candidates/<run_id>/` bundle containing the generated RDS,
+semantic audit, Figure 7/SI tables, metadata, and a SHA-256 manifest.
 If the reduced endpoint-ploidy TSV is missing while the 16 reviewed CBS files
 are present, Manager regenerates the exact checksum-pinned table in the current
 run's artifact directory and reuses it without modifying tracked inputs.
@@ -379,7 +415,9 @@ A full-refit run has the same scientific panel mapping but writes
 `Figure7_generated_GRCh_candidate.{pdf,png}`. Its generated supplementary-cache
 manifest, analysis-input manifest, run configuration, and provenance are all
 hash-bound in Figure 7 metadata; `canonical_publication_allowed=false` prevents
-the candidate from being materialized as a manuscript asset.
+the candidate from being materialized as a canonical manuscript asset. It may
+be copied only as an explicitly labeled generated candidate under an isolated
+figure root.
 
 An explicit `--panel-set=a-e`/`--figure7-panels-ae-only` run instead contains
 exactly the first five pairs, records `panel_set=a-e`, and excludes all panel-F

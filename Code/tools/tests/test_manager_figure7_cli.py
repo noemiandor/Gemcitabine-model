@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import os
 import statistics
 import subprocess
@@ -22,6 +23,7 @@ from figure7_density_fixture import write_density_localization_fixture  # noqa: 
 from materialize_figure_assets import (  # noqa: E402
     PANEL_SPECS,
     panel_specs_for_figure7_variant,
+    validate_generated_candidate_source_run,
 )
 
 
@@ -209,6 +211,445 @@ input_paths_for_module in_vivo_figure7 "$1"
         )
         self.assertEqual(result.returncode, 2)
         self.assertIn("non-negative integer", result.stderr)
+
+    def test_scrna_source_rejects_unknown_value(self) -> None:
+        result = self._run("--figure7-scrna-source", "automatic")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("must be rds or h5", result.stderr)
+
+    def test_generated_candidate_requires_h5_full_refit_and_allows_figures_root(self) -> None:
+        result = self._run("--publish-generated-candidate")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("requires --mode full-refit", result.stderr)
+
+        result = self._run(
+            "--mode", "full-refit",
+            "--figure7-scrna-source", "h5",
+            "--publish-generated-candidate",
+            "--dry-run",
+        )
+        self.assertNotIn("isolated --figure-root", result.stderr)
+
+        result = self._run(
+            "--mode", "full-refit",
+            "--figure7-scrna-source", "h5",
+            "--publish-generated-candidate",
+            "--figure-root", str(REPO_ROOT / "figures"),
+            "--dry-run",
+        )
+        self.assertNotIn("cannot write to the canonical figures root", result.stderr)
+
+    def test_help_describes_generated_candidate_data_publication_root(self) -> None:
+        result = self._run("--help")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--figure7-data-root DIR", result.stdout)
+        self.assertIn("Data/in-vivo/figure7", result.stdout)
+
+    def test_generated_candidate_specs_use_noncanonical_composite_name(self) -> None:
+        specs = panel_specs_for_figure7_variant(
+            17,
+            "Figure7",
+            "generated-candidate",
+        )
+        composite_assets = {
+            str(spec["asset"])
+            for spec in specs
+            if str(spec["panel"]).startswith("7A-7L_composite")
+        }
+        self.assertEqual(
+            composite_assets,
+            {
+                "Figure7_generated_GRCh_candidate.png",
+                "Figure7_generated_GRCh_candidate.pdf",
+            },
+        )
+        self.assertNotIn("Figure7_reviewed_GRCh.png", composite_assets)
+
+    def test_rds_scrna_source_plans_full_sif_preflight_and_downstream(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            full_sif = tmp_path / "full.sif"
+            full_sif.write_text("fixture full sif")
+            fake_bin = tmp_path / "bin"
+            fake_bin.mkdir()
+            apptainer = fake_bin / "apptainer"
+            apptainer.write_text("#!/usr/bin/env bash\nexit 99\n")
+            apptainer.chmod(0o755)
+            env = os.environ.copy()
+            env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+            env["CLUSTER_STANDALONE_POST_FILTER_SIF"] = str(full_sif)
+            result = self._run(
+                "--mode", "check-only",
+                "--modules", "in_vivo_figure7",
+                "--figure7-panels-ae-only",
+                "--figure7-scrna-source", "rds",
+                env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("[figure7_scrna_raw_preflight]", result.stdout)
+            self.assertIn("--roles=loom\\,seurat_rds\\,support", result.stdout)
+            self.assertNotIn("cellranger_h5", result.stdout)
+            self.assertNotIn("[figure7_scrna_semantic_audit]", result.stdout)
+            self.assertIn("integrated_sct_cca_seurat_final_reclustered.rds", result.stdout)
+            self.assertIn("apptainer exec --cleanenv", result.stdout)
+
+    def test_h5_scrna_source_plans_semantic_audit_before_downstream(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            full_sif = tmp_path / "full.sif"
+            cluster_sif = tmp_path / "cluster.sif"
+            full_sif.write_text("fixture full sif")
+            cluster_sif.write_text("fixture cluster sif")
+            cellranger_root = tmp_path / "A02_cellRanger"
+            for index in range(18):
+                sample = f"sample{index:02d}-Count-HM"
+                outs = cellranger_root / sample / "outs"
+                outs.mkdir(parents=True)
+                (outs / f"{sample}_filtered_feature_bc_matrix.h5").write_text(
+                    "fixture h5"
+                )
+            fake_bin = tmp_path / "bin"
+            fake_bin.mkdir()
+            apptainer = fake_bin / "apptainer"
+            apptainer.write_text("#!/usr/bin/env bash\nexit 99\n")
+            apptainer.chmod(0o755)
+            env = os.environ.copy()
+            env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+            env["CLUSTER_STANDALONE_POST_FILTER_SIF"] = str(full_sif)
+            env["CLUSTER_STANDALONE_PRE_FILTER_SIF"] = str(cluster_sif)
+            result = self._run(
+                "--mode",
+                "check-only",
+                "--modules",
+                "in_vivo_figure7",
+                "--figure7-panels-ae-only",
+                "--figure7-scrna-source",
+                "h5",
+                "--figure7-cellranger-root",
+                str(cellranger_root),
+                "--figure7-raw-data-dir",
+                str(tmp_path / "raw"),
+                env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("[figure7_scrna_h5]", result.stdout)
+            self.assertIn("[figure7_scrna_semantic_audit]", result.stdout)
+            self.assertIn(
+                "Code/in-vivo/scRNA_Seq_analysis/audit_generated_seurat_rds.R",
+                result.stdout,
+            )
+            self.assertLess(
+                result.stdout.index("[figure7_scrna_semantic_audit]"),
+                result.stdout.index("[in_vivo_figure7]"),
+            )
+            downstream_line = next(
+                line
+                for line in result.stdout.splitlines()
+                if line.startswith("[in_vivo_figure7]")
+            )
+            self.assertIn(
+                "scRNA_Seq_analysis/03_final_cluster/03_objects/"
+                "integrated_sct_cca_seurat_final_reclustered.rds",
+                downstream_line,
+            )
+
+    def test_h5_scrna_source_fails_preflight_when_canonical_h5_are_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            full_sif = tmp_path / "full.sif"
+            cluster_sif = tmp_path / "cluster.sif"
+            full_sif.write_text("fixture full sif")
+            cluster_sif.write_text("fixture cluster sif")
+            fake_bin = tmp_path / "bin"
+            fake_bin.mkdir()
+            apptainer = fake_bin / "apptainer"
+            apptainer.write_text("#!/usr/bin/env bash\nexit 99\n")
+            apptainer.chmod(0o755)
+            env = os.environ.copy()
+            env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+            env["CLUSTER_STANDALONE_POST_FILTER_SIF"] = str(full_sif)
+            env["CLUSTER_STANDALONE_PRE_FILTER_SIF"] = str(cluster_sif)
+            result = self._run(
+                "--mode", "check-only",
+                "--modules", "in_vivo_figure7",
+                "--figure7-panels-ae-only",
+                "--figure7-scrna-source", "h5",
+                "--figure7-raw-data-dir", str(tmp_path / "raw"),
+                env=env,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(
+                "Expected 18 downloaded and checksum-validated Cell Ranger H5 files",
+                result.stderr,
+            )
+            self.assertIn("cellranger_h5", result.stdout)
+
+    def test_generated_rds_binding_accepts_a_passed_audit_and_detects_tampering(self) -> None:
+        manager_text = (REPO_ROOT / "Manager.sh").read_text()
+        start = manager_text.index("portable_md5()")
+        end = manager_text.index("\nprepare_figure7_scrna_source()", start)
+        function_block = manager_text[start:end]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            generated = tmp_path / "generated.rds"
+            generated.write_bytes(b"generated serialized fixture")
+            marker = tmp_path / "AUDIT_COMPLETE.txt"
+            generated_md5 = hashlib.md5(generated.read_bytes()).hexdigest()
+            generated_sha256 = sha256_file(generated)
+            marker.write_text(
+                "\n".join(
+                    [
+                        "schema_version=semantic_rds_audit_v1",
+                        "status=PASS",
+                        f"generated_rds={generated.resolve()}",
+                        f"generated_rds_size_bytes={generated.stat().st_size}",
+                        f"generated_rds_md5={generated_md5}",
+                        f"generated_rds_sha256={generated_sha256}",
+                        f"downstream_rds={generated.resolve()}",
+                    ]
+                )
+                + "\n"
+            )
+            script = f"""
+set -euo pipefail
+require_file() {{ [[ -f \"$1\" ]] || return 1; }}
+{function_block}
+figure7_scrna_source=h5
+bind_figure7_audited_generated_rds \"$1\" \"$2\"
+verify_figure7_audited_generated_rds
+printf '%s\\n' \"$figure7_audited_generated_rds_sha256\"
+"""
+            passed = subprocess.run(
+                ["bash", "-c", script, "fixture", str(generated), str(marker)],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(passed.returncode, 0, passed.stderr)
+            self.assertIn(generated_sha256, passed.stdout)
+
+            generated.write_bytes(b"tampered serialized fixture")
+            failed = subprocess.run(
+                ["bash", "-c", script, "fixture", str(generated), str(marker)],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn("no longer matches", failed.stderr)
+
+    def test_standalone_uses_explicit_inputs_and_sample_prefixed_h5(self) -> None:
+        manager_text = (REPO_ROOT / "Manager.sh").read_text()
+        shell_text = (
+            REPO_ROOT / "Code/in-vivo/scRNA_Seq_analysis/run_cluster_standalone.sh"
+        ).read_text()
+        pipeline_text = (
+            REPO_ROOT / "Code/in-vivo/scRNA_Seq_analysis/cluster_pipeline_standalone.R"
+        ).read_text()
+        self.assertIn(
+            "CELLRANGER_ROOT ALL_PLOIDY_TSV SAMPLE_INFO_XLSX OUTPUT_DIR",
+            shell_text,
+        )
+        self.assertIn(
+            'paste0(sample_folder, "_filtered_feature_bc_matrix.h5")',
+            pipeline_text,
+        )
+        self.assertNotIn(
+            'file.path(sample_dir, "outs", "filtered_feature_bc_matrix.h5")',
+            pipeline_text,
+        )
+        self.assertIn(
+            '${figure7_seurat_upstream_dir}/scRNA_Seq_analysis/00_provenance',
+            manager_text,
+        )
+        self.assertIn(
+            'scRNA_Seq_analysis/00_validation/rds_semantic_audit',
+            manager_text,
+        )
+        self.assertIn(
+            "Code/in-vivo/scRNA_Seq_analysis/audit_generated_seurat_rds.R",
+            manager_text,
+        )
+        self.assertIn('figure7_active_scrna_rds="${figure7_audited_generated_rds:-${generated_rds}}"', manager_text)
+        self.assertNotIn("write_figure7_rds_md5_gate", manager_text)
+
+    def test_generated_candidate_validator_requires_bound_semantic_audit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source_id = "semantic_candidate"
+            run_root = tmp_path / f"{source_id}_si_figures"
+            metadata = run_root / "metadata"
+            provenance = run_root / "upstream/00_provenance"
+            audit_dir = run_root / "upstream/00_validation/rds_semantic_audit"
+            metadata.mkdir(parents=True)
+            provenance.mkdir(parents=True)
+            audit_dir.mkdir(parents=True)
+
+            generated = run_root / "generated.rds"
+            reference = run_root / "zenodo_reference.rds"
+            generated.write_bytes(b"generated RDS fixture")
+            reference.write_bytes(b"different Zenodo RDS fixture")
+            for name in (
+                "run_manifest.tsv",
+                "final_artifact_runtime.tsv",
+                "PIPELINE_COMPLETE.txt",
+            ):
+                (provenance / name).write_text(f"fixture={name}\n")
+
+            summary = audit_dir / "audit_summary.tsv"
+            write_tsv(
+                summary,
+                [
+                    {
+                        "group": "object",
+                        "check": "fixture",
+                        "status": "PASS",
+                        "observed": "equivalent",
+                        "reference": "equivalent",
+                        "threshold": "fixture",
+                        "details": "fixture",
+                    }
+                ],
+                [
+                    "group",
+                    "check",
+                    "status",
+                    "observed",
+                    "reference",
+                    "threshold",
+                    "details",
+                ],
+            )
+            report_names = {
+                "audit_summary.tsv",
+                "metadata_comparison.tsv",
+                "cluster_comparison.tsv",
+                "graph_comparison.tsv",
+                "assay_numeric_comparison.tsv",
+                "pca_comparison.tsv",
+                "umap_displacement_summary.tsv",
+                "umap_largest_displacements.tsv",
+                "command_comparison.tsv",
+                "rds_file_identity.tsv",
+            }
+            for name in report_names - {
+                "audit_summary.tsv",
+                "rds_file_identity.tsv",
+            }:
+                (audit_dir / name).write_text("check\tstatus\nfixture\tPASS\n")
+            generated_md5 = hashlib.md5(generated.read_bytes()).hexdigest()
+            reference_md5 = hashlib.md5(reference.read_bytes()).hexdigest()
+            write_tsv(
+                audit_dir / "rds_file_identity.tsv",
+                [
+                    {
+                        "artifact": "generated",
+                        "path": str(generated.resolve()),
+                        "size_bytes": generated.stat().st_size,
+                        "md5": generated_md5,
+                        "sha256": sha256_file(generated),
+                        "role": "candidate_downstream_input",
+                    },
+                    {
+                        "artifact": "zenodo_reference",
+                        "path": str(reference.resolve()),
+                        "size_bytes": reference.stat().st_size,
+                        "md5": reference_md5,
+                        "sha256": sha256_file(reference),
+                        "role": "semantic_reference",
+                    },
+                ],
+                ["artifact", "path", "size_bytes", "md5", "sha256", "role"],
+            )
+            marker_rows = [
+                "schema_version=semantic_rds_audit_v1",
+                "status=PASS",
+                "checks_total=1",
+                "checks_passed=1",
+                "checks_failed=0",
+                f"generated_rds={generated.resolve()}",
+                f"generated_rds_size_bytes={generated.stat().st_size}",
+                f"generated_rds_md5={generated_md5}",
+                f"generated_rds_sha256={sha256_file(generated)}",
+                f"zenodo_reference_rds={reference.resolve()}",
+                f"zenodo_reference_rds_size_bytes={reference.stat().st_size}",
+                f"zenodo_reference_rds_md5={reference_md5}",
+                f"zenodo_reference_rds_sha256={sha256_file(reference)}",
+                f"downstream_rds={generated.resolve()}",
+                f"audit_summary={summary.resolve()}",
+                f"audit_summary_sha256={sha256_file(summary)}",
+            ]
+            marker_rows.extend(
+                f"report_sha256.{name}={sha256_file(audit_dir / name)}"
+                for name in sorted(report_names)
+            )
+            (audit_dir / "AUDIT_COMPLETE.txt").write_text(
+                "\n".join(marker_rows) + "\n"
+            )
+
+            write_tsv(
+                metadata / "run_config.tsv",
+                [{"key": "si7_canonical_publication_allowed", "value": "false"}],
+                ["key", "value"],
+            )
+            write_tsv(metadata / "panel_contract.tsv", [], ["panel_id", "filename"])
+            output_artifact = run_root / "output.txt"
+            output_artifact.write_text("fixture output\n")
+
+            def manifest_row(path: Path, role: str) -> dict[str, object]:
+                return {
+                    "path": str(path.resolve()),
+                    "repo_relative_path": "",
+                    "absolute_path": str(path.resolve()),
+                    "role": role,
+                    "source_kind": "input_file" if role == "input_data" else "generated_table",
+                    "module": "si_figures",
+                    "generated_by": "test",
+                    "command_id": source_id,
+                    "sha256": sha256_file(path),
+                    "checksum_unavailable_reason": "",
+                    "byte_size": path.stat().st_size,
+                    "mtime_utc": "2026-08-05T00:00:00+00:00",
+                    "figure": "",
+                    "panel": "",
+                    "notes": "fixture",
+                }
+
+            input_paths = [generated, reference, *provenance.iterdir(), *audit_dir.iterdir()]
+            write_tsv(
+                metadata / "input_manifest.tsv",
+                [manifest_row(path, "input_data") for path in input_paths],
+                MODULE_MANIFEST_COLUMNS,
+            )
+            write_tsv(
+                metadata / "output_manifest.tsv",
+                [manifest_row(output_artifact, "output_table")],
+                MODULE_MANIFEST_COLUMNS,
+            )
+
+            validate_generated_candidate_source_run(
+                "si_figures",
+                run_root,
+                [],
+                REPO_ROOT,
+                source_id,
+                17,
+            )
+            (audit_dir / "graph_comparison.tsv").write_text(
+                "check\tstatus\nfixture\tFAIL\n"
+            )
+            with self.assertRaisesRegex(
+                ValueError,
+                "sha256 does not match|report was modified",
+            ):
+                validate_generated_candidate_source_run(
+                    "si_figures",
+                    run_root,
+                    [],
+                    REPO_ROOT,
+                    source_id,
+                    17,
+                )
 
     def test_ae_only_rejects_full_panel_f_analysis(self) -> None:
         result = self._run(

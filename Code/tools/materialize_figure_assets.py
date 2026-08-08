@@ -640,6 +640,7 @@ EXTERNAL_ROWS = [
 def panel_specs_for_figure7_variant(
     tgi_day: int,
     figure_name: str,
+    publication_kind: str = "canonical",
 ) -> list[dict[str, object]]:
     if tgi_day < 0:
         raise ValueError("--figure7-tgi-day must be a non-negative integer")
@@ -653,6 +654,10 @@ def panel_specs_for_figure7_variant(
         raise ValueError(
             "--figure7-figure-name must be Figure7 or a Figure7-prefixed folder name"
         )
+    if publication_kind not in {"canonical", "generated-candidate"}:
+        raise ValueError(
+            "publication_kind must be canonical or generated-candidate"
+        )
     specs: list[dict[str, object]] = []
     for original in PANEL_SPECS:
         spec = dict(original)
@@ -662,6 +667,12 @@ def panel_specs_for_figure7_variant(
                 spec[key] = str(spec[key]).replace("day17", f"day{tgi_day}").replace(
                     "Day-17", f"Day-{tgi_day}"
                 )
+            if publication_kind == "generated-candidate":
+                for key in ("source", "asset"):
+                    spec[key] = str(spec[key]).replace(
+                        "Figure7_reviewed_GRCh",
+                        "Figure7_generated_GRCh_candidate",
+                    )
         specs.append(spec)
     return specs
 
@@ -703,7 +714,14 @@ def generated_row(
     repo_root: Path,
     source_run_id: str,
     operation_id: str,
+    publication_kind: str = "canonical",
 ) -> dict[str, str]:
+    effective_publication_kind = (
+        "generated-candidate"
+        if publication_kind == "generated-candidate"
+        and str(spec["module"]) in STRICT_FIGURE_MODULES
+        else "canonical"
+    )
     manifest_parent = asset.parent
     published_asset = portable_locator(asset, repo_root, manifest_parent)
     source_locator = portable_locator(source, repo_root, manifest_parent)
@@ -738,6 +756,10 @@ def generated_row(
                 f"validated_source_file={source_locator}",
                 f"validated_source_run={source_run_locator}",
                 f"validated_source_sha256={sha256_file(source)}",
+                "publication_kind="
+                f"{effective_publication_kind.replace('-', '_')}",
+                "canonical_publication_allowed="
+                f"{'true' if effective_publication_kind == 'canonical' else 'false'}",
             )
         ),
     }
@@ -2480,7 +2502,7 @@ def validate_figure7_density_localization_contract(
         )
 
 
-def validate_strict_source_run(
+def validate_generated_candidate_source_run(
     module: str,
     run_root: Path,
     selected_specs: list[dict[str, object]],
@@ -2488,8 +2510,366 @@ def validate_strict_source_run(
     source_run_id: str,
     figure7_tgi_day: int,
 ) -> None:
+    """Validate noncanonical H5 full-refit outputs without canonical claims."""
+    expected_name = (
+        f"{source_run_id}_figure7"
+        if module == "in_vivo_figure7"
+        else f"{source_run_id}_si_figures"
+    )
+    if run_root.name != expected_name:
+        raise ValueError(
+            f"{module} source run must be named {expected_name}, got {run_root.name}"
+        )
+
+    input_manifest = run_root / "metadata" / "input_manifest.tsv"
+    output_manifest = run_root / "metadata" / "output_manifest.tsv"
+    for label, manifest, output_root in (
+        ("input", input_manifest, None),
+        ("output", output_manifest, run_root),
+    ):
+        if not manifest.is_file():
+            raise FileNotFoundError(f"Missing source {label} manifest: {manifest}")
+        errors = validate_module_manifest(
+            manifest,
+            repo_root=repo_root,
+            output_root=output_root,
+        )
+        if errors:
+            raise ValueError(
+                f"Invalid source {label} manifest:\n" + "\n".join(errors)
+            )
+    _, input_rows = read_tsv(input_manifest)
+    _, output_rows = read_tsv(output_manifest)
+    if any(
+        row.get("module") != module or row.get("command_id") != source_run_id
+        for row in input_rows + output_rows
+    ):
+        raise ValueError(
+            f"Generated-candidate manifests must use module={module} "
+            f"and command_id={source_run_id}"
+        )
+
+    run_config = read_unique_key_values(
+        run_root / "metadata" / "run_config.tsv",
+        f"source {module} run config",
+    )
+    if module == "in_vivo_figure7":
+        expected_metadata = {
+            "panel_set": "a-f",
+            "tgi_day": str(figure7_tgi_day),
+            "canonical_publication_allowed": "false",
+            "main_composite_panel_set": "a-l",
+            "main_composite_filename": "Figure7_generated_GRCh_candidate.png",
+            "si_context_cache_policy": "generated-human-only",
+        }
+    else:
+        expected_metadata = {
+            "si7_canonical_publication_allowed": "false",
+        }
+    mismatches = {
+        key: (run_config.get(key), expected)
+        for key, expected in expected_metadata.items()
+        if run_config.get(key) != expected
+    }
+    if mismatches:
+        raise ValueError(
+            "Generated-candidate publication metadata mismatch: "
+            f"{mismatches}"
+        )
+
+    observed_input_paths = {
+        path.resolve()
+        for row in input_rows
+        if (
+            path := module_manifest_local_path(row, repo_root)
+        ) is not None
+    }
+    provenance_names = {
+        path.name
+        for path in observed_input_paths
+        if path.parent.name == "00_provenance"
+    }
+    required_provenance = {
+        "run_manifest.tsv",
+        "final_artifact_runtime.tsv",
+        "PIPELINE_COMPLETE.txt",
+    }
+    if not required_provenance.issubset(provenance_names):
+        raise ValueError(
+            "Generated-candidate input lineage does not bind the standalone "
+            f"completion chain: missing={sorted(required_provenance - provenance_names)}"
+        )
+    audit_paths = [
+        path
+        for path in observed_input_paths
+        if path.parent.name == "rds_semantic_audit"
+    ]
+    audit_by_name: dict[str, Path] = {}
+    for path in audit_paths:
+        if path.name in audit_by_name:
+            raise ValueError(
+                "Generated-candidate input lineage contains duplicate semantic "
+                f"audit files: {path.name}"
+            )
+        audit_by_name[path.name] = path
+    required_audit = {
+        "audit_summary.tsv",
+        "metadata_comparison.tsv",
+        "cluster_comparison.tsv",
+        "graph_comparison.tsv",
+        "assay_numeric_comparison.tsv",
+        "pca_comparison.tsv",
+        "umap_displacement_summary.tsv",
+        "umap_largest_displacements.tsv",
+        "command_comparison.tsv",
+        "rds_file_identity.tsv",
+        "AUDIT_COMPLETE.txt",
+    }
+    if not required_audit.issubset(audit_by_name):
+        raise ValueError(
+            "Generated-candidate input lineage does not bind the complete "
+            "semantic RDS audit: "
+            f"missing={sorted(required_audit - set(audit_by_name))}"
+        )
+
+    marker_lines = audit_by_name["AUDIT_COMPLETE.txt"].read_text().splitlines()
+    if any("=" not in line for line in marker_lines):
+        raise ValueError("Generated-candidate semantic RDS audit marker is malformed")
+    marker_pairs = [line.split("=", 1) for line in marker_lines]
+    marker: dict[str, str] = {}
+    for key, value in marker_pairs:
+        if not key or not value or key in marker:
+            raise ValueError(
+                "Generated-candidate semantic RDS audit marker is malformed"
+            )
+        marker[key] = value
+    required_marker = {
+        "schema_version",
+        "status",
+        "checks_total",
+        "checks_passed",
+        "checks_failed",
+        "generated_rds",
+        "generated_rds_size_bytes",
+        "generated_rds_md5",
+        "generated_rds_sha256",
+        "zenodo_reference_rds",
+        "zenodo_reference_rds_size_bytes",
+        "zenodo_reference_rds_md5",
+        "zenodo_reference_rds_sha256",
+        "downstream_rds",
+        "audit_summary",
+        "audit_summary_sha256",
+    }
+    required_marker.update(
+        f"report_sha256.{name}" for name in sorted(required_audit - {"AUDIT_COMPLETE.txt"})
+    )
+    if (
+        not required_marker.issubset(marker)
+        or marker["schema_version"] != "semantic_rds_audit_v1"
+        or marker["status"] != "PASS"
+        or marker["checks_failed"] != "0"
+        or marker["generated_rds"] != marker["downstream_rds"]
+    ):
+        raise ValueError(
+            "Generated-candidate semantic RDS audit completion marker is invalid"
+        )
+    for name in required_audit - {"AUDIT_COMPLETE.txt"}:
+        if sha256_file(audit_by_name[name]) != marker[f"report_sha256.{name}"].lower():
+            raise ValueError(
+                "Generated-candidate semantic RDS audit report was modified: "
+                f"{name}"
+            )
+
+    summary_path = audit_by_name["audit_summary.tsv"]
+    if Path(marker["audit_summary"]).resolve() != summary_path.resolve():
+        raise ValueError("Semantic RDS audit marker binds a different summary")
+    summary_headers, summary_rows = read_tsv(summary_path)
+    if (
+        summary_headers
+        != [
+            "group",
+            "check",
+            "status",
+            "observed",
+            "reference",
+            "threshold",
+            "details",
+        ]
+        or not summary_rows
+        or any(row.get("status") != "PASS" for row in summary_rows)
+        or marker["checks_total"] != str(len(summary_rows))
+        or marker["checks_passed"] != str(len(summary_rows))
+        or sha256_file(summary_path) != marker["audit_summary_sha256"].lower()
+    ):
+        raise ValueError("Generated-candidate semantic RDS audit summary is invalid")
+
+    identity_headers, identity_rows = read_tsv(
+        audit_by_name["rds_file_identity.tsv"]
+    )
+    identity_by_artifact = {
+        row.get("artifact", ""): row for row in identity_rows
+    }
+    if (
+        identity_headers
+        != ["artifact", "path", "size_bytes", "md5", "sha256", "role"]
+        or set(identity_by_artifact) != {"generated", "zenodo_reference"}
+    ):
+        raise ValueError("Generated-candidate RDS identity audit is invalid")
+    generated_identity = identity_by_artifact["generated"]
+    reference_identity = identity_by_artifact["zenodo_reference"]
+    generated_path = Path(marker["generated_rds"]).resolve()
+    reference_path = Path(marker["zenodo_reference_rds"]).resolve()
+    if (
+        generated_path not in observed_input_paths
+        or reference_path not in observed_input_paths
+        or Path(generated_identity.get("path", "")).resolve() != generated_path
+        or Path(reference_identity.get("path", "")).resolve() != reference_path
+        or generated_identity.get("size_bytes") != marker["generated_rds_size_bytes"]
+        or generated_identity.get("md5", "").lower()
+        != marker["generated_rds_md5"].lower()
+        or generated_identity.get("sha256", "").lower()
+        != marker["generated_rds_sha256"].lower()
+        or reference_identity.get("size_bytes")
+        != marker["zenodo_reference_rds_size_bytes"]
+        or reference_identity.get("md5", "").lower()
+        != marker["zenodo_reference_rds_md5"].lower()
+        or reference_identity.get("sha256", "").lower()
+        != marker["zenodo_reference_rds_sha256"].lower()
+        or sha256_file(generated_path) != marker["generated_rds_sha256"].lower()
+        or sha256_file(reference_path)
+        != marker["zenodo_reference_rds_sha256"].lower()
+    ):
+        raise ValueError(
+            "Generated-candidate semantic RDS audit does not bind the selected "
+            "generated RDS and Zenodo reference RDS"
+        )
+
+    expected_sources = {
+        (run_root / str(spec["source"])).resolve()
+        for spec in selected_specs
+        if str(spec["module"]) == module
+        and (not spec.get("optional") or (run_root / str(spec["source"])).is_file())
+    }
+    module_specs = [
+        spec for spec in selected_specs if str(spec["module"]) == module
+    ]
+    if module == "in_vivo_figure7":
+        required_candidate_panels = {
+            "7F",
+            "7F_png",
+            "7A-7L_composite",
+            "7A-7L_composite_pdf",
+        }
+        present_candidate_panels = {
+            str(spec["panel"])
+            for spec in module_specs
+            if (run_root / str(spec["source"])).is_file()
+        }
+        if not required_candidate_panels.issubset(present_candidate_panels):
+            raise ValueError(
+                "Generated Figure 7 candidate lacks panel F or its A-L composite"
+            )
+        composite = (
+            run_root / "figures" / "Figure7_generated_GRCh_candidate.png"
+        )
+        width_px, height_px, dpi_x, dpi_y = read_png_geometry(composite)
+        if (
+            (width_px, height_px) != (2130, 3193)
+            or dpi_x is None
+            or dpi_y is None
+            or abs(dpi_x - 300.0) > 0.5
+            or abs(dpi_y - 300.0) > 0.5
+        ):
+            raise ValueError(
+                "Generated Figure 7 A-L PNG must be exactly 2130x3193 pixels "
+                "with 300-DPI metadata"
+            )
+
+    panel_contract = run_root / "metadata" / "panel_contract.tsv"
+    if not panel_contract.is_file():
+        raise FileNotFoundError(f"Missing source panel contract: {panel_contract}")
+    _, contract_rows = read_tsv(panel_contract)
+    expected_contract = [
+        (str(spec["panel"]), Path(str(spec["source"])).name)
+        for spec in module_specs
+        if (
+            module == "si_figures"
+            or spec.get("contract", spec.get("variant", "pdf") == "pdf")
+        )
+        and (not spec.get("optional") or (run_root / str(spec["source"])).is_file())
+    ]
+    observed_contract = [
+        (row.get("panel_id", ""), row.get("filename", ""))
+        for row in contract_rows
+    ]
+    if observed_contract != expected_contract:
+        raise ValueError(
+            "Generated-candidate panel contract mismatch: "
+            f"expected={expected_contract}; observed={observed_contract}"
+        )
+
+    observed_figures = {
+        path.resolve()
+        for path in run_root.rglob("*")
+        if path.is_file() and path.suffix.lower() in FIGURE_SUFFIXES
+    }
+    if observed_figures != expected_sources:
+        raise ValueError(
+            f"{module} generated candidate violates its exact panel inventory: "
+            f"missing={sorted(str(path) for path in expected_sources - observed_figures)}; "
+            f"unexpected={sorted(str(path) for path in observed_figures - expected_sources)}"
+        )
+
+    rows_by_path: dict[Path, list[dict[str, str]]] = {}
+    for row in output_rows:
+        path = module_manifest_local_path(
+            row,
+            repo_root,
+            output_root=run_root,
+        )
+        if path is not None:
+            rows_by_path.setdefault(path.resolve(), []).append(row)
+    for source in sorted(expected_sources):
+        matches = rows_by_path.get(source, [])
+        if len(matches) != 1:
+            raise ValueError(
+                f"Expected one output-manifest row for {source}; found {len(matches)}"
+            )
+        row = matches[0]
+        if (
+            row.get("role") != "output_figure"
+            or row.get("source_kind") != "generated_panel"
+            or row.get("sha256", "").strip() != sha256_file(source)
+        ):
+            raise ValueError(
+                f"Generated-candidate output provenance mismatch for {source}"
+            )
+
+
+def validate_strict_source_run(
+    module: str,
+    run_root: Path,
+    selected_specs: list[dict[str, object]],
+    repo_root: Path,
+    source_run_id: str,
+    figure7_tgi_day: int,
+    publication_kind: str = "canonical",
+) -> None:
     if module not in STRICT_FIGURE_MODULES:
         return
+    if publication_kind == "generated-candidate":
+        validate_generated_candidate_source_run(
+            module,
+            run_root,
+            selected_specs,
+            repo_root,
+            source_run_id,
+            figure7_tgi_day,
+        )
+        return
+    if publication_kind != "canonical":
+        raise ValueError(f"Unknown publication kind: {publication_kind}")
     if module == "si_figures":
         validate_si_publication_contract(run_root, repo_root)
     expected_name = (
@@ -3183,6 +3563,11 @@ def main() -> int:
     parser.add_argument("--figure7-figure-name", default="Figure7")
     parser.add_argument("--repo-root", type=Path)
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--publication-kind",
+        choices=("canonical", "generated-candidate"),
+        default="canonical",
+    )
     args = parser.parse_args()
     source_run_id = args.source_run_id or args.legacy_run_id
     if not source_run_id:
@@ -3198,7 +3583,9 @@ def main() -> int:
     validate_run_id(source_run_id)
     validate_run_id(operation_id)
     panel_specs = panel_specs_for_figure7_variant(
-        args.figure7_tgi_day, args.figure7_figure_name
+        args.figure7_tgi_day,
+        args.figure7_figure_name,
+        args.publication_kind,
     )
     selected_specs = [spec for spec in panel_specs if str(spec["module"]) in module_runs]
     duplicate_specs = [
@@ -3220,6 +3607,7 @@ def main() -> int:
             repo_root,
             source_run_id,
             args.figure7_tgi_day,
+            args.publication_kind,
         )
 
     rows_by_figure: dict[str, list[dict[str, str]]] = {}
@@ -3249,6 +3637,7 @@ def main() -> int:
                 repo_root=repo_root,
                 source_run_id=source_run_id,
                 operation_id=operation_id,
+                publication_kind=args.publication_kind,
             )
         )
 

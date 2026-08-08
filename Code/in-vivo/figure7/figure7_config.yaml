@@ -15,8 +15,8 @@ raw_data:
   loom_subdir: velocyto_loom
   seurat_filename: integrated_sct_cca_seurat_final_reclustered.rds
   required_loom_files: 18
-  required_total_bytes: "11395115098"
-  seurat_rds_sha256: 727b8a5e5868da911c3b0873838fb1b0023377ed21ea5498dc6493acbbef6d98
+  required_total_bytes: "11395265951"
+  seurat_rds_sha256: 4dfd2da22d664c58c38bffe1a721d5572ba8a64422ee6d043175b055a4a10348
 versioned_source_artifacts:
   source_revision: 9d7e994554dc16f48dd1ca8f6001b7011589381d
   endpoint_ploidy:

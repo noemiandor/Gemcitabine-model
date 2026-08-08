@@ -1,0 +1,123 @@
+# syntax=docker/dockerfile:1.7
+
+# The digest is the linux/amd64 manifest for rocker/r-ver:4.5.1.
+FROM --platform=linux/amd64 rocker/r-ver@sha256:55be3ae296dd21b6f2da705be44804ba7eb2ab2233a7050730506d7e64e8feda AS in-vivo-cluster
+
+ARG TARGETPLATFORM=linux/amd64
+ARG BUILD_DATE
+ARG VCS_REF
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    R_BIOC_VERSION=3.21 \
+    R_REMOTES_NO_ERRORS_FROM_WARNINGS=true \
+    MAKEFLAGS=-j4 \
+    PKG_NUM_PROCS=4 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONNOUSERSITE=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH=/opt/venv/bin:$PATH
+
+RUN set -eux; \
+    test "$TARGETPLATFORM" = "linux/amd64"; \
+    apt-get update; \
+    apt-get install --yes --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        cmake \
+        curl \
+        gfortran \
+        git \
+        libbz2-dev \
+        libcairo2-dev \
+        libcurl4-openssl-dev \
+        libfontconfig1-dev \
+        libfreetype6-dev \
+        libfribidi-dev \
+        libglpk-dev \
+        libharfbuzz-dev \
+        libhdf5-dev \
+        libicu-dev \
+        libjpeg-dev \
+        liblzma-dev \
+        libpng-dev \
+        libssl-dev \
+        libtiff-dev \
+        libxml2-dev \
+        libzstd-dev \
+        make \
+        pkg-config \
+        python3 \
+        python3-pip \
+        python3-venv \
+        zlib1g-dev; \
+    python3 -m venv /opt/venv
+
+RUN set -eux; \
+    update-ca-certificates; \
+    rm -rf /var/lib/apt/lists/* /tmp/*
+
+COPY packages-in-vivo-cluster.tsv /opt/gemcitabine-container/packages-in-vivo-cluster.tsv
+COPY environment-in-vivo-cluster.R /opt/gemcitabine-container/environment-in-vivo-cluster.R
+
+RUN --mount=type=cache,id=gemcitabine-in-vivo-cluster-pak,target=/root/.cache/R/pkgcache \
+    set -eu; \
+    Rscript /opt/gemcitabine-container/environment-in-vivo-cluster.R install-tools \
+        /opt/gemcitabine-container/packages-in-vivo-cluster.tsv
+
+RUN --mount=type=cache,id=gemcitabine-in-vivo-cluster-pak,target=/root/.cache/R/pkgcache \
+    set -eu; \
+    Rscript /opt/gemcitabine-container/environment-in-vivo-cluster.R install-cran-bootstrap \
+        /opt/gemcitabine-container/packages-in-vivo-cluster.tsv
+
+RUN --mount=type=cache,id=gemcitabine-in-vivo-cluster-pak,target=/root/.cache/R/pkgcache \
+    set -eu; \
+    Rscript /opt/gemcitabine-container/environment-in-vivo-cluster.R install-bioc \
+        /opt/gemcitabine-container/packages-in-vivo-cluster.tsv
+
+COPY restore-in-vivo-cluster.R /opt/gemcitabine-container/restore-in-vivo-cluster.R
+
+RUN --mount=type=cache,id=gemcitabine-in-vivo-cluster-pak,target=/root/.cache/R/pkgcache \
+    set -eu; \
+    Rscript /opt/gemcitabine-container/restore-in-vivo-cluster.R \
+        /opt/gemcitabine-container/packages-in-vivo-cluster.tsv 1 50
+
+RUN --mount=type=cache,id=gemcitabine-in-vivo-cluster-pak,target=/root/.cache/R/pkgcache \
+    set -eu; \
+    Rscript /opt/gemcitabine-container/restore-in-vivo-cluster.R \
+        /opt/gemcitabine-container/packages-in-vivo-cluster.tsv 51 100
+
+RUN --mount=type=cache,id=gemcitabine-in-vivo-cluster-pak,target=/root/.cache/R/pkgcache \
+    set -eu; \
+    Rscript /opt/gemcitabine-container/restore-in-vivo-cluster.R \
+        /opt/gemcitabine-container/packages-in-vivo-cluster.tsv 101 150
+
+RUN --mount=type=cache,id=gemcitabine-in-vivo-cluster-pak,target=/root/.cache/R/pkgcache \
+    set -eu; \
+    Rscript /opt/gemcitabine-container/restore-in-vivo-cluster.R \
+        /opt/gemcitabine-container/packages-in-vivo-cluster.tsv 151 999
+
+RUN rm -rf \
+        /root/.ssh \
+        /root/.aws \
+        /root/.docker \
+        /root/.config/gh \
+    && rm -f \
+        /root/.netrc \
+        /root/.gitconfig \
+        /root/.Renviron \
+        /root/.Rhistory
+
+RUN Rscript /opt/gemcitabine-container/environment-in-vivo-cluster.R verify \
+        /opt/gemcitabine-container/packages-in-vivo-cluster.tsv
+
+LABEL org.opencontainers.image.title="Gemcitabine-model in-vivo-cluster environment" \
+      org.opencontainers.image.description="Linux amd64 image with R 4.5.1, Bioconductor 3.21, the in-vivo stages 01-03 R dependencies, and Python 3.12" \
+      org.opencontainers.image.created="$BUILD_DATE" \
+      org.opencontainers.image.revision="$VCS_REF" \
+      org.opencontainers.image.source=""
+
+WORKDIR /work
+CMD ["R"]
