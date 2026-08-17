@@ -1512,6 +1512,30 @@ class SiFiguresMaterializationTest(unittest.TestCase):
                 result.stderr,
             )
 
+    def test_materializer_rejects_wrong_displayed_panel_set(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, run_root, _ = self._canonical_fixture(tmp)
+            contract = run_root / "metadata/displayed_panel_contract.tsv"
+            with contract.open(newline="") as handle:
+                rows = list(csv.DictReader(handle, delimiter="\t"))
+            rows[0]["panel_ids"] = "D,F"
+            write_tsv(
+                contract,
+                rows,
+                ["figure_id", "panel_ids", "selection_policy"],
+            )
+
+            result = subprocess.run(
+                self._materializer_command(repo, run_root),
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "exact manuscript-displayed panel sets",
+                result.stderr,
+            )
+
     def test_materializer_requires_shared_context_helper_input_row(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo, run_root, _ = self._canonical_fixture(tmp)
@@ -2145,6 +2169,13 @@ class SiFiguresMaterializationTest(unittest.TestCase):
         run_config_rows = [
             {"key": "module", "value": "si_figures"},
             {"key": "figures", "value": "4,5,6,7"},
+            {
+                "key": "displayed_panel_sets",
+                "value": (
+                    "SuppFig4=D,F,I;SuppFig5=E,G;"
+                    "SuppFig6=A,B,C,D,E;SuppFig7=A"
+                ),
+            },
             {"key": "figure_file_count", "value": "8"},
             {"key": "table_mode", "value": "frozen_plot_tables_only"},
             {"key": "cache_file_count", "value": "11"},
@@ -2333,6 +2364,32 @@ class SiFiguresMaterializationTest(unittest.TestCase):
             run_root / "metadata/run_config.tsv",
             run_config_rows,
             ["key", "value"],
+        )
+        write_tsv(
+            run_root / "metadata/displayed_panel_contract.tsv",
+            [
+                {
+                    "figure_id": "SuppFig4",
+                    "panel_ids": "D,F,I",
+                    "selection_policy": "panels_cited_in_manuscript_results",
+                },
+                {
+                    "figure_id": "SuppFig5",
+                    "panel_ids": "E,G",
+                    "selection_policy": "panels_cited_in_manuscript_results",
+                },
+                {
+                    "figure_id": "SuppFig6",
+                    "panel_ids": "A,B,C,D,E",
+                    "selection_policy": "panels_cited_in_manuscript_results",
+                },
+                {
+                    "figure_id": "SuppFig7",
+                    "panel_ids": "A",
+                    "selection_policy": "panels_cited_in_manuscript_results",
+                },
+            ],
+            ["figure_id", "panel_ids", "selection_policy"],
         )
 
         specs = [

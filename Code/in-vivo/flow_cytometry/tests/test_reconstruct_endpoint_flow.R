@@ -73,8 +73,8 @@ run_test <- function() {
   }
   png_dimensions <- read_png_dimensions(
     file.path(output_dir, "figures/panel_SuppFig9_endpoint_flow_cytometry.png"))
-  assert_true(png_dimensions[["width"]] == 2130L && png_dimensions[["height"]] == 2700L,
-    "Figure PNG is not the required 7.1-by-9-inch 300-dpi canvas")
+  assert_true(png_dimensions[["width"]] == 2130L && png_dimensions[["height"]] == 1980L,
+    "Figure PNG is not the required 7.1-by-6.6-inch 300-dpi canvas")
 
   agreement <- read_tsv(file.path(output_dir, "endpoint_flow_count_agreement.tsv"), "agreement output")
   assert_true(nrow(agreement) == 80L, "Agreement output must contain five gates for each of 16 mice")
@@ -101,8 +101,26 @@ run_test <- function() {
   mass <- rowsum(histograms$probability_mass, histograms$mouse_id)
   assert_true(all(abs(mass - 1) < 1e-12), "Within-mouse histogram mass is not one")
   low_hist <- histograms[histograms$mouse_id == "2N-A1-0", , drop = FALSE]
-  assert_true(sum(low_hist$event_count) == 173L && grepl("replay n=173", low_hist$facet_label[[1L]], fixed = TRUE),
+  assert_true(sum(low_hist$event_count) == 173L && grepl("n=173", low_hist$facet_label[[1L]], fixed = TRUE),
     "The low-count distribution is not labelled with its replayed event count")
+  four_n_hist <- unique(histograms[histograms$injected_origin == "4N",
+    c("mouse_id", "facet_label"), drop = FALSE])
+  expected_four_n_peaks <- c(
+    "4N-A5-0" = "1.88N", "4N-A5-RR" = "1.88N",
+    "A5-4N-L" = "2.08N", "A5-4N-R" = "2.2N",
+    "A6-4N-O" = "2.12N", "A6-4N-RR" = "2.12N",
+    "4N-A8-RL" = "2.04N", "4N-A8-RR" = "2.08N"
+  )
+  observed_four_n_peaks <- stats::setNames(
+    sub(".*peak=", "", four_n_hist$facet_label),
+    four_n_hist$mouse_id
+  )
+  assert_true(
+    identical(
+      observed_four_n_peaks[names(expected_four_n_peaks)],
+      expected_four_n_peaks
+    ),
+    "Panel B no longer displays the eight reviewed 4N-origin peak annotations")
 
   geometry <- read_tsv(file.path(output_dir, "endpoint_flow_gate_geometry.tsv"), "gate geometry output")
   assert_true(length(unique(geometry$mouse_id)) == 16L, "Gate geometry does not cover all mice")

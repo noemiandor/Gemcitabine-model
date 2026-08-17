@@ -394,7 +394,9 @@ Finally, gemcitabine produced more extensive metabolite-level changes in 2N cell
 
 \subsection*{Gemcitabine enriches a replication-attenuated cell-cycle state associated with early tumor control in vivo}
 
-To test whether the ploidy-associated gemcitabine response observed in vitro persisted as the implanted 2N and 4N cell populations evolved in vivo, we analyzed tumor growth and single-cell RNA-sequencing data from 16 orthotopic tumors initiated with near-diploid (2N) or near-tetraploid (4N) SUM-159 cells. Within each injected-origin group, four tumors received vehicle, two received 30~mg/kg gemcitabine, and two received 120~mg/kg (Supplementary Fig.~\ref{fig:supp_tumor_composition}E,G). Because tumor-cell ploidy could change after implantation, we first used NUMBAT-derived copy-number estimates to assess endpoint ploidy. Of the 14,125 tumor cells with postprocessed NUMBAT estimates, 9,832 belonged to the final quality-controlled transcriptomic dataset used in all manuscript-reported downstream analyses---4,880 from 2N-origin and 4,952 from 4N-origin tumors, including 5,335 treated cells. These cells showed substantial within- and between-mouse copy-number heterogeneity (Fig.~\ref{fig:in_vivo_pseudotime_tgi}J; Supplementary Fig.~\ref{fig:supp_endpoint_ploidy}A--D). To relate their endpoint states to the injected ploidy states, we compared the per-mouse endpoint estimates with project-designated, lineage-matched culture references used as proxies for the injected populations. The reference proxies had mean ploidies of 2.151 for 2N (20 metaphases) and 3.947 for 4N (16 metaphases), whereas the corresponding mouse-balanced endpoint means were 2.136 for 2N-origin tumors (range of mouse means, 1.941--2.316) and 2.319 for 4N-origin tumors (2.214--2.586; Supplementary Fig.~\ref{fig:supp_endpoint_ploidy}E). Thus, the 4N-origin endpoint mean was 1.628 ploidy units, or 41.3\%, below its reference proxy, compared with a reduction of 0.016 units, or 0.7\%, for the 2N lineage. The mean 2N--4N separation consequently contracted from 1.795 in the reference proxies to 0.183 at harvest, an 89.8\% reduction. This comparison indicates substantial convergence of the 4N-derived state toward lower endpoint ploidy, but remains descriptive because the references were culture-level proxies rather than same-passage inoculum measurements, the two origin cohorts were processed in separate NUMBAT runs, and copy number was measured only at harvest.
+To test whether the ploidy-associated gemcitabine response observed in vitro persisted as the implanted 2N and 4N cell populations evolved in vivo, we analyzed tumor growth and single-cell RNA-sequencing data from 16 orthotopic tumors initiated with near-diploid (2N) or near-tetraploid (4N) SUM-159 cells (Fig.~\ref{fig:in_vivo_pseudotime_tgi}A). Within each injected-origin group, four tumors received vehicle, two received 30~mg/kg gemcitabine, and two received 120~mg/kg (Supplementary Fig.~\ref{fig:supp_tumor_composition}E,G). Because tumor-cell ploidy could change after implantation, we first used NUMBAT-derived copy-number estimates to assess endpoint ploidy. Of the 14,125 tumor cells with postprocessed NUMBAT estimates, 9,832 belonged to the final quality-controlled transcriptomic dataset used in all manuscript-reported downstream analyses---4,880 from 2N-origin and 4,952 from 4N-origin tumors, including 5,335 treated cells. These cells showed substantial within- and between-mouse copy-number heterogeneity (Fig.~\ref{fig:in_vivo_pseudotime_tgi}J; Supplementary Fig.~\ref{fig:supp_endpoint_ploidy}A--D). To relate their endpoint states to the injected ploidy states, we compared the per-mouse endpoint estimates with project-designated, lineage-matched culture references used as proxies for the injected populations. The reference proxies had mean ploidies of 2.151 for 2N (20 metaphases) and 3.947 for 4N (16 metaphases), whereas the corresponding mouse-balanced endpoint means were 2.136 for 2N-origin tumors (range of mouse means, 1.941--2.316) and 2.319 for 4N-origin tumors (2.214--2.586; Supplementary Fig.~\ref{fig:supp_endpoint_ploidy}E). Thus, the 4N-origin endpoint mean was 1.628 ploidy units, or 41.3\%, below its reference proxy, compared with a reduction of 0.016 units, or 0.7\%, for the 2N lineage. The mean 2N--4N separation consequently contracted from 1.795 in the reference proxies to 0.183 at harvest, an 89.8\% reduction. This comparison indicates substantial convergence of the 4N-derived state toward lower endpoint ploidy, but remains descriptive because the references were culture-level proxies rather than same-passage inoculum measurements, the two origin cohorts were processed in separate NUMBAT runs, and copy number was measured only at harvest.
+
+Orthogonal flow cytometry of stored endpoint material yielded dominant DNA-content peak annotations of 1.88N--2.20N across the eight 4N-origin tumors, corroborating convergence of SUM-159 near-4N injected cells toward near-diploid DNA content in vivo (Supplementary Fig.~\ref{fig:supp_endpoint_flow}A,B).
 
 Tumor growth inhibition (TGI) was calculated on Day~17 from the change in tumor volume since the first treatment, relative to the mean change of the four vehicle-treated tumors matched by injected origin (Fig.~\ref{fig:in_vivo_pseudotime_tgi}A). Despite the marked endpoint convergence, mean Day-17 TGI was 85.0\% in 2N-origin tumors and 45.5\% in 4N-origin tumors. The dose-adjusted 4N-minus-2N difference was \(-39.5\) percentage points (exact dose-stratified permutation \(P=0.0556\); Fig.~\ref{fig:in_vivo_pseudotime_tgi}B). TGI therefore remained lower in 4N-origin tumors, concordant with the direction observed in vitro, even though the realized ploidy separation had narrowed substantially by harvest. Ploidy convergence could have attenuated this in vivo contrast, but the endpoint-only measurement cannot establish when the reduction occurred or whether it caused the response difference.
 
@@ -1285,15 +1287,9 @@ Gemcitabine dose & 2N correction & 4N correction \\
 \centering
 \includegraphics[width=\textwidth,height=0.88\textheight,keepaspectratio]{figures/Supplementary/panel_SuppFig4_composite.pdf}
 \caption{\footnotesize
-\textbf{Integrated tumor and CellLine cellular landscape.}
-\textbf{(A)} Joint UMAP colored by the nine graph-based clusters.
-\textbf{(B)} Joint UMAP colored by initial 2N or 4N ploidy.
-\textbf{(C)} Joint UMAP distinguishing xenograft-derived tumor cells from cultured CellLine reference cells.
+\textbf{Cell-cycle state definition and gemcitabine-associated pseudotime localization.}
 \textbf{(D)} Joint UMAP colored by S-phase score.
-\textbf{(E)} Mean within-sample cluster proportions for the Tumor and CellLine contexts; every sample contributes equally within its context, and asterisks mark positive context enrichment at panel-wide BH FDR $\leq 0.05$ using exact sample-label permutations within initial-ploidy strata.
 \textbf{(F)} Raw Tumor and CellLine cell counts by cluster; the subtitle identifies clusters 4c, 6, and 10 as the selected CellCycle subset and reports their summed 2,881 xenograft-derived cells.
-\textbf{(G)} Mean within-sample cluster proportions by initial ploidy, with equal sample weights; asterisks mark positive ploidy enrichment using exact permutations within Tumor/CellLine context and the same panel-wide BH convention as in E.
-\textbf{(H)} Raw cell counts by cluster and initial ploidy.
 \textbf{(I)} Mouse-balanced localization of the gemcitabine-associated cell excess along cell-cycle pseudotime. The curve is the equal-mouse treated-minus-vehicle Gaussian-kernel density contrast, and the gray band is its two-sided 95\% simultaneous permutation null envelope. The pale-blue band marks the maximal connected positive region with nominal two-sided exact pointwise permutation support (0.296--0.486; 96 grid points; pointwise \(P=0.00245\)--0.0494 across 4,900 assignments); dashed lines mark these exact boundaries, which directly define the interval modeled in Fig.~\ref{fig:in_vivo_pseudotime_tgi}I. The broad region has no single region-level \(P\) value. The dark-blue band and curve segment mark the narrower region that passed studentized max-\(|T|\) family-wise control (0.414--0.426; global exact injected-origin-stratified permutation \(P=0.0473\)). The circle marks the largest raw density difference at 0.452, and the diamond marks the strongest standardized evidence at 0.420.
 }
 \label{fig:supp_cellular_landscape}
@@ -1305,12 +1301,9 @@ Gemcitabine dose & 2N correction & 4N correction \\
 \centering
 \includegraphics[width=0.95\textwidth,height=0.85\textheight,keepaspectratio]{figures/Supplementary/panel_SuppFig5_composite.pdf}
 \caption{\footnotesize
-\textbf{Initial ploidy, treatment, and mouse-level composition of xenograft-derived tumor cells.}
-\textbf{(A--D)} Tumor-cell UMAPs colored by cluster, initial ploidy, gemcitabine dose, and S-phase score, respectively.
+\textbf{Mouse-resolved landscape and treatment-group composition of xenograft-derived tumor cells.}
 \textbf{(E)} Tumor-cell UMAP faceted by mouse of origin, with initial ploidy and dose shown in each facet label.
-\textbf{(F)} Within-mouse cluster proportions; each mouse sums to 100\%. Because each displayed mouse is one biological sample, this panel is descriptive and has no inferential asterisks.
 \textbf{(G)} Mean within-mouse cluster proportions by initial ploidy and dose, with equal mouse weights; labels report the number of mice in each group, and asterisks mark positive dose enrichment within initial-ploidy strata at panel-wide BH FDR $\leq 0.05$ using exact mouse-label permutations.
-\textbf{(H,I)} Mean within-mouse cluster proportions by gemcitabine dose and initial ploidy, respectively; every mouse contributes equally within its group. Asterisks mark positive enrichment using exact permutations within initial-ploidy strata for H and within dose strata for I, followed by panel-wide BH correction.
 }
 \label{fig:supp_tumor_composition}
 \end{figure}
@@ -1336,9 +1329,9 @@ Gemcitabine dose & 2N correction & 4N correction \\
 \centering
 \includegraphics[width=\textwidth,height=0.88\textheight,keepaspectratio]{figures/Supplementary/panel_SuppFig7_composite.pdf}
 \caption{\footnotesize
-\textbf{Cluster-level Hallmark pathway analysis in xenograft-derived tumor cells.}
+\textbf{Cluster-level Hallmark over-representation analysis in xenograft-derived tumor cells.}
 \textbf{(A)} Cluster-versus-rest Hallmark over-representation analysis (ORA) annotation scores across the nine clusters.
-\textbf{(B)} Cluster-versus-rest Hallmark gene-set enrichment analysis (GSEA) normalized enrichment scores across the same clusters. The reviewed matrices retain exact GRCh38-prefixed RNA features before normalization and differential-expression analysis.
+The reviewed matrix retains exact GRCh38-prefixed RNA features before normalization and differential-expression analysis.
 }
 \label{fig:supp_cluster_hallmark}
 \end{figure}
@@ -1361,6 +1354,23 @@ Gemcitabine dose & 2N correction & 4N correction \\
 \textbf{(E)} The corresponding unadjusted association at Day 31 (Pearson \(r=-0.297\), exact unrestricted permutation \(P=0.4857\); \(n=8\)). In B--E, only treated tumors are included; colors indicate dose, and shapes in C and E indicate injected origin. Lines and 95\% confidence intervals in C and E show the raw mouse-level fits. Panels C and E use the same 5,335-cell QC-retained treated-tumor universe as Fig.~\ref{fig:in_vivo_pseudotime_tgi}L.
 }
 \label{fig:figure7_tgi_sensitivity}
+\end{figure}
+\endgroup
+
+\clearpage
+
+\begingroup
+\renewcommand{\thefigure}{9}
+\begin{figure}[p]
+\captionsetup{name=Supplementary Figure}
+\centering
+\includegraphics[width=\textwidth,height=0.84\textheight,keepaspectratio]{figures/Supplementary/panel_SuppFig9_endpoint_flow_cytometry.pdf}
+\caption{\footnotesize
+\textbf{Endpoint tumor DNA-content flow cytometry.}
+\textbf{(A)} Representative raw-event gating hierarchy for one prespecified 4N-origin tumor, showing the sequential Human Cell Enrichment and HumanCells gates and the workspace DNA gates. Frozen FlowJo and full-precision raw-event replay counts are reported; scatter displays are deterministically subsampled for legibility, whereas gate counts use all events.
+\textbf{(B)} Within-mouse-normalized DNA-content distributions for all 16 tumors using identical 1,000-arbitrary-unit bins and a common raw fluorescence window. Each facet reports injected origin, dose, replayed HumanCells count, and the reviewed FlowJo peak annotation. The eight 4N-origin peak annotations span 1.88N--2.20N. The 2N-A1-0 sample was retained and marked despite its low HumanCells count (174 by frozen FlowJo; 173 by replay). Peak-gate names are analyst-supplied workspace annotations rather than newly calibrated or NUMBAT-equivalent ploidy estimates.
+}
+\label{fig:supp_endpoint_flow}
 \end{figure}
 \endgroup
 
@@ -1419,7 +1429,7 @@ The reviewed legacy curation then split UMAP-local subsets of initial clusters 4
 
 
 \subsubsection{Sample-balanced cluster composition and Hallmark pathway analysis}
-For cluster-composition analyses, the independent unit was a tumor-bearing mouse or a cultured CellLine sample. Cell counts were first converted to within-sample cluster proportions, and samples were then averaged with equal weight within each displayed group so that sequencing depth did not determine a sample's contribution. Positive enrichment was tested on these independent-sample proportions with an exact one-sided, one-group-versus-rest label-permutation test within prespecified exchangeability strata. Context enrichment in Fig.~\ref{fig:in_vivo_pseudotime_tgi}F and Supplementary Fig.~\ref{fig:supp_cellular_landscape}E was tested within injected-ploidy strata; initial-ploidy enrichment in Supplementary Fig.~\ref{fig:supp_cellular_landscape}G was tested within Tumor/CellLine context; dose enrichment in Supplementary Fig.~\ref{fig:supp_tumor_composition}G,H was tested within injected-ploidy strata; and initial-ploidy enrichment in Supplementary Fig.~\ref{fig:supp_tumor_composition}I was tested within dose strata. Benjamini--Hochberg correction was applied across all group-by-cluster contrasts in each panel, and asterisks mark only positive enrichments with FDR $\leq 0.05$. Supplementary Fig.~\ref{fig:supp_tumor_composition}F contains one biological sample per displayed mouse and was therefore treated as descriptive, without inferential stars.
+For cluster-composition analyses, the independent unit was a tumor-bearing mouse or a cultured CellLine sample. Cell counts were first converted to within-sample cluster proportions, and samples were then averaged with equal weight within each displayed group so that sequencing depth did not determine a sample's contribution. Positive enrichment was tested on these independent-sample proportions with an exact one-sided, one-group-versus-rest label-permutation test within prespecified exchangeability strata. Context enrichment in Fig.~\ref{fig:in_vivo_pseudotime_tgi}F was tested within injected-ploidy strata, and dose enrichment in Supplementary Fig.~\ref{fig:supp_tumor_composition}G was tested within injected-ploidy strata. Benjamini--Hochberg correction was applied across all group-by-cluster contrasts in each panel, and asterisks mark only positive enrichments with FDR $\leq 0.05$.
 
 For the cluster-versus-rest Hallmark analyses in Fig.~\ref{fig:in_vivo_pseudotime_tgi}G and Supplementary Fig.~\ref{fig:supp_cluster_hallmark}, exact \texttt{GRCh38-}-prefixed RNA count features were retained, exact \texttt{GRCm39-}-prefixed features were excluded, and unclassified prefixes were rejected before normalization or differential expression. A new human-only RNA object was normalized with Seurat \texttt{LogNormalize} (scale factor 10,000); the mixed-species normalized data layer was not reused. Each of the nine clusters was compared with all remaining cells using Seurat \texttt{FindMarkers} on the normalized RNA data. For over-representation analysis (ORA), upregulated genes were required to have Seurat-adjusted $P<0.05$, log fold change $\geq 0.25$, and an absolute between-group detection-fraction difference $\geq 0.05$; after case-sensitive symbol resolution and deduplication, the top 100 genes by fold change were tested by a one-sided hypergeometric test against Homo sapiens MSigDB 2026.1.Hs Hallmark sets of 15--500 genes, requiring at least three overlapping genes and applying Benjamini--Hochberg correction within cluster. The displayed ORA annotation score is the mean of min--max-scaled overlap, expression, and detection components. For gene-set enrichment analysis (GSEA), genes were ranked by signed $-\log_{10}$ adjusted $P$ value, with fold change used to resolve ranking ties, and duplicate symbols were resolved case-sensitively. \texttt{fgseaMultilevel} was run against the same Hallmark sets (15--500 genes; \texttt{nPermSimple}=10,000; $\epsilon=0$). The ORA and GSEA heatmaps display the 20 pathways with the largest cross-cluster annotation score or absolute normalized enrichment score, respectively; hierarchical clustering of rows and columns changes display order only.
 

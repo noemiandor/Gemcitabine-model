@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+TOOLS_DIR = REPO_ROOT / "Code/tools"
+sys.path.insert(0, str(TOOLS_DIR))
+
+from materialize_figure_assets import PANEL_SPECS  # noqa: E402
 
 
 class ManagerEndpointFlowCliTest(unittest.TestCase):
@@ -23,6 +28,29 @@ class ManagerEndpointFlowCliTest(unittest.TestCase):
             line for line in manager_text.splitlines() if line.startswith('modules="')
         )
         self.assertNotIn("in_vivo_endpoint_flow", default_line)
+
+    def test_endpoint_flow_materializes_only_the_two_panel_composite(self) -> None:
+        specs = [
+            spec
+            for spec in PANEL_SPECS
+            if spec["module"] == "in_vivo_endpoint_flow"
+        ]
+        self.assertEqual(
+            [spec["panel"] for spec in specs],
+            ["SuppFig9", "SuppFig9_png"],
+        )
+        self.assertEqual(
+            {spec["source"] for spec in specs},
+            {
+                "figures/panel_SuppFig9_endpoint_flow_cytometry.pdf",
+                "figures/panel_SuppFig9_endpoint_flow_cytometry.png",
+            },
+        )
+        manager_text = (REPO_ROOT / "Manager.sh").read_text(encoding="utf-8")
+        panels_only_case = manager_text.split(
+            'if [[ "${mode}" == "panels-only" ]]', 1
+        )[1].split('if [[ "${skip_analysis_loop}"', 1)[0]
+        self.assertIn("in_vivo_endpoint_flow", panels_only_case)
 
     def test_check_only_resolves_portable_reviewed_inputs(self) -> None:
         result = self.run_manager(

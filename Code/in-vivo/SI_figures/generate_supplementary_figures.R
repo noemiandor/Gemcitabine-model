@@ -771,14 +771,15 @@ s4i <- figure7_panel_b_localization_plot(
   shared_context_figure_theme(9)
 s4i <- shared_context_add_tag(s4i, "I")
 s4 <- patchwork::wrap_plots(
-  patchwork::wrap_plots(s4a, s4b, s4c, s4d, ncol = 4),
-  patchwork::wrap_plots(s4e, s4f, ncol = 2),
-  patchwork::wrap_plots(s4g, s4h, ncol = 2),
+  patchwork::wrap_plots(s4d, s4f, ncol = 2, widths = c(1, 1.55)),
   s4i,
   ncol = 1,
-  heights = c(1.0, 0.95, 0.95, 0.62)
+  heights = c(1.12, 0.88)
 ) + patchwork::plot_annotation(
-  title = "Supplementary Figure 4 | Tumor and CellLine cellular landscape"
+  title = paste(
+    "Supplementary Figure 4 | Cell-cycle state definition and",
+    "gemcitabine-associated pseudotime localization"
+  )
 )
 panel_rows <- list(
   save_composite(
@@ -786,8 +787,8 @@ panel_rows <- list(
     figure_dir,
     "SuppFig4",
     "panel_SuppFig4_composite",
-    20,
-    18.5
+    14,
+    10.5
   )
 )
 
@@ -1006,29 +1007,24 @@ s5i_result <- make_normalized_composition_plot(
 )
 s5i <- s5i_result$plot
 
-s5_left <- patchwork::wrap_plots(s5a, s5b, s5c, s5d, ncol = 1)
-s5_upper <- patchwork::wrap_plots(
-  s5_left,
-  s5e,
-  ncol = 2,
-  widths = c(1, 4)
-)
 s5 <- patchwork::wrap_plots(
-  s5_upper,
-  patchwork::wrap_plots(s5f, s5g, ncol = 2, widths = c(1.2, 1)),
-  patchwork::wrap_plots(s5h, s5i, ncol = 2),
+  s5e,
+  s5g,
   ncol = 1,
-  heights = c(2.0, 0.85, 0.78)
+  heights = c(1.65, 0.85)
 ) + patchwork::plot_annotation(
-  title = "Supplementary Figure 5 | Initial ploidy, dose, and sample composition"
+  title = paste(
+    "Supplementary Figure 5 | Mouse-level tumor landscape and",
+    "composition by initial ploidy and dose"
+  )
 )
 panel_rows[[length(panel_rows) + 1L]] <- save_composite(
   s5,
   figure_dir,
   "SuppFig5",
   "panel_SuppFig5_composite",
-  18,
-  23
+  16,
+  11.5
 )
 
 message("Generating Supplementary Figure 6 composite.")
@@ -1379,16 +1375,16 @@ shared_si7 <- shared_context_build_si7_heatmap_panels(
 )
 s7a <- shared_si7$plots$ora
 s7b <- shared_si7$plots$gsea
-s7 <- patchwork::wrap_plots(s7a, s7b, ncol = 2) +
+s7 <- patchwork::wrap_plots(s7a, ncol = 1) +
   patchwork::plot_annotation(
-    title = "Supplementary Figure 7 | Cluster Hallmark pathway analysis"
+    title = "Supplementary Figure 7 | Cluster Hallmark over-representation analysis"
   )
 panel_rows[[length(panel_rows) + 1L]] <- save_composite(
   s7,
   figure_dir,
   "SuppFig7",
   "panel_SuppFig7_composite",
-  20,
+  10,
   8.8
 )
 
@@ -1450,6 +1446,16 @@ write_tsv(
 
 panel_contract <- do.call(rbind, panel_rows)
 rownames(panel_contract) <- NULL
+displayed_panel_contract <- data.frame(
+  figure_id = c("SuppFig4", "SuppFig5", "SuppFig6", "SuppFig7"),
+  panel_ids = c("D,F,I", "E,G", "A,B,C,D,E", "A"),
+  selection_policy = rep("panels_cited_in_manuscript_results", 4L),
+  stringsAsFactors = FALSE
+)
+write_tsv(
+  displayed_panel_contract,
+  file.path(metadata_dir, "displayed_panel_contract.tsv")
+)
 expected_figures <- sort(panel_contract$filename)
 observed_figures <- sort(list.files(figure_dir, pattern = "[.](pdf|png)$"))
 if (!identical(expected_figures, observed_figures)) {
@@ -1588,6 +1594,7 @@ run_config <- data.frame(
     "schema_version",
     "module",
     "figures",
+    "displayed_panel_sets",
     "figure_file_count",
     "table_mode",
     "cache_file_count",
@@ -1652,6 +1659,14 @@ run_config <- data.frame(
     "1",
     "si_figures",
     "4,5,6,7",
+    paste(
+      paste0(
+        displayed_panel_contract$figure_id,
+        "=",
+        displayed_panel_contract$panel_ids
+      ),
+      collapse = ";"
+    ),
     as.character(nrow(panel_contract)),
     if (allow_generated_human_only_si7) {
       "run_scoped_generated_human_only_plot_tables"

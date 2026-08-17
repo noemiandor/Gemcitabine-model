@@ -486,7 +486,11 @@ build_figure <- function(histograms, count_agreement, sample_summary,
       labels = function(x) format(x / 1000, trim = TRUE), expand = c(0, 0)) +
     scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
     labs(title = "Within-mouse-normalized DNA-content distributions",
-      subtitle = "Replayed HumanCells use identical 1,000-a.u. bins and one raw fluorescence window; only y is normalized within mouse",
+      subtitle = paste0(
+        "Replayed HumanCells use identical 1,000-a.u. bins and one raw fluorescence window;",
+        " only y is normalized within mouse.\n",
+        "Each facet reports its reviewed FlowJo peak annotation."
+      ),
       x = "450/50 Violet B-A fluorescence (raw a.u., ×1,000)",
       y = "% HumanCells per bin") +
     manuscript_theme(7.2) +
@@ -494,62 +498,14 @@ build_figure <- function(histograms, count_agreement, sample_summary,
       axis.text = element_text(size = 6.2), axis.title = element_text(size = 7.2),
       plot.title = element_text(size = 8.5), plot.subtitle = element_text(size = 6.8))
 
-  named <- count_agreement[count_agreement$population_role %in% c("workspace_named_2N", "workspace_named_4N"), , drop = FALSE]
-  sample_order <- rev(sample_summary$mouse_id)
-  named$y <- match(named$mouse_id, sample_order)
-  label_map <- setNames(sample_summary$comparison_label, sample_summary$mouse_id)
-  make_named_plot <- function(role, title, show_y = TRUE) {
-    gate_data <- named[named$population_role == role, , drop = FALSE]
-    long <- rbind(
-      data.frame(gate_data, method = "FlowJo frozen", percentage = gate_data$workspace_pct_parent,
-        count = gate_data$workspace_count, y_plot = gate_data$y + 0.11),
-      data.frame(gate_data, method = "Raw-event replay", percentage = gate_data$reconstructed_pct_parent,
-        count = gate_data$reconstructed_count, y_plot = gate_data$y - 0.11)
-    )
-    upper <- if (role == "workspace_named_2N") 102 else max(2.1, ceiling(max(long$percentage) * 10) / 10 + 0.15)
-    lower <- if (role == "workspace_named_2N") max(0, floor(min(long$percentage) / 5) * 5 - 2) else 0
-    ggplot() +
-      geom_segment(data = gate_data, aes(x = workspace_pct_parent, xend = reconstructed_pct_parent,
-        y = y + 0.11, yend = y - 0.11), color = "#777777", linewidth = 0.25) +
-      geom_point(data = long, aes(percentage, y_plot, shape = method, color = injected_origin),
-        size = 1.65, stroke = 0.55) +
-      geom_point(data = long[long$method == "FlowJo frozen", ], aes(percentage, y_plot),
-        shape = 21, fill = "white", color = "#333333", size = 1.65, stroke = 0.55) +
-      scale_shape_manual(values = c("FlowJo frozen" = 21, "Raw-event replay" = 16)) +
-      scale_color_manual(values = origin_colors, guide = "none") +
-      scale_x_continuous(limits = c(lower, upper), expand = c(0, 0)) +
-      scale_y_continuous(breaks = seq_along(sample_order), labels = label_map[sample_order],
-        limits = c(0.4, length(sample_order) + 0.6), expand = c(0, 0)) +
-      labs(title = title, x = "% of parent HumanCells", y = NULL, shape = NULL) +
-      manuscript_theme(7.2) +
-      theme(
-        axis.text.y = if (show_y) element_text(size = 6.4) else element_blank(),
-        axis.ticks.y = if (show_y) element_line(linewidth = 0.25) else element_blank(),
-        legend.position = "bottom", legend.direction = "horizontal",
-        plot.title = element_text(size = 8.2)
-      )
-  }
-  panel_c <- make_named_plot("workspace_named_2N", "Workspace-named 2N gate", TRUE) +
-    make_named_plot("workspace_named_4N", "Workspace-named 4N gate", FALSE) +
-    plot_layout(guides = "collect", widths = c(1.18, 1)) +
-    plot_annotation(
-      title = "Per-mouse named-gate summaries",
-      subtitle = paste(
-        "Open points: frozen FlowJo percentages; filled points: full-precision raw-event replay.",
-        "The workspace-named 2N/4N gates are nonexhaustive siblings.", sep = "\n"),
-      theme = theme(
-        plot.title = element_text(family = "sans", face = "bold", size = 9, hjust = 0),
-        plot.subtitle = element_text(family = "sans", size = 7.2, hjust = 0)
-      )
-    ) & theme(legend.position = "bottom")
-
-  wrap_elements(panel_a) / wrap_elements(panel_b) / wrap_elements(panel_c) +
-    plot_layout(heights = c(2.15, 3.25, 3.05)) +
+  wrap_elements(panel_a) / wrap_elements(panel_b) +
+    plot_layout(heights = c(2.15, 3.25)) +
     plot_annotation(
       tag_levels = "A",
       caption = paste0(
         "† 2N-A1-0 was retained but flagged: 174 frozen FlowJo HumanCells (173 by replay).\n",
         "Human Cell Enrichment and HumanCells are workspace population names; no explicit singlet or viability gate is present.\n",
+        "The eight 4N-origin reviewed peak annotations span 1.88N–2.20N and are printed in their Panel B facets.\n",
         "Peak-gate names are analyst-supplied FlowJo annotations, not newly calibrated or NUMBAT-equivalent ploidy estimates."
       ),
       theme = theme(
@@ -566,9 +522,9 @@ save_figure_atomic <- function(plot, pdf_path, png_path) {
   pdf_temp <- file.path(dirname(pdf_path), paste0(".", tools::file_path_sans_ext(basename(pdf_path)), ".tmp.pdf"))
   png_temp <- file.path(dirname(png_path), paste0(".", tools::file_path_sans_ext(basename(png_path)), ".tmp.png"))
   on.exit(unlink(c(pdf_temp, png_temp)), add = TRUE)
-  ggsave(pdf_temp, plot = plot, width = 7.1, height = 9.0, units = "in",
+  ggsave(pdf_temp, plot = plot, width = 7.1, height = 6.6, units = "in",
     device = grDevices::cairo_pdf, bg = "white", limitsize = FALSE)
-  ggsave(png_temp, plot = plot, width = 7.1, height = 9.0, units = "in",
+  ggsave(png_temp, plot = plot, width = 7.1, height = 6.6, units = "in",
     dpi = 300, device = ragg::agg_png, background = "white", limitsize = FALSE)
   if (!file.rename(pdf_temp, pdf_path) || !file.rename(png_temp, png_path)) abort("Cannot atomically publish figure outputs")
 }
@@ -721,8 +677,12 @@ reconstruct_endpoint_flow <- function(config) {
     if (sum(counts) != length(dna)) abort("Histogram binning lost events for ", mouse$mouse_id)
     dose_label <- format_dose(mouse$dose_mg_kg)
     low_mark <- if (mouse$low_human_cells_flag) "† " else ""
-    facet_label <- paste0(low_mark, mouse$mouse_id, "\n", mouse$injected_origin, " origin · ", dose_label,
-      "\nreplay n=", format(reconstructed[["human_cells"]], big.mark = ","))
+    facet_label <- paste0(
+      low_mark, mouse$mouse_id,
+      "\n", mouse$injected_origin, " · ", dose_label,
+      "\nn=", format(reconstructed[["human_cells"]], big.mark = ","),
+      " | peak=", mouse$peak_gate_name
+    )
     histogram_parts[[mouse$mouse_id]] <- data.frame(
       mouse_id = mouse$mouse_id,
       injected_origin = mouse$injected_origin,
@@ -747,6 +707,7 @@ reconstruct_endpoint_flow <- function(config) {
       frozen_human_cells_count = workspace_counts[["human_cells"]],
       reconstructed_human_cells_count = reconstructed[["human_cells"]],
       low_human_cells_flag = mouse$low_human_cells_flag,
+      reviewed_peak_annotation = mouse$peak_gate_name,
       minimum_reconstructed_human_cells_dna = min(dna),
       maximum_reconstructed_human_cells_dna = max(dna),
       display_underflow_events = underflow,

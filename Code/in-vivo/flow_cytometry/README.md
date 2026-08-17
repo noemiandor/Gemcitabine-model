@@ -106,11 +106,14 @@ Outputs are:
   low-count, and deterministic representative-selection audit tables.
 - `metadata/run_config.tsv`: the linear-transform, identity-spillover,
   normalization, raw-axis, tolerance, and package-version contract.
-- `figures/panel_SuppFig9_endpoint_flow_cytometry.{pdf,png}`: a 7.1-by-9-inch
-  review composite containing the representative raw-event gate hierarchy,
-  all 16 within-mouse-normalized DNA-content distributions, and the per-mouse
-  named 2N/4N gate summaries. The 174-HumanCells sample is retained and marked
-  with a dagger.
+- `figures/panel_SuppFig9_endpoint_flow_cytometry.{pdf,png}`: a 7.1-by-6.6-inch
+  publication composite containing only the two manuscript-facing panels: the
+  representative raw-event gate hierarchy (A) and all 16 within-mouse-normalized
+  DNA-content distributions (B). Each Panel B facet prints its reviewed FlowJo
+  peak annotation; the eight 4N-origin annotations span 1.88N--2.20N. The
+  174-HumanCells sample is retained and marked with a dagger. Per-mouse named
+  2N/4N replay comparisons remain available in the audit tables but are not a
+  displayed panel.
 
 The representative scatter panels display at most 10,000 deterministic,
 evenly spaced event indices for legibility; their gate counts use every event.

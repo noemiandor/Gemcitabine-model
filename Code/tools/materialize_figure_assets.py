@@ -199,7 +199,7 @@ PANEL_SPECS = [
         "figure": "Supplementary",
         "panel": "SuppFig4",
         "asset": "panel_SuppFig4_composite.pdf",
-        "caption_role": "Supplementary Figure 4 final composite",
+        "caption_role": "Supplementary Figure 4 final D/F/I-only composite",
         "variant": "pdf",
     },
     {
@@ -208,7 +208,7 @@ PANEL_SPECS = [
         "figure": "Supplementary",
         "panel": "SuppFig4_png",
         "asset": "panel_SuppFig4_composite.png",
-        "caption_role": "PNG derivative of the Supplementary Figure 4 composite",
+        "caption_role": "PNG derivative of the Supplementary Figure 4 D/F/I-only composite",
         "variant": "png",
     },
     {
@@ -217,7 +217,7 @@ PANEL_SPECS = [
         "figure": "Supplementary",
         "panel": "SuppFig5",
         "asset": "panel_SuppFig5_composite.pdf",
-        "caption_role": "Supplementary Figure 5 final composite",
+        "caption_role": "Supplementary Figure 5 final E/G-only composite",
         "variant": "pdf",
     },
     {
@@ -226,7 +226,7 @@ PANEL_SPECS = [
         "figure": "Supplementary",
         "panel": "SuppFig5_png",
         "asset": "panel_SuppFig5_composite.png",
-        "caption_role": "PNG derivative of the Supplementary Figure 5 composite",
+        "caption_role": "PNG derivative of the Supplementary Figure 5 E/G-only composite",
         "variant": "png",
     },
     {
@@ -235,7 +235,7 @@ PANEL_SPECS = [
         "figure": "Supplementary",
         "panel": "SuppFig6",
         "asset": "panel_SuppFig6_composite.pdf",
-        "caption_role": "Supplementary Figure 6 final composite",
+        "caption_role": "Supplementary Figure 6 final A-E composite",
         "variant": "pdf",
     },
     {
@@ -244,7 +244,7 @@ PANEL_SPECS = [
         "figure": "Supplementary",
         "panel": "SuppFig6_png",
         "asset": "panel_SuppFig6_composite.png",
-        "caption_role": "PNG derivative of the Supplementary Figure 6 composite",
+        "caption_role": "PNG derivative of the Supplementary Figure 6 A-E composite",
         "variant": "png",
     },
     {
@@ -253,7 +253,7 @@ PANEL_SPECS = [
         "figure": "Supplementary",
         "panel": "SuppFig7",
         "asset": "panel_SuppFig7_composite.pdf",
-        "caption_role": "Supplementary Figure 7 final composite",
+        "caption_role": "Supplementary Figure 7 final A-only composite",
         "variant": "pdf",
     },
     {
@@ -262,7 +262,28 @@ PANEL_SPECS = [
         "figure": "Supplementary",
         "panel": "SuppFig7_png",
         "asset": "panel_SuppFig7_composite.png",
-        "caption_role": "PNG derivative of the Supplementary Figure 7 composite",
+        "caption_role": "PNG derivative of the Supplementary Figure 7 A-only composite",
+        "variant": "png",
+    },
+    {
+        "module": "in_vivo_endpoint_flow",
+        "source": "figures/panel_SuppFig9_endpoint_flow_cytometry.pdf",
+        "figure": "Supplementary",
+        "panel": "SuppFig9",
+        "asset": "panel_SuppFig9_endpoint_flow_cytometry.pdf",
+        "caption_role": (
+            "Supplementary Figure 9 panels A-B: endpoint-flow gating provenance "
+            "and DNA-content distributions"
+        ),
+        "variant": "pdf",
+    },
+    {
+        "module": "in_vivo_endpoint_flow",
+        "source": "figures/panel_SuppFig9_endpoint_flow_cytometry.png",
+        "figure": "Supplementary",
+        "panel": "SuppFig9_png",
+        "asset": "panel_SuppFig9_endpoint_flow_cytometry.png",
+        "caption_role": "PNG derivative of Supplementary Figure 9 panels A-B",
         "variant": "png",
     },
     {
@@ -1754,7 +1775,47 @@ def validate_si_publication_contract(run_root: Path, repo_root: Path) -> None:
             "within each panel"
         ),
         "composition_fdr_threshold": "0.05",
+        "displayed_panel_sets": (
+            "SuppFig4=D,F,I;SuppFig5=E,G;SuppFig6=A,B,C,D,E;SuppFig7=A"
+        ),
     }
+    displayed_contract = run_root / "metadata" / "displayed_panel_contract.tsv"
+    if not displayed_contract.is_file():
+        raise FileNotFoundError(
+            f"Missing SI displayed-panel contract: {displayed_contract}"
+        )
+    displayed_headers, displayed_rows = read_tsv(displayed_contract)
+    expected_displayed_rows = [
+        {
+            "figure_id": "SuppFig4",
+            "panel_ids": "D,F,I",
+            "selection_policy": "panels_cited_in_manuscript_results",
+        },
+        {
+            "figure_id": "SuppFig5",
+            "panel_ids": "E,G",
+            "selection_policy": "panels_cited_in_manuscript_results",
+        },
+        {
+            "figure_id": "SuppFig6",
+            "panel_ids": "A,B,C,D,E",
+            "selection_policy": "panels_cited_in_manuscript_results",
+        },
+        {
+            "figure_id": "SuppFig7",
+            "panel_ids": "A",
+            "selection_policy": "panels_cited_in_manuscript_results",
+        },
+    ]
+    if (
+        displayed_headers
+        != ["figure_id", "panel_ids", "selection_policy"]
+        or displayed_rows != expected_displayed_rows
+    ):
+        raise ValueError(
+            "Canonical SI Figures materialization is prohibited: the source "
+            "run does not contain the exact manuscript-displayed panel sets"
+        )
     renderer = (
         repo_root
         / "Code"

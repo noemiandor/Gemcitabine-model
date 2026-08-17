@@ -1753,7 +1753,7 @@ add_completed_run() {
 if [[ "${mode}" == "panels-only" ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
-      gdsc|ccle|drug_response|pkpd|in_vivo_figure7|si_figures)
+      gdsc|ccle|drug_response|pkpd|in_vivo_figure7|si_figures|in_vivo_endpoint_flow)
         run_dir="$(module_run_dir "${module}" "${source_run_id}")"
         [[ -d "${run_dir}" ]] || { echo "Missing panels-only source run: ${run_dir}" >&2; exit 1; }
         if module_is_publishable_run "${module}" "${run_dir}"; then

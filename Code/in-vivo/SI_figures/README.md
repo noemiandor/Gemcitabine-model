@@ -3,7 +3,10 @@
 This directory contains the Supplementary Figures 4-7 orchestrator, a
 plot-only renderer, and the narrowly scoped raw-table builder. Routine mode
 uses the 11 reviewed plot-facing tables under `Data/in-vivo/SIfigures/` and
-writes four final composite figures as PDF/PNG pairs.
+writes four final composite figures as PDF/PNG pairs. The publication layouts
+retain only the panels cited by the manuscript: SI4 D/F/I, SI5 E/G, SI6 A--E,
+and SI7 A. `metadata/displayed_panel_contract.tsv` records this exact contract
+for every run, and canonical materialization rejects any other panel set.
 
 Run it directly with:
 
@@ -25,18 +28,17 @@ The renderer intentionally cannot download raw data, load the Seurat RDS,
 perform differential expression, or rerun ORA/GSEA. Its only analysis
 dependencies are `ggplot2`, `patchwork`, `pheatmap`, and `yaml`.
 
-Composition panels SI4E/G and SI5F-I share
-`normalized_composition.R`. Cells are first converted to within-sample
-cluster proportions; samples are then averaged with equal weight inside each
-displayed group, so sequencing depth cannot determine a sample's influence.
-Positive enrichment is assessed on those independent-sample proportions by
-an exact one-group-versus-rest label-permutation test inside the relevant
-nuisance strata: initial ploidy for SI4E and SI5G/H, context for SI4G, and dose
-for SI5I. Benjamini-Hochberg correction covers every group-by-cluster contrast
-in a panel, and asterisks mark only positive enrichments at FDR <= 0.05. SI5F
-has one biological sample per displayed mouse; it is therefore explicitly
-descriptive and emits no inferential stars rather than treating cells as
-replicates.
+The displayed composition panel SI5G uses `normalized_composition.R`. Cells
+are first converted to within-mouse cluster proportions; mice are then
+averaged with equal weight inside each initial-ploidy-by-dose group, so
+sequencing depth cannot determine a mouse's influence. Positive dose
+enrichment is assessed on those independent-mouse proportions by an exact
+one-group-versus-rest label-permutation test within initial-ploidy strata.
+Benjamini--Hochberg correction covers every group-by-cluster contrast in the
+panel, and asterisks mark only positive enrichments at FDR <= 0.05. The helper
+still computes the former SI4E/G and SI5F/H/I analyses as validated audit data
+and because shared main-Figure-7 code depends on some of the same contracts;
+they are not included in the supplementary publication composites.
 
 Main Figure 7J is reproduced from the 16 tracked downstream
 `Data/in-vivo/scRNAseq_Numbat/*.sps.cbs` matrices. The matrices contain 14,125
@@ -86,11 +88,13 @@ not constitute a complete NUMBAT run: allele-count inputs, clone posteriors,
 consensus segment outputs preceding these matrices, phylogeny, configuration,
 logs, and an executable upstream inference workflow remain unavailable.
 
-SI4A-C/E and SI7A/B are constructed by `shared_context_panels.R`. SI4I
-recomputes the shared density-localization analysis from the exact tracked
-2,881-cell pseudotime table. Main Figure 7 calls the same helper for its copies
-of SI4A-C/E and SI7B, with display tags assigned by the A-L compositor; fixed shuffle keys keep the UMAP point order
-identical between main and supplementary copies.
+Shared support plots SI4A--C/E and SI7A/B are constructed by
+`shared_context_panels.R`, but the supplementary compositor publishes only
+SI7A from those sets. SI4I recomputes the shared density-localization analysis
+from the exact tracked 2,881-cell pseudotime table. Main Figure 7 calls the
+same helper for its copies of the landscape/context panels and SI7B, with
+display tags assigned by the A--L compositor; fixed shuffle keys keep the UMAP
+point order identical across uses.
 
 To rebuild Supplementary Figures 4-7 from the shared Seurat source boundary
 without running Figures 1-6:
@@ -143,9 +147,10 @@ The cache contains:
 - the two 20-by-9 Hallmark matrices plotted in Figure 7.
 
 The normalized SI4E/G and SI5F-I estimates and tests are derived directly from
-canonical cell metadata. The SI4 context/ploidy tables still supply the raw
-count panels SI4F/H; the four historical SI5 aggregate tables are retained and
-validated for backward-compatible audit only and are not plotting inputs.
+canonical cell metadata. Of these, only SI5G is displayed. The SI4
+context/ploidy tables also supply displayed SI4F and internal raw-count support;
+the four historical SI5 aggregate tables are retained and validated for
+backward-compatible audit only and are not plotting inputs.
 
 `Code/tools/validate_si_figures_table_cache.py` enforces the exact 11-file
 inventory, schemas, cell/cluster reconciliation, endpoint-ploidy contract,
@@ -175,9 +180,10 @@ outputs from raw-refit run
 2026.1.Hs Hallmark gene sets. The other nine SI4-7 frozen tables remain
 unchanged.
 
-Both SI7 heatmaps hierarchically cluster the pathway rows and cluster columns;
-the rendered panels therefore include dendrograms on both axes. Clustering
-changes display order only and does not modify the reviewed matrix values.
+Both reviewed pathway matrices hierarchically cluster pathway rows and cluster
+columns. The ORA matrix is published as SI7A; the GSEA matrix is used by main
+Figure 7G and is not duplicated in the SI7 composite. Their dendrograms change
+display order only and do not modify the reviewed matrix values.
 
 This explicit filter replaces the previous mixed behavior, where species
 prefixes were stripped but symbol case was preserved before querying human
