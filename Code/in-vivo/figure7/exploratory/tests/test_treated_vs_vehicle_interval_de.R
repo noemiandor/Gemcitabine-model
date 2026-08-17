@@ -117,6 +117,43 @@ testthat::test_that("the primary contrast is equal-dose treated minus vehicle", 
   testthat::expect_true(all(primary[nuisance] == 0))
 })
 
+testthat::test_that("origin-stratified designs omit the constant origin term", {
+  sample_id <- paste0("mouse_2N_", seq_len(8L))
+  mouse_meta <- data.frame(
+    sample_id = sample_id,
+    initial_ploidy = rep("2N", 8L),
+    dose_mg = c(0, 0, 0, 0, 30, 30, 120, 120),
+    treatment = c(rep("vehicle", 4L), rep("treated", 4L)),
+    n_cells = rep(10L, 8L),
+    mean_pseudotime = seq(0.35, 0.42, length.out = 8L),
+    stringsAsFactors = FALSE,
+    row.names = sample_id
+  )
+  testthat::expect_invisible(
+    analysis_env$validate_origin_stratum(mouse_meta, "2N")
+  )
+  design <- analysis_env$prepare_interval_design(
+    mouse_meta,
+    adjust_mean_pseudotime = TRUE,
+    adjust_initial_ploidy = FALSE
+  )
+  contrasts <- analysis_env$treatment_contrasts(design$design)
+  primary <- contrasts$treated_equal_dose_minus_vehicle
+  testthat::expect_identical(design$rank, ncol(design$design))
+  testthat::expect_identical(ncol(design$design), 4L)
+  testthat::expect_false(any(grepl("initial_ploidy", colnames(design$design))))
+  testthat::expect_equal(primary[["dose_groupvehicle"]], -1)
+  testthat::expect_equal(primary[["dose_groupdose_30"]], 0.5)
+  testthat::expect_equal(primary[["dose_groupdose_120"]], 0.5)
+  testthat::expect_equal(primary[["mean_pseudotime_z"]], 0)
+
+  invalid <- mouse_meta[-1L, , drop = FALSE]
+  testthat::expect_error(
+    analysis_env$validate_origin_stratum(invalid, "2N"),
+    "does not contain eight mice"
+  )
+})
+
 testthat::test_that("positive fold change means higher expression in treated mice", {
   set.seed(712L)
   sample_id <- paste0("mouse_", seq_len(16L))

@@ -34,22 +34,31 @@ and pathways differ between gemcitabine-treated and vehicle tumors?
   groups contain four mice, this is also an equal-treated-mouse average.
   Dose-specific contrasts are written as diagnostics.
 - A positive log2 fold change means higher expression in treated tumors.
+- The same equal-dose comparison is also fit separately within the 2N-origin
+  and 4N-origin tumors. Each stratum contains eight mice: four vehicle, two at
+  30 mg/kg, and two at 120 mg/kg. Because injected origin is constant within a
+  stratum, these models omit that term but retain adjustment for mean
+  within-interval pseudotime. Their expression filter is CPM > 1 in at least
+  two mice, matching the smallest within-origin dose group.
 - For a pathway-level Figure 7I candidate, the primary model's moderated
   gene-level t statistics are passed to the same GSEA implementation used by
   the existing Figure 7I workflow. The analysis uses the pinned Homo sapiens
   MSigDB Hallmark, Reactome, and GO biological-process collections, adaptive
   `fgseaMultilevel` settings, collection-wide BH correction, and display rule
   (FDR <= 0.05; up to three pathways per direction and collection; no
-  nonsignificant backfill) from the reviewed workflow. Positive normalized
-  enrichment scores indicate enrichment in treated tumors.
+  nonsignificant backfill) from the reviewed workflow. The pooled, 2N-origin,
+  and 4N-origin panels all use this same rule. Positive normalized enrichment
+  scores indicate enrichment in treated tumors.
 - A sensitivity model omits only the mean within-interval pseudotime
   adjustment; injected origin remains an adjustment term and the gene universe
   and treatment contrast remain unchanged.
 
 The interval itself was localized from a treated-versus-vehicle density
-comparison. Consequently, this differential-expression result is exploratory
-and conditional on that data-selected interval; it should not be presented as
-an independent confirmatory treatment test.
+comparison. Consequently, these differential-expression results are
+exploratory and conditional on that data-selected interval; they should not be
+presented as independent confirmatory treatment tests. The origin-stratified
+analyses are additionally lower-powered because each model contains only eight
+independent mouse pseudobulks.
 
 ## Run
 
@@ -65,12 +74,12 @@ The isolated default output is:
 Results/in-vivo/figure7/exploratory/treated_vs_vehicle_interval_de/
 ```
 
-It contains a pathway-enrichment candidate PDF/PNG, the gene volcano as an
-audit figure, complete primary and dose-specific DE tables, complete and
-selected GSEA tables, leading-edge genes, the exact gene-set contract and
-membership, mouse coverage, the design matrix and contrast definitions,
-species and expression-filter audits, portable input provenance, package
-versions, and session information.
+It contains pooled, 2N-origin, and 4N-origin pathway-enrichment candidate
+PDF/PNG files; the pooled gene volcano as an audit figure; complete primary and
+dose-specific DE tables; complete and selected GSEA tables; leading-edge genes;
+the exact gene-set contract and membership; mouse coverage; design matrices and
+contrast definitions; species and expression-filter audits; portable input
+provenance; package versions; and session information.
 
 Run the focused synthetic tests from the repository root with:
 

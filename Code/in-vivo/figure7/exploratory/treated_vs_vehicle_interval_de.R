@@ -251,7 +251,11 @@ construct_mouse_pseudobulk <- function(meta, counts) {
   list(counts = pseudobulk, metadata = mouse_meta)
 }
 
-prepare_interval_design <- function(mouse_meta, adjust_mean_pseudotime = TRUE) {
+prepare_interval_design <- function(
+  mouse_meta,
+  adjust_mean_pseudotime = TRUE,
+  adjust_initial_ploidy = TRUE
+) {
   data <- as.data.frame(mouse_meta, stringsAsFactors = FALSE)
   data$dose_group <- factor(
     as.character(data$dose_mg),
@@ -269,18 +273,28 @@ prepare_interval_design <- function(mouse_meta, adjust_mean_pseudotime = TRUE) {
   if (anyNA(data$dose_group) || anyNA(data$initial_ploidy_factor)) {
     stop("Design contains an unsupported dose or injected-origin value", call. = FALSE)
   }
-  formula <- if (isTRUE(adjust_mean_pseudotime)) {
-    ~ 0 + dose_group + initial_ploidy_factor + mean_pseudotime_z
-  } else {
-    ~ 0 + dose_group + initial_ploidy_factor
+  design_terms <- "dose_group"
+  if (isTRUE(adjust_initial_ploidy)) {
+    design_terms <- c(design_terms, "initial_ploidy_factor")
   }
+  if (isTRUE(adjust_mean_pseudotime)) {
+    design_terms <- c(design_terms, "mean_pseudotime_z")
+  }
+  formula <- stats::reformulate(design_terms, intercept = FALSE)
   design <- stats::model.matrix(formula, data = data)
   rownames(design) <- data$sample_id
   rank <- qr(design)$rank
   if (rank != ncol(design)) {
     stop("Interval differential-expression design is rank deficient", call. = FALSE)
   }
-  list(data = data, design = design, formula = formula, rank = rank)
+  list(
+    data = data,
+    design = design,
+    formula = formula,
+    rank = rank,
+    adjust_mean_pseudotime = isTRUE(adjust_mean_pseudotime),
+    adjust_initial_ploidy = isTRUE(adjust_initial_ploidy)
+  )
 }
 
 treatment_contrasts <- function(design) {
@@ -569,7 +583,14 @@ pathway_collection_summary <- function(gsea, selected, support, config) {
   do.call(rbind, rows)
 }
 
-run_pathway_enrichment <- function(primary, support, config, seed = 1L) {
+run_pathway_enrichment <- function(
+  primary,
+  support,
+  config,
+  seed = 1L,
+  gene_sets = NULL,
+  include_gene_set_membership = TRUE
+) {
   expected_msigdbr <- as.character(config$gene_sets$package_version)
   observed_msigdbr <- as.character(utils::packageVersion("msigdbr"))
   if (!identical(observed_msigdbr, expected_msigdbr)) {
@@ -581,10 +602,15 @@ run_pathway_enrichment <- function(primary, support, config, seed = 1L) {
   }
   collections <- as.character(unlist(config$state_pathways$collections))
   species <- as.character(config$gene_sets$species)
-  gene_sets <- support$fetch_gene_sets(
-    paste(collections, collapse = ","),
-    species = species
-  )
+  if (is.null(gene_sets)) {
+    gene_sets <- support$fetch_gene_sets(
+      paste(collections, collapse = ","),
+      species = species
+    )
+  }
+  if (!identical(names(gene_sets), collections)) {
+    stop("Reused gene sets do not match the configured collection order", call. = FALSE)
+  }
   observed_releases <- unique(vapply(
     gene_sets,
     `[[`,
@@ -625,7 +651,11 @@ run_pathway_enrichment <- function(primary, support, config, seed = 1L) {
     ,
     drop = FALSE
   ]
-  membership <- support$gene_set_membership_table(gene_sets)
+  membership <- if (isTRUE(include_gene_set_membership)) {
+    support$gene_set_membership_table(gene_sets)
+  } else {
+    NULL
+  }
   contract <- data.frame(
     key = c(
       "provider", "msigdbr_package_version", "database_release", "species",
@@ -650,6 +680,7 @@ run_pathway_enrichment <- function(primary, support, config, seed = 1L) {
     selected = selected,
     leading_edge = leading_edge,
     membership = membership,
+    gene_sets = if (isTRUE(include_gene_set_membership)) gene_sets else NULL,
     contract = contract,
     ranking = ranking$ranking,
     symbol_resolution = ranking$symbol_resolution,
@@ -662,13 +693,109 @@ run_pathway_enrichment <- function(primary, support, config, seed = 1L) {
   )
 }
 
+validate_origin_stratum <- function(mouse_meta, origin) {
+  origin <- match.arg(origin, c("2N", "4N"))
+  expected_dose_counts <- c("0" = 4L, "30" = 2L, "120" = 2L)
+  observed_dose_counts <- table(factor(
+    as.character(mouse_meta$dose_mg),
+    levels = names(expected_dose_counts)
+  ))
+  failures <- character()
+  if (nrow(mouse_meta) != 8L) {
+    failures <- c(failures, "stratum does not contain eight mice")
+  }
+  observed_origins <- unique(as.character(mouse_meta$initial_ploidy))
+  if (anyNA(observed_origins) || !identical(observed_origins, origin)) {
+    failures <- c(failures, "stratum contains a different injected origin")
+  }
+  if (!identical(as.integer(observed_dose_counts), unname(expected_dose_counts))) {
+    failures <- c(failures, "dose counts are not 4 vehicle, 2 at 30, and 2 at 120 mg/kg")
+  }
+  if (any(!is.finite(mouse_meta$n_cells)) || any(mouse_meta$n_cells < 1L)) {
+    failures <- c(failures, "one or more stratum mice has no interval cells")
+  }
+  if (length(failures)) {
+    stop(
+      origin,
+      "-origin interval contract failed: ",
+      paste(failures, collapse = "; "),
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
+}
+
+fit_origin_stratified_analysis <- function(
+  pseudobulk,
+  origin,
+  support,
+  config,
+  gene_sets,
+  cpm_threshold = 1,
+  seed = 1L
+) {
+  origin <- match.arg(origin, c("2N", "4N"))
+  mouse_meta <- pseudobulk$metadata[
+    pseudobulk$metadata$initial_ploidy == origin,
+    ,
+    drop = FALSE
+  ]
+  validate_origin_stratum(mouse_meta, origin)
+  counts <- pseudobulk$counts[, mouse_meta$sample_id, drop = FALSE]
+  design_bundle <- prepare_interval_design(
+    mouse_meta,
+    adjust_mean_pseudotime = TRUE,
+    adjust_initial_ploidy = FALSE
+  )
+  contrasts <- treatment_contrasts(design_bundle$design)
+  model <- fit_interval_voom(
+    counts,
+    design_bundle,
+    cpm_threshold = cpm_threshold,
+    minimum_mice = 2L
+  )
+  de_tables <- lapply(names(contrasts), function(contrast_id) {
+    table <- extract_contrast_table(
+      model,
+      contrasts[[contrast_id]],
+      contrast_id,
+      support$clean_gene_symbols
+    )
+    table$origin_stratum <- origin
+    table
+  })
+  names(de_tables) <- names(contrasts)
+  primary <- de_tables$treated_equal_dose_minus_vehicle
+  pathways <- run_pathway_enrichment(
+    primary,
+    support,
+    config,
+    seed = seed,
+    gene_sets = gene_sets,
+    include_gene_set_membership = FALSE
+  )
+  list(
+    origin = origin,
+    mouse_metadata = mouse_meta,
+    design = design_bundle,
+    contrasts = contrasts,
+    model = model,
+    de_tables = de_tables,
+    primary = primary,
+    pathways = pathways
+  )
+}
+
 plot_candidate_pathways <- function(
   selected,
   path_pdf,
   path_png,
   mouse_meta,
   interval,
-  selection_rule
+  selection_rule,
+  title = "Pathway enrichment in the selected pseudotime interval",
+  adjustment_caption =
+    "Adjusted for injected origin and mean within-interval pseudotime."
 ) {
   plot_data <- selected
   plot_data <- plot_data[
@@ -742,7 +869,7 @@ plot_candidate_pathways <- function(
     )) +
     ggplot2::scale_size_continuous(range = c(2.4, 5.5)) +
     ggplot2::labs(
-      title = "Pathway enrichment in the selected pseudotime interval",
+      title = title,
       subtitle = sprintf(
         paste0(
           "Equal-dose treated - vehicle contrast; %.3f-%.3f\n",
@@ -761,7 +888,7 @@ plot_candidate_pathways <- function(
       size = expression(-log[10]~"FDR"),
       caption = paste0(
         "Genes ranked by moderated t statistic; ", selection_rule, ".\n",
-        "Adjusted for injected origin and mean within-interval pseudotime.\n",
+        adjustment_caption, "\n",
         "Exploratory: the interval was localized using treated-versus-vehicle ",
         "density differences."
       )
@@ -969,6 +1096,136 @@ model_contrast_table <- function(contrasts) {
   do.call(rbind, rows)
 }
 
+write_origin_stratified_outputs <- function(
+  result,
+  table_dir,
+  figure_dir,
+  interval,
+  fdr_threshold,
+  lfc_threshold
+) {
+  origin <- result$origin
+  for (contrast_id in names(result$de_tables)) {
+    write_tsv(
+      result$de_tables[[contrast_id]],
+      file.path(table_dir, paste0(contrast_id, "_", origin, "_de.tsv"))
+    )
+  }
+  prefix <- paste0("treated_equal_dose_minus_vehicle_", origin)
+  write_tsv(
+    result$pathways$ranking,
+    file.path(table_dir, paste0(prefix, "_gsea_ranking.tsv"))
+  )
+  write_tsv(
+    result$pathways$symbol_resolution,
+    file.path(table_dir, paste0(prefix, "_gene_symbol_resolution.tsv"))
+  )
+  write_tsv(
+    result$pathways$complete,
+    file.path(table_dir, paste0(prefix, "_gsea_complete.tsv"))
+  )
+  write_tsv(
+    result$pathways$selected,
+    file.path(table_dir, paste0(prefix, "_gsea_selected.tsv"))
+  )
+  write_tsv(
+    result$pathways$leading_edge,
+    file.path(table_dir, paste0(prefix, "_selected_leading_edge_genes.tsv"))
+  )
+  write_tsv(
+    result$pathways$collection_summary,
+    file.path(table_dir, paste0(prefix, "_gsea_summary.tsv"))
+  )
+  write_tsv(
+    result$mouse_metadata,
+    file.path(table_dir, paste0("interval_mouse_coverage_", origin, ".tsv"))
+  )
+  design_output <- cbind(
+    sample_id = rownames(result$design$design),
+    as.data.frame(result$design$design, check.names = FALSE)
+  )
+  write_tsv(
+    design_output,
+    file.path(table_dir, paste0("design_matrix_", origin, ".tsv"))
+  )
+  write_tsv(
+    model_contrast_table(result$contrasts),
+    file.path(table_dir, paste0("contrast_definitions_", origin, ".tsv"))
+  )
+  write_tsv(data.frame(
+    origin_stratum = origin,
+    cpm_threshold = result$model$cpm_threshold,
+    minimum_mice_above_threshold = result$model$minimum_mice,
+    rule = sprintf(
+      "CPM > %s in at least %d independent mouse pseudobulks",
+      result$model$cpm_threshold,
+      result$model$minimum_mice
+    ),
+    rationale = "smallest within-origin dose group contains two mice",
+    n_input_features = result$model$n_input_genes,
+    n_retained_features = result$model$n_retained_genes,
+    stringsAsFactors = FALSE
+  ), file.path(table_dir, paste0("expression_filter_audit_", origin, ".tsv")))
+
+  significant <- is.finite(result$primary$fdr) &
+    result$primary$fdr <= fdr_threshold &
+    is.finite(result$primary$log2_fold_change) &
+    abs(result$primary$log2_fold_change) >= lfc_threshold
+  write_tsv(data.frame(
+    origin_stratum = origin,
+    interval_cells = sum(result$mouse_metadata$n_cells),
+    interval_mice = nrow(result$mouse_metadata),
+    vehicle_mice = sum(result$mouse_metadata$dose_mg == 0),
+    treated_mice = sum(result$mouse_metadata$dose_mg > 0),
+    dose_30_mice = sum(result$mouse_metadata$dose_mg == 30),
+    dose_120_mice = sum(result$mouse_metadata$dose_mg == 120),
+    model_formula = paste(deparse(result$design$formula), collapse = " "),
+    design_rank = result$design$rank,
+    design_columns = ncol(result$design$design),
+    injected_origin_adjustment = FALSE,
+    mean_within_interval_pseudotime_adjustment = TRUE,
+    retained_expressed_features = result$model$n_retained_genes,
+    significant_features = sum(significant),
+    higher_in_treated = sum(significant & result$primary$log2_fold_change > 0),
+    lower_in_treated = sum(significant & result$primary$log2_fold_change < 0),
+    gsea_fdr_significant = sum(
+      result$pathways$complete$padj <= fdr_threshold,
+      na.rm = TRUE
+    ),
+    displayed_pathways = nrow(result$pathways$selected),
+    stringsAsFactors = FALSE
+  ), file.path(table_dir, paste0("analysis_summary_", origin, ".tsv")))
+
+  plot_candidate_pathways(
+    result$pathways$selected,
+    file.path(
+      figure_dir,
+      paste0(
+        "panel_7I_candidate_treated_vs_vehicle_interval_pathways_",
+        origin,
+        ".pdf"
+      )
+    ),
+    file.path(
+      figure_dir,
+      paste0(
+        "panel_7I_candidate_treated_vs_vehicle_interval_pathways_",
+        origin,
+        ".png"
+      )
+    ),
+    result$mouse_metadata,
+    interval,
+    exploratory_pathway_selection_rule(),
+    title = paste("Pathway enrichment in", origin, "-origin tumors"),
+    adjustment_caption = paste0(
+      "Restricted to ", origin,
+      "-origin tumors; adjusted for mean within-interval pseudotime."
+    )
+  )
+  invisible(result)
+}
+
 run_interval_de <- function(args, repo_root) {
   check_packages()
   support <- load_figure7_support(repo_root)
@@ -1072,6 +1329,20 @@ run_interval_de <- function(args, repo_root) {
     config,
     seed = 1L
   )
+
+  message("Fitting the origin-stratified mouse-level models and GSEA")
+  origins <- c("2N", "4N")
+  stratified_analyses <- setNames(lapply(origins, function(origin) {
+    fit_origin_stratified_analysis(
+      pseudobulk,
+      origin,
+      support,
+      config,
+      gene_sets = pathway_enrichment$gene_sets,
+      cpm_threshold = args$cpm_threshold,
+      seed = 1L
+    )
+  }), origins)
 
   output_root <- prepare_output_root(args$output_root, overwrite = args$overwrite)
   table_dir <- file.path(output_root, "tables")
@@ -1212,6 +1483,16 @@ run_interval_de <- function(args, repo_root) {
     interval,
     exploratory_pathway_selection_rule()
   )
+  for (origin in names(stratified_analyses)) {
+    write_origin_stratified_outputs(
+      stratified_analyses[[origin]],
+      table_dir,
+      figure_dir,
+      interval,
+      args$fdr_threshold,
+      args$lfc_threshold
+    )
+  }
 
   write_tsv(species_audit, file.path(metadata_dir, "feature_species_audit.tsv"))
   write_tsv(match_audit, file.path(metadata_dir, "cell_expression_match_audit.tsv"))
@@ -1358,6 +1639,7 @@ run_interval_de <- function(args, repo_root) {
   invisible(list(
     primary = primary,
     pathways = pathway_enrichment,
+    stratified = stratified_analyses,
     summaries = summary,
     mouse_metadata = pseudobulk$metadata,
     output_root = output_root
