@@ -6,7 +6,7 @@
 # its frozen outputs. It reuses that workflow's exact CellCycle metadata,
 # fail-closed GRCh38-only count boundary, and edgeR/limma-voom framework, then
 # asks a different question: within the prespecified pseudotime interval, which
-# genes differ between gemcitabine-treated and vehicle tumors?
+# genes and pathways differ between gemcitabine-treated and vehicle tumors?
 
 `%||%` <- function(x, y) {
   if (is.null(x) || !length(x) || (length(x) == 1L && is.na(x))) y else x
@@ -97,7 +97,8 @@ resolve_path <- function(path, repo_root, must_work = FALSE) {
 required_packages <- function() {
   c(
     "Seurat", "SeuratObject", "Matrix", "yaml", "digest", "edgeR",
-    "limma", "readr", "ggplot2", "ggrepel"
+    "limma", "fgsea", "BiocParallel", "msigdbr", "readr", "ggplot2",
+    "ggrepel"
   )
 }
 
@@ -118,6 +119,10 @@ load_figure7_support <- function(repo_root) {
   )
   sys.source(
     file.path(module_dir, "src", "feature_species_policy.R"),
+    envir = support
+  )
+  sys.source(
+    file.path(module_dir, "src", "common_io.R"),
     envir = support
   )
   support
@@ -462,6 +467,309 @@ dose_concordance_table <- function(primary, dose_30, dose_120, feature_ids) {
   )
 }
 
+prepare_pathway_ranking <- function(de_table, support) {
+  required <- c(
+    "feature_id", "gene_symbol", "contrast_id", "moderated_t", "p_value",
+    "fdr"
+  )
+  missing <- setdiff(required, names(de_table))
+  if (length(missing)) {
+    stop(
+      "Differential-expression table is missing pathway-ranking column(s): ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  contrast <- data.frame(
+    gene = as.character(de_table$feature_id),
+    gene_symbol = as.character(de_table$gene_symbol),
+    contrast_id = as.character(de_table$contrast_id),
+    t_statistic = as.numeric(de_table$moderated_t),
+    p_value = as.numeric(de_table$p_value),
+    fdr = as.numeric(de_table$fdr),
+    stringsAsFactors = FALSE
+  )
+  resolution <- support$resolve_gene_symbols(contrast)
+  stats <- support$ranked_stats(contrast, resolution)
+  if (!length(stats) || is.null(names(stats)) || anyNA(stats) ||
+      anyNA(names(stats)) || any(!nzchar(names(stats))) ||
+      anyDuplicated(names(stats))) {
+    stop("Pathway ranking must contain unique, finite gene symbols", call. = FALSE)
+  }
+  ranking <- data.frame(
+    gene_symbol = names(stats),
+    moderated_t = as.numeric(stats),
+    rank = seq_along(stats),
+    stringsAsFactors = FALSE
+  )
+  list(stats = stats, ranking = ranking, symbol_resolution = resolution)
+}
+
+select_pathway_results <- function(gsea, support, config) {
+  selection_source <- as.data.frame(gsea, stringsAsFactors = FALSE)
+  selection_source$collection_id <- as.character(selection_source$collection)
+  selection_source$pathway_id <- as.character(selection_source$pathway)
+  selected <- support$figure7_select_generated_pathways(
+    selection_source,
+    config
+  )
+  collections <- as.character(unlist(config$state_pathways$collections))
+  selected$collection_display_order <- match(
+    as.character(selected$collection),
+    collections
+  )
+  selected$pathway_display_order <- seq_len(nrow(selected))
+  selected
+}
+
+pathway_collection_summary <- function(gsea, selected, support, config) {
+  collections <- as.character(unlist(config$state_pathways$collections))
+  threshold <- support$figure7_generated_pathway_fdr_threshold()
+  rows <- lapply(collections, function(collection) {
+    local <- gsea[gsea$collection == collection, , drop = FALSE]
+    local_selected <- selected[selected$collection == collection, , drop = FALSE]
+    significant <- is.finite(local$padj) & local$padj <= threshold
+    data.frame(
+      collection_id = collection,
+      collection_label = unique(as.character(local$collection_label))[[1L]],
+      pathways_tested = nrow(local),
+      fdr_significant = sum(significant),
+      fdr_significant_positive_nes = sum(significant & local$NES > 0),
+      fdr_significant_negative_nes = sum(significant & local$NES < 0),
+      pathways_selected_for_panel = nrow(local_selected),
+      selected_positive_nes = sum(local_selected$NES > 0),
+      selected_negative_nes = sum(local_selected$NES < 0),
+      stringsAsFactors = FALSE
+    )
+  })
+  do.call(rbind, rows)
+}
+
+run_pathway_enrichment <- function(primary, support, config, seed = 1L) {
+  expected_msigdbr <- as.character(config$gene_sets$package_version)
+  observed_msigdbr <- as.character(utils::packageVersion("msigdbr"))
+  if (!identical(observed_msigdbr, expected_msigdbr)) {
+    stop(
+      "Pathway analysis requires msigdbr ", expected_msigdbr,
+      "; observed ", observed_msigdbr,
+      call. = FALSE
+    )
+  }
+  collections <- as.character(unlist(config$state_pathways$collections))
+  species <- as.character(config$gene_sets$species)
+  gene_sets <- support$fetch_gene_sets(
+    paste(collections, collapse = ","),
+    species = species
+  )
+  observed_releases <- unique(vapply(
+    gene_sets,
+    `[[`,
+    character(1L),
+    "database_release"
+  ))
+  expected_release <- as.character(config$gene_sets$database_release)
+  if (length(observed_releases) != 1L ||
+      !identical(observed_releases, expected_release)) {
+    stop(
+      "Pathway analysis requires MSigDB ", expected_release,
+      "; observed ", paste(observed_releases, collapse = ","),
+      call. = FALSE
+    )
+  }
+
+  ranking <- prepare_pathway_ranking(primary, support)
+  gsea <- support$run_all_gsea(
+    ranking$stats,
+    gene_sets,
+    "treated_equal_dose_minus_vehicle",
+    15L,
+    500L,
+    as.integer(config$state_pathways$gsea_nperm_simple),
+    as.integer(seed),
+    as.integer(config$state_pathways$gsea_nperm_simple_max),
+    as.integer(config$state_pathways$gsea_nperm_simple_multiplier)
+  )
+  if (is.null(gsea) || !nrow(gsea)) {
+    stop("No eligible pathways were returned by GSEA", call. = FALSE)
+  }
+  selected <- select_pathway_results(gsea, support, config)
+  leading_edge <- support$leading_edge_table(gsea)
+  selected_keys <- paste(selected$collection, selected$pathway, sep = "\r")
+  leading_edge <- leading_edge[
+    paste(leading_edge$collection, leading_edge$pathway, sep = "\r") %in%
+      selected_keys,
+    ,
+    drop = FALSE
+  ]
+  membership <- support$gene_set_membership_table(gene_sets)
+  contract <- data.frame(
+    key = c(
+      "provider", "msigdbr_package_version", "database_release", "species",
+      "collections", "ranking_statistic", "gsea_min_size", "gsea_max_size",
+      "gsea_nperm_simple", "gsea_nperm_simple_max",
+      "gsea_nperm_simple_multiplier", "pathway_selection_rule",
+      "ranked_unique_gene_symbols", "gene_set_membership_sha256"
+    ),
+    value = c(
+      "msigdbr", observed_msigdbr, observed_releases, species,
+      paste(collections, collapse = ","), "moderated_t", "15", "500",
+      as.character(config$state_pathways$gsea_nperm_simple),
+      as.character(config$state_pathways$gsea_nperm_simple_max),
+      as.character(config$state_pathways$gsea_nperm_simple_multiplier),
+      support$figure7_generated_pathway_selection_rule(),
+      as.character(length(ranking$stats)), NA_character_
+    ),
+    stringsAsFactors = FALSE
+  )
+  list(
+    complete = gsea,
+    selected = selected,
+    leading_edge = leading_edge,
+    membership = membership,
+    contract = contract,
+    ranking = ranking$ranking,
+    symbol_resolution = ranking$symbol_resolution,
+    collection_summary = pathway_collection_summary(
+      gsea,
+      selected,
+      support,
+      config
+    )
+  )
+}
+
+plot_candidate_pathways <- function(
+  selected,
+  path_pdf,
+  path_png,
+  mouse_meta,
+  interval,
+  selection_rule
+) {
+  plot_data <- selected
+  plot_data <- plot_data[
+    order(plot_data$collection_display_order, plot_data$NES),
+    ,
+    drop = FALSE
+  ]
+  pathway_key <- paste(plot_data$collection, plot_data$pathway, sep = "\r")
+  plot_data$pathway_plot_key <- factor(pathway_key, levels = pathway_key)
+  pathway_labels <- setNames(
+    vapply(
+      as.character(plot_data$pathway_label),
+      function(label) paste(strwrap(label, width = 44L), collapse = "\n"),
+      character(1L)
+    ),
+    pathway_key
+  )
+  collection_labels <- c(
+    "H" = "Hallmark",
+    "C2:CP:REACTOME" = "Reactome",
+    "C5:GO:BP" = "GO BP"
+  )
+  plot_data$collection_label <- factor(
+    as.character(plot_data$collection),
+    levels = names(collection_labels),
+    labels = unname(collection_labels)
+  )
+  plot_data$enrichment_direction <- factor(
+    ifelse(plot_data$NES > 0, "Enriched in treated", "Enriched in vehicle"),
+    levels = c("Enriched in vehicle", "Enriched in treated")
+  )
+  plot_data$minus_log10_fdr <- -log10(
+    pmax(as.numeric(plot_data$padj), .Machine$double.xmin)
+  )
+  n_vehicle <- sum(mouse_meta$treatment == "vehicle")
+  n_treated <- sum(mouse_meta$treatment == "treated")
+  n_cells <- sum(mouse_meta$n_cells)
+  plot <- ggplot2::ggplot(
+    plot_data,
+    ggplot2::aes(y = pathway_plot_key)
+  ) +
+    ggplot2::geom_vline(
+      xintercept = 0,
+      color = "#6B7280",
+      linewidth = 0.35
+    ) +
+    ggplot2::geom_segment(
+      ggplot2::aes(x = 0, xend = NES, yend = pathway_plot_key),
+      color = "#9CA3AF",
+      linewidth = 0.55
+    ) +
+    ggplot2::geom_point(
+      ggplot2::aes(
+        x = NES,
+        fill = enrichment_direction,
+        size = minus_log10_fdr
+      ),
+      shape = 21,
+      color = "white",
+      stroke = 0.35
+    ) +
+    ggplot2::facet_grid(
+      collection_label ~ .,
+      scales = "free_y",
+      space = "free_y"
+    ) +
+    ggplot2::scale_y_discrete(labels = pathway_labels) +
+    ggplot2::scale_fill_manual(values = c(
+      "Enriched in vehicle" = "#2B6CB0",
+      "Enriched in treated" = "#C2413B"
+    )) +
+    ggplot2::scale_size_continuous(range = c(2.4, 5.5)) +
+    ggplot2::labs(
+      title = "Pathway enrichment in the selected pseudotime interval",
+      subtitle = sprintf(
+        paste0(
+          "Equal-dose treated - vehicle contrast; %.3f-%.3f\n",
+          "%d cells across %d mice (%d treated, %d vehicle)"
+        ),
+        interval$start,
+        interval$end,
+        n_cells,
+        nrow(mouse_meta),
+        n_treated,
+        n_vehicle
+      ),
+      x = "Normalized enrichment score (treated - vehicle)",
+      y = NULL,
+      fill = NULL,
+      size = expression(-log[10]~"FDR"),
+      caption = paste0(
+        "Genes ranked by moderated t statistic; ", selection_rule, ".\n",
+        "Adjusted for injected origin and mean within-interval pseudotime.\n",
+        "Exploratory: the interval was localized using treated-versus-vehicle ",
+        "density differences."
+      )
+    ) +
+    ggplot2::theme_bw(base_size = 9) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 11),
+      plot.subtitle = ggplot2::element_text(size = 8.5, color = "#374151"),
+      plot.caption = ggplot2::element_text(
+        size = 7.5,
+        hjust = 0,
+        color = "#4B5563"
+      ),
+      legend.position = "top",
+      legend.justification = "left",
+      strip.text.y = ggplot2::element_text(angle = 270),
+      panel.grid.major.y = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank()
+    )
+  dir.create(dirname(path_pdf), recursive = TRUE, showWarnings = FALSE)
+  ggplot2::ggsave(path_pdf, plot, width = 9, height = 8, units = "in")
+  ggplot2::ggsave(
+    path_png,
+    plot,
+    width = 9,
+    height = 8,
+    units = "in",
+    dpi = 320
+  )
+  invisible(plot)
+}
+
 plot_candidate_volcano <- function(
   table,
   path_pdf,
@@ -733,6 +1041,14 @@ run_interval_de <- function(args, repo_root) {
     support$clean_gene_symbols
   )
 
+  message("Running the reused human Hallmark/Reactome/GO-BP GSEA")
+  pathway_enrichment <- run_pathway_enrichment(
+    primary,
+    support,
+    config,
+    seed = 1L
+  )
+
   output_root <- prepare_output_root(args$output_root, overwrite = args$overwrite)
   table_dir <- file.path(output_root, "tables")
   figure_dir <- file.path(output_root, "figures")
@@ -753,6 +1069,30 @@ run_interval_de <- function(args, repo_root) {
       table_dir,
       "treated_equal_dose_minus_vehicle_sensitivity_without_mean_pseudotime_adjustment_de.tsv"
     )
+  )
+  write_tsv(
+    pathway_enrichment$ranking,
+    file.path(table_dir, "treated_equal_dose_minus_vehicle_gsea_ranking.tsv")
+  )
+  write_tsv(
+    pathway_enrichment$symbol_resolution,
+    file.path(table_dir, "treated_equal_dose_minus_vehicle_gene_symbol_resolution.tsv")
+  )
+  write_tsv(
+    pathway_enrichment$complete,
+    file.path(table_dir, "treated_equal_dose_minus_vehicle_gsea_complete.tsv")
+  )
+  write_tsv(
+    pathway_enrichment$selected,
+    file.path(table_dir, "treated_equal_dose_minus_vehicle_gsea_selected.tsv")
+  )
+  write_tsv(
+    pathway_enrichment$leading_edge,
+    file.path(table_dir, "treated_equal_dose_minus_vehicle_selected_leading_edge_genes.tsv")
+  )
+  write_tsv(
+    pathway_enrichment$collection_summary,
+    file.path(table_dir, "treated_equal_dose_minus_vehicle_gsea_summary.tsv")
   )
   write_tsv(pseudobulk$metadata, file.path(table_dir, "interval_mouse_coverage.tsv"))
   design_output <- cbind(
@@ -834,9 +1174,32 @@ run_interval_de <- function(args, repo_root) {
     args$lfc_threshold,
     args$label_genes
   )
+  plot_candidate_pathways(
+    pathway_enrichment$selected,
+    file.path(
+      figure_dir,
+      "panel_7I_candidate_treated_vs_vehicle_interval_pathways.pdf"
+    ),
+    file.path(
+      figure_dir,
+      "panel_7I_candidate_treated_vs_vehicle_interval_pathways.png"
+    ),
+    pseudobulk$metadata,
+    interval,
+    support$figure7_generated_pathway_selection_rule()
+  )
 
   write_tsv(species_audit, file.path(metadata_dir, "feature_species_audit.tsv"))
   write_tsv(match_audit, file.path(metadata_dir, "cell_expression_match_audit.tsv"))
+  membership_path <- file.path(metadata_dir, "gene_set_membership.tsv")
+  write_tsv(pathway_enrichment$membership, membership_path)
+  pathway_enrichment$contract$value[
+    pathway_enrichment$contract$key == "gene_set_membership_sha256"
+  ] <- sha256_file(membership_path)
+  write_tsv(
+    pathway_enrichment$contract,
+    file.path(metadata_dir, "gene_set_contract.tsv")
+  )
   design_audit_row <- function(model_id, bundle, primary_model, adjust_pseudotime) {
     data.frame(
       model_id = model_id,
@@ -911,6 +1274,10 @@ run_interval_de <- function(args, repo_root) {
     feature_species_policy = file.path(
       repo_root,
       "Code/in-vivo/figure7/src/feature_species_policy.R"
+    ),
+    shared_figure7_contract = file.path(
+      repo_root,
+      "Code/in-vivo/figure7/src/common_io.R"
     )
   )
   manifest_hashes <- setNames(rep(NA_character_, length(manifest_paths)), names(manifest_paths))
@@ -940,7 +1307,8 @@ run_interval_de <- function(args, repo_root) {
     key = c(
       "git_revision", "git_branch", "git_worktree_dirty",
       "feature_species_policy", "normalization", "observation_model",
-      "multiple_testing", "contrast_sign_convention"
+      "multiple_testing", "contrast_sign_convention", "pathway_ranking",
+      "pathway_collections", "pathway_selection"
     ),
     value = c(
       git_value(repo_root, c("rev-parse", "HEAD")),
@@ -953,15 +1321,19 @@ run_interval_de <- function(args, repo_root) {
       "edgeR TMM",
       "limma voom with robust empirical Bayes moderation",
       "Benjamini-Hochberg across retained human features within each contrast",
-      "positive log2 fold change means higher expression in gemcitabine-treated tumors"
+      "positive log2 fold change means higher expression in gemcitabine-treated tumors",
+      "moderated t statistic from the primary treated-minus-vehicle contrast",
+      paste(as.character(unlist(config$state_pathways$collections)), collapse = ","),
+      support$figure7_generated_pathway_selection_rule()
     ),
     stringsAsFactors = FALSE
   ), file.path(metadata_dir, "provenance.tsv"))
   writeLines(capture.output(utils::sessionInfo()), file.path(metadata_dir, "sessionInfo.txt"))
 
-  message("Completed exploratory interval DE: ", output_root)
+  message("Completed exploratory interval gene and pathway analysis: ", output_root)
   invisible(list(
     primary = primary,
+    pathways = pathway_enrichment,
     summaries = summary,
     mouse_metadata = pseudobulk$metadata,
     output_root = output_root

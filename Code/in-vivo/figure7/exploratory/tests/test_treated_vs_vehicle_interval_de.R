@@ -164,3 +164,51 @@ testthat::test_that("positive fold change means higher expression in treated mic
   testthat::expect_lt(gene_down$log2_fold_change, 0)
   testthat::expect_identical(gene_down$direction, "lower_in_treated")
 })
+
+testthat::test_that("pathway ranking reuses moderated t and resolves duplicate symbols", {
+  support <- analysis_env$load_figure7_support(repo_root)
+  table <- data.frame(
+    feature_id = c("GRCh38-a1", "GRCh38-a2", "GRCh38-b"),
+    gene_symbol = c("GENEA", "GENEA", "GENEB"),
+    contrast_id = rep("treated_equal_dose_minus_vehicle", 3L),
+    moderated_t = c(2, -5, 1),
+    p_value = c(0.04, 0.001, 0.2),
+    fdr = c(0.08, 0.01, 0.3),
+    stringsAsFactors = FALSE
+  )
+  ranking <- analysis_env$prepare_pathway_ranking(table, support)
+  testthat::expect_identical(names(ranking$stats), c("GENEB", "GENEA"))
+  testthat::expect_equal(unname(ranking$stats), c(1, -5))
+  retained <- ranking$symbol_resolution[
+    ranking$symbol_resolution$retained_for_gsea,
+    ,
+    drop = FALSE
+  ]
+  testthat::expect_identical(retained$gene, c("GRCh38-a2", "GRCh38-b"))
+})
+
+testthat::test_that("pathway display uses the reviewed significant-only selector", {
+  support <- analysis_env$load_figure7_support(repo_root)
+  config <- support$read_config(file.path(
+    repo_root,
+    "Code/in-vivo/figure7/figure7_config.yaml"
+  ))
+  collections <- as.character(unlist(config$state_pathways$collections))
+  gsea <- do.call(rbind, lapply(collections, function(collection) {
+    data.frame(
+      collection = collection,
+      collection_label = collection,
+      pathway = paste0(gsub("[^A-Za-z]", "", collection), "_", seq_len(13L)),
+      pathway_label = paste("Pathway", seq_len(13L)),
+      padj = c(rep(0.01, 12L), 0.2),
+      NES = c(seq(2.5, 1.5, length.out = 6L), seq(-1.5, -2.5, length.out = 6L), 3),
+      stringsAsFactors = FALSE
+    )
+  }))
+  selected <- analysis_env$select_pathway_results(gsea, support, config)
+  counts <- table(selected$collection, selected$selected_direction)
+  testthat::expect_true(all(counts[, "positive"] == 4L))
+  testthat::expect_true(all(counts[, "negative"] == 4L))
+  testthat::expect_true(all(selected$padj <= 0.05))
+  testthat::expect_false(any(grepl("_13$", selected$pathway)))
+})

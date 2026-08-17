@@ -13,7 +13,7 @@ injected origin are adjustment terms in that model.
 
 The exploratory analysis here asks a different question: among tumor cells in
 the exact inclusive pseudotime interval 0.296--0.486, which human-tumor genes
-are differentially expressed in gemcitabine-treated versus vehicle tumors?
+and pathways differ between gemcitabine-treated and vehicle tumors?
 
 ## Statistical design
 
@@ -34,6 +34,14 @@ are differentially expressed in gemcitabine-treated versus vehicle tumors?
   groups contain four mice, this is also an equal-treated-mouse average.
   Dose-specific contrasts are written as diagnostics.
 - A positive log2 fold change means higher expression in treated tumors.
+- For a pathway-level Figure 7I candidate, the primary model's moderated
+  gene-level t statistics are passed to the same GSEA implementation used by
+  the existing Figure 7I workflow. The analysis uses the pinned Homo sapiens
+  MSigDB Hallmark, Reactome, and GO biological-process collections, adaptive
+  `fgseaMultilevel` settings, collection-wide BH correction, and display rule
+  (FDR <= 0.05; up to four pathways per direction and collection; no
+  nonsignificant backfill) from the reviewed workflow. Positive normalized
+  enrichment scores indicate enrichment in treated tumors.
 - A sensitivity model omits only the mean within-interval pseudotime
   adjustment; injected origin remains an adjustment term and the gene universe
   and treatment contrast remain unchanged.
@@ -57,10 +65,12 @@ The isolated default output is:
 Results/in-vivo/figure7/exploratory/treated_vs_vehicle_interval_de/
 ```
 
-It contains the candidate PDF/PNG, complete primary and dose-specific DE
-tables, mouse coverage, the design matrix and contrast definitions, species
-and expression-filter audits, portable input provenance, package versions,
-and session information.
+It contains a pathway-enrichment candidate PDF/PNG, the gene volcano as an
+audit figure, complete primary and dose-specific DE tables, complete and
+selected GSEA tables, leading-edge genes, the exact gene-set contract and
+membership, mouse coverage, the design matrix and contrast definitions,
+species and expression-filter audits, portable input provenance, package
+versions, and session information.
 
 Run the focused synthetic tests from the repository root with:
 
