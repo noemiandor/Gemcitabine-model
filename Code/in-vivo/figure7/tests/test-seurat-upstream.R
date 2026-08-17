@@ -6,6 +6,40 @@ if (!exists("figure7_select_seurat_source", mode = "function")) {
   )
 }
 
+figure7_test_cluster_filter_result <- function(cluster_levels, removed) {
+  decision <- data.frame(
+    cluster = as.character(cluster_levels),
+    remove_by_union_rule = as.character(cluster_levels) %in% removed,
+    stringsAsFactors = FALSE
+  )
+  list(
+    contract_sha256 = paste(rep("a", 64L), collapse = ""),
+    criteria = data.frame(
+      key = "contract_sha256",
+      value = paste(rep("a", 64L), collapse = ""),
+      stringsAsFactors = FALSE
+    ),
+    qc_metric_flags = data.frame(cluster = character()),
+    qc_cluster_summary = data.frame(cluster = character()),
+    de_cluster_summary = data.frame(cluster = character()),
+    qualifying_genes = data.frame(cluster = character()),
+    decision = decision,
+    removal_set = as.character(removed)
+  )
+}
+
+figure7_test_write_declared_stage_artifacts <- function(
+  generator,
+  definition
+) {
+  for (name in generator$figure7_upstream_stage_artifacts(definition)) {
+    figure7_write_tsv(
+      data.frame(key = "fixture", value = name, stringsAsFactors = FALSE),
+      file.path(definition$directory, name)
+    )
+  }
+}
+
 testthat::test_that("manual merge and final metadata preserve reviewed labels", {
   refined <- c(
     "0", "1", "7", "2", "3", "4", "4c", "5", "6", "8",
@@ -71,8 +105,13 @@ testthat::test_that("final object mutation filters only the reviewed clusters", 
     "4N-Cell-Culture"
   )
   object$manual_merge_test <- factor(labels, levels = labels)
+  cluster_filter <- figure7_test_cluster_filter_result(
+    labels,
+    c("3", "4", "9", "9c")
+  )
   final <- figure7_upstream_finalize_clusters(
     object,
+    cluster_filter,
     rerun_reductions = FALSE
   )
   testthat::expect_identical(
@@ -86,6 +125,151 @@ testthat::test_that("final object mutation filters only the reviewed clusters", 
   )
   testthat::expect_setequal(as.character(final$Ploidy), c("2N", "4N"))
   testthat::expect_setequal(as.character(final$TN), c("Tumor", "CellLine"))
+  testthat::expect_identical(
+    final@misc$figure7_cluster_filter$removal_set,
+    c("3", "4", "9", "9c")
+  )
+})
+
+testthat::test_that("cluster filtering records the six metrics that actually contributed", {
+  config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
+  parameters <- figure7_upstream_cluster_filter_parameters(config)
+  testthat::expect_identical(
+    names(parameters$qc_metric_directions),
+    c(
+      "nCount_RNA", "nFeature_RNA", "log10_genes_per_umi",
+      "umi_per_gene", "dominant_gene_fraction", "percent.top50"
+    )
+  )
+  testthat::expect_setequal(
+    names(parameters$inert_metric_notes),
+    c("percent.mt", "percent.ribo")
+  )
+  testthat::expect_identical(
+    parameters$reference_set_role,
+    "validation_only_never_selection_input"
+  )
+  changed <- config
+  changed$cluster_filtering$robust_z_threshold <- 1.6
+  testthat::expect_false(identical(
+    figure7_cluster_filter_contract_sha256(changed),
+    parameters$contract_sha256
+  ))
+})
+
+testthat::test_that("cluster QC high concern requires three directional outliers", {
+  config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
+  parameters <- figure7_upstream_cluster_filter_parameters(config)
+  qc <- data.frame(
+    cluster = c("0", "2", "3", "4"),
+    nCount_RNA = c(100, 110, 1, 105),
+    nFeature_RNA = c(100, 110, 1, 105),
+    log10_genes_per_umi = c(0.80, 0.81, 0.10, 0.79),
+    umi_per_gene = c(1.0, 1.1, 0.9, 10),
+    dominant_gene_fraction = c(0.10, 0.11, 0.09, 0.90),
+    percent.top50 = c(10, 11, 9, 90),
+    stringsAsFactors = FALSE
+  )
+  result <- figure7_upstream_flag_cluster_qc(
+    qc,
+    qc$cluster,
+    parameters
+  )
+  high <- result$cluster_summary$cluster[
+    result$cluster_summary$concern_level == "High"
+  ]
+  testthat::expect_setequal(high, c("3", "4"))
+  testthat::expect_identical(
+    result$cluster_summary$n_flagged_metrics,
+    c(0L, 0L, 3L, 3L)
+  )
+})
+
+testthat::test_that("prefilter DEG applies the recorded qualifying-gene thresholds", {
+  testthat::skip_if_not_installed("Seurat")
+  config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
+  parameters <- figure7_upstream_cluster_filter_parameters(config)
+  counts <- Matrix::Matrix(
+    matrix(
+      c(5, 2, 1, 4, 1, 1, 1, 4, 2, 1, 5, 2),
+      nrow = 3L,
+      dimnames = list(paste0("gene", 1:3), paste0("cell", 1:4))
+    ),
+    sparse = TRUE
+  )
+  object <- Seurat::CreateSeuratObject(counts)
+  object$manual_merge_test <- factor(c("0", "0", "2", "2"))
+  marker_runner <- function(object, cluster, parameters) {
+    output <- data.frame(
+      p_val = if (cluster == "0") c(0.001, 0.02, 0.001) else rep(0.2, 3L),
+      avg_log2FC = if (cluster == "0") c(0.30, 0.30, 0.10) else rep(0.30, 3L),
+      pct.1 = c(0.8, 0.8, 0.8),
+      pct.2 = c(0.2, 0.2, 0.2),
+      row.names = paste0("gene", 1:3)
+    )
+    output
+  }
+  result <- suppressWarnings(suppressMessages(
+    figure7_upstream_run_prefilter_de(
+      object,
+      parameters,
+      marker_runner
+    )
+  ))
+  testthat::expect_identical(
+    result$cluster_summary$qualifying_upregulated_genes,
+    c(1L, 0L)
+  )
+  testthat::expect_identical(result$qualifying_genes$gene, "gene1")
+  testthat::expect_equal(result$qualifying_genes$p_val_adj, 0.003)
+})
+
+testthat::test_that("removal is derived by union rule and reference is validation-only", {
+  config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
+  parameters <- figure7_upstream_cluster_filter_parameters(config)
+  levels <- c(
+    "0", "2", "3", "4", "4c", "5", "6", "8", "9", "9c",
+    "10", "13", "14"
+  )
+  qc <- data.frame(
+    cluster = c("0", "2", "3", "4", "9", "9c"),
+    concern_level = c(
+      "Not high", "Not high", "Not high", "High", "High", "High"
+    ),
+    stringsAsFactors = FALSE
+  )
+  de <- data.frame(
+    cluster = levels,
+    qualifying_upregulated_genes = ifelse(levels %in% c("3", "9c"), 0L, 1L),
+    stringsAsFactors = FALSE
+  )
+  selected <- figure7_upstream_select_cluster_removals(
+    qc,
+    de,
+    levels,
+    parameters
+  )
+  testthat::expect_setequal(selected$removal_set, c("3", "4", "9", "9c"))
+  testthat::expect_identical(
+    selected$decision$selection_reason[
+      match("3", selected$decision$cluster)
+    ],
+    "zero_qualifying_upregulated"
+  )
+
+  changed_de <- de
+  changed_de$qualifying_upregulated_genes[
+    changed_de$cluster == "2"
+  ] <- 0L
+  testthat::expect_error(
+    figure7_upstream_select_cluster_removals(
+      qc,
+      changed_de,
+      levels,
+      parameters
+    ),
+    "validation-only reviewed reference"
+  )
 })
 
 testthat::test_that("cell-cycle candidate rule retains all three reviewed methods", {
@@ -217,9 +401,10 @@ testthat::test_that("final metadata validator fixes the reviewed cell universe",
     sample = sample,
     stringsAsFactors = FALSE
   )
+  removed <- c("3", "4", "9", "9c")
 
   testthat::expect_silent(
-    figure7_upstream_validate_final_metadata(metadata)
+    figure7_upstream_validate_final_metadata(metadata, removed)
   )
 
   too_few_treated <- metadata
@@ -230,7 +415,7 @@ testthat::test_that("final metadata validator fixes the reviewed cell universe",
   )[[1L]]
   too_few_treated$Dose[[treated_2n]] <- 0
   testthat::expect_error(
-    figure7_upstream_validate_final_metadata(too_few_treated),
+    figure7_upstream_validate_final_metadata(too_few_treated, removed),
     "treated Tumor count differs"
   )
 
@@ -243,7 +428,7 @@ testthat::test_that("final metadata validator fixes the reviewed cell universe",
   wrong_treated_split$Dose[[treated_2n]] <- 0
   wrong_treated_split$Dose[[control_4n]] <- 30
   testthat::expect_error(
-    figure7_upstream_validate_final_metadata(wrong_treated_split),
+    figure7_upstream_validate_final_metadata(wrong_treated_split, removed),
     "treated Tumor Ploidy counts differ"
   )
 
@@ -251,28 +436,28 @@ testthat::test_that("final metadata validator fixes the reviewed cell universe",
   sample_row <- which(wrong_sample_count$sample == "2N-A2-0")[[1L]]
   wrong_sample_count$sample[[sample_row]] <- "2N-A2-L"
   testthat::expect_error(
-    figure7_upstream_validate_final_metadata(wrong_sample_count),
+    figure7_upstream_validate_final_metadata(wrong_sample_count, removed),
     "Tumor sample counts differ"
   )
 
   wrong_sample_dose <- metadata
   wrong_sample_dose$Dose[[sample_row]] <- 120
   testthat::expect_error(
-    figure7_upstream_validate_final_metadata(wrong_sample_dose),
+    figure7_upstream_validate_final_metadata(wrong_sample_dose, removed),
     "sample-to-Ploidy/Dose mapping differs"
   )
 
   leaked_qc_cluster <- metadata
   leaked_qc_cluster$clusters[[1L]] <- "3"
   testthat::expect_error(
-    figure7_upstream_validate_final_metadata(leaked_qc_cluster),
-    "retains discarded QC cluster"
+    figure7_upstream_validate_final_metadata(leaked_qc_cluster, removed),
+    "retains criteria-selected cluster"
   )
 
   dosed_cell_line <- metadata
   dosed_cell_line$Dose[[1L]] <- 30
   testthat::expect_error(
-    figure7_upstream_validate_final_metadata(dosed_cell_line),
+    figure7_upstream_validate_final_metadata(dosed_cell_line, removed),
     "CellLine Dose values must be missing"
   )
 })
@@ -404,6 +589,21 @@ testthat::test_that("upstream cache contract is isolated to scientific inputs", 
     baseline
   )
 
+  changed_filter <- config
+  changed_filter$cluster_filtering$robust_z_threshold <- 1.6
+  testthat::expect_identical(
+    generator_environment$figure7_upstream_common_contract(
+      lock_path,
+      changed_filter,
+      jobs = 1L
+    ),
+    baseline
+  )
+  testthat::expect_false(identical(
+    figure7_cluster_filter_contract_sha256(changed_filter),
+    figure7_cluster_filter_contract_sha256(config)
+  ))
+
   upstream_lock <- rbind(
     lock,
     data.frame(
@@ -508,6 +708,7 @@ testthat::test_that("stage code contracts invalidate only affected descendants",
         )
       )
     }
+    figure7_test_write_declared_stage_artifacts(generator, definition)
     generator$figure7_upstream_write_manifest(
       stage,
       definition,
@@ -516,6 +717,21 @@ testthat::test_that("stage code contracts invalidate only affected descendants",
       extra
     )
   }
+  changed_filter_dependency <- dependencies$final
+  changed_filter_dependency[["cluster_filter_contract"]] <-
+    paste(rep("9", 64L), collapse = "")
+  testthat::expect_false(generator$figure7_upstream_manifest_matches(
+    "final",
+    definitions$final,
+    common,
+    changed_filter_dependency
+  ))
+  testthat::expect_true(generator$figure7_upstream_manifest_matches(
+    "merged",
+    definitions$merged,
+    common,
+    dependencies$merged
+  ))
   final_manifest_path <- generator$figure7_upstream_stage_manifest(
     definitions$final
   )
@@ -891,10 +1107,18 @@ testthat::test_that("stage manifests bind the complete dependency chain", {
         parents[[index]],
         definitions
       )
+    if (identical(stage, "final")) {
+      child_dependencies[["cluster_filter_contract"]] <-
+        paste(rep("f", 64L), collapse = "")
+    }
     stage_dependencies[[stage]] <- child_dependencies
     testthat::expect_setequal(
       names(child_dependencies),
       generator_environment$figure7_upstream_stage_dependency_roles(stage)
+    )
+    figure7_test_write_declared_stage_artifacts(
+      generator_environment,
+      stage_definition
     )
     generator_environment$figure7_upstream_write_manifest(
       stage,
@@ -911,6 +1135,33 @@ testthat::test_that("stage manifests bind the complete dependency chain", {
       )
     )
   }
+  criteria_path <- file.path(
+    definitions$final$directory,
+    "cluster_filter_criteria.tsv"
+  )
+  criteria_bytes <- readBin(
+    criteria_path,
+    what = "raw",
+    n = file.info(criteria_path)$size
+  )
+  writeLines("tampered-filter-criteria", criteria_path)
+  testthat::expect_false(
+    generator_environment$figure7_upstream_manifest_matches(
+      "final",
+      definitions$final,
+      common,
+      stage_dependencies$final
+    )
+  )
+  writeBin(criteria_bytes, criteria_path)
+  testthat::expect_true(
+    generator_environment$figure7_upstream_manifest_matches(
+      "final",
+      definitions$final,
+      common,
+      stage_dependencies$final
+    )
+  )
   writeLines(
     "tampered-cache",
     generator_environment$figure7_upstream_stage_output(definition),
@@ -989,6 +1240,10 @@ testthat::test_that("reuse provenance separates creator and validator runtime", 
       paste(rep(as.character(index), 64L), collapse = "")
     }, character(1L)),
     roles
+  )
+  figure7_test_write_declared_stage_artifacts(
+    generator_environment,
+    definition
   )
   generator_environment$figure7_upstream_write_manifest(
     "final",
@@ -1081,6 +1336,12 @@ testthat::test_that("selector reuses final or merged cache without H5 access", {
   )
   final_dependencies[["all_ploidy"]] <- figure7_sha256(all_ploidy)
   final_dependencies[["sample_info"]] <- figure7_sha256(sample_info)
+  final_dependencies[["cluster_filter_contract"]] <-
+    figure7_cluster_filter_contract_sha256(config)
+  figure7_test_write_declared_stage_artifacts(
+    generator,
+    final_definition
+  )
   generator$figure7_upstream_write_manifest(
     "final",
     final_definition,
@@ -1266,7 +1527,6 @@ testthat::test_that("trimmed upstream source excludes non-figure diagnostics", {
     )
   )
   prohibited_calls <- c(
-    "FindMarkers\\(",
     "FindAllMarkers\\(",
     "ggsave\\(",
     "DimPlot\\(",
@@ -1278,5 +1538,9 @@ testthat::test_that("trimmed upstream source excludes non-figure diagnostics", {
   for (pattern in prohibited_calls) {
     testthat::expect_false(any(grepl(pattern, source_text)))
   }
+  testthat::expect_identical(
+    sum(grepl("Seurat::FindMarkers\\(", source_text)),
+    1L
+  )
   testthat::expect_false(any(grepl("/Volumes/", source_text, fixed = TRUE)))
 })

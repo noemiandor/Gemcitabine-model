@@ -34,6 +34,41 @@ versioned_source_artifacts:
   growth_curve:
     default_path: Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx
     sha256: b0132aa24427805a500f354b45e812c1424a77deddd09489f92710c0b7353a58
+cluster_filtering:
+  policy_id: refined_cluster_qc_or_zero_upregulated_v1
+  scope: all_cells_before_cluster_deletion
+  qc_group_field: seurat_cluster_refine
+  merged_group_field: manual_merge_test
+  qc_metric_directions:
+    nCount_RNA: low
+    nFeature_RNA: low
+    log10_genes_per_umi: low
+    umi_per_gene: high
+    dominant_gene_fraction: high
+    percent.top50: high
+  inert_metric_notes:
+    percent.mt: stored metadata are identically zero in the reviewed object and did not contribute to selection
+    percent.ribo: Tao's unprefixed regex matched zero GRCh38-/GRCm39-prefixed features and did not contribute to selection
+  robust_z_threshold: 1.5
+  high_concern_min_metrics: 3
+  top_expressed_gene_count: 50
+  seed: 12345
+  marker_assay: RNA
+  marker_slot: data
+  marker_test: wilcox
+  marker_min_pct: 0.10
+  marker_logfc_threshold: 0
+  marker_p_adjustment: bonferroni_full_assay_feature_count
+  qualifying_adjusted_p_lt: 0.05
+  qualifying_log2fc_gt: 0
+  qualifying_abs_log2fc_gte: 0.25
+  qualifying_abs_pct_diff_gte: 0.05
+  removal_rule: high_qc_concern_or_zero_qualifying_upregulated
+  expected_scope_cells: 42884
+  reference_high_qc_refined_clusters: ["4", "9", "9c"]
+  reference_zero_qualifying_upregulated_clusters: ["3", "9c"]
+  reference_removed_clusters: ["3", "4", "9", "9c"]
+  reference_set_role: validation_only_never_selection_input
 inputs:
   cellcycle_sha256: bd0c6fcf3f6691114445a7c8a9fb8de7e55ef6580a9737284cd38f5bba216186
   noncellcycle_sha256: 1e44794fb2b2c402b49cf9d17abcc54cd7690dc5d1d611e38a6aa3b996093d3c

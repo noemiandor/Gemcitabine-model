@@ -139,8 +139,18 @@ figure7_upstream_stage_definitions <- function(output_root) {
     final = list(
       directory = file.path(output_root, "03_final_cluster"),
       filename = "integrated_sct_cca_seurat_final_reclustered.rds",
+      artifacts = c(
+        "cluster_filter_criteria.tsv",
+        "cluster_filter_qc_metric_flags.tsv",
+        "cluster_filter_qc_cluster_summary.tsv",
+        "cluster_filter_de_cluster_summary.tsv",
+        "cluster_filter_qualifying_genes.tsv",
+        "cluster_filter_decision.tsv"
+      ),
       parameter_contract = paste(
-        "remove=9,4,3,9c",
+        "remove=high_qc_concern_OR_zero_qualifying_upregulated",
+        "reference_removed_set=validation_only_never_selection_input",
+        "criteria=figure7_config.cluster_filtering",
         "rename=manual_merge_test:clusters",
         "derive=Ploidy,TN_from_IDs",
         "assay_preference=integrated,SCT,RNA",
@@ -159,6 +169,11 @@ figure7_upstream_stage_output <- function(definition) {
 
 figure7_upstream_stage_manifest <- function(definition) {
   file.path(definition$directory, "stage_manifest.tsv")
+}
+
+figure7_upstream_stage_artifacts <- function(definition) {
+  artifacts <- definition$artifacts
+  if (is.null(artifacts)) character() else as.character(artifacts)
 }
 
 figure7_upstream_quarantine <- function(path, root, label) {
@@ -297,6 +312,9 @@ figure7_upstream_stage_function_names <- function(stage) {
       "figure7_upstream_merge_clusters"
     ),
     final = c(
+      "figure7_contract_sha256",
+      "figure7_cluster_filter_contract_values",
+      "figure7_cluster_filter_contract_sha256",
       "figure7_upstream_require_namespace",
       "figure7_upstream_require_columns",
       "figure7_upstream_sort_maybe_numeric",
@@ -304,6 +322,19 @@ figure7_upstream_stage_function_names <- function(stage) {
       "figure7_upstream_configure_future",
       "figure7_upstream_join_layers",
       "figure7_upstream_assay_data",
+      "figure7_upstream_cluster_filter_parameters",
+      "figure7_upstream_cluster_filter_criteria_table",
+      "figure7_upstream_top_expression_metrics",
+      "figure7_upstream_safe_mad",
+      "figure7_upstream_flag_cluster_qc",
+      "figure7_upstream_compute_cluster_qc",
+      "figure7_upstream_resolve_lfc_column",
+      "figure7_upstream_run_prefilter_de",
+      "figure7_upstream_map_refined_to_merged",
+      "figure7_upstream_select_cluster_removals",
+      "figure7_upstream_derive_cluster_filter",
+      "figure7_upstream_validate_cluster_filter_result",
+      "figure7_upstream_cluster_filter_artifacts",
       "figure7_upstream_derive_tn_ploidy",
       "figure7_upstream_choose_pca_assay",
       "figure7_upstream_prepare_pca_assay",
@@ -387,7 +418,7 @@ figure7_upstream_stage_dependency_roles <- function(stage) {
     ),
     final = c(
       "merged_rds", "refined_rds", "cell_cycle_rds",
-      "integrated_rds", raw_roles
+      "integrated_rds", raw_roles, "cluster_filter_contract"
     ),
     figure7_stop("Unknown Seurat-upstream stage: ", stage)
   )
@@ -536,6 +567,30 @@ figure7_upstream_manifest_matches <- function(
       return(FALSE)
     }
   }
+  artifact_names <- figure7_upstream_stage_artifacts(definition)
+  expected_artifact_keys <- if (length(artifact_names)) {
+    paste0("artifact_sha256:", artifact_names)
+  } else {
+    character()
+  }
+  observed_artifact_keys <- grep(
+    "^artifact_sha256:",
+    names(manifest),
+    value = TRUE
+  )
+  if (!setequal(expected_artifact_keys, observed_artifact_keys)) {
+    return(FALSE)
+  }
+  if (length(artifact_names)) {
+    artifact_valid <- vapply(artifact_names, function(name) {
+      path <- file.path(definition$directory, name)
+      key <- paste0("artifact_sha256:", name)
+      file.exists(path) &&
+        grepl("^[0-9a-f]{64}$", manifest[[key]]) &&
+        identical(figure7_sha256(path), manifest[[key]])
+    }, logical(1L))
+    if (!all(artifact_valid)) return(FALSE)
+  }
   recorded_hash <- manifest[["output_sha256"]]
   is.character(recorded_hash) &&
     length(recorded_hash) == 1L &&
@@ -561,6 +616,22 @@ figure7_upstream_write_manifest <- function(
     figure7_stop("Upstream stage dependencies require unique SHA-256 roles")
   }
   output <- figure7_upstream_stage_output(definition)
+  artifact_names <- figure7_upstream_stage_artifacts(definition)
+  artifact_hashes <- if (length(artifact_names)) {
+    paths <- file.path(definition$directory, artifact_names)
+    if (any(!file.exists(paths))) {
+      figure7_stop(
+        "Upstream stage is missing required artifact(s): ",
+        paste(artifact_names[!file.exists(paths)], collapse = ", ")
+      )
+    }
+    stats::setNames(
+      vapply(paths, figure7_sha256, character(1L)),
+      paste0("artifact_sha256:", artifact_names)
+    )
+  } else {
+    character()
+  }
   values <- c(
     schema_version = "2",
     stage = stage,
@@ -576,6 +647,7 @@ figure7_upstream_write_manifest <- function(
     figure7_upstream_creator_runtime(),
     audit_helper_sha256 = figure7_sha256(helper_path),
     audit_generator_sha256 = figure7_sha256(script_path),
+    artifact_hashes,
     extra
   )
   if (anyDuplicated(names(values))) {
@@ -598,7 +670,8 @@ figure7_upstream_promote_stage <- function(
   common_contract,
   dependencies,
   object,
-  extra = character()
+  extra = character(),
+  artifacts = list()
 ) {
   if (dir.exists(definition$directory)) {
     figure7_upstream_quarantine(
@@ -622,11 +695,27 @@ figure7_upstream_promote_stage <- function(
   dir.create(temporary, recursive = TRUE, showWarnings = FALSE)
   temporary_definition <- definition
   temporary_definition$directory <- temporary
+  expected_artifacts <- figure7_upstream_stage_artifacts(definition)
+  if (is.null(names(artifacts))) names(artifacts) <- character(length(artifacts))
+  if (!setequal(names(artifacts), expected_artifacts) ||
+      anyDuplicated(names(artifacts)) ||
+      any(!vapply(artifacts, is.data.frame, logical(1L)))) {
+    figure7_stop(
+      "Upstream ", stage,
+      " artifacts must match the declared data-frame artifact set"
+    )
+  }
   saveRDS(
     object,
     figure7_upstream_stage_output(temporary_definition),
     version = 3
   )
+  for (name in expected_artifacts) {
+    figure7_write_tsv(
+      artifacts[[name]],
+      file.path(temporary, name)
+    )
+  }
   figure7_upstream_write_manifest(
     stage,
     temporary_definition,
@@ -859,6 +948,11 @@ figure7_upstream_write_run_manifest <- function(
     names(final_manifest),
     value = TRUE
   )
+  artifact_keys <- grep(
+    "^artifact_sha256:",
+    names(final_manifest),
+    value = TRUE
+  )
   final_dependencies <- figure7_upstream_manifest_dependencies(
     final_manifest
   )
@@ -887,6 +981,7 @@ figure7_upstream_write_run_manifest <- function(
     dependency_validation,
     common_contract,
     final_manifest[scientific_code_keys],
+    final_manifest[artifact_keys],
     audit_helper_sha256 = figure7_sha256(helper_path),
     audit_generator_sha256 = figure7_sha256(script_path),
     audit_provenance,
@@ -947,7 +1042,9 @@ figure7_upstream_validate_artifact <- function(
   }
   raw_dependencies <- c(
     all_ploidy = figure7_sha256(all_ploidy),
-    sample_info = figure7_sha256(sample_info)
+    sample_info = figure7_sha256(sample_info),
+    cluster_filter_contract =
+      figure7_cluster_filter_contract_sha256(config)
   )
   if (nzchar(cellranger_root)) {
     cellranger_root <- normalizePath(cellranger_root, mustWork = TRUE)
@@ -1026,6 +1123,20 @@ figure7_upstream_validate_artifact <- function(
     figure7_stop(
       "Seurat-upstream reconstruction manifest has an incomplete ",
       "stage-code chain"
+    )
+  }
+  artifact_keys <- paste0(
+    "artifact_sha256:",
+    figure7_upstream_stage_artifacts(definitions$final)
+  )
+  if (!all(artifact_keys %in% names(stage_manifest)) ||
+      !all(artifact_keys %in% names(reconstruction)) ||
+      !identical(
+        unname(reconstruction[artifact_keys]),
+        unname(stage_manifest[artifact_keys])
+      )) {
+    figure7_stop(
+      "Seurat-upstream reconstruction manifest loses cluster-filter artifacts"
     )
   }
   audit_code_keys <- c(
@@ -1138,7 +1249,9 @@ figure7_upstream_validate_resumable_artifact <- function(
   definitions <- figure7_upstream_stage_definitions(output_root)
   raw_dependencies <- c(
     all_ploidy = figure7_sha256(all_ploidy),
-    sample_info = figure7_sha256(sample_info)
+    sample_info = figure7_sha256(sample_info),
+    cluster_filter_contract =
+      figure7_cluster_filter_contract_sha256(config)
   )
   if (nzchar(cellranger_root)) {
     cellranger_root <- normalizePath(cellranger_root, mustWork = TRUE)
@@ -1303,7 +1416,9 @@ main <- function(
   )
   raw_dependencies <- c(
     all_ploidy = figure7_sha256(all_ploidy),
-    sample_info = figure7_sha256(sample_info)
+    sample_info = figure7_sha256(sample_info),
+    cluster_filter_contract =
+      figure7_cluster_filter_contract_sha256(config)
   )
   cellranger_root_argument <- figure7_arg(
     args,
@@ -1545,22 +1660,42 @@ main <- function(
   }
   figure7_upstream_validate_lock(environment_lock)
   set.seed(1234)
+  cluster_filter <- figure7_upstream_derive_cluster_filter(
+    merged,
+    config
+  )
   final <- figure7_upstream_finalize_clusters(
     merged,
+    cluster_filter,
     jobs,
     rerun_reductions = TRUE
   )
   figure7_upstream_validate_final(final, TRUE)
+  final_dependencies <- c(
+    figure7_upstream_descendant_dependencies(
+      "merged",
+      definitions
+    ),
+    cluster_filter_contract = cluster_filter$contract_sha256
+  )
   figure7_upstream_promote_stage(
     "final",
     definitions$final,
     output_root,
     common_contract,
-    figure7_upstream_descendant_dependencies(
-      "merged",
-      definitions
+    final_dependencies,
+    final,
+    c(
+      cluster_filter_policy_id =
+        as.character(config$cluster_filtering$policy_id),
+      cluster_filter_contract_sha256 = cluster_filter$contract_sha256,
+      removed_clusters_selected_by_criteria = paste(
+        cluster_filter$removal_set,
+        collapse = ","
+      ),
+      cluster_filter_reference_validation = "PASS"
     ),
-    final
+    figure7_upstream_cluster_filter_artifacts(cluster_filter)
   )
   final_path <- figure7_upstream_stage_output(definitions$final)
   figure7_upstream_write_run_manifest(

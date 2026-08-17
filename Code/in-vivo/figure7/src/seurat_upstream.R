@@ -1157,6 +1157,821 @@ figure7_upstream_assay_data <- function(
   )
 }
 
+figure7_cluster_filter_contract_values <- function(config) {
+  policy <- config$cluster_filtering
+  required <- c(
+    "policy_id", "scope", "qc_group_field", "merged_group_field",
+    "qc_metric_directions", "inert_metric_notes",
+    "robust_z_threshold", "high_concern_min_metrics",
+    "top_expressed_gene_count", "seed", "marker_assay", "marker_slot",
+    "marker_test", "marker_min_pct", "marker_logfc_threshold",
+    "marker_p_adjustment", "qualifying_adjusted_p_lt",
+    "qualifying_log2fc_gt", "qualifying_abs_log2fc_gte",
+    "qualifying_abs_pct_diff_gte", "removal_rule",
+    "expected_scope_cells", "reference_high_qc_refined_clusters",
+    "reference_zero_qualifying_upregulated_clusters",
+    "reference_removed_clusters",
+    "reference_set_role"
+  )
+  if (!is.list(policy)) {
+    figure7_stop("Figure 7 config lacks a cluster_filtering section")
+  }
+  missing <- setdiff(required, names(policy))
+  if (length(missing)) {
+    figure7_stop(
+      "Cluster-filter config is missing field(s): ",
+      paste(missing, collapse = ", ")
+    )
+  }
+
+  expected_metrics <- c(
+    "nCount_RNA", "nFeature_RNA", "log10_genes_per_umi",
+    "umi_per_gene", "dominant_gene_fraction", "percent.top50"
+  )
+  directions <- unlist(policy$qc_metric_directions, use.names = TRUE)
+  if (is.null(names(directions)) || anyDuplicated(names(directions)) ||
+      !setequal(names(directions), expected_metrics) ||
+      any(!directions %in% c("low", "high"))) {
+    figure7_stop(
+      "Cluster-filter QC metrics must name each reviewed metric exactly once ",
+      "with direction low or high"
+    )
+  }
+  directions <- as.character(directions[expected_metrics])
+  names(directions) <- expected_metrics
+
+  inert_names <- c("percent.mt", "percent.ribo")
+  inert_notes <- unlist(policy$inert_metric_notes, use.names = TRUE)
+  if (is.null(names(inert_notes)) || anyDuplicated(names(inert_notes)) ||
+      !setequal(names(inert_notes), inert_names) || anyNA(inert_notes) ||
+      any(!nzchar(as.character(inert_notes)))) {
+    figure7_stop(
+      "Cluster-filter inert_metric_notes must document percent.mt and ",
+      "percent.ribo"
+    )
+  }
+  inert_notes <- as.character(inert_notes[inert_names])
+  names(inert_notes) <- inert_names
+
+  scalar_character <- function(value, label) {
+    value <- as.character(value)
+    if (length(value) != 1L || is.na(value) || !nzchar(value)) {
+      figure7_stop("Cluster-filter ", label, " must be one non-empty value")
+    }
+    value
+  }
+  character_fields <- c(
+    policy_id = scalar_character(policy$policy_id, "policy_id"),
+    scope = scalar_character(policy$scope, "scope"),
+    qc_group_field = scalar_character(policy$qc_group_field, "qc_group_field"),
+    merged_group_field = scalar_character(
+      policy$merged_group_field,
+      "merged_group_field"
+    ),
+    marker_assay = scalar_character(policy$marker_assay, "marker_assay"),
+    marker_slot = scalar_character(policy$marker_slot, "marker_slot"),
+    marker_test = scalar_character(policy$marker_test, "marker_test"),
+    marker_p_adjustment = scalar_character(
+      policy$marker_p_adjustment,
+      "marker_p_adjustment"
+    ),
+    removal_rule = scalar_character(policy$removal_rule, "removal_rule"),
+    reference_set_role = scalar_character(
+      policy$reference_set_role,
+      "reference_set_role"
+    )
+  )
+  expected_character <- c(
+    policy_id = "refined_cluster_qc_or_zero_upregulated_v1",
+    scope = "all_cells_before_cluster_deletion",
+    qc_group_field = "seurat_cluster_refine",
+    merged_group_field = "manual_merge_test",
+    marker_assay = "RNA",
+    marker_slot = "data",
+    marker_test = "wilcox",
+    marker_p_adjustment = "bonferroni_full_assay_feature_count",
+    removal_rule = "high_qc_concern_or_zero_qualifying_upregulated",
+    reference_set_role = "validation_only_never_selection_input"
+  )
+  if (!identical(character_fields, expected_character)) {
+    figure7_stop("Cluster-filter method identifiers differ from the contract")
+  }
+
+  scalar_numeric <- function(value, label) {
+    value <- suppressWarnings(as.numeric(value))
+    if (length(value) != 1L || !is.finite(value)) {
+      figure7_stop("Cluster-filter ", label, " must be one finite number")
+    }
+    value
+  }
+  numeric_fields <- c(
+    robust_z_threshold = scalar_numeric(
+      policy$robust_z_threshold,
+      "robust_z_threshold"
+    ),
+    high_concern_min_metrics = scalar_numeric(
+      policy$high_concern_min_metrics,
+      "high_concern_min_metrics"
+    ),
+    top_expressed_gene_count = scalar_numeric(
+      policy$top_expressed_gene_count,
+      "top_expressed_gene_count"
+    ),
+    seed = scalar_numeric(policy$seed, "seed"),
+    marker_min_pct = scalar_numeric(policy$marker_min_pct, "marker_min_pct"),
+    marker_logfc_threshold = scalar_numeric(
+      policy$marker_logfc_threshold,
+      "marker_logfc_threshold"
+    ),
+    qualifying_adjusted_p_lt = scalar_numeric(
+      policy$qualifying_adjusted_p_lt,
+      "qualifying_adjusted_p_lt"
+    ),
+    qualifying_log2fc_gt = scalar_numeric(
+      policy$qualifying_log2fc_gt,
+      "qualifying_log2fc_gt"
+    ),
+    qualifying_abs_log2fc_gte = scalar_numeric(
+      policy$qualifying_abs_log2fc_gte,
+      "qualifying_abs_log2fc_gte"
+    ),
+    qualifying_abs_pct_diff_gte = scalar_numeric(
+      policy$qualifying_abs_pct_diff_gte,
+      "qualifying_abs_pct_diff_gte"
+    ),
+    expected_scope_cells = scalar_numeric(
+      policy$expected_scope_cells,
+      "expected_scope_cells"
+    )
+  )
+  integers <- c(
+    "high_concern_min_metrics", "top_expressed_gene_count", "seed",
+    "expected_scope_cells"
+  )
+  invalid <- numeric_fields[["robust_z_threshold"]] <= 0 ||
+    numeric_fields[["high_concern_min_metrics"]] < 1 ||
+    numeric_fields[["high_concern_min_metrics"]] > length(expected_metrics) ||
+    numeric_fields[["top_expressed_gene_count"]] < 1 ||
+    numeric_fields[["seed"]] < 0 ||
+    numeric_fields[["seed"]] > .Machine$integer.max ||
+    numeric_fields[["marker_min_pct"]] < 0 ||
+    numeric_fields[["marker_min_pct"]] > 1 ||
+    numeric_fields[["qualifying_adjusted_p_lt"]] <= 0 ||
+    numeric_fields[["qualifying_adjusted_p_lt"]] > 1 ||
+    numeric_fields[["qualifying_abs_log2fc_gte"]] < 0 ||
+    numeric_fields[["qualifying_abs_pct_diff_gte"]] < 0 ||
+    numeric_fields[["qualifying_abs_pct_diff_gte"]] > 1 ||
+    numeric_fields[["expected_scope_cells"]] < 1 ||
+    any(numeric_fields[integers] > .Machine$integer.max) ||
+    any(numeric_fields[integers] %% 1 != 0)
+  if (invalid) figure7_stop("Cluster-filter numerical thresholds are invalid")
+
+  reference_fields <- c(
+    "reference_high_qc_refined_clusters",
+    "reference_zero_qualifying_upregulated_clusters",
+    "reference_removed_clusters"
+  )
+  references <- lapply(reference_fields, function(field) {
+    value <- as.character(unlist(policy[[field]], use.names = FALSE))
+    if (!length(value) || anyNA(value) || any(!nzchar(value)) ||
+        anyDuplicated(value)) {
+      figure7_stop("Cluster-filter ", field, " must contain unique labels")
+    }
+    value
+  })
+  names(references) <- reference_fields
+
+  c(
+    character_fields,
+    qc_metric_directions = paste(
+      names(directions), directions, sep = ":", collapse = ","
+    ),
+    inert_metric_notes = paste(
+      names(inert_notes), inert_notes, sep = ":", collapse = " | "
+    ),
+    stats::setNames(
+      format(numeric_fields, scientific = FALSE, trim = TRUE),
+      names(numeric_fields)
+    ),
+    stats::setNames(
+      vapply(references, paste, character(1L), collapse = ","),
+      reference_fields
+    )
+  )
+}
+
+figure7_cluster_filter_contract_sha256 <- function(config) {
+  figure7_contract_sha256(figure7_cluster_filter_contract_values(config))
+}
+
+figure7_upstream_cluster_filter_parameters <- function(config) {
+  contract_values <- figure7_cluster_filter_contract_values(config)
+  policy <- config$cluster_filtering
+  direction_values <- unlist(
+    policy$qc_metric_directions,
+    use.names = TRUE
+  )
+  directions <- stats::setNames(
+    as.character(direction_values),
+    names(direction_values)
+  )
+  inert_values <- unlist(policy$inert_metric_notes, use.names = TRUE)
+  inert_notes <- stats::setNames(
+    as.character(inert_values),
+    names(inert_values)
+  )
+  list(
+    contract_values = contract_values,
+    contract_sha256 = figure7_cluster_filter_contract_sha256(config),
+    policy_id = as.character(policy$policy_id),
+    scope = as.character(policy$scope),
+    qc_group_field = as.character(policy$qc_group_field),
+    merged_group_field = as.character(policy$merged_group_field),
+    qc_metric_directions = directions,
+    inert_metric_notes = inert_notes,
+    robust_z_threshold = as.numeric(policy$robust_z_threshold),
+    high_concern_min_metrics =
+      as.integer(policy$high_concern_min_metrics),
+    top_expressed_gene_count =
+      as.integer(policy$top_expressed_gene_count),
+    seed = as.integer(policy$seed),
+    marker_assay = as.character(policy$marker_assay),
+    marker_slot = as.character(policy$marker_slot),
+    marker_test = as.character(policy$marker_test),
+    marker_min_pct = as.numeric(policy$marker_min_pct),
+    marker_logfc_threshold = as.numeric(policy$marker_logfc_threshold),
+    marker_p_adjustment = as.character(policy$marker_p_adjustment),
+    qualifying_adjusted_p_lt =
+      as.numeric(policy$qualifying_adjusted_p_lt),
+    qualifying_log2fc_gt = as.numeric(policy$qualifying_log2fc_gt),
+    qualifying_abs_log2fc_gte =
+      as.numeric(policy$qualifying_abs_log2fc_gte),
+    qualifying_abs_pct_diff_gte =
+      as.numeric(policy$qualifying_abs_pct_diff_gte),
+    removal_rule = as.character(policy$removal_rule),
+    expected_scope_cells = as.integer(policy$expected_scope_cells),
+    reference_high_qc_refined_clusters = as.character(unlist(
+      policy$reference_high_qc_refined_clusters,
+      use.names = FALSE
+    )),
+    reference_zero_qualifying_upregulated_clusters = as.character(unlist(
+      policy$reference_zero_qualifying_upregulated_clusters,
+      use.names = FALSE
+    )),
+    reference_removed_clusters = as.character(unlist(
+      policy$reference_removed_clusters,
+      use.names = FALSE
+    )),
+    reference_set_role = as.character(policy$reference_set_role)
+  )
+}
+
+figure7_upstream_cluster_filter_criteria_table <- function(parameters) {
+  data.frame(
+    key = c("contract_sha256", names(parameters$contract_values)),
+    value = c(
+      parameters$contract_sha256,
+      unname(as.character(parameters$contract_values))
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
+figure7_upstream_top_expression_metrics <- function(
+  counts,
+  top_n = 50L
+) {
+  figure7_upstream_require_namespace("Matrix")
+  top_n <- suppressWarnings(as.integer(top_n))
+  if (length(top_n) != 1L || is.na(top_n) || top_n < 1L) {
+    figure7_stop("Cluster-filter top_n must be a positive integer")
+  }
+  total_counts <- Matrix::colSums(counts)
+  dominant_fraction <- numeric(ncol(counts))
+  percent_top <- numeric(ncol(counts))
+  if (inherits(counts, "sparseMatrix") &&
+      !inherits(counts, "dgCMatrix")) {
+    counts <- methods::as(counts, "dgCMatrix")
+  }
+  if (inherits(counts, "dgCMatrix")) {
+    pointer <- counts@p
+    values_all <- counts@x
+    for (column in seq_len(ncol(counts))) {
+      total <- total_counts[[column]]
+      start <- pointer[[column]] + 1L
+      end <- pointer[[column + 1L]]
+      values <- if (start <= end) values_all[start:end] else numeric()
+      if (!is.finite(total) || total <= 0 || !length(values)) next
+      values <- sort(values, decreasing = TRUE)
+      dominant_fraction[[column]] <- values[[1L]] / total
+      percent_top[[column]] <-
+        100 * sum(utils::head(values, top_n)) / total
+    }
+  } else {
+    for (column in seq_len(ncol(counts))) {
+      values <- as.numeric(counts[, column, drop = TRUE])
+      total <- sum(values)
+      values <- sort(values[values > 0], decreasing = TRUE)
+      if (!is.finite(total) || total <= 0 || !length(values)) next
+      dominant_fraction[[column]] <- values[[1L]] / total
+      percent_top[[column]] <-
+        100 * sum(utils::head(values, top_n)) / total
+    }
+  }
+  data.frame(
+    cell = colnames(counts),
+    dominant_gene_fraction = dominant_fraction,
+    percent.top50 = percent_top,
+    stringsAsFactors = FALSE
+  )
+}
+
+figure7_upstream_safe_mad <- function(values) {
+  value <- stats::mad(
+    values,
+    center = stats::median(values, na.rm = TRUE),
+    constant = 1,
+    na.rm = TRUE
+  )
+  if (!is.finite(value) || value == 0) NA_real_ else value
+}
+
+figure7_upstream_flag_cluster_qc <- function(
+  qc,
+  cluster_levels,
+  parameters
+) {
+  metrics <- names(parameters$qc_metric_directions)
+  missing <- setdiff(c("cluster", metrics), colnames(qc))
+  if (length(missing)) {
+    figure7_stop(
+      "Cluster-filter QC table is missing column(s): ",
+      paste(missing, collapse = ", ")
+    )
+  }
+  metric_flags <- do.call(rbind, lapply(metrics, function(metric) {
+    medians <- vapply(cluster_levels, function(cluster) {
+      stats::median(qc[[metric]][qc$cluster == cluster], na.rm = TRUE)
+    }, numeric(1L))
+    across_median <- stats::median(medians, na.rm = TRUE)
+    across_mad <- figure7_upstream_safe_mad(medians)
+    robust_z <- if (is.na(across_mad)) {
+      rep(NA_real_, length(medians))
+    } else {
+      (medians - across_median) / across_mad
+    }
+    direction <- unname(parameters$qc_metric_directions[[metric]])
+    suspicious <- if (identical(direction, "high")) {
+      !is.na(robust_z) & robust_z >= parameters$robust_z_threshold
+    } else {
+      !is.na(robust_z) & robust_z <= -parameters$robust_z_threshold
+    }
+    data.frame(
+      cluster = cluster_levels,
+      metric = metric,
+      n_cells = vapply(
+        cluster_levels,
+        function(cluster) sum(qc$cluster == cluster),
+        integer(1L)
+      ),
+      cluster_median = medians,
+      across_cluster_median = across_median,
+      across_cluster_mad = across_mad,
+      robust_z = robust_z,
+      suspicious_direction = direction,
+      suspicious_flag = suspicious,
+      stringsAsFactors = FALSE
+    )
+  }))
+  cluster_summary <- do.call(rbind, lapply(cluster_levels, function(cluster) {
+    selected <- metric_flags$cluster == cluster
+    flagged <- metric_flags$metric[selected & metric_flags$suspicious_flag]
+    data.frame(
+      cluster = cluster,
+      n_cells = unique(metric_flags$n_cells[selected])[[1L]],
+      n_flagged_metrics = length(flagged),
+      flagged_metrics = paste(flagged, collapse = ";"),
+      concern_level = if (length(flagged) >=
+          parameters$high_concern_min_metrics) "High" else "Not high",
+      stringsAsFactors = FALSE
+    )
+  }))
+  list(metric_flags = metric_flags, cluster_summary = cluster_summary)
+}
+
+figure7_upstream_compute_cluster_qc <- function(object, parameters) {
+  figure7_upstream_require_namespace("Seurat")
+  group_field <- parameters$qc_group_field
+  figure7_upstream_require_columns(
+    object@meta.data,
+    c(group_field, "nCount_RNA", "nFeature_RNA"),
+    "Cluster-filter refined metadata"
+  )
+  counts <- figure7_upstream_assay_data(
+    object,
+    parameters$marker_assay,
+    "counts"
+  )
+  if (is.null(counts) || !nrow(counts) || !ncol(counts)) {
+    figure7_stop("Cluster filtering requires non-empty RNA counts")
+  }
+  cells <- colnames(counts)
+  metadata_index <- match(cells, rownames(object@meta.data))
+  if (anyNA(metadata_index)) {
+    figure7_stop("Cluster-filter RNA counts do not align with metadata")
+  }
+  metadata <- object@meta.data[metadata_index, , drop = FALSE]
+  top <- figure7_upstream_top_expression_metrics(
+    counts,
+    parameters$top_expressed_gene_count
+  )
+  if (!identical(top$cell, cells)) {
+    figure7_stop("Cluster-filter top-expression metrics lost cell order")
+  }
+  n_count <- as.numeric(metadata$nCount_RNA)
+  n_feature <- as.numeric(metadata$nFeature_RNA)
+  qc <- data.frame(
+    cell = cells,
+    cluster = as.character(metadata[[group_field]]),
+    nCount_RNA = n_count,
+    nFeature_RNA = n_feature,
+    log10_genes_per_umi = ifelse(
+      n_count > 1 & n_feature > 1,
+      log10(n_feature) / log10(n_count),
+      NA_real_
+    ),
+    umi_per_gene = ifelse(n_feature > 0, n_count / n_feature, NA_real_),
+    dominant_gene_fraction = top$dominant_gene_fraction,
+    percent.top50 = top$percent.top50,
+    stringsAsFactors = FALSE
+  )
+  cluster_levels <- if (is.factor(metadata[[group_field]])) {
+    levels(metadata[[group_field]])
+  } else {
+    figure7_upstream_sort_maybe_numeric(qc$cluster)
+  }
+  figure7_upstream_flag_cluster_qc(qc, cluster_levels, parameters)
+}
+
+figure7_upstream_resolve_lfc_column <- function(markers) {
+  candidates <- c("avg_log2FC", "avg_logFC", "avg_diff")
+  observed <- candidates[candidates %in% colnames(markers)]
+  if (length(observed) != 1L) {
+    figure7_stop(
+      "Cluster-filter DEG table must contain exactly one supported logFC column"
+    )
+  }
+  observed[[1L]]
+}
+
+figure7_upstream_run_prefilter_de <- function(
+  object,
+  parameters,
+  marker_runner = NULL
+) {
+  figure7_upstream_require_namespace("Seurat")
+  group_field <- parameters$merged_group_field
+  figure7_upstream_require_columns(
+    object@meta.data,
+    group_field,
+    "Cluster-filter merged metadata"
+  )
+  if (!parameters$marker_assay %in% names(object@assays)) {
+    figure7_stop(
+      "Cluster filtering is missing assay ",
+      parameters$marker_assay
+    )
+  }
+  Seurat::DefaultAssay(object) <- parameters$marker_assay
+  object <- figure7_upstream_join_layers(object, parameters$marker_assay)
+  normalized <- figure7_upstream_assay_data(
+    object,
+    parameters$marker_assay,
+    parameters$marker_slot
+  )
+  if (is.null(normalized) || !nrow(normalized) || !ncol(normalized)) {
+    object <- Seurat::NormalizeData(
+      object,
+      assay = parameters$marker_assay,
+      verbose = FALSE
+    )
+  }
+  groups <- as.character(object@meta.data[[group_field]])
+  group_levels <- if (is.factor(object@meta.data[[group_field]])) {
+    levels(object@meta.data[[group_field]])
+  } else {
+    figure7_upstream_sort_maybe_numeric(groups)
+  }
+  object@meta.data[[group_field]] <- factor(groups, levels = group_levels)
+  Seurat::Idents(object) <- object@meta.data[[group_field]]
+  total_features <- nrow(object[[parameters$marker_assay]])
+  if (total_features < 1L) {
+    figure7_stop("Cluster filtering has no assay features for DEG")
+  }
+  set.seed(parameters$seed)
+
+  summaries <- vector("list", length(group_levels))
+  qualifying <- vector("list", length(group_levels))
+  for (index in seq_along(group_levels)) {
+    cluster <- group_levels[[index]]
+    markers <- if (is.null(marker_runner)) {
+      Seurat::FindMarkers(
+        object = object,
+        ident.1 = cluster,
+        assay = parameters$marker_assay,
+        slot = parameters$marker_slot,
+        test.use = parameters$marker_test,
+        min.pct = parameters$marker_min_pct,
+        logfc.threshold = parameters$marker_logfc_threshold,
+        verbose = FALSE
+      )
+    } else {
+      marker_runner(object, cluster, parameters)
+    }
+    markers <- as.data.frame(markers, stringsAsFactors = FALSE)
+    if (!nrow(markers)) {
+      summaries[[index]] <- data.frame(
+        cluster = cluster,
+        scope_cells = ncol(object),
+        tested_genes = 0L,
+        qualifying_upregulated_genes = 0L,
+        stringsAsFactors = FALSE
+      )
+      qualifying[[index]] <- NULL
+      next
+    }
+    required <- c("p_val", "pct.1", "pct.2")
+    missing <- setdiff(required, colnames(markers))
+    if (length(missing)) {
+      figure7_stop(
+        "Cluster-filter DEG result for ", cluster,
+        " is missing column(s): ", paste(missing, collapse = ", ")
+      )
+    }
+    lfc_column <- figure7_upstream_resolve_lfc_column(markers)
+    genes <- if ("gene" %in% colnames(markers)) {
+      as.character(markers$gene)
+    } else {
+      rownames(markers)
+    }
+    if (length(genes) != nrow(markers) || anyNA(genes) ||
+        any(!nzchar(genes))) {
+      figure7_stop("Cluster-filter DEG result has invalid gene identifiers")
+    }
+    p_value <- as.numeric(markers$p_val)
+    adjusted <- stats::p.adjust(
+      p_value,
+      method = "bonferroni",
+      n = total_features
+    )
+    lfc <- as.numeric(markers[[lfc_column]])
+    pct_1 <- as.numeric(markers$pct.1)
+    pct_2 <- as.numeric(markers$pct.2)
+    keep <- !is.na(adjusted) &
+      adjusted < parameters$qualifying_adjusted_p_lt &
+      !is.na(lfc) &
+      lfc > parameters$qualifying_log2fc_gt &
+      abs(lfc) >= parameters$qualifying_abs_log2fc_gte &
+      !is.na(pct_1) & !is.na(pct_2) &
+      abs(pct_1 - pct_2) >= parameters$qualifying_abs_pct_diff_gte
+    summaries[[index]] <- data.frame(
+      cluster = cluster,
+      scope_cells = ncol(object),
+      tested_genes = nrow(markers),
+      qualifying_upregulated_genes = sum(keep),
+      stringsAsFactors = FALSE
+    )
+    qualifying[[index]] <- data.frame(
+      cluster = rep(cluster, sum(keep)),
+      gene = genes[keep],
+      p_val = p_value[keep],
+      p_val_adj = adjusted[keep],
+      log2fc = lfc[keep],
+      pct_1 = pct_1[keep],
+      pct_2 = pct_2[keep],
+      stringsAsFactors = FALSE
+    )
+  }
+  qualifying <- qualifying[!vapply(qualifying, is.null, logical(1L))]
+  qualifying <- if (length(qualifying)) {
+    do.call(rbind, qualifying)
+  } else {
+    data.frame(
+      cluster = character(), gene = character(), p_val = numeric(),
+      p_val_adj = numeric(), log2fc = numeric(), pct_1 = numeric(),
+      pct_2 = numeric(), stringsAsFactors = FALSE
+    )
+  }
+  list(
+    cluster_summary = do.call(rbind, summaries),
+    qualifying_genes = qualifying
+  )
+}
+
+figure7_upstream_map_refined_to_merged <- function(labels) {
+  labels <- as.character(labels)
+  merge_map <- list(
+    `0` = c("0", "1", "7"),
+    `10` = c("10", "11", "12")
+  )
+  output <- labels
+  for (target in names(merge_map)) {
+    output[labels %in% merge_map[[target]]] <- target
+  }
+  unique(output)
+}
+
+figure7_upstream_select_cluster_removals <- function(
+  qc_cluster_summary,
+  de_cluster_summary,
+  merged_levels,
+  parameters
+) {
+  high_refined <- as.character(qc_cluster_summary$cluster[
+    qc_cluster_summary$concern_level == "High"
+  ])
+  high_merged_by_source <- vapply(
+    high_refined,
+    function(cluster) figure7_upstream_map_refined_to_merged(cluster)[[1L]],
+    character(1L)
+  )
+  high_merged <- unique(high_merged_by_source)
+  zero_upregulated <- as.character(de_cluster_summary$cluster[
+    de_cluster_summary$qualifying_upregulated_genes == 0L
+  ])
+  removal_set <- figure7_upstream_sort_maybe_numeric(unique(c(
+    high_merged,
+    zero_upregulated
+  )))
+  if (!length(removal_set)) {
+    figure7_stop("Cluster-filter criteria selected no clusters for removal")
+  }
+  unexpected <- setdiff(removal_set, merged_levels)
+  if (length(unexpected)) {
+    figure7_stop(
+      "Cluster-filter criteria selected unknown merged cluster(s): ",
+      paste(unexpected, collapse = ", ")
+    )
+  }
+  qc_sources <- vapply(merged_levels, function(cluster) {
+    sources <- high_refined[high_merged_by_source == cluster]
+    paste(sources, collapse = ",")
+  }, character(1L))
+  qualifying_count <- de_cluster_summary$qualifying_upregulated_genes[
+    match(merged_levels, de_cluster_summary$cluster)
+  ]
+  if (anyNA(qualifying_count)) {
+    figure7_stop("Cluster-filter DEG summary does not cover every merged cluster")
+  }
+  high_flag <- merged_levels %in% high_merged
+  zero_flag <- qualifying_count == 0L
+  reason <- ifelse(
+    high_flag & zero_flag,
+    "high_qc_concern_and_zero_qualifying_upregulated",
+    ifelse(
+      high_flag,
+      "high_qc_concern",
+      ifelse(zero_flag, "zero_qualifying_upregulated", "retain")
+    )
+  )
+  decision <- data.frame(
+    cluster = merged_levels,
+    qc_high_source_clusters = qc_sources,
+    high_qc_concern = high_flag,
+    qualifying_upregulated_genes = as.integer(qualifying_count),
+    zero_qualifying_upregulated = zero_flag,
+    remove_by_union_rule = merged_levels %in% removal_set,
+    selection_reason = reason,
+    stringsAsFactors = FALSE
+  )
+  reference_match <-
+    setequal(
+      high_refined,
+      parameters$reference_high_qc_refined_clusters
+    ) &&
+    setequal(
+      zero_upregulated,
+      parameters$reference_zero_qualifying_upregulated_clusters
+    ) &&
+    setequal(removal_set, parameters$reference_removed_clusters)
+  if (!reference_match) {
+    figure7_stop(
+      "Cluster-filter criteria produced high-QC refined [",
+      paste(high_refined, collapse = ","),
+      "], zero-upregulated [",
+      paste(zero_upregulated, collapse = ","),
+      "], and union [",
+      paste(removal_set, collapse = ","),
+      "]; the validation-only reviewed references are [",
+      paste(parameters$reference_high_qc_refined_clusters, collapse = ","),
+      "], [",
+      paste(
+        parameters$reference_zero_qualifying_upregulated_clusters,
+        collapse = ","
+      ),
+      "], and [",
+      paste(parameters$reference_removed_clusters, collapse = ","),
+      "]. The reference set was not used as a fallback."
+    )
+  }
+  list(removal_set = removal_set, decision = decision)
+}
+
+figure7_upstream_derive_cluster_filter <- function(
+  object,
+  config,
+  marker_runner = NULL
+) {
+  parameters <- figure7_upstream_cluster_filter_parameters(config)
+  if (ncol(object) != parameters$expected_scope_cells) {
+    figure7_stop(
+      "Cluster-filter criteria require ",
+      parameters$expected_scope_cells,
+      " pre-deletion cells; observed ",
+      ncol(object)
+    )
+  }
+  figure7_upstream_require_columns(
+    object@meta.data,
+    c(parameters$qc_group_field, parameters$merged_group_field),
+    "Cluster-filter input metadata"
+  )
+  qc <- figure7_upstream_compute_cluster_qc(object, parameters)
+  de <- figure7_upstream_run_prefilter_de(
+    object,
+    parameters,
+    marker_runner
+  )
+  merged_values <- object@meta.data[[parameters$merged_group_field]]
+  merged_levels <- if (is.factor(merged_values)) {
+    levels(merged_values)
+  } else {
+    figure7_upstream_sort_maybe_numeric(merged_values)
+  }
+  selected <- figure7_upstream_select_cluster_removals(
+    qc$cluster_summary,
+    de$cluster_summary,
+    merged_levels,
+    parameters
+  )
+  list(
+    contract_sha256 = parameters$contract_sha256,
+    criteria = figure7_upstream_cluster_filter_criteria_table(parameters),
+    qc_metric_flags = qc$metric_flags,
+    qc_cluster_summary = qc$cluster_summary,
+    de_cluster_summary = de$cluster_summary,
+    qualifying_genes = de$qualifying_genes,
+    decision = selected$decision,
+    removal_set = selected$removal_set
+  )
+}
+
+figure7_upstream_validate_cluster_filter_result <- function(result) {
+  required <- c(
+    "contract_sha256", "criteria", "qc_metric_flags",
+    "qc_cluster_summary", "de_cluster_summary", "qualifying_genes",
+    "decision", "removal_set"
+  )
+  missing <- setdiff(required, names(result))
+  if (length(missing) ||
+      length(result$contract_sha256) != 1L ||
+      !grepl("^[0-9a-f]{64}$", result$contract_sha256) ||
+      !all(vapply(
+        result[c(
+          "criteria", "qc_metric_flags", "qc_cluster_summary",
+          "de_cluster_summary", "qualifying_genes", "decision"
+        )],
+        is.data.frame,
+        logical(1L)
+      ))) {
+    figure7_stop("Cluster-filter result is incomplete or invalid")
+  }
+  required_decision <- c("cluster", "remove_by_union_rule")
+  if (!all(required_decision %in% colnames(result$decision)) ||
+      anyDuplicated(result$decision$cluster)) {
+    figure7_stop("Cluster-filter decision table is invalid")
+  }
+  selected <- as.character(result$decision$cluster[
+    result$decision$remove_by_union_rule
+  ])
+  if (!setequal(selected, as.character(result$removal_set))) {
+    figure7_stop("Cluster-filter removal set disagrees with its decision table")
+  }
+  invisible(TRUE)
+}
+
+figure7_upstream_cluster_filter_artifacts <- function(result) {
+  figure7_upstream_validate_cluster_filter_result(result)
+  list(
+    "cluster_filter_criteria.tsv" = result$criteria,
+    "cluster_filter_qc_metric_flags.tsv" = result$qc_metric_flags,
+    "cluster_filter_qc_cluster_summary.tsv" = result$qc_cluster_summary,
+    "cluster_filter_de_cluster_summary.tsv" = result$de_cluster_summary,
+    "cluster_filter_qualifying_genes.tsv" = result$qualifying_genes,
+    "cluster_filter_decision.tsv" = result$decision
+  )
+}
+
 figure7_upstream_merge_clusters <- function(object, jobs = 1L) {
   figure7_upstream_set_single_thread()
   set.seed(12345)
@@ -1305,6 +2120,7 @@ figure7_upstream_prepare_pca_assay <- function(
 
 figure7_upstream_finalize_clusters <- function(
   object,
+  cluster_filter,
   jobs = 1L,
   rerun_reductions = TRUE
 ) {
@@ -1320,12 +2136,19 @@ figure7_upstream_finalize_clusters <- function(
   if (anyNA(cluster_values) || any(!nzchar(cluster_values))) {
     figure7_stop("Merged Seurat object contains missing cluster labels")
   }
-  remove <- c("9", "4", "3", "9c")
+  figure7_upstream_validate_cluster_filter_result(cluster_filter)
+  remove <- as.character(cluster_filter$removal_set)
   missing <- setdiff(remove, unique(cluster_values))
   if (length(missing)) {
     figure7_stop(
-      "Final filtering is missing configured cluster(s): ",
+      "Final filtering is missing criteria-selected cluster(s): ",
       paste(missing, collapse = ", ")
+    )
+  }
+  decision_clusters <- as.character(cluster_filter$decision$cluster)
+  if (!setequal(decision_clusters, unique(cluster_values))) {
+    figure7_stop(
+      "Cluster-filter decision does not cover the merged cluster universe"
     )
   }
   source_levels <- if (is.factor(object$manual_merge_test)) {
@@ -1348,6 +2171,16 @@ figure7_upstream_finalize_clusters <- function(
   Seurat::Idents(object) <- object$clusters
   object@meta.data <- figure7_upstream_derive_tn_ploidy(
     object@meta.data
+  )
+  object@misc$figure7_cluster_filter <- list(
+    contract_sha256 = cluster_filter$contract_sha256,
+    criteria = cluster_filter$criteria,
+    qc_metric_flags = cluster_filter$qc_metric_flags,
+    qc_cluster_summary = cluster_filter$qc_cluster_summary,
+    de_cluster_summary = cluster_filter$de_cluster_summary,
+    qualifying_genes = cluster_filter$qualifying_genes,
+    decision = cluster_filter$decision,
+    removal_set = remove
   )
   if (!isTRUE(rerun_reductions)) return(object)
 
@@ -1485,7 +2318,10 @@ figure7_upstream_expected_tumor_samples <- function() {
   )
 }
 
-figure7_upstream_validate_final_metadata <- function(metadata) {
+figure7_upstream_validate_final_metadata <- function(
+  metadata,
+  removed_clusters
+) {
   if (!is.data.frame(metadata)) {
     figure7_stop("Final Seurat metadata must be a data frame")
   }
@@ -1502,10 +2338,15 @@ figure7_upstream_validate_final_metadata <- function(metadata) {
   }
 
   clusters <- as.character(metadata$clusters)
-  discarded <- intersect(unique(clusters), c("3", "4", "9", "9c"))
+  removed_clusters <- as.character(removed_clusters)
+  if (!length(removed_clusters) || anyNA(removed_clusters) ||
+      any(!nzchar(removed_clusters)) || anyDuplicated(removed_clusters)) {
+    figure7_stop("Final Seurat validation requires criteria-selected clusters")
+  }
+  discarded <- intersect(unique(clusters), removed_clusters)
   if (length(discarded)) {
     figure7_stop(
-      "Final Seurat metadata retains discarded QC cluster(s): ",
+      "Final Seurat metadata retains criteria-selected cluster(s): ",
       paste(discarded, collapse = ", ")
     )
   }
@@ -1642,6 +2483,11 @@ figure7_upstream_validate_final <- function(
   if (!"RNA" %in% names(object@assays)) {
     figure7_stop("Final reconstructed Seurat object lacks RNA assay")
   }
+  cluster_filter <- object@misc$figure7_cluster_filter
+  if (is.null(cluster_filter)) {
+    figure7_stop("Final reconstructed Seurat object lacks cluster-filter provenance")
+  }
+  figure7_upstream_validate_cluster_filter_result(cluster_filter)
   cells <- rownames(object@meta.data)
   if (anyNA(cells) || any(!nzchar(cells)) || anyDuplicated(cells)) {
     figure7_stop("Final reconstructed Seurat object has invalid cell IDs")
@@ -1657,7 +2503,10 @@ figure7_upstream_validate_final <- function(
     figure7_stop("Final Seurat cluster cell-cycle annotation is invalid")
   }
   if (isTRUE(strict_counts)) {
-    figure7_upstream_validate_final_metadata(object@meta.data)
+    figure7_upstream_validate_final_metadata(
+      object@meta.data,
+      cluster_filter$removal_set
+    )
   }
   invisible(TRUE)
 }

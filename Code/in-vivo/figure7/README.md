@@ -142,6 +142,34 @@ and final cluster filtering/reduction. Marker surveys, exploratory plots, and
 other downstream analyses are not ported. `--jobs` is recorded and forwarded,
 but these reviewed Seurat stages always use one scientific worker.
 
+Final cluster removal is derived over all 42,884 cells before any cluster is
+deleted. For each refined cluster, the workflow calculates medians for RNA UMI
+count, detected-feature count, log10 genes per UMI, UMIs per gene, dominant-gene
+fraction, and percent of counts in the 50 most expressed features. It converts
+those medians to robust z-scores across clusters (median absolute deviation,
+constant 1) and assigns `High` QC concern when at least three metrics cross the
+recorded directional threshold of 1.5. Tao's proposed mitochondrial and
+ribosomal metrics are retained in the contract as documented inert metrics:
+the reviewed object's stored `percent.mt` is identically zero, while the
+unprefixed ribosomal regex used in the source work matches none of its
+`GRCh38-`/`GRCm39-`-prefixed features. They therefore did not contribute to the
+reviewed selection and are not silently reinterpreted here.
+
+After the fixed cluster merges, every merged cluster is compared with the rest
+using the RNA assay's normalized data, a Wilcoxon test, `min.pct=0.10`, and no
+Seurat log-fold-change prefilter. A gene qualifies as upregulated only when its
+full-assay Bonferroni-adjusted P value is below 0.05, log2 fold change is
+positive and at least 0.25 in magnitude, and the absolute detected-cell
+fraction difference is at least 0.05. The removal set is the union of merged
+clusters mapped from `High` refined-cluster QC and clusters with zero qualifying
+upregulated genes. The reviewed set `3,4,9,9c` is a validation assertion only;
+the corresponding reviewed high-QC and zero-upregulated sets (`4,9,9c` and
+`3,9c`) are also checked, and none is ever substituted for a calculated result.
+Six checksum-bound TSVs in the final-stage cache record the criteria, metric
+flags, QC and DEG summaries, qualifying genes, and cluster-by-cluster decision.
+Changing any criterion invalidates only the final Seurat stage and its
+descendants, so earlier integration and refinement caches remain reusable.
+
 No FASTQ-to-Cell-Ranger invocation or FASTQ collection was available in the
 source work, so the 18 H5 matrices are the earliest executable expression-data
 boundary. The 16 tracked downstream NUMBAT-derived CBS matrices reproduce the
