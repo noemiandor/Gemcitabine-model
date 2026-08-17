@@ -212,3 +212,19 @@ testthat::test_that("pathway display uses the reviewed significant-only selector
   testthat::expect_true(all(selected$padj <= 0.05))
   testthat::expect_false(any(grepl("_13$", selected$pathway)))
 })
+
+testthat::test_that("pooled top 20 uses FDR rank without collection quotas", {
+  gsea <- data.frame(
+    collection = c(rep("C2:CP:REACTOME", 24L), rep("H", 3L), rep("C5:GO:BP", 3L)),
+    pathway = paste0("pathway_", seq_len(30L)),
+    padj = c(seq(0.001, 0.024, length.out = 24L), 0.03, 0.04, 0.2, 0.025, 0.035, NA),
+    NES = rep(c(2, -2), 15L),
+    stringsAsFactors = FALSE
+  )
+  gsea <- gsea[c(30:1), , drop = FALSE]
+  selected <- analysis_env$select_top_pathways_across_collections(gsea)
+  testthat::expect_identical(nrow(selected), 20L)
+  testthat::expect_identical(selected$pooled_fdr_rank, seq_len(20L))
+  testthat::expect_true(all(diff(selected$padj) >= 0))
+  testthat::expect_identical(unique(selected$collection), "C2:CP:REACTOME")
+})
