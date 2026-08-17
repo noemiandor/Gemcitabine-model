@@ -574,13 +574,12 @@ seurat <- data.frame(
 )
 tumor <- seurat[seurat$included, , drop = FALSE]
 n_tumor <- nrow(tumor)
-point_size <- if (n_tumor > 50000L) {
-  0.08
-} else if (n_tumor > 20000L) {
-  0.14
-} else {
-  0.24
-}
+joint_umap_point_size <- shared_context_publication_umap_point_size(nrow(seurat))
+tumor_umap_point_size <- shared_context_publication_umap_point_size(n_tumor)
+faceted_umap_point_size <- shared_context_publication_umap_point_size(
+  max(table(tumor$mouse)),
+  faceted = TRUE
+)
 
 sample_metadata <- unique(
   tumor[, c("mouse", "initial_ploidy", "dose"), drop = FALSE]
@@ -616,7 +615,7 @@ shared_si4 <- shared_context_build_si4_panels(
   cluster_colors = cluster_colors,
   ploidy_colors = ploidy_colors,
   context_colors = context_colors,
-  point_size = point_size,
+  point_size = joint_umap_point_size,
   plot_seed = plot_seed
 )
 s4a <- shared_si4$plots$cluster
@@ -630,10 +629,11 @@ s4d <- shared_context_make_umap_continuous(
   "UMAP by S phase score",
   "S phase score",
   "D",
-  point_size,
+  max(joint_umap_point_size, 0.70),
   plot_seed,
   limits = range(seurat$s_phase_score),
-  diverging = TRUE
+  diverging = TRUE,
+  mid_color = "#A6A6A6"
 )
 selected_cellcycle_clusters <- c("4c", "6", "10")
 selected_tumor_cells <- sum(
@@ -800,7 +800,7 @@ s5a <- shared_context_make_umap_discrete(
   "UMAP by cluster",
   "Cluster",
   "A",
-  point_size,
+  tumor_umap_point_size,
   plot_seed,
   sprintf("Tumor cells; n = %s", format(n_tumor, big.mark = ",")),
   labels = TRUE
@@ -812,7 +812,7 @@ s5b <- shared_context_make_umap_discrete(
   "UMAP by initial tumor ploidy",
   "Initial ploidy",
   "B",
-  point_size,
+  tumor_umap_point_size,
   plot_seed
 )
 s5c <- shared_context_make_umap_discrete(
@@ -822,7 +822,7 @@ s5c <- shared_context_make_umap_discrete(
   "UMAP by Gemcitabine dose",
   "Gemcitabine dose",
   "C",
-  point_size,
+  tumor_umap_point_size,
   plot_seed
 )
 s5d <- shared_context_make_umap_continuous(
@@ -831,7 +831,7 @@ s5d <- shared_context_make_umap_continuous(
   "UMAP by S phase score",
   "S phase score",
   "D",
-  point_size,
+  tumor_umap_point_size,
   plot_seed,
   limits = range(tumor$s_phase_score),
   diverging = TRUE
@@ -858,7 +858,7 @@ s5e <- ggplot2::ggplot(
   ggplot2::aes(UMAP_1, UMAP_2, color = initial_ploidy)
 ) +
   ggplot2::geom_point(
-    size = max(point_size * 1.35, 0.14),
+    size = faceted_umap_point_size,
     alpha = 0.88,
     stroke = 0
   ) +
@@ -1037,7 +1037,7 @@ s6a <- shared_context_make_umap_continuous(
   "NUMBAT-derived ploidy in all tumors",
   "NUMBAT-derived ploidy",
   "A",
-  point_size,
+  tumor_umap_point_size,
   plot_seed,
   limits = endpoint_limits,
   subtitle = sprintf(
@@ -1052,7 +1052,7 @@ s6b <- shared_context_make_umap_continuous(
   "NUMBAT-derived ploidy in 2N-origin tumors",
   "NUMBAT-derived ploidy",
   "B",
-  point_size,
+  tumor_umap_point_size,
   plot_seed,
   limits = endpoint_limits
 )
@@ -1062,7 +1062,7 @@ s6c <- shared_context_make_umap_continuous(
   "NUMBAT-derived ploidy in 4N-origin tumors",
   "NUMBAT-derived ploidy",
   "C",
-  point_size,
+  tumor_umap_point_size,
   plot_seed,
   limits = endpoint_limits
 )
@@ -1076,7 +1076,7 @@ s6d <- ggplot2::ggplot(
   ggplot2::aes(UMAP_1, UMAP_2, color = endpoint_ploidy)
 ) +
   ggplot2::geom_point(
-    size = max(point_size * 1.35, 0.14),
+    size = faceted_umap_point_size,
     alpha = 0.88,
     stroke = 0
   ) +

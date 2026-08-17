@@ -43,6 +43,27 @@ shared_context_tag_is_empty <- function(tag) {
   is.null(tag) || !length(tag) || is.na(tag[[1L]]) || !nzchar(tag[[1L]])
 }
 
+shared_context_publication_umap_point_size <- function(
+  n_cells,
+  faceted = FALSE
+) {
+  if (length(n_cells) != 1L || !is.finite(n_cells) || n_cells <= 0) {
+    stop("UMAP point-size selection requires one positive cell count",
+         call. = FALSE)
+  }
+  point_size <- if (n_cells > 50000L) {
+    0.40
+  } else if (n_cells > 20000L) {
+    0.50
+  } else {
+    0.62
+  }
+  if (isTRUE(faceted)) {
+    point_size <- max(point_size, 0.85)
+  }
+  point_size
+}
+
 shared_context_add_tag <- function(plot, tag) {
   if (shared_context_tag_is_empty(tag)) {
     return(plot)
@@ -158,6 +179,7 @@ shared_context_make_umap_continuous <- function(
   limits = NULL,
   subtitle = NULL,
   diverging = FALSE,
+  mid_color = "white",
   shuffle_key = tag
 ) {
   data <- shared_context_shuffle_cells(
@@ -181,7 +203,7 @@ shared_context_make_umap_continuous <- function(
   if (diverging) {
     plot <- plot + ggplot2::scale_color_gradient2(
       low = "#2C7BB6",
-      mid = "white",
+      mid = mid_color,
       high = "#D7191C",
       midpoint = 0,
       limits = limits,

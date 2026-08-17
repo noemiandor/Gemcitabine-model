@@ -72,13 +72,47 @@ data <- data.frame(
   stringsAsFactors = FALSE
 )
 n_tumor <- sum(data$included)
-point_size <- if (n_tumor > 50000L) {
-  0.08
-} else if (n_tumor > 20000L) {
-  0.14
-} else {
-  0.24
-}
+point_size <- helper_environment$shared_context_publication_umap_point_size(
+  nrow(data)
+)
+tumor_point_size <-
+  helper_environment$shared_context_publication_umap_point_size(n_tumor)
+faceted_point_size <-
+  helper_environment$shared_context_publication_umap_point_size(
+    max(table(data$mouse[data$included])),
+    faceted = TRUE
+  )
+stopifnot(
+  point_size >= 0.50,
+  tumor_point_size >= 0.62,
+  faceted_point_size >= 0.85,
+  faceted_point_size > tumor_point_size
+)
+
+midpoint_test_data <- data.frame(
+  UMAP_1 = c(0, 1, 2),
+  UMAP_2 = c(0, 1, 0),
+  score = c(-1, 0, 1)
+)
+midpoint_test_plot <- helper_environment$shared_context_make_umap_continuous(
+  data = midpoint_test_data,
+  field = "score",
+  title = "Midpoint test",
+  legend_title = "Score",
+  tag = "",
+  point_size = 0.70,
+  plot_seed = plot_seed,
+  limits = c(-1, 1),
+  diverging = TRUE,
+  mid_color = "#A6A6A6",
+  shuffle_key = "D"
+)
+stopifnot(
+  identical(
+    toupper(midpoint_test_plot$scales$get_scales("colour")$map(0)),
+    "#A6A6A6"
+  )
+)
 cluster_colors <- stats::setNames(
   as.character(cluster_key$color),
   as.character(cluster_key$cluster_id)
