@@ -249,3 +249,69 @@ testthat::test_that("pathway display caps the reviewed selector at three per dir
   testthat::expect_true(all(selected$padj <= 0.05))
   testthat::expect_false(any(grepl("_13$", selected$pathway)))
 })
+
+testthat::test_that("origin comparison separates shared and origin-specific pathways", {
+  collections <- c("H", "C2:CP:REACTOME", "C5:GO:BP")
+  make_rows <- function(pathways, nes, padj) {
+    data.frame(
+      collection = rep(collections, length.out = length(pathways)),
+      collection_label = rep(c("hallmark", "reactome", "go_bp"), length.out = length(pathways)),
+      pathway = pathways,
+      pathway_label = gsub("_", " ", pathways, fixed = TRUE),
+      NES = nes,
+      padj = padj,
+      stringsAsFactors = FALSE
+    )
+  }
+  shared <- make_rows(
+    paste0("shared_", seq_len(5L)),
+    c(-2.2, -1.8, -1.5, 1.6, 2.0),
+    seq(0.001, 0.005, length.out = 5L)
+  )
+  two_n_specific <- make_rows(
+    paste0("two_n_", seq_len(10L)),
+    c(seq(2.5, 1.5, length.out = 5L), seq(-1.5, -2.5, length.out = 5L)),
+    seq(0.006, 0.015, length.out = 10L)
+  )
+  four_n_specific <- make_rows(
+    paste0("four_n_", seq_len(10L)),
+    c(seq(2.4, 1.4, length.out = 5L), seq(-1.4, -2.4, length.out = 5L)),
+    seq(0.016, 0.025, length.out = 10L)
+  )
+  nonsignificant <- function(data) {
+    data$padj <- 0.5
+    data
+  }
+  gsea_2n <- rbind(shared, two_n_specific, nonsignificant(four_n_specific))
+  gsea_4n <- rbind(shared, nonsignificant(two_n_specific), four_n_specific)
+  gsea_4n$NES[seq_len(nrow(shared))] <- gsea_4n$NES[seq_len(nrow(shared))] * 0.9
+
+  comparison <- analysis_env$prepare_origin_comparison_pathways(
+    gsea_2n,
+    gsea_4n,
+    fdr_threshold = 0.05,
+    maximum_per_direction = 3L
+  )
+  testthat::expect_identical(nrow(comparison$shared), 5L)
+  testthat::expect_identical(
+    sum(comparison$plot_data$panel_id == "shared"),
+    10L
+  )
+  shared_keys <- paste(
+    comparison$shared$collection,
+    comparison$shared$pathway,
+    sep = "\r"
+  )
+  for (origin in c("2N", "4N")) {
+    selected <- comparison[[paste0("selected_", origin)]]
+    counts <- table(selected$selected_direction)
+    testthat::expect_identical(
+      as.integer(counts[c("negative", "positive")]),
+      c(3L, 3L)
+    )
+    testthat::expect_true(all(selected$padj <= 0.05))
+    testthat::expect_false(any(
+      paste(selected$collection, selected$pathway, sep = "\r") %in% shared_keys
+    ))
+  }
+})

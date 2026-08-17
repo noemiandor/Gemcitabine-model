@@ -49,6 +49,11 @@ and pathways differ between gemcitabine-treated and vehicle tumors?
   nonsignificant backfill) from the reviewed workflow. The pooled, 2N-origin,
   and 4N-origin panels all use this same rule. Positive normalized enrichment
   scores indicate enrichment in treated tumors.
+- A compact origin-comparison panel shows every pathway that is
+  FDR-significant in both origin models, with paired 2N and 4N NES estimates.
+  Its lower panels exclude those shared pathways and show, for each origin,
+  the top three FDR-significant pathways per NES direction across all three
+  collections. Collection is encoded by color and origin by point shape.
 - A sensitivity model omits only the mean within-interval pseudotime
   adjustment; injected origin remains an adjustment term and the gene universe
   and treatment contrast remain unchanged.
@@ -75,11 +80,12 @@ Results/in-vivo/figure7/exploratory/treated_vs_vehicle_interval_de/
 ```
 
 It contains pooled, 2N-origin, and 4N-origin pathway-enrichment candidate
-PDF/PNG files; the pooled gene volcano as an audit figure; complete primary and
-dose-specific DE tables; complete and selected GSEA tables; leading-edge genes;
-the exact gene-set contract and membership; mouse coverage; design matrices and
-contrast definitions; species and expression-filter audits; portable input
-provenance; package versions; and session information.
+PDF/PNG files; a shared-versus-nonshared pathway comparison PDF/PNG; the
+pooled gene volcano as an audit figure; complete primary and dose-specific DE
+tables; complete and selected GSEA tables; leading-edge genes; the exact
+gene-set contract and membership; mouse coverage; design matrices and contrast
+definitions; species and expression-filter audits; portable input provenance;
+package versions; and session information.
 
 Run the focused synthetic tests from the repository root with:
 

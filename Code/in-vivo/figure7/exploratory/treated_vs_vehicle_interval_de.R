@@ -786,6 +786,183 @@ fit_origin_stratified_analysis <- function(
   )
 }
 
+select_pathways_across_collections <- function(
+  gsea,
+  maximum_per_direction = exploratory_pathway_max_per_direction(),
+  fdr_threshold = 0.05
+) {
+  maximum_per_direction <- suppressWarnings(as.integer(maximum_per_direction))
+  if (length(maximum_per_direction) != 1L || is.na(maximum_per_direction) ||
+      maximum_per_direction < 1L) {
+    stop("maximum_per_direction must be a positive integer", call. = FALSE)
+  }
+  eligible <- as.data.frame(gsea, stringsAsFactors = FALSE)
+  eligible <- eligible[
+    is.finite(eligible$padj) & eligible$padj <= fdr_threshold &
+      is.finite(eligible$NES) & eligible$NES != 0,
+    ,
+    drop = FALSE
+  ]
+  eligible$selected_direction <- ifelse(
+    eligible$NES > 0,
+    "positive",
+    "negative"
+  )
+  rows <- lapply(c("positive", "negative"), function(direction) {
+    local <- eligible[
+      eligible$selected_direction == direction,
+      ,
+      drop = FALSE
+    ]
+    if (!nrow(local)) return(local)
+    local <- if (identical(direction, "positive")) {
+      local[order(local$padj, -local$NES, local$collection, local$pathway), , drop = FALSE]
+    } else {
+      local[order(local$padj, local$NES, local$collection, local$pathway), , drop = FALSE]
+    }
+    local <- head(local, maximum_per_direction)
+    local$selected_rank_within_direction <- seq_len(nrow(local))
+    local
+  })
+  selected <- do.call(rbind, rows)
+  rownames(selected) <- NULL
+  selected
+}
+
+prepare_origin_comparison_pathways <- function(
+  gsea_2n,
+  gsea_4n,
+  fdr_threshold = 0.05,
+  maximum_per_direction = exploratory_pathway_max_per_direction()
+) {
+  required <- c(
+    "collection", "collection_label", "pathway", "pathway_label", "NES", "padj"
+  )
+  for (entry in list(`2N` = gsea_2n, `4N` = gsea_4n)) {
+    missing <- setdiff(required, names(entry))
+    if (length(missing)) {
+      stop(
+        "Origin-comparison GSEA is missing column(s): ",
+        paste(missing, collapse = ", "),
+        call. = FALSE
+      )
+    }
+    keys <- paste(entry$collection, entry$pathway, sep = "\r")
+    if (anyNA(keys) || any(!nzchar(keys)) || anyDuplicated(keys)) {
+      stop("Origin-comparison GSEA requires unique pathway keys", call. = FALSE)
+    }
+  }
+
+  comparison_columns <- c(
+    "collection", "pathway", "pathway_label", "NES", "padj"
+  )
+  paired <- merge(
+    gsea_2n[, comparison_columns, drop = FALSE],
+    gsea_4n[, comparison_columns, drop = FALSE],
+    by = c("collection", "pathway"),
+    suffixes = c("_2N", "_4N")
+  )
+  paired$pathway_label <- ifelse(
+    nzchar(as.character(paired$pathway_label_2N)),
+    as.character(paired$pathway_label_2N),
+    as.character(paired$pathway_label_4N)
+  )
+  paired$significant_2N <- is.finite(paired$padj_2N) &
+    paired$padj_2N <= fdr_threshold
+  paired$significant_4N <- is.finite(paired$padj_4N) &
+    paired$padj_4N <= fdr_threshold
+  shared <- paired[
+    paired$significant_2N & paired$significant_4N,
+    c(
+      "collection", "pathway", "pathway_label",
+      "NES_2N", "padj_2N", "NES_4N", "padj_4N"
+    ),
+    drop = FALSE
+  ]
+  if (!nrow(shared)) {
+    stop("No FDR-significant pathway is shared between the origin models", call. = FALSE)
+  }
+  shared <- shared[
+    order((shared$NES_2N + shared$NES_4N) / 2, shared$collection, shared$pathway),
+    ,
+    drop = FALSE
+  ]
+  shared_keys <- paste(shared$collection, shared$pathway, sep = "\r")
+
+  select_origin <- function(gsea, origin) {
+    local_keys <- paste(gsea$collection, gsea$pathway, sep = "\r")
+    local <- gsea[!local_keys %in% shared_keys, , drop = FALSE]
+    selected <- select_pathways_across_collections(
+      local,
+      maximum_per_direction = maximum_per_direction,
+      fdr_threshold = fdr_threshold
+    )
+    if (!nrow(selected) ||
+        !setequal(unique(selected$selected_direction), c("positive", "negative"))) {
+      stop(
+        origin,
+        "-origin comparison panel requires an FDR-significant pathway in both directions",
+        call. = FALSE
+      )
+    }
+    selected$origin <- origin
+    selected$panel_id <- origin
+    selected$selection_scope <- paste0(
+      "FDR-significant in ", origin,
+      "; shared-significant pathways excluded; top across collections"
+    )
+    selected
+  }
+  selected_2n <- select_origin(gsea_2n, "2N")
+  selected_4n <- select_origin(gsea_4n, "4N")
+
+  shared_2n <- data.frame(
+    collection = shared$collection,
+    pathway = shared$pathway,
+    pathway_label = shared$pathway_label,
+    NES = shared$NES_2N,
+    padj = shared$padj_2N,
+    origin = "2N",
+    panel_id = "shared",
+    selected_direction = ifelse(shared$NES_2N > 0, "positive", "negative"),
+    selected_rank_within_direction = NA_integer_,
+    selection_scope = "FDR-significant in both origin models",
+    stringsAsFactors = FALSE
+  )
+  shared_4n <- data.frame(
+    collection = shared$collection,
+    pathway = shared$pathway,
+    pathway_label = shared$pathway_label,
+    NES = shared$NES_4N,
+    padj = shared$padj_4N,
+    origin = "4N",
+    panel_id = "shared",
+    selected_direction = ifelse(shared$NES_4N > 0, "positive", "negative"),
+    selected_rank_within_direction = NA_integer_,
+    selection_scope = "FDR-significant in both origin models",
+    stringsAsFactors = FALSE
+  )
+  selected_columns <- union(names(shared_2n), union(names(selected_2n), names(selected_4n)))
+  align_columns <- function(data) {
+    missing <- setdiff(selected_columns, names(data))
+    for (column in missing) data[[column]] <- NA
+    data[, selected_columns, drop = FALSE]
+  }
+  plot_data <- do.call(rbind, lapply(
+    list(shared_2n, shared_4n, selected_2n, selected_4n),
+    align_columns
+  ))
+  rownames(plot_data) <- NULL
+  list(
+    shared = shared,
+    selected_2N = selected_2n,
+    selected_4N = selected_4n,
+    plot_data = plot_data,
+    fdr_threshold = fdr_threshold,
+    maximum_per_direction = as.integer(maximum_per_direction)
+  )
+}
+
 plot_candidate_pathways <- function(
   selected,
   path_pdf,
@@ -915,6 +1092,214 @@ plot_candidate_pathways <- function(
     plot,
     width = 9,
     height = 8,
+    units = "in",
+    dpi = 320
+  )
+  invisible(plot)
+}
+
+plot_origin_comparison_pathways <- function(
+  comparison,
+  path_pdf,
+  path_png,
+  mouse_metadata,
+  interval
+) {
+  plot_data <- comparison$plot_data
+  panel_labels <- c(
+    shared = sprintf(
+      "Shared significant (n=%d)",
+      nrow(comparison$shared)
+    ),
+    `2N` = "2N: top nonshared",
+    `4N` = "4N: top nonshared"
+  )
+  collection_labels <- c(
+    "H" = "Hallmark",
+    "C2:CP:REACTOME" = "Reactome",
+    "C5:GO:BP" = "GO BP"
+  )
+  if (any(!plot_data$collection %in% names(collection_labels))) {
+    stop("Origin-comparison plot contains an unknown collection", call. = FALSE)
+  }
+  plot_data$panel_label <- factor(
+    unname(panel_labels[plot_data$panel_id]),
+    levels = unname(panel_labels)
+  )
+  plot_data$collection_label <- factor(
+    as.character(plot_data$collection),
+    levels = names(collection_labels),
+    labels = unname(collection_labels)
+  )
+  plot_data$origin <- factor(plot_data$origin, levels = c("2N", "4N"))
+  plot_data$minus_log10_fdr <- -log10(
+    pmax(as.numeric(plot_data$padj), .Machine$double.xmin)
+  )
+  plot_data$pathway_plot_key <- paste(
+    plot_data$panel_id,
+    plot_data$collection,
+    plot_data$pathway,
+    sep = "\r"
+  )
+
+  ordered_pathway_keys <- unlist(lapply(c("shared", "2N", "4N"), function(panel_id) {
+    local <- plot_data[plot_data$panel_id == panel_id, , drop = FALSE]
+    aggregate_nes <- stats::aggregate(
+      local$NES,
+      by = list(pathway_plot_key = local$pathway_plot_key),
+      FUN = mean
+    )
+    aggregate_nes$pathway_label <- local$pathway_label[
+      match(aggregate_nes$pathway_plot_key, local$pathway_plot_key)
+    ]
+    aggregate_nes <- aggregate_nes[
+      order(aggregate_nes$x, aggregate_nes$pathway_label),
+      ,
+      drop = FALSE
+    ]
+    aggregate_nes$pathway_plot_key
+  }), use.names = FALSE)
+  plot_data$pathway_plot_key <- factor(
+    plot_data$pathway_plot_key,
+    levels = ordered_pathway_keys
+  )
+  pathway_labels <- setNames(
+    vapply(
+      plot_data$pathway_label[match(ordered_pathway_keys, plot_data$pathway_plot_key)],
+      function(label) paste(strwrap(label, width = 43L), collapse = "\n"),
+      character(1L)
+    ),
+    ordered_pathway_keys
+  )
+
+  origin_specific <- plot_data[plot_data$panel_id != "shared", , drop = FALSE]
+  shared_connectors <- comparison$shared
+  shared_connectors$pathway_plot_key <- factor(
+    paste(
+      "shared",
+      shared_connectors$collection,
+      shared_connectors$pathway,
+      sep = "\r"
+    ),
+    levels = ordered_pathway_keys
+  )
+  shared_connectors$panel_label <- factor(
+    panel_labels[["shared"]],
+    levels = unname(panel_labels)
+  )
+  cells_2n <- sum(mouse_metadata[["2N"]]$n_cells)
+  cells_4n <- sum(mouse_metadata[["4N"]]$n_cells)
+  symmetric_limit <- max(abs(plot_data$NES), na.rm = TRUE) * 1.08
+
+  plot <- ggplot2::ggplot() +
+    ggplot2::geom_vline(
+      xintercept = 0,
+      color = "#6B7280",
+      linewidth = 0.4
+    ) +
+    ggplot2::geom_segment(
+      data = origin_specific,
+      ggplot2::aes(
+        x = 0,
+        xend = NES,
+        y = pathway_plot_key,
+        yend = pathway_plot_key
+      ),
+      color = "#B0B7C3",
+      linewidth = 0.65
+    ) +
+    ggplot2::geom_segment(
+      data = shared_connectors,
+      ggplot2::aes(
+        x = NES_2N,
+        xend = NES_4N,
+        y = pathway_plot_key,
+        yend = pathway_plot_key
+      ),
+      color = "#7C8798",
+      linewidth = 0.8
+    ) +
+    ggplot2::geom_point(
+      data = plot_data,
+      ggplot2::aes(
+        x = NES,
+        y = pathway_plot_key,
+        color = collection_label,
+        size = minus_log10_fdr,
+        shape = origin
+      ),
+      alpha = 0.95
+    ) +
+    ggplot2::facet_grid(
+      panel_label ~ .,
+      scales = "free_y",
+      space = "free_y"
+    ) +
+    ggplot2::scale_x_continuous(
+      limits = c(-symmetric_limit, symmetric_limit),
+      expand = ggplot2::expansion(mult = c(0.02, 0.02))
+    ) +
+    ggplot2::scale_y_discrete(labels = pathway_labels) +
+    ggplot2::scale_color_manual(values = c(
+      "Hallmark" = "#0072B2",
+      "Reactome" = "#D55E00",
+      "GO BP" = "#009E73"
+    )) +
+    ggplot2::scale_shape_manual(values = c("2N" = 16, "4N" = 17)) +
+    ggplot2::scale_size_continuous(range = c(2.5, 5.6)) +
+    ggplot2::labs(
+      title = "Shared and nonshared pathway enrichment by tumor origin",
+      subtitle = sprintf(
+        paste0(
+          "Equal-dose treated - vehicle contrast; %.3f-%.3f pseudotime\n",
+          "2N: %d cells across 8 mice; 4N: %d cells across 8 mice"
+        ),
+        interval$start,
+        interval$end,
+        cells_2n,
+        cells_4n
+      ),
+      x = "Normalized enrichment score (treated - vehicle)",
+      y = NULL,
+      color = "Collection",
+      shape = "Origin",
+      size = expression(-log[10]~"FDR"),
+      caption = paste0(
+        "Upper: all pathways with collection-wise BH FDR <= 0.05 in both origin models; ",
+        "the connector joins their paired NES estimates.\n",
+        "Lower panels exclude that shared set and show up to three pathways ",
+        "per NES direction across all collections.\n",
+        "Human-tumor mouse pseudobulks; adjusted for mean within-interval pseudotime; ",
+        "exploratory data-selected interval."
+      )
+    ) +
+    ggplot2::guides(
+      color = ggplot2::guide_legend(order = 1),
+      shape = ggplot2::guide_legend(order = 2),
+      size = ggplot2::guide_legend(order = 3)
+    ) +
+    ggplot2::theme_bw(base_size = 9) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 11),
+      plot.subtitle = ggplot2::element_text(size = 8.5, color = "#374151"),
+      plot.caption = ggplot2::element_text(
+        size = 7.2,
+        hjust = 0,
+        color = "#4B5563"
+      ),
+      legend.position = "top",
+      legend.justification = "left",
+      strip.text.y = ggplot2::element_text(angle = 270, face = "bold"),
+      panel.grid.major.y = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank()
+    )
+  dir.create(dirname(path_pdf), recursive = TRUE, showWarnings = FALSE)
+  ggplot2::ggsave(path_pdf, plot, width = 10, height = 9, units = "in")
+  ggplot2::ggsave(
+    path_png,
+    plot,
+    width = 10,
+    height = 9,
     units = "in",
     dpi = 320
   )
@@ -1226,6 +1611,57 @@ write_origin_stratified_outputs <- function(
   invisible(result)
 }
 
+write_origin_comparison_outputs <- function(
+  stratified_analyses,
+  table_dir,
+  figure_dir,
+  interval,
+  fdr_threshold
+) {
+  if (!identical(names(stratified_analyses), c("2N", "4N"))) {
+    stop("Origin comparison requires named 2N and 4N analyses", call. = FALSE)
+  }
+  comparison <- prepare_origin_comparison_pathways(
+    stratified_analyses[["2N"]]$pathways$complete,
+    stratified_analyses[["4N"]]$pathways$complete,
+    fdr_threshold = fdr_threshold,
+    maximum_per_direction = exploratory_pathway_max_per_direction()
+  )
+  write_tsv(
+    comparison$shared,
+    file.path(
+      table_dir,
+      "treated_equal_dose_minus_vehicle_shared_significant_pathways_2N_4N.tsv"
+    )
+  )
+  selected_columns <- c(
+    "panel_id", "origin", "collection", "collection_label", "pathway",
+    "pathway_label", "NES", "padj", "selected_direction",
+    "selected_rank_within_direction", "selection_scope"
+  )
+  write_tsv(
+    comparison$plot_data[, selected_columns, drop = FALSE],
+    file.path(
+      table_dir,
+      "treated_equal_dose_minus_vehicle_origin_comparison_selected.tsv"
+    )
+  )
+  plot_origin_comparison_pathways(
+    comparison,
+    file.path(
+      figure_dir,
+      "panel_7I_candidate_treated_vs_vehicle_interval_pathways_origin_comparison.pdf"
+    ),
+    file.path(
+      figure_dir,
+      "panel_7I_candidate_treated_vs_vehicle_interval_pathways_origin_comparison.png"
+    ),
+    lapply(stratified_analyses, `[[`, "mouse_metadata"),
+    interval
+  )
+  invisible(comparison)
+}
+
 run_interval_de <- function(args, repo_root) {
   check_packages()
   support <- load_figure7_support(repo_root)
@@ -1493,6 +1929,13 @@ run_interval_de <- function(args, repo_root) {
       args$lfc_threshold
     )
   }
+  origin_comparison <- write_origin_comparison_outputs(
+    stratified_analyses,
+    table_dir,
+    figure_dir,
+    interval,
+    args$fdr_threshold
+  )
 
   write_tsv(species_audit, file.path(metadata_dir, "feature_species_audit.tsv"))
   write_tsv(match_audit, file.path(metadata_dir, "cell_expression_match_audit.tsv"))
@@ -1640,6 +2083,7 @@ run_interval_de <- function(args, repo_root) {
     primary = primary,
     pathways = pathway_enrichment,
     stratified = stratified_analyses,
+    origin_comparison = origin_comparison,
     summaries = summary,
     mouse_metadata = pseudobulk$metadata,
     output_root = output_root
