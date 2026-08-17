@@ -54,6 +54,7 @@ usage <- function() {
       "  --work_dir /path/to/work_dir",
       "  --keep_work",
       "  --root_clusters 6",
+      "  --velocity_embedding_output /path/to/scvelo_velocity_umap.tsv",
       "  --n_jobs 16",
       sep = "\n"
     ),
@@ -379,6 +380,15 @@ def parse_args():
     parser.add_argument("--input", required=True, help="Comma-separated .loom/.h5ad velocity inputs.")
     parser.add_argument("--metadata", required=True, help="Seurat-exported cell metadata CSV.")
     parser.add_argument("--output", required=True, help="Output scvelo_cell_metrics.csv path.")
+    parser.add_argument(
+        "--velocity-embedding-output",
+        default="",
+        help=(
+            "Optional tab-delimited per-cell UMAP velocity-vector output. "
+            "The embedding is calculated from the same stochastic velocity graph "
+            "and reviewed Seurat UMAP used for velocity pseudotime."
+        ),
+    )
     parser.add_argument("--cluster-col", default="clusters")
     parser.add_argument("--mode", default="stochastic", choices=["deterministic", "stochastic", "dynamical"])
     parser.add_argument("--min-shared-counts", type=int, default=20)
@@ -713,6 +723,71 @@ def write_metrics(adata, args, output, pd):
     metrics.to_csv(output, index=False)
 
 
+def write_velocity_embedding(adata, args, output, pd, np, scv):
+    if not output:
+        return
+    if "X_umap" not in adata.obsm:
+        raise SystemExit(
+            "Cannot export the velocity embedding because the reviewed Seurat "
+            "UMAP is absent from adata.obsm['X_umap']."
+        )
+    scv.tl.velocity_embedding(adata, basis="umap")
+    if "velocity_umap" not in adata.obsm:
+        raise SystemExit(
+            "scVelo did not create adata.obsm['velocity_umap']."
+        )
+    coords = np.asarray(adata.obsm["X_umap"], dtype=float)
+    vectors = np.asarray(adata.obsm["velocity_umap"], dtype=float)
+    if (
+        coords.ndim != 2
+        or vectors.ndim != 2
+        or coords.shape != vectors.shape
+        or coords.shape[1] != 2
+    ):
+        raise SystemExit(
+            "Expected matched two-dimensional X_umap and velocity_umap arrays."
+        )
+    if not np.isfinite(coords).all() or not np.isfinite(vectors).all():
+        raise SystemExit("UMAP coordinates and velocity vectors must be finite.")
+    root_values = (
+        adata.obs[args.root_key_name].astype(float).to_numpy()
+        if args.root_key_name in adata.obs.columns
+        else np.zeros(adata.n_obs, dtype=float)
+    )
+    cluster_values = (
+        adata.obs[args.cluster_col].astype(str).to_numpy()
+        if args.cluster_col in adata.obs.columns
+        else np.repeat("", adata.n_obs)
+    )
+    context_values = (
+        adata.obs["TN"].astype(str).to_numpy()
+        if "TN" in adata.obs.columns
+        else np.repeat("", adata.n_obs)
+    )
+    sample_values = (
+        adata.obs["sample"].astype(str).to_numpy()
+        if "sample" in adata.obs.columns
+        else np.repeat("", adata.n_obs)
+    )
+    table = pd.DataFrame(
+        {
+            "cell": adata.obs_names.astype(str),
+            "UMAP_1": coords[:, 0],
+            "UMAP_2": coords[:, 1],
+            "velocity_UMAP_1": vectors[:, 0],
+            "velocity_UMAP_2": vectors[:, 1],
+            "velocity_pseudotime": adata.obs["velocity_pseudotime"].astype(float).to_numpy(),
+            "cluster": cluster_values,
+            "context": context_values,
+            "sample": sample_values,
+            "is_root": root_values > 0,
+        }
+    )
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    table.to_csv(output, sep="\t", index=False)
+
+
 def main():
     args = parse_args()
     np, pd, ad, sc, scv = import_required()
@@ -751,6 +826,14 @@ def main():
             raise
         print(f"WARNING: velocity_pseudotime failed: {exc}", file=sys.stderr)
     write_metrics(adata, args, args.output, pd)
+    write_velocity_embedding(
+        adata,
+        args,
+        args.velocity_embedding_output,
+        pd,
+        np,
+        scv,
+    )
 
 
 if __name__ == "__main__":
@@ -826,6 +909,88 @@ validate_scvelo_metrics_output <- function(
   invisible(metrics)
 }
 
+validate_scvelo_velocity_embedding_output <- function(
+  output_path,
+  metadata_df,
+  cluster_col,
+  root_clusters = "6"
+) {
+  embedding <- utils::read.delim(
+    output_path,
+    check.names = FALSE,
+    stringsAsFactors = FALSE,
+    na.strings = c("", "NA", "NaN")
+  )
+  expected_columns <- c(
+    "cell", "UMAP_1", "UMAP_2", "velocity_UMAP_1",
+    "velocity_UMAP_2", "velocity_pseudotime", "cluster",
+    "context", "sample", "is_root"
+  )
+  if (!identical(names(embedding), expected_columns)) {
+    stop(
+      "Unexpected scVelo velocity-embedding columns: ",
+      paste(names(embedding), collapse = ","),
+      call. = FALSE
+    )
+  }
+  expected_cells <- as.character(metadata_df$cell)
+  observed_cells <- as.character(embedding$cell)
+  if (nrow(embedding) != nrow(metadata_df) ||
+      anyNA(observed_cells) || any(!nzchar(observed_cells)) ||
+      anyDuplicated(observed_cells) ||
+      !setequal(observed_cells, expected_cells)) {
+    stop(
+      "scVelo velocity embedding must contain exactly one row for every ",
+      "deposited Seurat cell",
+      call. = FALSE
+    )
+  }
+  numeric_columns <- c(
+    "UMAP_1", "UMAP_2", "velocity_UMAP_1",
+    "velocity_UMAP_2", "velocity_pseudotime"
+  )
+  numeric_values <- lapply(
+    embedding[numeric_columns],
+    function(value) suppressWarnings(as.numeric(value))
+  )
+  if (any(!vapply(numeric_values, function(value) {
+    all(is.finite(value))
+  }, logical(1L)))) {
+    stop(
+      "scVelo velocity embedding coordinates, vectors, and pseudotime ",
+      "must be finite",
+      call. = FALSE
+    )
+  }
+  pseudotime <- numeric_values$velocity_pseudotime
+  if (any(pseudotime < 0 | pseudotime > 1)) {
+    stop("scVelo velocity-embedding pseudotime must be within [0,1]", call. = FALSE)
+  }
+  order_index <- match(expected_cells, observed_cells)
+  embedding <- embedding[order_index, , drop = FALSE]
+  metadata_cluster <- as.character(metadata_df[[cluster_col]])
+  if (!identical(as.character(embedding$cluster), metadata_cluster) ||
+      !identical(as.character(embedding$context), as.character(metadata_df$TN)) ||
+      !identical(as.character(embedding$sample), as.character(metadata_df$sample))) {
+    stop(
+      "scVelo velocity embedding metadata differs from deposited Seurat metadata",
+      call. = FALSE
+    )
+  }
+  root_values <- tolower(as.character(embedding$is_root)) %in%
+    c("true", "t", "1")
+  expected_roots <- metadata_cluster %in% split_values(root_clusters)
+  if (!identical(root_values, expected_roots) || !any(root_values)) {
+    stop(
+      "scVelo velocity embedding root flags do not exactly identify the ",
+      "configured root cluster(s)",
+      call. = FALSE
+    )
+  }
+  embedding$is_root <- root_values
+  invisible(embedding)
+}
+
 main <- function() {
   args <- parse_cli_args(commandArgs(trailingOnly = TRUE))
   if (arg_flag(args, "help", FALSE) || arg_flag(args, "h", FALSE)) {
@@ -857,8 +1022,17 @@ main <- function() {
   input_root <- if (is.null(input_root_arg)) NULL else normalizePath(input_root_arg, mustWork = TRUE)
 
   output_path <- resolve_output_path(arg_value(args, "output", "Data/in-vivo/scvelo_cell_metrics.csv"), repo_root)
+  velocity_embedding_arg <- arg_value(args, "velocity_embedding_output", "")
+  velocity_embedding_path <- if (nzchar(velocity_embedding_arg)) {
+    resolve_output_path(velocity_embedding_arg, repo_root)
+  } else {
+    ""
+  }
   output_dir <- dirname(output_path)
   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  if (nzchar(velocity_embedding_path) && !dir.exists(dirname(velocity_embedding_path))) {
+    dir.create(dirname(velocity_embedding_path), recursive = TRUE, showWarnings = FALSE)
+  }
   work_dir_arg <- arg_value(args, "work_dir", NULL)
   work_dir <- if (is.null(work_dir_arg)) {
     tempfile("scvelo_cell_metrics_")
@@ -965,6 +1139,12 @@ main <- function() {
     "--pca-prefix", pca_prefix,
     "--root-clusters", root_clusters
   )
+  if (nzchar(velocity_embedding_path)) {
+    scvelo_args <- c(
+      scvelo_args,
+      "--velocity-embedding-output", velocity_embedding_path
+    )
+  }
   if (nzchar(end_clusters)) {
     scvelo_args <- c(scvelo_args, "--end-clusters", end_clusters)
   }
@@ -1001,8 +1181,26 @@ main <- function() {
     metadata_df,
     attr(metadata_df, "cluster_col")
   )
+  if (nzchar(velocity_embedding_path)) {
+    if (!file.exists(velocity_embedding_path)) {
+      stop(
+        "scVelo completed but did not write velocity embedding: ",
+        velocity_embedding_path,
+        call. = FALSE
+      )
+    }
+    validate_scvelo_velocity_embedding_output(
+      velocity_embedding_path,
+      metadata_df,
+      attr(metadata_df, "cluster_col"),
+      root_clusters
+    )
+  }
 
   message("Wrote scVelo cell metrics: ", output_path)
+  if (nzchar(velocity_embedding_path)) {
+    message("Wrote scVelo UMAP velocity embedding: ", velocity_embedding_path)
+  }
   if (!keep_work) {
     unlink(work_dir, recursive = TRUE, force = TRUE)
   } else {

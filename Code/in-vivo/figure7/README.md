@@ -128,6 +128,14 @@ figure-facing stages:
 6. pass the generated supplementary cache and its complete raw-input lineage
    into Figure 7 and assemble the A-L review candidate.
 
+The scVelo worker also accepts the optional `--velocity_embedding_output`
+argument used by the standalone velocity/pseudotime support-panel module. It
+exports per-cell UMAP velocity components from the same stochastic velocity
+graph, reviewed Seurat UMAP, and pre-specified cluster-6 root used for Figure
+7 pseudotime. The support-panel workflow binds this embedding to the selected
+RDS, an exact 18-loom checksum inventory, config, environment lock, and source
+code before reuse. Omitting the option preserves the ordinary Figure 7 outputs.
+
 The generated-cache handoff is required in `full-refit`: Figure 7 will not
 silently fall back to the reviewed supplementary cache. The resulting
 `Figure7_generated_GRCh_candidate.{pdf,png}` pair is explicitly noncanonical.

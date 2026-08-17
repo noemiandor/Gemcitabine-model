@@ -287,6 +287,30 @@ PANEL_SPECS = [
         "variant": "png",
     },
     {
+        "module": "in_vivo_velocity_pseudotime",
+        "source": "figures/panel_SuppFig10_velocity_pseudotime.pdf",
+        "figure": "Supplementary",
+        "panel": "SuppFig10",
+        "asset": "panel_SuppFig10_velocity_pseudotime.pdf",
+        "caption_role": (
+            "Tumor CellCycle-subset stochastic RNA-velocity field and "
+            "cluster-6-rooted velocity pseudotime"
+        ),
+        "variant": "pdf",
+    },
+    {
+        "module": "in_vivo_velocity_pseudotime",
+        "source": "figures/panel_SuppFig10_velocity_pseudotime.png",
+        "figure": "Supplementary",
+        "panel": "SuppFig10_png",
+        "asset": "panel_SuppFig10_velocity_pseudotime.png",
+        "caption_role": (
+            "PNG derivative of the tumor CellCycle-subset stochastic "
+            "RNA-velocity/pseudotime panel"
+        ),
+        "variant": "png",
+    },
+    {
         "module": "in_vivo_figure7",
         "source": "figures/panel_7A_day17_tgi_calculation.pdf",
         "figure": "Figure7",
@@ -437,6 +461,25 @@ PANEL_SPECS = [
 
 STRICT_FIGURE_MODULES = {"in_vivo_figure7", "si_figures"}
 FIGURE_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".svg", ".tif", ".tiff"}
+VELOCITY_CANONICAL_TABLE = Path(
+    "Data/in-vivo/figure7/processed/cellcycle_velocity_pseudotime_umap.tsv"
+)
+VELOCITY_CANONICAL_PROVENANCE = Path(
+    "Data/in-vivo/figure7/processed/"
+    "cellcycle_velocity_pseudotime_umap.provenance.tsv"
+)
+VELOCITY_TABLE_COLUMNS = [
+    "cell_id",
+    "sample_id",
+    "cluster",
+    "UMAP_1",
+    "UMAP_2",
+    "velocity_UMAP_1",
+    "velocity_UMAP_2",
+    "velocity_pseudotime",
+    "is_root",
+]
+VELOCITY_CLUSTER_COUNTS = {"4c": 89, "6": 686, "10": 2106}
 FIGURE7_REVIEWED_REFERENCE_ID = (
     "state_pathway_grch_human_only_initial_ploidy_day17_pointwise_v4"
 )
@@ -794,6 +837,260 @@ def finite_float(value: str, label: str) -> float:
     if not math.isfinite(parsed):
         raise ValueError(f"{label} is not finite: {value!r}")
     return parsed
+
+
+def parse_velocity_root(value: str, label: str) -> bool:
+    normalized = (value or "").strip().lower()
+    if normalized in {"true", "t", "1", "yes"}:
+        return True
+    if normalized in {"false", "f", "0", "no"}:
+        return False
+    raise ValueError(f"{label} is not a strict logical value: {value!r}")
+
+
+def validate_velocity_panel_table(path: Path, label: str) -> list[dict[str, str]]:
+    if not path.is_file():
+        raise FileNotFoundError(f"Missing {label}: {path}")
+    headers, rows = read_tsv(path)
+    if headers != VELOCITY_TABLE_COLUMNS:
+        raise ValueError(
+            f"{label} must have the exact velocity-vector schema: {headers}"
+        )
+    cells = [row.get("cell_id", "").strip() for row in rows]
+    samples = [row.get("sample_id", "").strip() for row in rows]
+    clusters = [row.get("cluster", "").strip() for row in rows]
+    if (
+        len(rows) != 2881
+        or any(not value for value in cells + samples + clusters)
+        or len(set(cells)) != len(cells)
+        or Counter(clusters) != Counter(VELOCITY_CLUSTER_COUNTS)
+    ):
+        raise ValueError(
+            f"{label} is not the exact 2,881-cell 4c/6/10 CellCycle universe"
+        )
+    has_nonzero_vector = False
+    for index, (row, cluster) in enumerate(zip(rows, clusters), start=2):
+        values = {
+            key: finite_float(row.get(key, ""), f"{label}:{index}:{key}")
+            for key in (
+                "UMAP_1",
+                "UMAP_2",
+                "velocity_UMAP_1",
+                "velocity_UMAP_2",
+                "velocity_pseudotime",
+            )
+        }
+        if not 0.0 <= values["velocity_pseudotime"] <= 1.0:
+            raise ValueError(f"{label}:{index}: pseudotime is outside [0,1]")
+        has_nonzero_vector = has_nonzero_vector or (
+            values["velocity_UMAP_1"] != 0.0
+            or values["velocity_UMAP_2"] != 0.0
+        )
+        if parse_velocity_root(row.get("is_root", ""), f"{label}:{index}:is_root") != (
+            cluster == "6"
+        ):
+            raise ValueError(
+                f"{label}:{index}: every and only cluster-6 cells must be roots"
+            )
+    if not has_nonzero_vector:
+        raise ValueError(f"{label} has no non-zero RNA-velocity vector")
+    return rows
+
+
+def validate_velocity_pseudotime_publication_contract(
+    run_root: Path,
+    repo_root: Path,
+    source_run_id: str,
+    selected_specs: list[dict[str, object]],
+) -> None:
+    """Permit publication only from the exact reviewed, portable bundle."""
+    expected_name = f"{source_run_id}_velocity_pseudotime"
+    if run_root.name != expected_name:
+        raise ValueError(
+            "Velocity/pseudotime source run must be named "
+            f"{expected_name}, got {run_root.name}"
+        )
+    run_config = read_unique_key_values(
+        run_root / "metadata" / "run_config.tsv",
+        "source velocity/pseudotime run config",
+    )
+    expected_identity = {
+        "module": "in_vivo_velocity_pseudotime",
+        "source_kind": "reviewed_frozen_table",
+        "source_table": VELOCITY_CANONICAL_TABLE.as_posix(),
+        "source_provenance": VELOCITY_CANONICAL_PROVENANCE.as_posix(),
+        "root_cluster": "6",
+        "n_cells": "2881",
+        "scvelo_mode": "stochastic",
+        "canonical_publication_allowed": "true",
+    }
+    if any(run_config.get(key) != value for key, value in expected_identity.items()):
+        raise ValueError(
+            "Canonical velocity/pseudotime materialization requires the exact "
+            "reviewed repo-relative frozen bundle and publication identity"
+        )
+    canonical_table = (repo_root / VELOCITY_CANONICAL_TABLE).resolve()
+    canonical_provenance = (repo_root / VELOCITY_CANONICAL_PROVENANCE).resolve()
+    if not path_within(canonical_table, repo_root) or not path_within(
+        canonical_provenance, repo_root
+    ):
+        raise ValueError("Canonical velocity bundle escapes the repository")
+    validate_velocity_panel_table(canonical_table, "canonical velocity table")
+    provenance = read_unique_key_values(
+        canonical_provenance,
+        "canonical velocity provenance",
+    )
+    required_provenance = {
+        "schema_version": "1",
+        "artifact": "figure7_cellcycle_velocity_umap",
+        "table_sha256": sha256_file(canonical_table),
+        "root_cluster": "6",
+        "cellcycle_clusters": "4c,6,10",
+        "n_cells": "2881",
+        "cluster_4c_cells": "89",
+        "cluster_6_cells": "686",
+        "cluster_10_cells": "2106",
+        "scvelo_mode": "stochastic",
+        "velocity_basis": "reviewed_seurat_umap",
+        "velocity_source": "scvelo.tl.velocity_embedding_from_velocity_graph",
+    }
+    if any(provenance.get(key) != value for key, value in required_provenance.items()):
+        raise ValueError("Canonical velocity provenance violates its reviewed contract")
+    hash_keys = {
+        "table_sha256",
+        "embedding_source_sha256",
+        "embedding_lineage_sha256",
+        "embedding_inventory_sha256",
+        "cellcycle_source_sha256",
+        "si_metadata_source_sha256",
+        "builder_sha256",
+        "panel_logic_sha256",
+        "scvelo_generator_sha256",
+    }
+    if any(
+        len(provenance.get(key, "")) != 64
+        or any(char not in "0123456789abcdef" for char in provenance.get(key, ""))
+        for key in hash_keys
+    ):
+        raise ValueError("Canonical velocity provenance has an invalid SHA-256 field")
+    if (
+        run_config.get("source_table_sha256") != sha256_file(canonical_table)
+        or run_config.get("source_provenance_sha256")
+        != sha256_file(canonical_provenance)
+    ):
+        raise ValueError("Velocity run config checksums do not match the canonical bundle")
+
+    input_manifest = run_root / "metadata" / "input_manifest.tsv"
+    input_errors = validate_module_manifest(input_manifest, repo_root=repo_root)
+    if input_errors:
+        raise ValueError("Invalid velocity input manifest:\n" + "\n".join(input_errors))
+    _, input_rows = read_tsv(input_manifest)
+    observed_inputs = [
+        module_manifest_local_path(row, repo_root)
+        for row in input_rows
+        if row.get("module") == "in_vivo_velocity_pseudotime"
+        and row.get("command_id") == source_run_id
+    ]
+    for required in (canonical_table, canonical_provenance):
+        matches = [
+            row
+            for row, path in zip(
+                [
+                    row
+                    for row in input_rows
+                    if row.get("module") == "in_vivo_velocity_pseudotime"
+                    and row.get("command_id") == source_run_id
+                ],
+                observed_inputs,
+            )
+            if path is not None and path.resolve() == required
+        ]
+        if len(matches) != 1 or matches[0].get("sha256") != sha256_file(required):
+            raise ValueError(
+                "Velocity input manifest must bind exactly one canonical "
+                f"{required.name} row"
+            )
+
+    plot_table = run_root / "tables" / "panel_velocity_pseudotime_plot_data.tsv"
+    vector_grid = run_root / "tables" / "panel_velocity_pseudotime_vector_grid.tsv"
+    validate_velocity_panel_table(plot_table, "rendered velocity plot table")
+    if sha256_file(plot_table) != sha256_file(canonical_table):
+        raise ValueError(
+            "Rendered velocity plot table is not byte-identical to the "
+            "reviewed canonical table"
+        )
+    grid_headers, grid_rows = read_tsv(vector_grid)
+    expected_grid_headers = [
+        "UMAP_1",
+        "UMAP_2",
+        "velocity_UMAP_1",
+        "velocity_UMAP_2",
+        "n_cells",
+        "vector_length",
+        "UMAP_1_to",
+        "UMAP_2_to",
+    ]
+    if grid_headers != expected_grid_headers or len(grid_rows) < 12:
+        raise ValueError("Rendered velocity grid is missing its vector-field contract")
+    for index, row in enumerate(grid_rows, start=2):
+        for key in expected_grid_headers:
+            value = finite_float(row.get(key, ""), f"velocity grid:{index}:{key}")
+            if key == "n_cells" and (value < 1 or not value.is_integer()):
+                raise ValueError("Velocity grid n_cells must be a positive integer")
+    run_provenance = read_unique_key_values(
+        run_root / "metadata" / "velocity_pseudotime_provenance.tsv",
+        "rendered velocity provenance",
+    )
+    if any(run_provenance.get(key) != value for key, value in provenance.items()):
+        raise ValueError("Rendered velocity provenance does not retain the frozen lineage")
+    pdf_path = run_root / "figures" / "panel_SuppFig10_velocity_pseudotime.pdf"
+    png_path = run_root / "figures" / "panel_SuppFig10_velocity_pseudotime.png"
+    expected_rendered = {
+        "rendered_pdf_sha256": sha256_file(pdf_path),
+        "rendered_png_sha256": sha256_file(png_path),
+        "plot_table_sha256": sha256_file(plot_table),
+        "vector_grid_sha256": sha256_file(vector_grid),
+        "vector_grid_rows": str(len(grid_rows)),
+        "root_display_policy": "cluster_6_label_plus_90_percent_core_hull",
+    }
+    if any(run_provenance.get(key) != value for key, value in expected_rendered.items()):
+        raise ValueError("Rendered velocity assets disagree with run provenance")
+
+    output_manifest = run_root / "metadata" / "output_manifest.tsv"
+    output_errors = validate_module_manifest(
+        output_manifest,
+        repo_root=repo_root,
+        output_root=run_root,
+    )
+    if output_errors:
+        raise ValueError("Invalid velocity output manifest:\n" + "\n".join(output_errors))
+    _, output_rows = read_tsv(output_manifest)
+    expected_sources = {
+        (run_root / str(spec["source"])).resolve()
+        for spec in selected_specs
+        if str(spec["module"]) == "in_vivo_velocity_pseudotime"
+    }
+    for source in expected_sources:
+        matches = [
+            row
+            for row in output_rows
+            if (
+                (path := module_manifest_local_path(
+                    row,
+                    repo_root,
+                    output_root=run_root,
+                ))
+                is not None
+                and path.resolve() == source
+            )
+        ]
+        if (
+            len(matches) != 1
+            or matches[0].get("module") != "in_vivo_velocity_pseudotime"
+            or matches[0].get("command_id") != source_run_id
+            or matches[0].get("sha256") != sha256_file(source)
+        ):
+            raise ValueError(f"Velocity output manifest does not bind {source.name}")
 
 
 def validate_figure7_copy_number_outputs(run_root: Path, repo_root: Path) -> None:
@@ -2549,6 +2846,14 @@ def validate_strict_source_run(
     source_run_id: str,
     figure7_tgi_day: int,
 ) -> None:
+    if module == "in_vivo_velocity_pseudotime":
+        validate_velocity_pseudotime_publication_contract(
+            run_root,
+            repo_root,
+            source_run_id,
+            selected_specs,
+        )
+        return
     if module not in STRICT_FIGURE_MODULES:
         return
     if module == "si_figures":

@@ -54,6 +54,9 @@ figure7_growth_curve_input="Data/in-vivo/dt_Gem_VT_20241223_v4.xlsx"
 figure7_download_missing_raw=true
 si_figures_intermediate_dir=""
 si_figures_cbs_dir="Data/in-vivo/scRNAseq_Numbat"
+velocity_pseudotime_intermediate_dir=""
+velocity_pseudotime_frozen_table="Data/in-vivo/figure7/processed/cellcycle_velocity_pseudotime_umap.tsv"
+velocity_pseudotime_frozen_provenance="Data/in-vivo/figure7/processed/cellcycle_velocity_pseudotime_umap.provenance.tsv"
 endpoint_flow_root="Data/in-vivo/flow_cytometry/endpoint_tumors_20250128"
 endpoint_flow_crosswalk="${endpoint_flow_root}/crosswalk.tsv"
 endpoint_flow_paired_sensitivity="${endpoint_flow_root}/paired_acquisition_sensitivity.tsv"
@@ -117,6 +120,12 @@ Module options:
   --figure7-no-download-missing-raw Do not download missing deposited raw files
   --si-figures-intermediate-dir DIR Reusable SI4-7 raw-analysis intermediates
   --si-figures-cbs-dir DIR       Tracked downstream NUMBAT/CBS matrices for Figure 7J
+  --velocity-pseudotime-intermediate-dir DIR
+                                  Reusable scVelo vector/table cache for the trajectory panel
+  --velocity-pseudotime-frozen-table PATH
+                                  Reviewed 2,881-cell plot-facing velocity table
+  --velocity-pseudotime-frozen-provenance PATH
+                                  Checksum-bound provenance for the reviewed velocity table
   --endpoint-flow-crosswalk PATH Explicit 16-mouse endpoint-flow crosswalk
   --endpoint-flow-paired-sensitivity PATH Unresolved paired-acquisition mapping
   --endpoint-flow-workspace PATH Reviewed FlowJo workspace for endpoint tumors
@@ -182,6 +191,9 @@ while [[ $# -gt 0 ]]; do
     --figure7-no-download-missing-raw) figure7_download_missing_raw=false; shift ;;
     --si-figures-intermediate-dir) si_figures_intermediate_dir="$2"; shift 2 ;;
     --si-figures-cbs-dir) si_figures_cbs_dir="$2"; shift 2 ;;
+    --velocity-pseudotime-intermediate-dir) velocity_pseudotime_intermediate_dir="$2"; shift 2 ;;
+    --velocity-pseudotime-frozen-table) velocity_pseudotime_frozen_table="$2"; shift 2 ;;
+    --velocity-pseudotime-frozen-provenance) velocity_pseudotime_frozen_provenance="$2"; shift 2 ;;
     --endpoint-flow-crosswalk) endpoint_flow_crosswalk="$2"; shift 2 ;;
     --endpoint-flow-paired-sensitivity) endpoint_flow_paired_sensitivity="$2"; shift 2 ;;
     --endpoint-flow-workspace) endpoint_flow_workspace="$2"; shift 2 ;;
@@ -244,6 +256,9 @@ if [[ -z "${figure7_raw_data_dir}" ]]; then
 fi
 if [[ -z "${si_figures_intermediate_dir}" ]]; then
   si_figures_intermediate_dir="${output_root}/in-vivo/SI_figures/intermediates"
+fi
+if [[ -z "${velocity_pseudotime_intermediate_dir}" ]]; then
+  velocity_pseudotime_intermediate_dir="${output_root}/in-vivo/velocity_pseudotime/intermediates"
 fi
 if [[ ! "${figure7_figure_name}" =~ ^Figure7([._-][A-Za-z0-9._-]+)?$ ]]; then
   echo "--figure7-figure-name must be Figure7 or a Figure7-prefixed folder name" >&2
@@ -494,6 +509,7 @@ module_run_dir() {
     metabolomics_zscore) printf "%s/in-vitro/metabolomics/runs/%s_metabolomics_zscore" "${output_root}" "${selected_run_id}" ;;
     in_vivo_figure7) printf "%s/in-vivo/figure7/runs/%s_figure7" "${output_root}" "${selected_run_id}" ;;
     si_figures) printf "%s/in-vivo/SI_figures/runs/%s_si_figures" "${output_root}" "${selected_run_id}" ;;
+    in_vivo_velocity_pseudotime) printf "%s/in-vivo/velocity_pseudotime/runs/%s_velocity_pseudotime" "${output_root}" "${selected_run_id}" ;;
     in_vivo_endpoint_flow) printf "%s/in-vivo/flow_cytometry/runs/%s_endpoint_flow" "${output_root}" "${selected_run_id}" ;;
     *) echo "Unknown module: ${module}" >&2; return 1 ;;
   esac
@@ -1131,6 +1147,40 @@ input_paths_for_module() {
         si_figures_frozen_cache_paths
       fi
       ;;
+    in_vivo_velocity_pseudotime)
+      printf "%s\n" \
+        Code/in-vivo/velocity_pseudotime/run_velocity_pseudotime.R \
+        Code/in-vivo/velocity_pseudotime/build_velocity_pseudotime_table.R \
+        Code/in-vivo/velocity_pseudotime/velocity_pseudotime_panel.R \
+        Code/in-vivo/figure7/generate_scvelo_cell_metrics.R \
+        Code/in-vivo/figure7/download_figure7_raw_data.R \
+        Code/in-vivo/figure7/figure7_config.yaml \
+        Code/in-vivo/figure7/environment_lock.tsv \
+        Code/in-vivo/figure7/zenodo_required_files.tsv \
+        Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
+        Data/in-vivo/SIfigures/si_figures_cell_metadata.csv
+      local velocity_run_config="${run_dir}/metadata/run_config.tsv"
+      if [[ -n "${run_dir}" && -f "${velocity_run_config}" ]]; then
+        local velocity_source_table=""
+        local velocity_source_provenance=""
+        velocity_source_table="$(metadata_value "${velocity_run_config}" source_table || true)"
+        velocity_source_provenance="$(metadata_value "${velocity_run_config}" source_provenance || true)"
+        metadata_repo_file "${velocity_source_table}" || true
+        metadata_repo_file "${velocity_source_provenance}" || true
+      elif [[ -f "${velocity_pseudotime_frozen_table}" &&
+              -f "${velocity_pseudotime_frozen_provenance}" ]]; then
+        printf "%s\n" \
+          "${velocity_pseudotime_frozen_table}" \
+          "${velocity_pseudotime_frozen_provenance}"
+      fi
+      local velocity_raw_root="${figure7_raw_data_dir}"
+      local velocity_seurat="${figure7_raw_seurat_rds:-${velocity_raw_root}/integrated_sct_cca_seurat_final_reclustered.rds}"
+      local velocity_loom_root="${figure7_loom_root:-${velocity_raw_root}/velocyto_loom}"
+      [[ -f "${velocity_seurat}" ]] && printf "%s\n" "${velocity_seurat}"
+      if [[ -d "${velocity_loom_root}" ]]; then
+        find "${velocity_loom_root}" -type f -name '*.loom' -print
+      fi
+      ;;
     in_vivo_endpoint_flow)
       printf "%s\n" \
         Code/in-vivo/flow_cytometry/run_endpoint_flow.sh \
@@ -1275,6 +1325,28 @@ required_input_paths_for_module() {
         [[ -n "${figure7_raw_seurat_rds}" ]] && printf "%s\n" "${figure7_raw_seurat_rds}"
       else
         si_figures_frozen_cache_paths
+      fi
+      ;;
+    in_vivo_velocity_pseudotime)
+      printf "%s\n" \
+        Code/in-vivo/velocity_pseudotime/run_velocity_pseudotime.R \
+        Code/in-vivo/velocity_pseudotime/build_velocity_pseudotime_table.R \
+        Code/in-vivo/velocity_pseudotime/velocity_pseudotime_panel.R \
+        Code/in-vivo/figure7/generate_scvelo_cell_metrics.R \
+        Code/in-vivo/figure7/figure7_config.yaml \
+        Code/in-vivo/figure7/environment_lock.tsv \
+        Code/in-vivo/figure7/zenodo_required_files.tsv \
+        Data/in-vivo/figure7/processed/CellCycleCells_pseudotime_distribution_per_sample_cell_level_with_ploidy_dose_tgi.csv \
+        Data/in-vivo/SIfigures/si_figures_cell_metadata.csv
+      if [[ "${mode}" == "full-refit" ]]; then
+        printf "%s\n" Code/in-vivo/figure7/download_figure7_raw_data.R
+        if [[ -n "${figure7_raw_seurat_rds}" ]]; then
+          printf "%s\n" "${figure7_raw_seurat_rds}"
+        fi
+      else
+        printf "%s\n" \
+          "${velocity_pseudotime_frozen_table}" \
+          "${velocity_pseudotime_frozen_provenance}"
       fi
       ;;
     *)
@@ -1482,6 +1554,31 @@ command_for_module() {
       fi
       quote_args "${si_args[@]}"
       ;;
+    in_vivo_velocity_pseudotime)
+      local velocity_mode="plot-only"
+      if [[ "${mode}" == "full-refit" ]]; then
+        velocity_mode="full-workflow"
+      fi
+      local velocity_args=(
+        Rscript Code/in-vivo/velocity_pseudotime/run_velocity_pseudotime.R
+        "--mode=${velocity_mode}"
+        "--output-dir=${run_dir}"
+        "--intermediate-dir=${velocity_pseudotime_intermediate_dir}"
+        "--frozen-table=${velocity_pseudotime_frozen_table}"
+        "--frozen-provenance=${velocity_pseudotime_frozen_provenance}"
+        "--raw-data-dir=${figure7_raw_data_dir}"
+        "--python=${figure7_python}"
+        "--jobs=${jobs}"
+        "--download-missing-raw=${figure7_download_missing_raw}"
+      )
+      if [[ -n "${figure7_raw_seurat_rds}" ]]; then
+        velocity_args+=("--seurat-rds=${figure7_raw_seurat_rds}")
+      fi
+      if [[ -n "${figure7_loom_root}" ]]; then
+        velocity_args+=("--loom-root=${figure7_loom_root}")
+      fi
+      quote_args "${velocity_args[@]}"
+      ;;
     in_vivo_endpoint_flow)
       quote_args bash Code/in-vivo/flow_cytometry/run_endpoint_flow.sh \
         --crosswalk "${endpoint_flow_crosswalk}" \
@@ -1541,6 +1638,18 @@ metadata_value() {
       print value
     }
   ' "${path}"
+}
+
+metadata_repo_file() {
+  local locator="$1"
+  [[ -n "${locator}" && "${locator}" != /* && "${locator}" != external:* ]] || return 1
+  [[ ! "${locator}" =~ (^|/)\.\.?(/|$) ]] || return 1
+  local candidate="${repo_root}/${locator}"
+  [[ -f "${candidate}" ]] || return 1
+  local resolved_dir=""
+  resolved_dir="$(cd "$(dirname "${candidate}")" && pwd -P)" || return 1
+  [[ "${resolved_dir}" == "${repo_root}" || "${resolved_dir}" == "${repo_root}"/* ]] || return 1
+  printf "%s\n" "${candidate}"
 }
 
 module_publication_reason=""
@@ -1603,6 +1712,26 @@ module_is_publishable_run() {
         return 0
       fi
       module_publication_reason="noncanonical_generated_human_only_SI7"
+      return 1
+      ;;
+    in_vivo_velocity_pseudotime)
+      local allowed source_kind source_table source_provenance root_cluster n_cells scvelo_mode
+      allowed="$(metadata_value "${run_config}" canonical_publication_allowed)" || true
+      source_kind="$(metadata_value "${run_config}" source_kind)" || true
+      source_table="$(metadata_value "${run_config}" source_table)" || true
+      source_provenance="$(metadata_value "${run_config}" source_provenance)" || true
+      root_cluster="$(metadata_value "${run_config}" root_cluster)" || true
+      n_cells="$(metadata_value "${run_config}" n_cells)" || true
+      scvelo_mode="$(metadata_value "${run_config}" scvelo_mode)" || true
+      if [[ "${allowed}" == "true" &&
+            "${source_kind}" == "reviewed_frozen_table" &&
+            "${source_table}" == "Data/in-vivo/figure7/processed/cellcycle_velocity_pseudotime_umap.tsv" &&
+            "${source_provenance}" == "Data/in-vivo/figure7/processed/cellcycle_velocity_pseudotime_umap.provenance.tsv" &&
+            "${root_cluster}" == "6" && "${n_cells}" == "2881" &&
+            "${scvelo_mode}" == "stochastic" ]]; then
+        return 0
+      fi
+      module_publication_reason="velocity_panel_requires_reviewed_frozen_table"
       return 1
       ;;
     *)
@@ -1753,7 +1882,7 @@ add_completed_run() {
 if [[ "${mode}" == "panels-only" ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
-      gdsc|ccle|drug_response|pkpd|in_vivo_figure7|si_figures|in_vivo_endpoint_flow)
+      gdsc|ccle|drug_response|pkpd|in_vivo_figure7|si_figures|in_vivo_velocity_pseudotime|in_vivo_endpoint_flow)
         run_dir="$(module_run_dir "${module}" "${source_run_id}")"
         [[ -d "${run_dir}" ]] || { echo "Missing panels-only source run: ${run_dir}" >&2; exit 1; }
         if module_is_publishable_run "${module}" "${run_dir}"; then
@@ -1796,7 +1925,7 @@ fi
 if [[ "${skip_analysis_loop}" != true ]]; then
   for module in "${module_list[@]}"; do
     case "${module}" in
-      gdsc|ccle|drug_response|pkpd|metabolomics|lci_overlays|in_vivo_figure7|si_figures|in_vivo_endpoint_flow) ;;
+      gdsc|ccle|drug_response|pkpd|metabolomics|lci_overlays|in_vivo_figure7|si_figures|in_vivo_velocity_pseudotime|in_vivo_endpoint_flow) ;;
       *) echo "Unknown module in --modules: ${module}" >&2; exit 2 ;;
     esac
     if [[ "${module}" == "lci_overlays" && -z "${lci_analysis_dir}" ]]; then
