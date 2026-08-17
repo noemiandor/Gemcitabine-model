@@ -522,50 +522,6 @@ select_pathway_results <- function(gsea, support, config) {
   selected
 }
 
-select_top_pathways_across_collections <- function(
-  gsea,
-  maximum_pathways = 20L,
-  fdr_threshold = 0.05
-) {
-  required <- c("collection", "pathway", "padj", "NES")
-  missing <- setdiff(required, names(gsea))
-  if (length(missing)) {
-    stop(
-      "Pooled pathway selection is missing column(s): ",
-      paste(missing, collapse = ", "),
-      call. = FALSE
-    )
-  }
-  maximum_pathways <- suppressWarnings(as.integer(maximum_pathways))
-  if (length(maximum_pathways) != 1L || is.na(maximum_pathways) ||
-      maximum_pathways < 1L) {
-    stop("maximum_pathways must be a positive integer", call. = FALSE)
-  }
-  eligible <- gsea[
-    is.finite(gsea$padj) & gsea$padj <= fdr_threshold &
-      is.finite(gsea$NES) & gsea$NES != 0,
-    ,
-    drop = FALSE
-  ]
-  eligible <- eligible[
-    order(
-      eligible$padj,
-      -abs(eligible$NES),
-      as.character(eligible$collection),
-      as.character(eligible$pathway)
-    ),
-    ,
-    drop = FALSE
-  ]
-  selected <- head(eligible, maximum_pathways)
-  if (!nrow(selected)) {
-    stop("No FDR-significant pathway is available for pooled selection", call. = FALSE)
-  }
-  selected$pooled_fdr_rank <- seq_len(nrow(selected))
-  rownames(selected) <- NULL
-  selected
-}
-
 pathway_collection_summary <- function(gsea, selected, support, config) {
   collections <- as.character(unlist(config$state_pathways$collections))
   threshold <- support$figure7_generated_pathway_fdr_threshold()
@@ -637,11 +593,6 @@ run_pathway_enrichment <- function(primary, support, config, seed = 1L) {
     stop("No eligible pathways were returned by GSEA", call. = FALSE)
   }
   selected <- select_pathway_results(gsea, support, config)
-  top20_across_collections <- select_top_pathways_across_collections(
-    gsea,
-    maximum_pathways = 20L,
-    fdr_threshold = support$figure7_generated_pathway_fdr_threshold()
-  )
   leading_edge <- support$leading_edge_table(gsea)
   selected_keys <- paste(selected$collection, selected$pathway, sep = "\r")
   leading_edge <- leading_edge[
@@ -673,7 +624,6 @@ run_pathway_enrichment <- function(primary, support, config, seed = 1L) {
   list(
     complete = gsea,
     selected = selected,
-    top20_across_collections = top20_across_collections,
     leading_edge = leading_edge,
     membership = membership,
     contract = contract,
@@ -694,18 +644,14 @@ plot_candidate_pathways <- function(
   path_png,
   mouse_meta,
   interval,
-  selection_rule,
-  color_by_collection = FALSE,
-  title = "Pathway enrichment in the selected pseudotime interval",
-  height = 8
+  selection_rule
 ) {
   plot_data <- selected
-  plot_order <- if (isTRUE(color_by_collection)) {
-    order(plot_data$NES, plot_data$padj, plot_data$pathway)
-  } else {
-    order(plot_data$collection_display_order, plot_data$NES)
-  }
-  plot_data <- plot_data[plot_order, , drop = FALSE]
+  plot_data <- plot_data[
+    order(plot_data$collection_display_order, plot_data$NES),
+    ,
+    drop = FALSE
+  ]
   pathway_key <- paste(plot_data$collection, plot_data$pathway, sep = "\r")
   plot_data$pathway_plot_key <- factor(pathway_key, levels = pathway_key)
   pathway_labels <- setNames(
@@ -730,43 +676,6 @@ plot_candidate_pathways <- function(
     ifelse(plot_data$NES > 0, "Enriched in treated", "Enriched in vehicle"),
     levels = c("Enriched in vehicle", "Enriched in treated")
   )
-  plot_data$point_fill <- if (isTRUE(color_by_collection)) {
-    plot_data$collection_label
-  } else {
-    plot_data$enrichment_direction
-  }
-  fill_values <- if (isTRUE(color_by_collection)) {
-    c(
-      "Hallmark" = "#CC79A7",
-      "Reactome" = "#0072B2",
-      "GO BP" = "#009E73"
-    )
-  } else {
-    c(
-      "Enriched in vehicle" = "#2B6CB0",
-      "Enriched in treated" = "#C2413B"
-    )
-  }
-  selection_caption <- paste(
-    strwrap(
-      paste0("Genes ranked by moderated t statistic; ", selection_rule, "."),
-      width = 94L
-    ),
-    collapse = "\n"
-  )
-  collection_count_caption <- ""
-  if (isTRUE(color_by_collection)) {
-    collection_counts <- table(factor(
-      as.character(plot_data$collection_label),
-      levels = unname(collection_labels)
-    ))
-    collection_count_caption <- sprintf(
-      "Displayed collection counts: Hallmark %d; Reactome %d; GO BP %d.\n",
-      collection_counts[["Hallmark"]],
-      collection_counts[["Reactome"]],
-      collection_counts[["GO BP"]]
-    )
-  }
   plot_data$minus_log10_fdr <- -log10(
     pmax(as.numeric(plot_data$padj), .Machine$double.xmin)
   )
@@ -790,27 +699,26 @@ plot_candidate_pathways <- function(
     ggplot2::geom_point(
       ggplot2::aes(
         x = NES,
-        fill = point_fill,
+        fill = enrichment_direction,
         size = minus_log10_fdr
       ),
       shape = 21,
       color = "white",
       stroke = 0.35
-    )
-  if (!isTRUE(color_by_collection)) {
-    plot <- plot +
+    ) +
     ggplot2::facet_grid(
       collection_label ~ .,
       scales = "free_y",
       space = "free_y"
-    )
-  }
-  plot <- plot +
+    ) +
     ggplot2::scale_y_discrete(labels = pathway_labels) +
-    ggplot2::scale_fill_manual(values = fill_values) +
+    ggplot2::scale_fill_manual(values = c(
+      "Enriched in vehicle" = "#2B6CB0",
+      "Enriched in treated" = "#C2413B"
+    )) +
     ggplot2::scale_size_continuous(range = c(2.4, 5.5)) +
     ggplot2::labs(
-      title = title,
+      title = "Pathway enrichment in the selected pseudotime interval",
       subtitle = sprintf(
         paste0(
           "Equal-dose treated - vehicle contrast; %.3f-%.3f\n",
@@ -825,11 +733,10 @@ plot_candidate_pathways <- function(
       ),
       x = "Normalized enrichment score (treated - vehicle)",
       y = NULL,
-      fill = if (isTRUE(color_by_collection)) "Collection" else NULL,
+      fill = NULL,
       size = expression(-log[10]~"FDR"),
       caption = paste0(
-        selection_caption, "\n",
-        collection_count_caption,
+        "Genes ranked by moderated t statistic; ", selection_rule, ".\n",
         "Adjusted for injected origin and mean within-interval pseudotime.\n",
         "Exploratory: the interval was localized using treated-versus-vehicle ",
         "density differences."
@@ -851,12 +758,12 @@ plot_candidate_pathways <- function(
       panel.grid.minor = ggplot2::element_blank()
     )
   dir.create(dirname(path_pdf), recursive = TRUE, showWarnings = FALSE)
-  ggplot2::ggsave(path_pdf, plot, width = 9, height = height, units = "in")
+  ggplot2::ggsave(path_pdf, plot, width = 9, height = 8, units = "in")
   ggplot2::ggsave(
     path_png,
     plot,
     width = 9,
-    height = height,
+    height = 8,
     units = "in",
     dpi = 320
   )
@@ -1180,13 +1087,6 @@ run_interval_de <- function(args, repo_root) {
     file.path(table_dir, "treated_equal_dose_minus_vehicle_gsea_selected.tsv")
   )
   write_tsv(
-    pathway_enrichment$top20_across_collections,
-    file.path(
-      table_dir,
-      "treated_equal_dose_minus_vehicle_gsea_top20_across_collections.tsv"
-    )
-  )
-  write_tsv(
     pathway_enrichment$leading_edge,
     file.path(table_dir, "treated_equal_dose_minus_vehicle_selected_leading_edge_genes.tsv")
   )
@@ -1287,26 +1187,6 @@ run_interval_de <- function(args, repo_root) {
     pseudobulk$metadata,
     interval,
     support$figure7_generated_pathway_selection_rule()
-  )
-  plot_candidate_pathways(
-    pathway_enrichment$top20_across_collections,
-    file.path(
-      figure_dir,
-      "panel_7I_candidate_treated_vs_vehicle_interval_pathways_top20.pdf"
-    ),
-    file.path(
-      figure_dir,
-      "panel_7I_candidate_treated_vs_vehicle_interval_pathways_top20.png"
-    ),
-    pseudobulk$metadata,
-    interval,
-    paste(
-      "top 20 FDR-significant pathways after pooling collections;",
-      "ranked by collection-specific BH FDR; no per-collection quota"
-    ),
-    color_by_collection = TRUE,
-    title = "Top 20 treatment-associated pathways",
-    height = 9
   )
 
   write_tsv(species_audit, file.path(metadata_dir, "feature_species_audit.tsv"))

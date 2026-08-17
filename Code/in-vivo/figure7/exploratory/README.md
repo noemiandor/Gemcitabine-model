@@ -42,10 +42,6 @@ and pathways differ between gemcitabine-treated and vehicle tumors?
   (FDR <= 0.05; up to four pathways per direction and collection; no
   nonsignificant backfill) from the reviewed workflow. Positive normalized
   enrichment scores indicate enrichment in treated tumors.
-- An alternate panel pools the three collections and shows the 20 pathways
-  with the lowest collection-specific BH FDR, without per-collection or
-  per-direction quotas. NES position retains treatment direction while point
-  color identifies the source collection.
 - A sensitivity model omits only the mean within-interval pseudotime
   adjustment; injected origin remains an adjustment term and the gene universe
   and treatment contrast remain unchanged.
@@ -69,13 +65,12 @@ The isolated default output is:
 Results/in-vivo/figure7/exploratory/treated_vs_vehicle_interval_de/
 ```
 
-It contains pathway-enrichment candidate PDF/PNG files for both the reviewed
-6/8/8 display rule and the pooled top-20 view, the gene volcano as an audit
-figure, complete primary and dose-specific DE tables, complete and selected
-GSEA tables, leading-edge genes, the exact gene-set contract and membership,
-mouse coverage, the design matrix and contrast definitions, species and
-expression-filter audits, portable input provenance, package versions, and
-session information.
+It contains a pathway-enrichment candidate PDF/PNG, the gene volcano as an
+audit figure, complete primary and dose-specific DE tables, complete and
+selected GSEA tables, leading-edge genes, the exact gene-set contract and
+membership, mouse coverage, the design matrix and contrast definitions,
+species and expression-filter audits, portable input provenance, package
+versions, and session information.
 
 Run the focused synthetic tests from the repository root with:
 
