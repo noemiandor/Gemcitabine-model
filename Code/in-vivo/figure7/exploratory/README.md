@@ -39,7 +39,7 @@ and pathways differ between gemcitabine-treated and vehicle tumors?
   the existing Figure 7I workflow. The analysis uses the pinned Homo sapiens
   MSigDB Hallmark, Reactome, and GO biological-process collections, adaptive
   `fgseaMultilevel` settings, collection-wide BH correction, and display rule
-  (FDR <= 0.05; up to four pathways per direction and collection; no
+  (FDR <= 0.05; up to three pathways per direction and collection; no
   nonsignificant backfill) from the reviewed workflow. Positive normalized
   enrichment scores indicate enrichment in treated tumors.
 - A sensitivity model omits only the mean within-interval pseudotime

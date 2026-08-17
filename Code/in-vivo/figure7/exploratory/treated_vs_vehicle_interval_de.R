@@ -505,7 +505,26 @@ prepare_pathway_ranking <- function(de_table, support) {
   list(stats = stats, ranking = ranking, symbol_resolution = resolution)
 }
 
-select_pathway_results <- function(gsea, support, config) {
+exploratory_pathway_max_per_direction <- function() 3L
+
+exploratory_pathway_selection_rule <- function() {
+  paste(
+    "BH-adjusted P <= 0.05;",
+    "up to top three per sign and collection"
+  )
+}
+
+select_pathway_results <- function(
+  gsea,
+  support,
+  config,
+  maximum_per_direction = exploratory_pathway_max_per_direction()
+) {
+  maximum_per_direction <- suppressWarnings(as.integer(maximum_per_direction))
+  if (length(maximum_per_direction) != 1L || is.na(maximum_per_direction) ||
+      maximum_per_direction < 1L || maximum_per_direction > 4L) {
+    stop("maximum_per_direction must be an integer from one to four", call. = FALSE)
+  }
   selection_source <- as.data.frame(gsea, stringsAsFactors = FALSE)
   selection_source$collection_id <- as.character(selection_source$collection)
   selection_source$pathway_id <- as.character(selection_source$pathway)
@@ -513,6 +532,11 @@ select_pathway_results <- function(gsea, support, config) {
     selection_source,
     config
   )
+  selected <- selected[
+    selected$selected_rank_within_direction <= maximum_per_direction,
+    ,
+    drop = FALSE
+  ]
   collections <- as.character(unlist(config$state_pathways$collections))
   selected$collection_display_order <- match(
     as.character(selected$collection),
@@ -616,7 +640,7 @@ run_pathway_enrichment <- function(primary, support, config, seed = 1L) {
       as.character(config$state_pathways$gsea_nperm_simple),
       as.character(config$state_pathways$gsea_nperm_simple_max),
       as.character(config$state_pathways$gsea_nperm_simple_multiplier),
-      support$figure7_generated_pathway_selection_rule(),
+      exploratory_pathway_selection_rule(),
       as.character(length(ranking$stats)), NA_character_
     ),
     stringsAsFactors = FALSE
@@ -1186,7 +1210,7 @@ run_interval_de <- function(args, repo_root) {
     ),
     pseudobulk$metadata,
     interval,
-    support$figure7_generated_pathway_selection_rule()
+    exploratory_pathway_selection_rule()
   )
 
   write_tsv(species_audit, file.path(metadata_dir, "feature_species_audit.tsv"))
@@ -1324,7 +1348,7 @@ run_interval_de <- function(args, repo_root) {
       "positive log2 fold change means higher expression in gemcitabine-treated tumors",
       "moderated t statistic from the primary treated-minus-vehicle contrast",
       paste(as.character(unlist(config$state_pathways$collections)), collapse = ","),
-      support$figure7_generated_pathway_selection_rule()
+      exploratory_pathway_selection_rule()
     ),
     stringsAsFactors = FALSE
   ), file.path(metadata_dir, "provenance.tsv"))

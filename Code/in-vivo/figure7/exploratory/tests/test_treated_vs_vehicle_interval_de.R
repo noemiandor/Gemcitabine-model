@@ -187,7 +187,7 @@ testthat::test_that("pathway ranking reuses moderated t and resolves duplicate s
   testthat::expect_identical(retained$gene, c("GRCh38-a2", "GRCh38-b"))
 })
 
-testthat::test_that("pathway display uses the reviewed significant-only selector", {
+testthat::test_that("pathway display caps the reviewed selector at three per direction", {
   support <- analysis_env$load_figure7_support(repo_root)
   config <- support$read_config(file.path(
     repo_root,
@@ -207,8 +207,8 @@ testthat::test_that("pathway display uses the reviewed significant-only selector
   }))
   selected <- analysis_env$select_pathway_results(gsea, support, config)
   counts <- table(selected$collection, selected$selected_direction)
-  testthat::expect_true(all(counts[, "positive"] == 4L))
-  testthat::expect_true(all(counts[, "negative"] == 4L))
+  testthat::expect_true(all(counts[, "positive"] == 3L))
+  testthat::expect_true(all(counts[, "negative"] == 3L))
   testthat::expect_true(all(selected$padj <= 0.05))
   testthat::expect_false(any(grepl("_13$", selected$pathway)))
 })
