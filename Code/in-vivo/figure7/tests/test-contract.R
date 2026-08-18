@@ -339,6 +339,12 @@ testthat::test_that("panel 7I frozen selection contains only formal interaction 
   ))
   testthat::expect_true(all(data$more_positive_origin[data$NES < 0] == "2N"))
   testthat::expect_true(all(data$more_positive_origin[data$NES > 0] == "4N"))
+  testthat::expect_true(all(is.finite(data$NES_2N)))
+  testthat::expect_true(all(is.finite(data$NES_4N)))
+  testthat::expect_true(all(data$origin_effect_nes_order_concordant))
+  testthat::expect_true(all(data$interaction_fdr_significant))
+  testthat::expect_true(all(data$NES_2N[data$NES < 0] > data$NES_4N[data$NES < 0]))
+  testthat::expect_true(all(data$NES_4N[data$NES > 0] > data$NES_2N[data$NES > 0]))
   testthat::expect_s3_class(
     figure7_interval_treatment_plot(data, config),
     "ggplot"
@@ -348,7 +354,14 @@ testthat::test_that("panel 7I frozen selection contains only formal interaction 
   bad$selected_direction[[1L]] <- "positive"
   testthat::expect_error(
     figure7_validate_interval_treatment_table(bad, config),
-    "FDR/direction contract"
+    "FDR/direction/origin-effect contract"
+  )
+
+  bad_pair <- data
+  bad_pair$NES_2N[[1L]] <- bad_pair$NES_4N[[1L]] - 0.1
+  testthat::expect_error(
+    figure7_validate_interval_treatment_table(bad_pair, config),
+    "origin-effect contract"
   )
 })
 
@@ -475,8 +488,9 @@ testthat::test_that("publication styling removes internal prose and uses reader-
   testthat::expect_identical(styled$H$labels$y, "Mean ECDF")
   testthat::expect_identical(
     styled$I$labels$x,
-    "Treatment-by-origin interaction NES"
+    "Normalized enrichment score (treated - vehicle)"
   )
+  testthat::expect_identical(styled$I$labels$shape, "Origin")
   testthat::expect_identical(styled$D$theme$legend.position, "inside")
   testthat::expect_identical(styled$E$theme$legend.position, "inside")
   testthat::expect_identical(

@@ -117,6 +117,94 @@ testthat::test_that("the primary contrast is equal-dose treated minus vehicle", 
   testthat::expect_true(all(primary[nuisance] == 0))
 })
 
+testthat::test_that("the formal interaction is the 4N-minus-2N treatment contrast", {
+  sample_id <- paste0("mouse_", seq_len(16L))
+  mouse_meta <- data.frame(
+    sample_id = sample_id,
+    initial_ploidy = rep(c("2N", "4N"), each = 8L),
+    dose_mg = rep(c(0, 0, 0, 0, 30, 30, 120, 120), 2L),
+    treatment = rep(c(rep("vehicle", 4L), rep("treated", 4L)), 2L),
+    n_cells = rep(10L, 16L),
+    mean_pseudotime = seq(0.35, 0.43, length.out = 16L),
+    stringsAsFactors = FALSE,
+    row.names = sample_id
+  )
+  design <- analysis_env$prepare_treatment_origin_interaction_design(mouse_meta)
+  contrasts <- analysis_env$treatment_origin_interaction_contrasts(design$design)
+  interaction <- contrasts$treatment_by_origin_4N_minus_2N
+  coefficient <- function(origin, dose) {
+    paste0("initial_ploidy_factor", origin, ":dose_group", dose)
+  }
+  expected <- setNames(
+    c(1, -0.5, -0.5, -1, 0.5, 0.5),
+    c(
+      coefficient("2N", c("vehicle", "dose_30", "dose_120")),
+      coefficient("4N", c("vehicle", "dose_30", "dose_120"))
+    )
+  )
+  testthat::expect_identical(design$rank, ncol(design$design))
+  testthat::expect_identical(ncol(design$design), 7L)
+  testthat::expect_equal(unname(interaction[names(expected)]), unname(expected))
+  testthat::expect_equal(interaction[["mean_pseudotime_z"]], 0)
+
+  group_means <- setNames(rep(0, ncol(design$design)), colnames(design$design))
+  group_means[coefficient("2N", c("vehicle", "dose_30", "dose_120"))] <- c(10, 12, 14)
+  group_means[coefficient("4N", c("vehicle", "dose_30", "dose_120"))] <- c(20, 26, 28)
+  testthat::expect_equal(sum(group_means * interaction), 4)
+})
+
+testthat::test_that("interaction signs identify the origin with the stronger treatment effect", {
+  set.seed(713L)
+  sample_id <- paste0("mouse_", seq_len(16L))
+  origin <- rep(c("2N", "4N"), each = 8L)
+  dose <- rep(c(0, 0, 0, 0, 30, 30, 120, 120), 2L)
+  mouse_meta <- data.frame(
+    sample_id = sample_id,
+    initial_ploidy = origin,
+    dose_mg = dose,
+    treatment = ifelse(dose == 0, "vehicle", "treated"),
+    n_cells = rep(10L, 16L),
+    mean_pseudotime = rep(seq(0.35, 0.42, length.out = 8L), 2L),
+    stringsAsFactors = FALSE,
+    row.names = sample_id
+  )
+  counts <- matrix(
+    stats::rpois(120L * 16L, lambda = 100),
+    nrow = 120L,
+    dimnames = list(paste0("GRCh38-gene_", seq_len(120L)), sample_id)
+  )
+  counts[1L, origin == "4N" & dose > 0] <- 700
+  counts[2L, origin == "2N" & dose > 0] <- 700
+  design <- analysis_env$prepare_treatment_origin_interaction_design(mouse_meta)
+  contrasts <- analysis_env$treatment_origin_interaction_contrasts(design$design)
+  model <- analysis_env$fit_interval_voom(
+    Matrix::Matrix(counts, sparse = TRUE),
+    design,
+    cpm_threshold = 0,
+    minimum_mice = 4L
+  )
+  table <- analysis_env$extract_contrast_table(
+    model,
+    contrasts$treatment_by_origin_4N_minus_2N,
+    "treatment_by_origin_4N_minus_2N",
+    function(feature) sub("^GRCh38-", "", feature),
+    positive_direction = "treatment_effect_more_positive_in_4N",
+    negative_direction = "treatment_effect_more_positive_in_2N"
+  )
+  four_n <- table[table$feature_id == "GRCh38-gene_1", , drop = FALSE]
+  two_n <- table[table$feature_id == "GRCh38-gene_2", , drop = FALSE]
+  testthat::expect_gt(four_n$log2_fold_change, 0)
+  testthat::expect_identical(
+    four_n$direction,
+    "treatment_effect_more_positive_in_4N"
+  )
+  testthat::expect_lt(two_n$log2_fold_change, 0)
+  testthat::expect_identical(
+    two_n$direction,
+    "treatment_effect_more_positive_in_2N"
+  )
+})
+
 testthat::test_that("origin-stratified designs omit the constant origin term", {
   sample_id <- paste0("mouse_2N_", seq_len(8L))
   mouse_meta <- data.frame(
@@ -250,7 +338,7 @@ testthat::test_that("pathway display caps the reviewed selector at three per dir
   testthat::expect_false(any(grepl("_13$", selected$pathway)))
 })
 
-testthat::test_that("origin comparison separates shared and origin-specific pathways", {
+testthat::test_that("formal interaction panel selects the ten NES extremes per sign", {
   collections <- c("H", "C2:CP:REACTOME", "C5:GO:BP")
   make_rows <- function(pathways, nes, padj) {
     data.frame(
@@ -263,55 +351,65 @@ testthat::test_that("origin comparison separates shared and origin-specific path
       stringsAsFactors = FALSE
     )
   }
-  shared <- make_rows(
+  shared_2n <- make_rows(
     paste0("shared_", seq_len(5L)),
     c(-2.2, -1.8, -1.5, 1.6, 2.0),
     seq(0.001, 0.005, length.out = 5L)
   )
-  two_n_specific <- make_rows(
-    paste0("two_n_", seq_len(10L)),
-    c(seq(2.5, 1.5, length.out = 5L), seq(-1.5, -2.5, length.out = 5L)),
-    seq(0.006, 0.015, length.out = 10L)
+  shared_4n <- shared_2n
+  shared_4n$NES <- shared_4n$NES * 0.9
+  interaction <- make_rows(
+    paste0("formal_interaction_", seq_len(24L)),
+    c(seq(-1.3, -2.4, length.out = 12L), seq(1.3, 2.4, length.out = 12L)),
+    rep(c(0.4, 0.03, 0.01, 0.2), 6L)
   )
-  four_n_specific <- make_rows(
-    paste0("four_n_", seq_len(10L)),
-    c(seq(2.4, 1.4, length.out = 5L), seq(-1.4, -2.4, length.out = 5L)),
-    seq(0.016, 0.025, length.out = 10L)
-  )
-  nonsignificant <- function(data) {
-    data$padj <- 0.5
-    data
-  }
-  gsea_2n <- rbind(shared, two_n_specific, nonsignificant(four_n_specific))
-  gsea_4n <- rbind(shared, nonsignificant(two_n_specific), four_n_specific)
-  gsea_4n$NES[seq_len(nrow(shared))] <- gsea_4n$NES[seq_len(nrow(shared))] * 0.9
-
-  comparison <- analysis_env$prepare_origin_comparison_pathways(
-    gsea_2n,
-    gsea_4n,
+  interaction_2n <- interaction
+  interaction_2n$NES <- c(rep(1, 12L), rep(-1, 12L))
+  interaction_2n$padj <- 0.5
+  interaction_4n <- interaction
+  interaction_4n$NES <- 0
+  interaction_4n$padj <- 0.5
+  comparison <- analysis_env$prepare_origin_interaction_pathways(
+    shared_2n,
+    shared_4n,
+    interaction,
+    origin_effect_gsea_2n = interaction_2n,
+    origin_effect_gsea_4n = interaction_4n,
     fdr_threshold = 0.05,
-    maximum_per_direction = 3L
+    maximum_per_direction = 10L
   )
   testthat::expect_identical(nrow(comparison$shared), 5L)
+  testthat::expect_identical(nrow(comparison$selected_interactions), 20L)
+  testthat::expect_true(all(grepl(
+    "^formal_interaction_",
+    comparison$selected_interactions$pathway
+  )))
+  testthat::expect_setequal(
+    unique(comparison$selected_interactions$panel_id),
+    c("negative_interaction", "positive_interaction")
+  )
+  testthat::expect_true(all(comparison$selected_2N$NES < 0))
+  testthat::expect_true(all(comparison$selected_4N$NES > 0))
+  testthat::expect_true(all(comparison$selected_2N$selected_direction == "negative"))
+  testthat::expect_true(all(comparison$selected_4N$selected_direction == "positive"))
+  testthat::expect_equal(comparison$selected_2N$NES, sort(interaction$NES)[1:10])
+  testthat::expect_equal(
+    comparison$selected_4N$NES,
+    sort(interaction$NES, decreasing = TRUE)[1:10]
+  )
+  testthat::expect_true(all(
+    comparison$selected_interactions$origin_effect_nes_order_concordant
+  ))
+  testthat::expect_true(all(comparison$selected_2N$NES_2N == 1))
+  testthat::expect_true(all(comparison$selected_2N$NES_4N == 0))
+  testthat::expect_true(all(comparison$selected_4N$NES_2N == -1))
+  testthat::expect_true(all(comparison$selected_4N$NES_4N == 0))
   testthat::expect_identical(
-    sum(comparison$plot_data$panel_id == "shared"),
-    10L
+    comparison$selected_2N$selected_rank_within_direction,
+    seq_len(10L)
   )
-  shared_keys <- paste(
-    comparison$shared$collection,
-    comparison$shared$pathway,
-    sep = "\r"
+  testthat::expect_identical(
+    comparison$selected_4N$selected_rank_within_direction,
+    seq_len(10L)
   )
-  for (origin in c("2N", "4N")) {
-    selected <- comparison[[paste0("selected_", origin)]]
-    counts <- table(selected$selected_direction)
-    testthat::expect_identical(
-      as.integer(counts[c("negative", "positive")]),
-      c(3L, 3L)
-    )
-    testthat::expect_true(all(selected$padj <= 0.05))
-    testthat::expect_false(any(
-      paste(selected$collection, selected$pathway, sep = "\r") %in% shared_keys
-    ))
-  }
 })

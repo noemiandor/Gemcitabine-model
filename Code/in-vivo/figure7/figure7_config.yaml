@@ -208,7 +208,7 @@ state_pathways:
     activity_rmse: 1.0e-7
 interval_treatment_panel:
   selected_table: Data/in-vivo/figure7/processed/panel_7I_origin_comparison_selected.tsv
-  selected_table_sha256: 02a8a5d646a88a6878f2c67fa828b849557841f948520a497693e89f7ba27717
+  selected_table_sha256: 541d126d1287248b05cee1bb3c1e353b086a8107a2a844f7b15be511a552b1b0
   interval_start: 0.296
   interval_end: 0.486
   fdr_threshold: 0.05

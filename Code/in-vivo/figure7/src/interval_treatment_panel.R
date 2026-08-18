@@ -3,6 +3,8 @@
 figure7_interval_treatment_required_columns <- function() c(
   "panel_id", "more_positive_origin", "collection", "collection_label",
   "pathway", "pathway_label", "NES", "padj", "selected_direction",
+  "NES_2N", "padj_2N", "NES_4N", "padj_4N",
+  "origin_effect_nes_order_concordant", "interaction_fdr_significant",
   "selected_rank_within_direction", "selection_scope"
 )
 
@@ -65,21 +67,53 @@ figure7_validate_interval_treatment_table <- function(data, config) {
   }
   data$NES <- figure7_numeric(data$NES)
   data$padj <- figure7_numeric(data$padj)
+  data$NES_2N <- figure7_numeric(data$NES_2N)
+  data$padj_2N <- figure7_numeric(data$padj_2N)
+  data$NES_4N <- figure7_numeric(data$NES_4N)
+  data$padj_4N <- figure7_numeric(data$padj_4N)
   data$selected_rank_within_direction <- suppressWarnings(as.integer(
     data$selected_rank_within_direction
   ))
+  parse_logical <- function(values, label) {
+    normalized <- toupper(as.character(values))
+    if (any(!normalized %in% c("TRUE", "FALSE"))) {
+      figure7_stop("Figure 7I pathway table has invalid ", label, " values")
+    }
+    normalized == "TRUE"
+  }
+  data$origin_effect_nes_order_concordant <- parse_logical(
+    data$origin_effect_nes_order_concordant,
+    "origin-effect concordance"
+  )
+  data$interaction_fdr_significant <- parse_logical(
+    data$interaction_fdr_significant,
+    "interaction-significance"
+  )
   fdr_threshold <- as.numeric(config$interval_treatment_panel$fdr_threshold)
   expected_direction <- ifelse(data$NES < 0, "negative", "positive")
   expected_panel <- paste0(expected_direction, "_interaction")
   expected_origin <- ifelse(data$NES < 0, "2N", "4N")
+  expected_origin_order <- ifelse(
+    data$NES < 0,
+    data$NES_2N > data$NES_4N,
+    data$NES_4N > data$NES_2N
+  )
   if (any(!is.finite(data$NES)) || any(data$NES == 0) ||
       any(!is.finite(data$padj)) || any(data$padj <= 0) ||
       any(data$padj > fdr_threshold) ||
+      any(!is.finite(data$NES_2N)) || any(!is.finite(data$NES_4N)) ||
+      any(!is.finite(data$padj_2N)) || any(data$padj_2N <= 0) ||
+      any(data$padj_2N > 1) ||
+      any(!is.finite(data$padj_4N)) || any(data$padj_4N <= 0) ||
+      any(data$padj_4N > 1) ||
       any(data$selected_direction != expected_direction) ||
       any(data$panel_id != expected_panel) ||
-      any(data$more_positive_origin != expected_origin)) {
+      any(data$more_positive_origin != expected_origin) ||
+      any(!data$interaction_fdr_significant) ||
+      any(!data$origin_effect_nes_order_concordant) ||
+      any(!expected_origin_order)) {
     figure7_stop(
-      "Figure 7I pathway statistics violate the formal interaction FDR/direction contract"
+      "Figure 7I pathway statistics violate the formal interaction FDR/direction/origin-effect contract"
     )
   }
   pathway_key <- paste(data$collection, data$pathway, sep = "\r")
@@ -124,8 +158,8 @@ figure7_read_interval_treatment_table <- function(path, config) {
 
 figure7_interval_treatment_plot <- function(data, config) {
   panel_labels <- c(
-    negative_interaction = "More positive in 2N",
-    positive_interaction = "More positive in 4N"
+    negative_interaction = "2N-more-positive interaction",
+    positive_interaction = "4N-more-positive interaction"
   )
   data$panel_label <- factor(
     unname(panel_labels[data$panel_id]),
@@ -139,6 +173,7 @@ figure7_interval_treatment_plot <- function(data, config) {
   data$pathway_plot_key <- paste(
     data$panel_id, data$collection, data$pathway, sep = "\r"
   )
+
   ordered_pathway_keys <- unlist(lapply(names(panel_labels), function(panel_id) {
     local <- data[data$panel_id == panel_id, , drop = FALSE]
     local <- local[
@@ -163,27 +198,62 @@ figure7_interval_treatment_plot <- function(data, config) {
     ),
     ordered_pathway_keys
   )
-  symmetric_limit <- max(abs(data$NES), na.rm = TRUE) * 1.08
+
+  plot_data <- do.call(rbind, lapply(c("2N", "4N"), function(origin) {
+    data.frame(
+      panel_label = as.character(data$panel_label),
+      collection_label = as.character(data$collection_label),
+      pathway_plot_key = as.character(data$pathway_plot_key),
+      origin = origin,
+      origin_NES = data[[paste0("NES_", origin)]],
+      minus_log10_fdr = data$minus_log10_fdr,
+      stringsAsFactors = FALSE
+    )
+  }))
+  plot_data$panel_label <- factor(
+    plot_data$panel_label,
+    levels = unname(panel_labels)
+  )
+  plot_data$collection_label <- factor(
+    plot_data$collection_label,
+    levels = unname(figure7_interval_treatment_collection_labels())
+  )
+  plot_data$pathway_plot_key <- factor(
+    plot_data$pathway_plot_key,
+    levels = ordered_pathway_keys
+  )
+  plot_data$origin <- factor(plot_data$origin, levels = c("2N", "4N"))
+
+  symmetric_limit <- max(
+    abs(c(data$NES_2N, data$NES_4N)),
+    na.rm = TRUE
+  ) * 1.08
   interval <- config$interval_treatment_panel
   expected_per_direction <- as.integer(
     interval$max_per_direction_across_collections
   )
 
-  ggplot2::ggplot(
-    data,
-    ggplot2::aes(
-      x = NES, y = pathway_plot_key,
-      color = collection_label, size = minus_log10_fdr
-    )
-  ) +
+  ggplot2::ggplot() +
     ggplot2::geom_vline(
       xintercept = 0, color = "#6B7280", linewidth = 0.4
     ) +
     ggplot2::geom_segment(
-      ggplot2::aes(x = 0, xend = NES, yend = pathway_plot_key),
-      color = "#9AA4B2", linewidth = 0.7
+      data = data,
+      ggplot2::aes(
+        x = NES_2N, xend = NES_4N,
+        y = pathway_plot_key, yend = pathway_plot_key
+      ),
+      color = "#7C8798", linewidth = 0.8
     ) +
-    ggplot2::geom_point() +
+    ggplot2::geom_point(
+      data = plot_data,
+      ggplot2::aes(
+        x = origin_NES, y = pathway_plot_key,
+        color = collection_label,
+        shape = origin,
+        size = minus_log10_fdr
+      )
+    ) +
     ggplot2::facet_grid(
       panel_label ~ ., scales = "free_y", space = "free_y"
     ) +
@@ -197,25 +267,42 @@ figure7_interval_treatment_plot <- function(data, config) {
       "Reactome" = "#D55E00",
       "GO BP" = "#009E73"
     )) +
+    ggplot2::scale_shape_manual(values = c("2N" = 16, "4N" = 17)) +
     ggplot2::scale_size_continuous(range = c(2.5, 5.6)) +
     ggplot2::labs(
       title = "Origin-dependent treatment responses",
       subtitle = sprintf(
-        "Formal interaction; %.3f-%.3f pseudotime",
+        paste0(
+          "Equal-dose treatment contrast; %.3f-%.3f pseudotime\n",
+          "2N: %d cells across %d mice; 4N: %d cells across %d mice"
+        ),
         as.numeric(interval$interval_start),
-        as.numeric(interval$interval_end)
+        as.numeric(interval$interval_end),
+        as.integer(interval$expected_cells_2N),
+        as.integer(interval$expected_mice_per_origin),
+        as.integer(interval$expected_cells_4N),
+        as.integer(interval$expected_mice_per_origin)
       ),
-      x = "Treatment-by-origin interaction NES",
+      x = "Normalized enrichment score (treated - vehicle)",
       y = NULL,
       color = "Collection",
+      shape = "Origin",
       size = expression(-log[10]~"FDR"),
       caption = paste0(
-        "Top ", expected_per_direction, " negative and top ",
-        expected_per_direction,
-        " positive formal treatment-by-origin interaction NES across collections. ",
-        "All displayed pathways pass collection-wise BH FDR <= ",
-        format(as.numeric(interval$fdr_threshold), trim = TRUE), "."
+        "Pathways were selected as the top ", expected_per_direction,
+        " negative and top ", expected_per_direction,
+        " positive formal interaction NES across Hallmark, Reactome, and GO BP.\n",
+        "Points show joint-model origin-specific treatment NES; connectors join the 2N and 4N estimates for each pathway.\n",
+        "The upper panel has a more positive response in 2N and the lower panel in 4N; more positive can also mean less depleted.\n",
+        "Point size represents formal-interaction FDR; all displayed pathways pass collection-wise BH FDR <= ",
+        format(as.numeric(interval$fdr_threshold), trim = TRUE), ". ",
+        "GRCh38 human-tumor mouse pseudobulks; adjusted for mean within-interval pseudotime; exploratory data-selected interval."
       )
+    ) +
+    ggplot2::guides(
+      color = ggplot2::guide_legend(order = 1),
+      shape = ggplot2::guide_legend(order = 2),
+      size = ggplot2::guide_legend(order = 3)
     ) +
     ggplot2::theme_bw(base_size = 9) +
     ggplot2::theme(

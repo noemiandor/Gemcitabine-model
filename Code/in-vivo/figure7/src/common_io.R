@@ -1415,8 +1415,9 @@ figure7_publication_clean_plots <- function(plots, config) {
   plots$I <- drop_scale(plots$I, "colour")
   plots$I <- plots$I +
     ggplot2::labs(
-      x = "Treatment-by-origin interaction NES", y = NULL,
+      x = "Normalized enrichment score (treated - vehicle)", y = NULL,
       color = "Collection",
+      shape = "Origin",
       size = expression(-log[10]~"FDR")
     ) +
     ggplot2::scale_color_manual(
@@ -1432,6 +1433,10 @@ figure7_publication_clean_plots <- function(plots, config) {
     ggplot2::guides(
       color = ggplot2::guide_legend(
         title = NULL, order = 1, nrow = 1,
+        override.aes = list(size = 2.1, alpha = 1)
+      ),
+      shape = ggplot2::guide_legend(
+        title = NULL, order = 2, nrow = 1,
         override.aes = list(size = 2.1, alpha = 1)
       ),
       size = "none"

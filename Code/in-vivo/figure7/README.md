@@ -51,8 +51,10 @@ used as a nuisance covariate in the state-pathway model.
   and 10 most positive formal interaction NES across Hallmark, Reactome, and
   GO BP, ranked by NES within sign. Negative NES denotes a more positive
   treatment response in 2N-origin tumors; positive NES denotes a more positive
-  response in 4N-origin tumors. Only GRCh38-prefixed human-tumor features enter
-  expression filtering, modeling, or GSEA.
+  response in 4N-origin tumors. For each interaction-selected pathway, paired
+  circle/triangle points show the joint-model 2N- and 4N-origin treatment NES
+  and a connector shows their separation. Only GRCh38-prefixed human-tumor
+  features enter expression filtering, modeling, or GSEA.
 - Panel 7E (main panel L) reports the descriptive mouse-level association
   between mean endpoint tumor-cell ploidy and Day-17 TGI (Pearson r =
   -0.6984010; asymptotic P = 0.0540070; exact unrestricted permutation P =

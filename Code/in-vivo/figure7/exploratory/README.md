@@ -1,8 +1,11 @@
 # Exploratory Figure 7I: treated-versus-vehicle expression within the state interval
 
-This directory contains a candidate replacement analysis for main Figure 7I.
-It is intentionally isolated from the reviewed Figure 7 workflow and does not
-modify the canonical composite or frozen panel-7F reference.
+This directory contains the raw-analysis implementation underlying the current
+main Figure 7I. The canonical routine renderer consumes the checksum-pinned
+20-row formal-interaction selection at
+`Data/in-vivo/figure7/processed/panel_7I_origin_comparison_selected.tsv`;
+this workflow regenerates that selection and its complete gene/pathway audit
+chain without modifying the retained panel-7F state-pathway reference.
 
 ## Question and relation to the existing panel
 
@@ -40,6 +43,12 @@ and pathways differ between gemcitabine-treated and vehicle tumors?
   stratum, these models omit that term but retain adjustment for mean
   within-interval pseudotime. Their expression filter is CPM > 1 in at least
   two mice, matching the smallest within-origin dose group.
+- A formal treatment-by-origin model is fit to all 16 mouse pseudobulks using
+  six origin-by-dose group means plus mean within-interval pseudotime. Its
+  interaction contrast is
+  `[equal-dose treated - vehicle]_4N - [equal-dose treated - vehicle]_2N`.
+  Positive interaction effects are more positive in 4N; negative effects are
+  more positive in 2N. "More positive" can also represent weaker depletion.
 - For a pathway-level Figure 7I candidate, the primary model's moderated
   gene-level t statistics are passed to the same GSEA implementation used by
   the existing Figure 7I workflow. The analysis uses the pinned Homo sapiens
@@ -49,11 +58,13 @@ and pathways differ between gemcitabine-treated and vehicle tumors?
   nonsignificant backfill) from the reviewed workflow. The pooled, 2N-origin,
   and 4N-origin panels all use this same rule. Positive normalized enrichment
   scores indicate enrichment in treated tumors.
-- A compact origin-comparison panel shows every pathway that is
-  FDR-significant in both origin models, with paired 2N and 4N NES estimates.
-  Its lower panels exclude those shared pathways and show, for each origin,
-  the top three FDR-significant pathways per NES direction across all three
-  collections. Collection is encoded by color and origin by point shape.
+- Main Figure 7I contains only GSEA of the formal interaction. It displays the
+  10 most negative and 10 most positive interaction NES across all three
+  collections, ranked by NES within sign. For each selected pathway, paired
+  points show the joint-model 2N- and 4N-origin treatment NES and a connector
+  shows their separation; collection is encoded by color, origin by shape,
+  and point size represents interaction FDR. Pathway selection remains based
+  solely on the formal interaction, not either origin-specific contrast.
 - A sensitivity model omits only the mean within-interval pseudotime
   adjustment; injected origin remains an adjustment term and the gene universe
   and treatment contrast remain unchanged.
