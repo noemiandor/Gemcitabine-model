@@ -324,12 +324,40 @@ testthat::test_that("entire-run image inventory is exact", {
   testthat::expect_error(figure7_validate_figure_inventory(out, config), "Figure inventory mismatch")
 })
 
+testthat::test_that("panel 7I frozen selection contains only formal interaction extremes", {
+  config <- figure7_test_inputs()$config
+  path <- figure7_interval_treatment_input_path(repo_root, config)
+  data <- figure7_read_interval_treatment_table(path, config)
+
+  testthat::expect_equal(nrow(data), 20L)
+  testthat::expect_setequal(
+    unique(data$panel_id),
+    c("negative_interaction", "positive_interaction")
+  )
+  testthat::expect_true(all(
+    table(data$selected_direction) == 10L
+  ))
+  testthat::expect_true(all(data$more_positive_origin[data$NES < 0] == "2N"))
+  testthat::expect_true(all(data$more_positive_origin[data$NES > 0] == "4N"))
+  testthat::expect_s3_class(
+    figure7_interval_treatment_plot(data, config),
+    "ggplot"
+  )
+
+  bad <- data
+  bad$selected_direction[[1L]] <- "positive"
+  testthat::expect_error(
+    figure7_validate_interval_treatment_table(bad, config),
+    "FDR/direction contract"
+  )
+})
+
 testthat::test_that("publication compositor pins dimensions, mapping, and vector asset names", {
   config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
   spec <- figure7_publication_spec()
   expected_mapping <- c(
     A = "7A", B = "7C", C = "SI4A", D = "SI4B", E = "SI4C",
-    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7J",
+    F = "SI4E", G = "SI7B", H = "7B", I = "7I", J = "7J",
     K = "7D", L = "7E"
   )
   configured_mapping <- unlist(
@@ -389,7 +417,7 @@ testthat::test_that("publication compositor pins dimensions, mapping, and vector
   mapped <- figure7_main_composite_plots(
     source_plots,
     context_plots,
-    make_plot("state-pathway"),
+    make_plot("interval-treatment"),
     make_plot("copy-number"),
     config
   )
@@ -399,7 +427,7 @@ testthat::test_that("publication compositor pins dimensions, mapping, and vector
     c(
       A = "source-A", B = "source-C", C = "context-C",
       D = "context-D", E = "context-E", F = "context-F",
-      G = "context-G", H = "source-B", I = "state-pathway",
+      G = "context-G", H = "source-B", I = "interval-treatment",
       J = "copy-number", K = "source-D", L = "source-E"
     )
   )
@@ -445,7 +473,10 @@ testthat::test_that("publication styling removes internal prose and uses reader-
   testthat::expect_identical(styled$B$labels$x, "Injected origin")
   testthat::expect_identical(styled$F$labels$y, "Mean proportion per sample")
   testthat::expect_identical(styled$H$labels$y, "Mean ECDF")
-  testthat::expect_identical(styled$I$labels$fill, "Mean gene z score")
+  testthat::expect_identical(
+    styled$I$labels$x,
+    "Treatment-by-origin interaction NES"
+  )
   testthat::expect_identical(styled$D$theme$legend.position, "inside")
   testthat::expect_identical(styled$E$theme$legend.position, "inside")
   testthat::expect_identical(
@@ -551,7 +582,20 @@ testthat::test_that("full source panels plus the A-L composite satisfy the exact
     out,
     fixture$config
   )
-  plot_f <- figure7_build_f(reference, out, fixture$config)
+  invisible(figure7_build_f(
+    reference,
+    out,
+    fixture$config,
+    save_panel = FALSE
+  ))
+  interval_treatment <- figure7_build_interval_treatment_panel(
+    file.path(
+      repo_root,
+      fixture$config$interval_treatment_panel$selected_table
+    ),
+    out,
+    fixture$config
+  )
   context <- figure7_build_context_panels(
     file.path(repo_root, "Data/in-vivo/SIfigures"),
     repo_root,
@@ -590,7 +634,7 @@ testthat::test_that("full source panels plus the A-L composite satisfy the exact
     figure7_main_composite_plots(
       ae$plots,
       context$plots,
-      plot_f,
+      interval_treatment$plot,
       copy_number$plot,
       fixture$config
     ),

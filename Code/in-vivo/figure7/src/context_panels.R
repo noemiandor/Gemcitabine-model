@@ -483,19 +483,19 @@ figure7_build_context_panels <- function(
 figure7_main_composite_plots <- function(
   source_plots,
   context_plots,
-  state_pathway_plot,
+  interval_treatment_plot,
   copy_number_plot,
   config
 ) {
   if (!identical(names(source_plots), LETTERS[1:5]) ||
       !identical(names(context_plots), LETTERS[3:7]) ||
-      !inherits(state_pathway_plot, "ggplot") ||
+      !inherits(interval_treatment_plot, "ggplot") ||
       !inherits(copy_number_plot, c("ggplot", "patchwork", "wrapped_patch"))) {
     figure7_stop("Cannot assemble Figure 7 from an incomplete plot set")
   }
   expected_mapping <- c(
     A = "7A", B = "7C", C = "SI4A", D = "SI4B", E = "SI4C",
-    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7J",
+    F = "SI4E", G = "SI7B", H = "7B", I = "7I", J = "7J",
     K = "7D", L = "7E"
   )
   configured_mapping <- unlist(
@@ -526,7 +526,7 @@ figure7_main_composite_plots <- function(
     F = context_plots$F,
     G = context_plots$G,
     H = panel_b_components$ecdf,
-    I = state_pathway_plot,
+    I = interval_treatment_plot,
     J = copy_number_plot,
     K = source_plots$D,
     L = source_plots$E

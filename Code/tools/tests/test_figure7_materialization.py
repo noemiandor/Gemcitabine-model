@@ -160,6 +160,11 @@ class Figure7MaterializationTest(unittest.TestCase):
             "Code/in-vivo/figure7/src/tgi_statistics.R",
             "Code/in-vivo/figure7/src/tgi_panels.R",
             "Code/in-vivo/figure7/src/copy_number_panel.R",
+            "Code/in-vivo/figure7/src/interval_treatment_panel.R",
+            (
+                "Data/in-vivo/figure7/processed/"
+                "panel_7I_origin_comparison_selected.tsv"
+            ),
             "Code/in-vivo/SI_figures/shared_context_panels.R",
             "Code/in-vivo/SI_figures/normalized_composition.R",
             "Code/in-vivo/SI_figures/copy_number_heatmap.R",
@@ -199,7 +204,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             and (
                 include_f
                 or (
-                    not str(spec["panel"]).startswith("7F")
+                    not str(spec["panel"]).startswith("7I")
                     and not str(spec["panel"]).startswith("7A-7L_composite")
                 )
             )
@@ -299,7 +304,7 @@ class Figure7MaterializationTest(unittest.TestCase):
                         "key": "main_composite_panel_order",
                         "value": (
                             "A=7A;B=7C;C=SI4A;D=SI4B;E=SI4C;F=SI4E;"
-                            "G=SI7B;H=7B;I=7F;J=7J;K=7D;L=7E"
+                            "G=SI7B;H=7B;I=7I;J=7J;K=7D;L=7E"
                         ),
                     },
                     {"key": "main_composite_width_in", "value": "7.1"},
@@ -846,7 +851,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             (
                 self.repo
                 / "figures/Figure7/"
-                "panel_7F_pseudotime_state_pathway_activity.pdf"
+                "panel_7I_treated_vs_vehicle_pathways_by_origin.pdf"
             ).is_file()
         )
 
@@ -900,7 +905,7 @@ class Figure7MaterializationTest(unittest.TestCase):
             run_config["main_composite_panel_order"].endswith("L=7E")
         )
 
-    def test_rematerialization_drops_superseded_a_to_k_composite_aliases(
+    def test_rematerialization_drops_superseded_figure7_assets(
         self,
     ) -> None:
         first = self._run_materializer()
@@ -914,13 +919,17 @@ class Figure7MaterializationTest(unittest.TestCase):
             if row["panel"] in {
                 "7A-7L_composite",
                 "7A-7L_composite_pdf",
+                "7I",
+                "7I_png",
             }
         }
-        self.assertEqual(len(current), 2)
+        self.assertEqual(len(current), 4)
         stale_rows = []
         for current_id, stale_id in (
             ("7A-7L_composite", "7A-7K_composite"),
             ("7A-7L_composite_pdf", "7A-7K_composite_pdf"),
+            ("7I", "7F"),
+            ("7I_png", "7F_png"),
         ):
             stale = dict(current[current_id])
             stale["panel"] = stale_id
@@ -939,6 +948,8 @@ class Figure7MaterializationTest(unittest.TestCase):
         panel_ids = [row["panel"] for row in rematerialized]
         self.assertNotIn("7A-7K_composite", panel_ids)
         self.assertNotIn("7A-7K_composite_pdf", panel_ids)
+        self.assertNotIn("7F", panel_ids)
+        self.assertNotIn("7F_png", panel_ids)
         self.assertEqual(panel_ids.count("7A-7L_composite"), 1)
         self.assertEqual(panel_ids.count("7A-7L_composite_pdf"), 1)
 
@@ -1270,7 +1281,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         full_only = [
             spec
             for spec in self.figure7_specs
-            if str(spec["panel"]).startswith("7F")
+            if str(spec["panel"]).startswith("7I")
             or str(spec["panel"]).startswith("7A-7L_composite")
         ]
         for spec in full_only:
@@ -1279,7 +1290,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         with manifest.open(newline="") as handle:
             rows = [
                 row for row in csv.DictReader(handle, delimiter="\t")
-                if not row["panel"].startswith("7F")
+                if not row["panel"].startswith("7I")
                 and not row["panel"].startswith("7A-7L_composite")
             ]
         write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
@@ -1291,13 +1302,16 @@ class Figure7MaterializationTest(unittest.TestCase):
             materialized = list(csv.DictReader(handle, delimiter="\t"))
         expected_panels = [value for letter in "ABCDE" for value in (f"7{letter}", f"7{letter}_png")]
         self.assertEqual([row["panel"] for row in materialized], expected_panels)
-        self.assertFalse((self.repo / "figures/Figure7/panel_7F_pseudotime_state_pathway_activity.pdf").exists())
+        self.assertFalse((
+            self.repo
+            / "figures/Figure7/panel_7I_treated_vs_vehicle_pathways_by_origin.pdf"
+        ).exists())
 
     def test_rejects_unrecorded_ae_omission(self) -> None:
         full_only = [
             spec
             for spec in self.figure7_specs
-            if str(spec["panel"]).startswith("7F")
+            if str(spec["panel"]).startswith("7I")
             or str(spec["panel"]).startswith("7A-7L_composite")
         ]
         for spec in full_only:
@@ -1306,7 +1320,7 @@ class Figure7MaterializationTest(unittest.TestCase):
         with manifest.open(newline="") as handle:
             rows = [
                 row for row in csv.DictReader(handle, delimiter="\t")
-                if not row["panel"].startswith("7F")
+                if not row["panel"].startswith("7I")
                 and not row["panel"].startswith("7A-7L_composite")
             ]
         write_tsv(manifest, rows, MODULE_MANIFEST_COLUMNS)
@@ -1445,8 +1459,8 @@ class Figure7MaterializationTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
             (
-                "does not bind the reviewed renderer, config, and "
-                "nine-file"
+                "does not bind the reviewed renderer, panel-I input, "
+                "config, and nine-file"
             ),
             result.stderr,
         )

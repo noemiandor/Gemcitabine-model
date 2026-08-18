@@ -390,7 +390,7 @@ input_paths_for_module in_vivo_figure7 "$1"
             for spec in PANEL_SPECS:
                 if (
                     spec["module"] != "in_vivo_figure7"
-                    or str(spec["panel"]).startswith("7F")
+                    or str(spec["panel"]).startswith("7I")
                     or str(spec["panel"]).startswith("7A-7L_composite")
                 ):
                     continue
@@ -749,7 +749,7 @@ input_paths_for_module in_vivo_figure7 "$1"
                     {"panel_id": spec["panel"], "filename": Path(str(spec["source"])).name}
                     for spec in PANEL_SPECS
                     if spec["module"] == "in_vivo_figure7"
-                    and not str(spec["panel"]).startswith("7F")
+                    and not str(spec["panel"]).startswith("7I")
                     and not str(spec["panel"]).startswith("7A-7L_composite")
                     and spec.get("variant", "pdf") == "pdf"
                 ],

@@ -9,7 +9,7 @@ for (file in c(
   "seurat_upstream_selection.R",
   "tgi_data.R", "tgi_statistics.R",
   "tgi_panels.R", "context_panels.R", "copy_number_panel.R",
-  "state_pathway_panel.R",
+  "state_pathway_panel.R", "interval_treatment_panel.R",
   "generated_state_pathway_reference.R", "state_pathway_analysis.R"
 )) {
   sys.source(file.path(script_dir, "src", file), envir = .GlobalEnv)
@@ -51,6 +51,11 @@ config <- figure7_attach_density_localization_config(
   config,
   file.path(script_dir, "density_localization_config.yaml")
 )
+interval_treatment_input <- if (include_state_pathway) {
+  figure7_interval_treatment_input_path(repo_root, config)
+} else {
+  ""
+}
 output_dir <- normalizePath(figure7_arg(args, "output-dir", required = TRUE), mustWork = FALSE)
 si_cache_dir <- ""
 si_cache_policy <- "not_applicable"
@@ -831,6 +836,7 @@ render_from_run <- function(
   }
   f <- NULL
   provenance <- NULL
+  interval_treatment_source <- ""
   reference_identity <- list(
     id = "not_applicable",
     kind = "not_applicable",
@@ -851,11 +857,29 @@ render_from_run <- function(
         abs(figure7_numeric(rendered_primary_interval$start) -
           config$state_pathways$accumulated_interval$start) > 1e-12 ||
         abs(figure7_numeric(rendered_primary_interval$end) -
+          config$state_pathways$accumulated_interval$end) > 1e-12 ||
+        abs(as.numeric(config$interval_treatment_panel$interval_start) -
+          config$state_pathways$accumulated_interval$start) > 1e-12 ||
+        abs(as.numeric(config$interval_treatment_panel$interval_end) -
           config$state_pathways$accumulated_interval$end) > 1e-12) {
       figure7_stop(
         "render-only panel 7I interval is detached from panel H/SI4I density support"
       )
     }
+    interval_treatment_source <- table_path(
+      "panel_7I_origin_comparison_selected.tsv"
+    )
+    figure7_verify_checksum(
+      interval_treatment_source,
+      as.character(
+        config$interval_treatment_panel$selected_table_sha256
+      ),
+      "render-only frozen Figure 7I pathway table"
+    )
+    invisible(figure7_read_interval_treatment_table(
+      interval_treatment_source,
+      config
+    ))
     f <- figure7_read_tsv(table_path("panel_7F_pathway_activity_plot_data.tsv"),
       c("collection_id", "collection_label", "collection_display_order", "pathway_id", "pathway_label",
         "pathway_display_order", "selected_direction", "selected_rank_within_direction",
@@ -1131,13 +1155,17 @@ render_from_run <- function(
     )
   }
   if (include_state_pathway) {
-    legacy_plots$F <- figure7_panel_f_plot(f, config)
-    figure7_save_panel(legacy_plots$F, file.path(output_dir, "figures", filenames[["7F"]]), 9, 8)
+    interval_treatment_panel <- figure7_build_interval_treatment_panel(
+      interval_treatment_source,
+      output_dir,
+      config,
+      copy_table = FALSE
+    )
     figure7_save_main_composite(
       figure7_main_composite_plots(
         legacy_plots[LETTERS[1:5]],
         context_cache$plots,
-        legacy_plots$F,
+        interval_treatment_panel$plot,
         copy_number_panel$plot,
         config
       ),
@@ -1396,19 +1424,28 @@ if (include_state_pathway) {
       abs(figure7_numeric(primary_reference_interval$start) -
         config$state_pathways$accumulated_interval$start) > 1e-12 ||
       abs(figure7_numeric(primary_reference_interval$end) -
+        config$state_pathways$accumulated_interval$end) > 1e-12 ||
+      abs(as.numeric(config$interval_treatment_panel$interval_start) -
+        config$state_pathways$accumulated_interval$start) > 1e-12 ||
+      abs(as.numeric(config$interval_treatment_panel$interval_end) -
         config$state_pathways$accumulated_interval$end) > 1e-12) {
     figure7_stop(
       "Panel 7I reference interval does not match the interval computed from panel H/SI4I density support"
     )
   }
-  plot_f <- if (identical(mode, "full-workflow") || identical(
+  invisible(if (identical(mode, "full-workflow") || identical(
       reference$reference_id,
       as.character(config$state_pathways$generated_reference_id)
     )) {
-    figure7_build_generated_f(reference, output_dir, config)
+    figure7_build_generated_f(reference, output_dir, config, save_panel = FALSE)
   } else {
-    figure7_build_f(reference, output_dir, config)
-  }
+    figure7_build_f(reference, output_dir, config, save_panel = FALSE)
+  })
+  interval_treatment_panel <- figure7_build_interval_treatment_panel(
+    interval_treatment_input,
+    output_dir,
+    config
+  )
   figure7_write_tsv(
     context_cache$composition_result$plot_data,
     file.path(output_dir, "tables", "main_composite_panel_F_plot_data.tsv")
@@ -1425,7 +1462,7 @@ if (include_state_pathway) {
     figure7_main_composite_plots(
       ae$plots,
       context_cache$plots,
-      plot_f,
+      interval_treatment_panel$plot,
       copy_number_panel$plot,
       config
     ),

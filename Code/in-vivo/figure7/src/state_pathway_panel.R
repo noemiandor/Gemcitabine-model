@@ -557,7 +557,7 @@ figure7_panel_f_plot <- function(activity, config) {
     ggplot2::theme_bw(base_size = 9)
 }
 
-figure7_build_f <- function(reference, output_dir, config) {
+figure7_build_f <- function(reference, output_dir, config, save_panel = TRUE) {
   for (file in setdiff(figure7_state_required_files(), "state_pathway_provenance.tsv")) {
     figure7_copy_file(reference$files[[file]], file.path(output_dir, "tables", file))
   }
@@ -582,11 +582,13 @@ figure7_build_f <- function(reference, output_dir, config) {
     )
   )
   plot <- figure7_panel_f_plot(reference$activity, config)
-  figure7_save_panel(
-    plot,
-    file.path(output_dir, "figures", config$panels$filenames[["7F"]]),
-    9,
-    8
-  )
+  if (isTRUE(save_panel)) {
+    figure7_save_panel(
+      plot,
+      file.path(output_dir, "figures", config$panels$filenames[["7F"]]),
+      9,
+      8
+    )
+  }
   invisible(plot)
 }

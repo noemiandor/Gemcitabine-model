@@ -363,11 +363,14 @@ PANEL_SPECS = [
     },
     {
         "module": "in_vivo_figure7",
-        "source": "figures/panel_7F_pseudotime_state_pathway_activity.pdf",
+        "source": "figures/panel_7I_treated_vs_vehicle_pathways_by_origin.pdf",
         "figure": "Figure7",
-        "panel": "7F",
-        "asset": "panel_7F_pseudotime_state_pathway_activity.pdf",
-        "caption_role": "Pathway activity across the accumulated CellCycle pseudotime state",
+        "panel": "7I",
+        "asset": "panel_7I_treated_vs_vehicle_pathways_by_origin.pdf",
+        "caption_role": (
+            "Formal treatment-by-origin pathway interaction within the "
+            "selected pseudotime interval"
+        ),
         "variant": "pdf",
         "optional": True,
     },
@@ -423,11 +426,13 @@ PANEL_SPECS = [
     },
     {
         "module": "in_vivo_figure7",
-        "source": "figures/panel_7F_pseudotime_state_pathway_activity.png",
+        "source": "figures/panel_7I_treated_vs_vehicle_pathways_by_origin.png",
         "figure": "Figure7",
-        "panel": "7F_png",
-        "asset": "panel_7F_pseudotime_state_pathway_activity.png",
-        "caption_role": "PNG derivative of the pseudotime state-pathway activity panel",
+        "panel": "7I_png",
+        "asset": "panel_7I_treated_vs_vehicle_pathways_by_origin.png",
+        "caption_role": (
+            "PNG derivative of the treatment-associated pathway comparison"
+        ),
         "variant": "png",
         "optional": True,
     },
@@ -651,7 +656,12 @@ FIGURE7J_COPY_NUMBER_ANNOTATION_COLUMNS = [
 # Panel identifiers retired by a current compositor contract must not survive
 # targeted materialization as stale aliases in the same figure manifest.
 SUPERSEDED_PANEL_IDS = {
-    "Figure7": {"7A-7K_composite", "7A-7K_composite_pdf"},
+    "Figure7": {
+        "7A-7K_composite",
+        "7A-7K_composite_pdf",
+        "7F",
+        "7F_png",
+    },
 }
 
 EXTERNAL_ROWS = [
@@ -3057,19 +3067,19 @@ def validate_strict_source_run(
         and (not spec.get("optional") or (run_root / str(spec["source"])).is_file())
     }
     if module == "in_vivo_figure7":
-        panel_f_paths = {
+        panel_i_paths = {
             (run_root / str(spec["source"])).resolve()
             for spec in selected_specs
             if str(spec["module"]) == module
-            and str(spec["panel"]).startswith("7F")
+            and str(spec["panel"]).startswith("7I")
         }
-        present_panel_f_paths = {path for path in panel_f_paths if path.is_file()}
-        if present_panel_f_paths and present_panel_f_paths != panel_f_paths:
+        present_panel_i_paths = {path for path in panel_i_paths if path.is_file()}
+        if present_panel_i_paths and present_panel_i_paths != panel_i_paths:
             raise ValueError(
-                "Source Figure 7 run must contain both PDF and PNG panel-F "
+                "Source Figure 7 run must contain both PDF and PNG panel-I "
                 "assets or neither"
             )
-        has_panel_f = present_panel_f_paths == panel_f_paths
+        has_panel_i = present_panel_i_paths == panel_i_paths
         composite_specs = [
             spec
             for spec in selected_specs
@@ -3081,11 +3091,11 @@ def validate_strict_source_run(
         composite_path = (
             run_root / str(composite_specs[0]["source"])
         ).resolve()
-        if composite_path.is_file() != has_panel_f:
-            requirement = "present" if has_panel_f else "absent"
+        if composite_path.is_file() != has_panel_i:
+            requirement = "present" if has_panel_i else "absent"
             raise ValueError(
                 "Source Figure 7 A-L composite must be "
-                f"{requirement} exactly when panel F is present"
+                f"{requirement} exactly when panel I is present"
             )
         composite_pdf_specs = [
             spec
@@ -3098,13 +3108,13 @@ def validate_strict_source_run(
         composite_pdf_path = (
             run_root / str(composite_pdf_specs[0]["source"])
         ).resolve()
-        if composite_pdf_path.is_file() != has_panel_f:
-            requirement = "present" if has_panel_f else "absent"
+        if composite_pdf_path.is_file() != has_panel_i:
+            requirement = "present" if has_panel_i else "absent"
             raise ValueError(
                 "Source Figure 7 vector A-L composite must be "
-                f"{requirement} exactly when panel F is present"
+                f"{requirement} exactly when panel I is present"
             )
-        if has_panel_f:
+        if has_panel_i:
             width_px, height_px, dpi_x, dpi_y = read_png_geometry(composite_path)
             if (
                 (width_px, height_px) != (2130, 3193)
@@ -3117,7 +3127,7 @@ def validate_strict_source_run(
                     "Source Figure 7 A-L PNG must be exactly 2130x3193 pixels "
                     "with 300-DPI metadata (7.1x10.645 inches)"
                 )
-        expected_panel_set = "a-f" if has_panel_f else "a-e"
+        expected_panel_set = "a-f" if has_panel_i else "a-e"
         run_config = read_unique_key_values(
             run_root / "metadata" / "run_config.tsv",
             "source Figure 7 run config",
@@ -3190,7 +3200,7 @@ def validate_strict_source_run(
             output_rows,
             source_run_id,
         )
-        if has_panel_f:
+        if has_panel_i:
             reviewed_identity = {
                 "state_pathway_reference_id": FIGURE7_REVIEWED_REFERENCE_ID,
                 "state_pathway_reference_kind": FIGURE7_REVIEWED_REFERENCE_KIND,
@@ -3289,9 +3299,18 @@ def validate_strict_source_run(
                 ).resolve(),
                 (
                     repo_root
+                    / "Code/in-vivo/figure7/src/interval_treatment_panel.R"
+                ).resolve(),
+                (
+                    repo_root
                     / "Code/in-vivo/SI_figures/copy_number_heatmap.R"
                 ).resolve(),
                 (repo_root / "Data/in-vivo/all_ploidy.tsv").resolve(),
+                (
+                    repo_root
+                    / "Data/in-vivo/figure7/processed/"
+                    "panel_7I_origin_comparison_selected.tsv"
+                ).resolve(),
                 (
                     repo_root
                     / "Data/in-vivo/scRNAseq_Numbat/cbs_manifest.tsv"
@@ -3322,7 +3341,8 @@ def validate_strict_source_run(
                 raise ValueError(
                     "Canonical Figure 7 materialization is prohibited: "
                     "the source input manifest does not bind the reviewed "
-                    "renderer, config, and nine-file panel-7F reference: "
+                    "renderer, panel-I input, config, and nine-file "
+                    "state-pathway reference: "
                     f"missing={missing_input_paths}"
                 )
             provenance = read_unique_key_values(
@@ -3351,7 +3371,7 @@ def validate_strict_source_run(
                 "main_composite_filename": "Figure7_reviewed_GRCh.png",
                 "main_composite_panel_order": (
                     "A=7A;B=7C;C=SI4A;D=SI4B;E=SI4C;F=SI4E;"
-                    "G=SI7B;H=7B;I=7F;J=7J;K=7D;L=7E"
+                    "G=SI7B;H=7B;I=7I;J=7J;K=7D;L=7E"
                 ),
                 "main_composite_width_in": "7.1",
                 "main_composite_height_in": "10.645",

@@ -748,7 +748,12 @@ figure7_validate_generated_state_reference <- function(
   )
 }
 
-figure7_build_generated_f <- function(reference, output_dir, config) {
+figure7_build_generated_f <- function(
+  reference,
+  output_dir,
+  config,
+  save_panel = TRUE
+) {
   for (file in setdiff(figure7_state_required_files(), "state_pathway_provenance.tsv")) {
     figure7_copy_file(
       reference$files[[file]],
@@ -776,11 +781,13 @@ figure7_build_generated_f <- function(reference, output_dir, config) {
     )
   )
   plot <- figure7_panel_f_plot(reference$activity, config)
-  figure7_save_panel(
-    plot,
-    file.path(output_dir, "figures", config$panels$filenames[["7F"]]),
-    9,
-    8
-  )
+  if (isTRUE(save_panel)) {
+    figure7_save_panel(
+      plot,
+      file.path(output_dir, "figures", config$panels$filenames[["7F"]]),
+      9,
+      8
+    )
+  }
   invisible(plot)
 }

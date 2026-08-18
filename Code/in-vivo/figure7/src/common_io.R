@@ -569,7 +569,7 @@ figure7_read_config <- function(path, tgi_day = NULL) {
   }
   expected_main_mapping <- c(
     A = "7A", B = "7C", C = "SI4A", D = "SI4B", E = "SI4C",
-    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7J",
+    F = "SI4E", G = "SI7B", H = "7B", I = "7I", J = "7J",
     K = "7D", L = "7E"
   )
   observed_main_mapping <- as.character(unlist(
@@ -594,6 +594,42 @@ figure7_read_config <- function(path, tgi_day = NULL) {
     figure7_stop(
       "Main Figure 7 must use the reviewed A-L panel mapping"
     )
+  }
+  interval_panel <- config$interval_treatment_panel
+  interval_panel_required <- c(
+    "selected_table", "selected_table_sha256",
+    "interval_start", "interval_end", "fdr_threshold",
+    "max_per_direction_across_collections", "expected_shared_pathways",
+    "expected_cells_2N", "expected_cells_4N", "expected_mice_per_origin"
+  )
+  missing_interval_panel <- setdiff(
+    interval_panel_required,
+    names(interval_panel)
+  )
+  if (length(missing_interval_panel) ||
+      !identical(
+        as.character(interval_panel$selected_table),
+        "Data/in-vivo/figure7/processed/panel_7I_origin_comparison_selected.tsv"
+      ) ||
+      !grepl(
+        "^[0-9a-f]{64}$",
+        as.character(interval_panel$selected_table_sha256)
+      ) ||
+      !isTRUE(all.equal(
+        as.numeric(interval_panel$interval_start), 0.296, tolerance = 0
+      )) ||
+      !isTRUE(all.equal(
+        as.numeric(interval_panel$interval_end), 0.486, tolerance = 0
+      )) ||
+      !isTRUE(all.equal(
+        as.numeric(interval_panel$fdr_threshold), 0.05, tolerance = 0
+      )) ||
+      as.integer(interval_panel$max_per_direction_across_collections) != 10L ||
+      as.integer(interval_panel$expected_shared_pathways) != 0L ||
+      as.integer(interval_panel$expected_cells_2N) != 242L ||
+      as.integer(interval_panel$expected_cells_4N) != 175L ||
+      as.integer(interval_panel$expected_mice_per_origin) != 8L) {
+    figure7_stop("Main Figure 7I interval-treatment contract is invalid")
   }
   si <- config$si_figures
   si_required <- c(
@@ -1123,8 +1159,12 @@ figure7_save_panel <- function(plot, pdf_path, width, height, png_dpi = 300) {
   invisible(paths)
 }
 
-figure7_panel_ids <- function(include_panel_f = TRUE) {
-  if (isTRUE(include_panel_f)) c("7A", "7B", "7C", "7D", "7E", "7F") else c("7A", "7B", "7C", "7D", "7E")
+figure7_panel_ids <- function(include_panel_i = TRUE) {
+  if (isTRUE(include_panel_i)) {
+    c("7A", "7B", "7C", "7D", "7E", "7I")
+  } else {
+    c("7A", "7B", "7C", "7D", "7E")
+  }
 }
 
 figure7_panel_filenames <- function(config, panel_ids = figure7_panel_ids(TRUE)) {
@@ -1372,14 +1412,46 @@ figure7_publication_clean_plots <- function(plots, config) {
     ) +
     ggplot2::guides(linetype = "none") +
     ggplot2::theme(legend.position = "none")
+  plots$I <- drop_scale(plots$I, "colour")
   plots$I <- plots$I +
     ggplot2::labs(
-      x = "Cell-cycle pseudotime", y = NULL,
-      fill = "Mean gene z score"
+      x = "Treatment-by-origin interaction NES", y = NULL,
+      color = "Collection",
+      size = expression(-log[10]~"FDR")
+    ) +
+    ggplot2::scale_color_manual(
+      values = c(
+        "Hallmark" = "#0072B2",
+        "Reactome" = "#D55E00",
+        "GO BP" = "#009E73"
+      ),
+      breaks = c("Hallmark", "Reactome", "GO BP"),
+      labels = c("Hallmark", "React.", "GO BP"),
+      drop = FALSE
+    ) +
+    ggplot2::guides(
+      color = ggplot2::guide_legend(
+        title = NULL, order = 1, nrow = 1,
+        override.aes = list(size = 2.1, alpha = 1)
+      ),
+      size = "none"
     ) +
     ggplot2::theme(
-      legend.position = "right",
-      axis.text.y = ggplot2::element_text(size = spec$annotation_pt)
+      legend.position = "top",
+      legend.justification = "left",
+      legend.box = "horizontal",
+      legend.spacing.x = grid::unit(0.01, "lines"),
+      legend.key.width = grid::unit(0.42, "lines"),
+      legend.key.height = grid::unit(0.55, "lines"),
+      legend.text = ggplot2::element_text(size = 4.7),
+      axis.title.x = ggplot2::element_text(size = 6.2),
+      axis.text.x = ggplot2::element_text(size = 5.7),
+      axis.text.y = ggplot2::element_text(size = 5.25, lineheight = 0.86),
+      strip.text.y = ggplot2::element_text(
+        size = 5.5, face = "bold", angle = 270
+      ),
+      panel.spacing.y = grid::unit(0.08, "lines"),
+      plot.margin = ggplot2::margin(2, 2, 2, 2, unit = "pt")
     )
   plots$K <- plots$K +
     ggplot2::labs(

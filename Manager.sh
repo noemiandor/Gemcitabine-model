@@ -527,6 +527,7 @@ figure7_runtime_source_paths() {
     Code/in-vivo/figure7/src/context_panels.R \
     Code/in-vivo/figure7/src/copy_number_panel.R \
     Code/in-vivo/figure7/src/state_pathway_panel.R \
+    Code/in-vivo/figure7/src/interval_treatment_panel.R \
     Code/in-vivo/figure7/src/generated_state_pathway_reference.R \
     Code/in-vivo/figure7/src/state_pathway_analysis.R
 }
@@ -624,6 +625,7 @@ input_paths_for_module() {
           Code/in-vivo/SI_figures/normalized_composition.R \
           Code/in-vivo/SI_figures/copy_number_heatmap.R \
           Data/in-vivo/all_ploidy.tsv \
+          Data/in-vivo/figure7/processed/panel_7I_origin_comparison_selected.tsv \
           "${figure7_cbs_root}/cbs_manifest.tsv"
         printf "%s\n" "${figure7_cbs_root}"/*.sps.cbs
         local context_policy=""
@@ -1243,6 +1245,7 @@ required_input_paths_for_module() {
           Code/in-vivo/SI_figures/normalized_composition.R \
           Code/in-vivo/SI_figures/copy_number_heatmap.R \
           Data/in-vivo/all_ploidy.tsv \
+          Data/in-vivo/figure7/processed/panel_7I_origin_comparison_selected.tsv \
           "${figure7_cbs_root}/cbs_manifest.tsv"
         printf "%s\n" "${figure7_cbs_root}"/*.sps.cbs
         if figure7_uses_generated_si_cache; then

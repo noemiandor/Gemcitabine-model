@@ -3,7 +3,7 @@ testthat::test_that("main Figure 7 config and both render paths use the exact A-
   config <- figure7_test_inputs()$config
   expected_mapping <- c(
     A = "7A", B = "7C", C = "SI4A", D = "SI4B", E = "SI4C",
-    F = "SI4E", G = "SI7B", H = "7B", I = "7F", J = "7J",
+    F = "SI4E", G = "SI7B", H = "7B", I = "7I", J = "7J",
     K = "7D", L = "7E"
   )
   observed_mapping <- unlist(
@@ -80,7 +80,7 @@ testthat::test_that("main Figure 7 config and both render paths use the exact A-
     c(
       "legacy_plots[LETTERS[1:5]]",
       "context_cache$plots",
-      "legacy_plots$F",
+      "interval_treatment_panel$plot",
       "copy_number_panel$plot",
       "config"
     )
@@ -90,7 +90,7 @@ testthat::test_that("main Figure 7 config and both render paths use the exact A-
     identical,
     logical(1L),
     c(
-      "ae$plots", "context_cache$plots", "plot_f",
+      "ae$plots", "context_cache$plots", "interval_treatment_panel$plot",
       "copy_number_panel$plot", "config"
     )
   )))
@@ -117,12 +117,12 @@ testthat::test_that("main Figure 7 config and both render paths use the exact A-
     ),
     LETTERS[3:7]
   )
-  state_pathway_plot <- ggplot2::ggplot() + ggplot2::labs(caption = "7F")
+  interval_treatment_plot <- ggplot2::ggplot() + ggplot2::labs(caption = "7I")
   copy_number_plot <- ggplot2::ggplot() + ggplot2::labs(caption = "7J")
   assembled <- figure7_main_composite_plots(
     source_plots,
     context_plots,
-    state_pathway_plot,
+    interval_treatment_plot,
     copy_number_plot,
     config
   )

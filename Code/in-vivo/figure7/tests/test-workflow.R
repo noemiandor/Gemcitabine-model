@@ -789,6 +789,11 @@ testthat::test_that("generated references attest a removed state tree", {
       "src",
       "common_io.R"
     )),
+    support_common_io_sha256 = figure7_sha256(file.path(
+      module_dir,
+      "src",
+      "common_io.R"
+    )),
     seurat_rds_sha256 = figure7_sha256(seurat_rds),
     cellcycle_metadata_sha256 = figure7_sha256(cellcycle),
     noncellcycle_metadata_sha256 = figure7_sha256(noncellcycle),

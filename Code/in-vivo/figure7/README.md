@@ -7,11 +7,10 @@ This module generates six scientific source panels as matched vector PDF and
 canvas. Its fixed six-row layout is A/B; C/D/E; F/G; H; I/J; K/L. The composite
 reuses Supplementary Figure 4A-C/E and Supplementary Figure 7B through the
 shared production plotting helper; their supplementary copies are retained.
-The former human-only panel-7F v2
-reference is retained for audit but is superseded because its model adjusted
-for a run-confounded endpoint-CN-score group. The reviewed pointwise-v4 reference
-adjusts for injected initial ploidy and directly uses the computed
-0.296--0.486 density-support interval as the canonical panel-7F source. Panel
+The former human-only panel-7F state-pathway reference is retained for audit
+and interval-lineage validation, but is no longer displayed in the composite.
+Main panel I now shows the formal treatment-by-origin pathway interaction
+within the computed 0.296--0.486 density-support interval. Panel
 L shows the unadjusted mouse-level Pearson association between the
 checksum-pinned mean endpoint tumor-cell ploidy and TGI, with unrestricted
 exact enumeration of all 8! TGI-label permutations; endpoint ploidy is not
@@ -45,14 +44,15 @@ used as a nuisance covariate in the state-pathway model.
 - Panel 7D (main panel K) uses equal-mouse untreated ECDF references matched by
   injected initial ploidy. The treated-mouse association is Pearson r =
   0.7399455 with exact within-dose permutation P = 0.0173611 (576 labelings).
-- Panel 7F (main panel I) uses model
-  `initial_ploidy_adjusted_grch_human_only_pointwise_interval_v4`; its nuisance terms are dose and
-  injected initial ploidy, never endpoint CN score or an endpoint-derived
-  threshold group. Its primary interval is computed directly as the unique
-  connected positive pointwise-supported density region (0.296--0.486), and
-  its two equal-width flanks are then derived as [0.106,0.296) and
-  (0.486,0.676]. Static interval fields are validation expectations and cannot
-  select a different modeling contrast.
+- Panel 7I (main panel I) uses mouse-level pseudobulks from the inclusive
+  0.296--0.486 interval and directly tests
+  `[equal-dose treated - vehicle]_4N - [equal-dose treated - vehicle]_2N`,
+  adjusting for mean within-interval pseudotime. It shows the 10 most negative
+  and 10 most positive formal interaction NES across Hallmark, Reactome, and
+  GO BP, ranked by NES within sign. Negative NES denotes a more positive
+  treatment response in 2N-origin tumors; positive NES denotes a more positive
+  response in 4N-origin tumors. Only GRCh38-prefixed human-tumor features enter
+  expression filtering, modeling, or GSEA.
 - Panel 7E (main panel L) reports the descriptive mouse-level association
   between mean endpoint tumor-cell ploidy and Day-17 TGI (Pearson r =
   -0.6984010; asymptotic P = 0.0540070; exact unrestricted permutation P =
@@ -65,11 +65,12 @@ used as a nuisance covariate in the state-pathway model.
   the common one-copy-gain state remains visible on a white page.
 - The A-L manuscript composite binds the exact reviewed 11-table SI cache and
   displays in manuscript reading order: source 7A, source 7C, SI4A-C, SI4E, SI7B,
-  source 7B, source 7F, the exact QC-filtered NUMBAT heatmap, and source 7D-E. Publication styling changes only
+  source 7B, source 7I, the exact QC-filtered NUMBAT heatmap, and source 7D-E. Publication styling changes only
   layout, typography, reader-facing labels, and legend placement; it does not
   change the panel identities, source tables, fitted models, tests, or values.
 
-The nine reviewed pointwise-v4 panel-7F files retain exact `GRCh38-` features before
+The nine reviewed pointwise-v4 panel-7F files remain an audit chain for the
+superseded state-versus-flanks display and for the interval lineage. They retain exact `GRCh38-` features before
 expression filtering, symbol resolution, model fitting, and Homo sapiens GSEA.
 They include the computed interval definition and use pseudotime 0.296--0.486.
 Displayed pathways must
@@ -306,7 +307,7 @@ PDF bytes.
 
 The selected endpoint day is used consistently for the matched-control TGI
 calculation, plot labels, statistical tables, run metadata, panel contract, and
-day-bearing filenames. Panel 7B and panel 7F are scientifically independent of
+day-bearing filenames. Panel 7B and panel 7I are scientifically independent of
 the TGI endpoint and are regenerated unchanged into the selected destination.
 
 Routine and raw-fallback runs do not refresh tracked reviewed or audit reference directories.
@@ -322,7 +323,8 @@ bash Manager.sh --mode standard --modules in_vivo_figure7 \
 ```
 
 This mode records a five-panel contract and does not read, validate, render, or
-materialize panel 7F. Each included panel is written in both PDF and PNG format.
+materialize panel 7I or its full-composite dependencies. Each included panel is
+written in both PDF and PNG format.
 
 The superseded v2 directory remains byte-pinned and is exercised by its
 dedicated audit validator and tests. Routine rendering intentionally refuses
@@ -397,11 +399,11 @@ default six-panel source contract contains these PDF/PNG pairs:
 3. `panel_7C_day17_tgi_by_initial_ploidy.{pdf,png}`
 4. `panel_7D_day17_tgi_vs_centered_ecdf_shift.{pdf,png}`
 5. `panel_7E_day17_tgi_vs_mean_etp.{pdf,png}`
-6. `panel_7F_pseudotime_state_pathway_activity.{pdf,png}`
+6. `panel_7I_treated_vs_vehicle_pathways_by_origin.{pdf,png}`
 
 It additionally contains the publication-scale
 `Figure7_reviewed_GRCh.{pdf,png}` pair, whose panel contract is: A=7A, B=7C,
-C=SI4A, D=SI4B, E=SI4C, F=SI4E, G=SI7B, H=7B, I=7F, J=7J,
+C=SI4A, D=SI4B, E=SI4C, F=SI4E, G=SI7B, H=7B, I=7I, J=7J,
 K=7D, and L=7E. The copy-number heatmap is published only as main J. The
 fixed injected-origin/dose/mouse block order is preserved in J, while cells are
 hierarchically clustered separately within each mouse using Euclidean distance
