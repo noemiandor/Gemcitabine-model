@@ -205,6 +205,61 @@ testthat::test_that("interaction signs identify the origin with the stronger tre
   )
 })
 
+testthat::test_that("global response energy compares magnitude on one gene universe", {
+  set.seed(744L)
+  sample_id <- paste0("magnitude_mouse_", seq_len(16L))
+  origin <- rep(c("2N", "4N"), each = 8L)
+  dose <- rep(c(0, 0, 0, 0, 30, 30, 120, 120), 2L)
+  mouse_meta <- data.frame(
+    sample_id = sample_id,
+    initial_ploidy = origin,
+    dose_mg = dose,
+    treatment = ifelse(dose == 0, "vehicle", "treated"),
+    n_cells = rep(10L, 16L),
+    mean_pseudotime = rep(seq(0.35, 0.42, length.out = 8L), 2L),
+    stringsAsFactors = FALSE,
+    row.names = sample_id
+  )
+  counts <- matrix(
+    stats::rpois(320L * 16L, lambda = 100),
+    nrow = 320L,
+    dimnames = list(paste0("GRCh38-gene_", seq_len(320L)), sample_id)
+  )
+  two_n_treated <- origin == "2N" & dose > 0
+  four_n_treated <- origin == "4N" & dose > 0
+  counts[1:40, two_n_treated] <- stats::rpois(40L * 4L, lambda = 420)
+  counts[41:80, two_n_treated] <- stats::rpois(40L * 4L, lambda = 25)
+  counts[1:40, four_n_treated] <- stats::rpois(40L * 4L, lambda = 170)
+  counts[41:80, four_n_treated] <- stats::rpois(40L * 4L, lambda = 60)
+
+  design <- analysis_env$prepare_treatment_origin_interaction_design(mouse_meta)
+  contrasts <- analysis_env$treatment_origin_interaction_contrasts(design$design)
+  model <- analysis_env$fit_interval_voom(
+    Matrix::Matrix(counts, sparse = TRUE),
+    design,
+    cpm_threshold = 0,
+    minimum_mice = 4L
+  )
+  result <- analysis_env$analyze_global_response_magnitude(
+    list(model = model, design = design, contrasts = contrasts),
+    replicates = 199L,
+    seed = 744L
+  )
+
+  energy <- setNames(
+    result$origin_summary$noise_corrected_mean_squared_log2_fold_change,
+    result$origin_summary$origin
+  )
+  testthat::expect_identical(result$origin_summary$origin, c("2N", "4N"))
+  testthat::expect_true(all(
+    result$origin_summary$retained_common_genes == model$n_retained_genes
+  ))
+  testthat::expect_gt(energy[["2N"]], energy[["4N"]])
+  testthat::expect_gt(result$comparison$estimate_2N_minus_4N, 0)
+  testthat::expect_identical(result$comparison$bootstrap_replicates, 199L)
+  testthat::expect_identical(nrow(result$bootstrap), 199L)
+})
+
 testthat::test_that("origin-stratified designs omit the constant origin term", {
   sample_id <- paste0("mouse_2N_", seq_len(8L))
   mouse_meta <- data.frame(
@@ -338,7 +393,7 @@ testthat::test_that("pathway display caps the reviewed selector at three per dir
   testthat::expect_false(any(grepl("_13$", selected$pathway)))
 })
 
-testthat::test_that("lower comparison panels contain only formal interaction results", {
+testthat::test_that("formal interaction panel selects the ten NES extremes per sign", {
   collections <- c("H", "C2:CP:REACTOME", "C5:GO:BP")
   make_rows <- function(pathways, nes, padj) {
     data.frame(
@@ -359,12 +414,12 @@ testthat::test_that("lower comparison panels contain only formal interaction res
   shared_4n <- shared_2n
   shared_4n$NES <- shared_4n$NES * 0.9
   interaction <- make_rows(
-    paste0("formal_interaction_", seq_len(10L)),
-    c(seq(-2.6, -1.4, length.out = 5L), seq(1.4, 2.6, length.out = 5L)),
-    c(0.001, 0.02, 0.2, 0.3, 0.4, 0.004, 0.03, 0.25, 0.35, 0.45)
+    paste0("formal_interaction_", seq_len(24L)),
+    c(seq(-1.3, -2.4, length.out = 12L), seq(1.3, 2.4, length.out = 12L)),
+    rep(c(0.4, 0.03, 0.01, 0.2), 6L)
   )
   interaction_2n <- interaction
-  interaction_2n$NES <- c(rep(1, 5L), rep(-1, 5L))
+  interaction_2n$NES <- c(rep(1, 12L), rep(-1, 12L))
   interaction_2n$padj <- 0.5
   interaction_4n <- interaction
   interaction_4n$NES <- 0
@@ -376,16 +431,25 @@ testthat::test_that("lower comparison panels contain only formal interaction res
     origin_effect_gsea_2n = interaction_2n,
     origin_effect_gsea_4n = interaction_4n,
     fdr_threshold = 0.05,
-    maximum_per_direction = 3L
+    maximum_per_direction = 10L
   )
   testthat::expect_identical(nrow(comparison$shared), 5L)
-  testthat::expect_identical(nrow(comparison$selected_interactions), 6L)
+  testthat::expect_identical(nrow(comparison$selected_interactions), 20L)
   testthat::expect_true(all(grepl(
     "^formal_interaction_",
     comparison$selected_interactions$pathway
   )))
+  testthat::expect_setequal(
+    unique(comparison$selected_interactions$panel_id),
+    c("negative_interaction", "positive_interaction")
+  )
   testthat::expect_true(all(comparison$selected_2N$NES < 0))
   testthat::expect_true(all(comparison$selected_4N$NES > 0))
+  testthat::expect_equal(comparison$selected_2N$NES, sort(interaction$NES)[1:10])
+  testthat::expect_equal(
+    comparison$selected_4N$NES,
+    sort(interaction$NES, decreasing = TRUE)[1:10]
+  )
   testthat::expect_true(all(
     comparison$selected_interactions$origin_effect_nes_order_concordant
   ))
@@ -394,11 +458,11 @@ testthat::test_that("lower comparison panels contain only formal interaction res
   testthat::expect_true(all(comparison$selected_4N$NES_2N == -1))
   testthat::expect_true(all(comparison$selected_4N$NES_4N == 0))
   testthat::expect_identical(
-    comparison$selected_2N$interaction_fdr_significant,
-    c(TRUE, TRUE, FALSE)
+    comparison$selected_2N$selected_rank_within_direction,
+    seq_len(10L)
   )
   testthat::expect_identical(
-    comparison$selected_4N$interaction_fdr_significant,
-    c(TRUE, TRUE, FALSE)
+    comparison$selected_4N$selected_rank_within_direction,
+    seq_len(10L)
   )
 })

@@ -51,6 +51,23 @@ and pathways differ between gemcitabine-treated and vehicle tumors?
   pathways are estimated from that same joint model and expressed-gene
   universe. This keeps the paired estimates directly aligned with the formal
   interaction test.
+- Counts of FDR-significant pathways are retained as descriptive audit values,
+  not compared as a measure of response strength. Such counts depend on
+  standard errors, gene-set overlap, separate expression filters, and the
+  significance threshold as well as effect magnitude.
+- A separate threshold-free comparison directly estimates global response
+  magnitude on the joint model's single expressed-gene universe. For each
+  origin it averages the squared equal-dose treated-minus-vehicle log2 fold
+  changes across genes and subtracts the corresponding moderated sampling
+  variance. The formal estimand is the resulting 2N-minus-4N difference in
+  noise-corrected mean squared log2 fold change. A positive value denotes a
+  larger total transcriptional displacement in 2N; it does not imply that the
+  same genes or pathways move in the same direction.
+- Uncertainty for that magnitude difference uses an HC2 whole-mouse
+  Rademacher wild bootstrap with fixed voom weights. Every gene within a mouse
+  receives the same bootstrap multiplier, preserving cross-gene dependence;
+  the default is 4,999 replicates. This is an exploratory, small-sample global
+  test and is reported with its interval-selected-analysis caveat.
 - For a pathway-level Figure 7I candidate, the primary model's moderated
   gene-level t statistics are passed to the same GSEA implementation used by
   the existing Figure 7I workflow. The analysis uses the pinned Homo sapiens
@@ -60,16 +77,15 @@ and pathways differ between gemcitabine-treated and vehicle tumors?
   nonsignificant backfill) from the reviewed workflow. The pooled, 2N-origin,
   and 4N-origin panels all use this same rule. Positive normalized enrichment
   scores indicate enrichment in treated tumors.
-- A compact origin-comparison panel retains every pathway that is
-  FDR-significant in both separate origin models in its upper tier. The two
-  lower tiers are selected only from GSEA of the formal interaction: up to the
-  top three negative and positive interaction pathways across all three
-  collections, ranked by collection-wise BH FDR. Points show the paired 2N and
-  4N treated-minus-vehicle NES estimates from the joint model; connectors make
-  the direction of the origin difference explicit. Collection is encoded by
-  color and origin by point shape. Displayed interaction pathways retain their
-  formal FDR status; the selector does not treat "significant in one stratum"
-  as evidence of an interaction.
+- The Figure 7I interaction panel contains only GSEA of the formal interaction.
+  It displays the 10 most negative and 10 most positive interaction NES across
+  all three collections, ranked by NES within sign. A negative interaction NES
+  denotes a more positive treated-minus-vehicle response in 2N-origin tumors;
+  a positive interaction NES denotes a more positive response in 4N-origin
+  tumors. Each pathway is represented once by its interaction NES, collection
+  is encoded by color, and point size represents the interaction FDR. The
+  separate-origin results remain audit outputs but are not displayed and are
+  not used as evidence of an interaction.
 - A sensitivity model omits only the mean within-interval pseudotime
   adjustment; injected origin remains an adjustment term and the gene universe
   and treatment contrast remain unchanged.
@@ -91,6 +107,14 @@ With the reviewed raw Seurat object already present at its standard location:
 Rscript Code/in-vivo/figure7/exploratory/treated_vs_vehicle_interval_de.R
 ```
 
+To run only the threshold-free global magnitude audit without loading a
+pathway database or regenerating pathway panels:
+
+```bash
+Rscript Code/in-vivo/figure7/exploratory/treated_vs_vehicle_interval_de.R \
+  --global-magnitude-only=true
+```
+
 The isolated default output is:
 
 ```text
@@ -105,6 +129,7 @@ DE and GSEA tables; paired joint-model origin effects; complete and selected
 pooled/stratified GSEA tables; leading-edge genes; the exact
 gene-set contract and membership; mouse coverage; design matrices and contrast
 definitions; species and expression-filter audits; portable input provenance;
+global response-magnitude estimates, their whole-mouse bootstrap audit;
 package versions; and session information.
 
 Run the focused synthetic tests from the repository root with:

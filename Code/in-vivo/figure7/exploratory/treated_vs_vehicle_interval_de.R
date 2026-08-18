@@ -79,6 +79,12 @@ usage <- function() {
     "  --fdr_threshold NUMBER     Plot significance threshold [0.05]",
     "  --lfc_threshold NUMBER     Plot absolute log2-FC threshold [0.5]",
     "  --label_genes INTEGER      Maximum volcano labels [12]",
+    "  --magnitude_bootstrap_replicates INTEGER",
+    "                             Whole-mouse wild-bootstrap draws [4999]",
+    "  --magnitude_bootstrap_seed INTEGER",
+    "                             Seed for the global magnitude comparison [20260818]",
+    "  --global_magnitude_only BOOL",
+    "                             Skip gene-set loading and write only the magnitude audit [FALSE]",
     "  --verify_input_hashes BOOL Verify inputs against the reviewed config [TRUE]",
     "  --overwrite BOOL           Replace this exact output directory [FALSE]",
     sep = "\n"
@@ -99,6 +105,13 @@ required_packages <- function() {
     "Seurat", "SeuratObject", "Matrix", "yaml", "digest", "edgeR",
     "limma", "fgsea", "BiocParallel", "msigdbr", "readr", "ggplot2",
     "ggrepel"
+  )
+}
+
+global_magnitude_required_packages <- function() {
+  c(
+    "Seurat", "SeuratObject", "Matrix", "yaml", "digest", "edgeR",
+    "limma", "readr"
   )
 }
 
@@ -609,6 +622,8 @@ prepare_pathway_ranking <- function(de_table, support) {
 
 exploratory_pathway_max_per_direction <- function() 3L
 
+interaction_pathway_max_per_direction <- function() 10L
+
 exploratory_pathway_selection_rule <- function() {
   paste(
     "BH-adjusted P <= 0.05;",
@@ -875,14 +890,10 @@ fit_origin_stratified_analysis <- function(
   )
 }
 
-fit_treatment_origin_interaction_analysis <- function(
+fit_global_response_magnitude_model <- function(
   pseudobulk,
-  support,
-  config,
-  gene_sets,
   cpm_threshold = 1,
-  minimum_mice = 4L,
-  seed = 1L
+  minimum_mice = 4L
 ) {
   design_bundle <- prepare_treatment_origin_interaction_design(
     pseudobulk$metadata,
@@ -895,6 +906,31 @@ fit_treatment_origin_interaction_analysis <- function(
     cpm_threshold = cpm_threshold,
     minimum_mice = minimum_mice
   )
+  list(
+    mouse_metadata = pseudobulk$metadata,
+    design = design_bundle,
+    contrasts = contrasts,
+    model = model
+  )
+}
+
+fit_treatment_origin_interaction_analysis <- function(
+  pseudobulk,
+  support,
+  config,
+  gene_sets,
+  cpm_threshold = 1,
+  minimum_mice = 4L,
+  seed = 1L
+) {
+  base_model <- fit_global_response_magnitude_model(
+    pseudobulk,
+    cpm_threshold = cpm_threshold,
+    minimum_mice = minimum_mice
+  )
+  design_bundle <- base_model$design
+  contrasts <- base_model$contrasts
+  model <- base_model$model
   de_tables <- lapply(names(contrasts), function(contrast_id) {
     is_interaction <- identical(contrast_id, "treatment_by_origin_4N_minus_2N")
     extract_contrast_table(
@@ -950,6 +986,469 @@ fit_treatment_origin_interaction_analysis <- function(
   )
 }
 
+global_response_contrast_ids <- function() {
+  c(
+    `2N` = "treated_equal_dose_minus_vehicle_2N",
+    `4N` = "treated_equal_dose_minus_vehicle_4N"
+  )
+}
+
+validate_magnitude_bootstrap_settings <- function(replicates, seed) {
+  replicates <- suppressWarnings(as.integer(replicates))
+  seed <- suppressWarnings(as.integer(seed))
+  if (length(replicates) != 1L || is.na(replicates) || replicates < 199L) {
+    stop("magnitude_bootstrap_replicates must be an integer of at least 199", call. = FALSE)
+  }
+  if (length(seed) != 1L || is.na(seed)) {
+    stop("magnitude_bootstrap_seed must be a finite integer", call. = FALSE)
+  }
+  list(replicates = replicates, seed = seed)
+}
+
+prepare_global_response_magnitude_components <- function(interaction_analysis) {
+  contrast_ids <- global_response_contrast_ids()
+  missing_contrasts <- setdiff(unname(contrast_ids), names(interaction_analysis$contrasts))
+  if (length(missing_contrasts)) {
+    stop(
+      "Global response comparison is missing contrast(s): ",
+      paste(missing_contrasts, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  model <- interaction_analysis$model
+  expression <- as.matrix(model$voom$E)
+  design <- interaction_analysis$design$design
+  coefficients <- model$fit$coefficients
+  if (!identical(colnames(expression), rownames(design))) {
+    stop("Voom expression columns and interaction-design rows are not aligned", call. = FALSE)
+  }
+  if (!identical(rownames(expression), rownames(coefficients))) {
+    stop("Voom expression and fitted coefficients use different gene orders", call. = FALSE)
+  }
+  if (!identical(colnames(coefficients), colnames(design))) {
+    stop("Fitted coefficients and interaction-design columns are not aligned", call. = FALSE)
+  }
+
+  voom_weights <- model$voom$weights
+  if (is.null(voom_weights)) {
+    voom_weights <- matrix(1, nrow(expression), ncol(expression))
+  } else {
+    voom_weights <- as.matrix(voom_weights)
+    if (nrow(voom_weights) == 1L && nrow(expression) > 1L) {
+      voom_weights <- voom_weights[rep(1L, nrow(expression)), , drop = FALSE]
+    }
+    if (ncol(voom_weights) == 1L && ncol(expression) > 1L) {
+      voom_weights <- voom_weights[, rep(1L, ncol(expression)), drop = FALSE]
+    }
+  }
+  if (!identical(dim(voom_weights), dim(expression)) ||
+      any(!is.finite(voom_weights)) || any(voom_weights <= 0)) {
+    stop("Global response comparison requires positive gene-by-mouse voom weights", call. = FALSE)
+  }
+
+  contrast_matrix <- do.call(cbind, lapply(unname(contrast_ids), function(contrast_id) {
+    contrast <- interaction_analysis$contrasts[[contrast_id]]
+    if (!identical(names(contrast), colnames(design))) {
+      stop("Global response contrast coefficients are not aligned", call. = FALSE)
+    }
+    contrast
+  }))
+  colnames(contrast_matrix) <- names(contrast_ids)
+  contrast_fit <- limma::contrasts.fit(model$fit, contrasts = contrast_matrix)
+  contrast_fit <- limma::eBayes(contrast_fit, robust = TRUE)
+  effect <- contrast_fit$coefficients[, names(contrast_ids), drop = FALSE]
+  moderated_variance <- contrast_fit$stdev.unscaled[, names(contrast_ids), drop = FALSE]^2 *
+    contrast_fit$s2.post
+  if (any(!is.finite(effect)) || any(!is.finite(moderated_variance)) ||
+      any(moderated_variance < 0)) {
+    stop("Global response effects or their sampling variances are not finite", call. = FALSE)
+  }
+
+  fitted <- coefficients %*% t(design)
+  residual <- expression - fitted
+  n_genes <- nrow(expression)
+  n_mice <- ncol(expression)
+  influence <- lapply(names(contrast_ids), function(origin) {
+    matrix(NA_real_, nrow = n_genes, ncol = n_mice)
+  })
+  names(influence) <- names(contrast_ids)
+  leverage <- matrix(NA_real_, nrow = n_genes, ncol = n_mice)
+
+  for (gene_index in seq_len(n_genes)) {
+    gene_weights <- voom_weights[gene_index, ]
+    weighted_design <- design * gene_weights
+    information <- crossprod(design, weighted_design)
+    information_inverse <- tryCatch(
+      chol2inv(chol(information)),
+      error = function(error) solve(information)
+    )
+    design_information_inverse <- design %*% information_inverse
+    leverage[gene_index, ] <- gene_weights * rowSums(
+      design_information_inverse * design
+    )
+    for (origin in names(contrast_ids)) {
+      influence[[origin]][gene_index, ] <- gene_weights * as.vector(
+        design_information_inverse %*% contrast_matrix[, origin]
+      )
+    }
+  }
+  if (any(!is.finite(leverage)) || any(leverage < -1e-8) || any(leverage >= 1)) {
+    stop("Invalid weighted leverage in the global response comparison", call. = FALSE)
+  }
+
+  reconstructed_effect <- vapply(names(contrast_ids), function(origin) {
+    rowSums(influence[[origin]] * expression)
+  }, numeric(n_genes))
+  colnames(reconstructed_effect) <- names(contrast_ids)
+  if (!isTRUE(all.equal(
+    unname(reconstructed_effect),
+    unname(effect),
+    tolerance = 1e-7
+  ))) {
+    stop("Weighted contrast reconstruction did not reproduce the fitted effects", call. = FALSE)
+  }
+
+  hc2_residual <- residual / sqrt(pmax(1 - leverage, 1e-8))
+  perturbation <- lapply(names(contrast_ids), function(origin) {
+    influence[[origin]] * hc2_residual
+  })
+  names(perturbation) <- names(contrast_ids)
+  wild_variance <- vapply(perturbation, function(x) {
+    rowSums(x^2)
+  }, numeric(n_genes))
+  colnames(wild_variance) <- names(contrast_ids)
+
+  origin_summary <- do.call(rbind, lapply(names(contrast_ids), function(origin) {
+    naive_energy <- mean(effect[, origin]^2)
+    mean_sampling_variance <- mean(moderated_variance[, origin])
+    corrected_energy <- naive_energy - mean_sampling_variance
+    data.frame(
+      origin = origin,
+      retained_common_genes = n_genes,
+      naive_mean_squared_log2_fold_change = naive_energy,
+      mean_moderated_sampling_variance = mean_sampling_variance,
+      noise_corrected_mean_squared_log2_fold_change = corrected_energy,
+      naive_rms_log2_fold_change = sqrt(naive_energy),
+      noise_corrected_rms_log2_fold_change = if (corrected_energy >= 0) {
+        sqrt(corrected_energy)
+      } else {
+        NA_real_
+      },
+      stringsAsFactors = FALSE
+    )
+  }))
+  rownames(origin_summary) <- NULL
+
+  effect_cosine <- sum(effect[, "2N"] * effect[, "4N"]) /
+    sqrt(sum(effect[, "2N"]^2) * sum(effect[, "4N"]^2))
+  list(
+    effect = effect,
+    moderated_variance = moderated_variance,
+    perturbation = perturbation,
+    wild_variance = wild_variance,
+    origin_summary = origin_summary,
+    effect_cosine = effect_cosine,
+    n_genes = n_genes,
+    n_mice = n_mice
+  )
+}
+
+bootstrap_global_response_magnitude <- function(
+  components,
+  replicates = 4999L,
+  seed = 20260818L,
+  chunk_size = 200L
+) {
+  settings <- validate_magnitude_bootstrap_settings(replicates, seed)
+  replicates <- settings$replicates
+  seed <- settings$seed
+  chunk_size <- suppressWarnings(as.integer(chunk_size))
+  if (length(chunk_size) != 1L || is.na(chunk_size) || chunk_size < 1L) {
+    stop("chunk_size must be a positive integer", call. = FALSE)
+  }
+
+  effect_2n <- components$effect[, "2N"]
+  effect_4n <- components$effect[, "4N"]
+  observed_energy <- setNames(
+    components$origin_summary$noise_corrected_mean_squared_log2_fold_change,
+    components$origin_summary$origin
+  )
+  observed_difference <- observed_energy[["2N"]] - observed_energy[["4N"]]
+  bootstrap_parameter <- mean(effect_2n^2 - effect_4n^2)
+  wild_bias_difference <- mean(
+    components$wild_variance[, "2N"] - components$wild_variance[, "4N"]
+  )
+
+  set.seed(seed)
+  bootstrap_estimate <- numeric(replicates)
+  starts <- seq.int(1L, replicates, by = chunk_size)
+  for (start in starts) {
+    stop_index <- min(replicates, start + chunk_size - 1L)
+    draw_count <- stop_index - start + 1L
+    multipliers <- matrix(
+      sample(c(-1, 1), components$n_mice * draw_count, replace = TRUE),
+      nrow = components$n_mice,
+      ncol = draw_count
+    )
+    perturbation_2n <- components$perturbation[["2N"]] %*% multipliers
+    perturbation_4n <- components$perturbation[["4N"]] %*% multipliers
+    bootstrap_estimate[start:stop_index] <- colMeans(
+      (effect_2n + perturbation_2n)^2 -
+        (effect_4n + perturbation_4n)^2
+    ) - wild_bias_difference
+  }
+
+  bootstrap_error <- bootstrap_estimate - bootstrap_parameter
+  error_quantiles <- stats::quantile(
+    bootstrap_error,
+    probs = c(0.025, 0.975),
+    names = FALSE,
+    type = 8
+  )
+  confidence_interval <- c(
+    observed_difference - error_quantiles[[2L]],
+    observed_difference - error_quantiles[[1L]]
+  )
+  upper_tail <- (sum(bootstrap_error >= observed_difference) + 1) /
+    (replicates + 1)
+  lower_tail <- (sum(bootstrap_error <= observed_difference) + 1) /
+    (replicates + 1)
+
+  comparison <- data.frame(
+    estimand = paste(
+      "noise-corrected transcriptome-wide mean squared log2 fold change:",
+      "2N minus 4N"
+    ),
+    estimate_2N_minus_4N = observed_difference,
+    confidence_level = 0.95,
+    confidence_interval_lower = confidence_interval[[1L]],
+    confidence_interval_upper = confidence_interval[[2L]],
+    bootstrap_standard_error = stats::sd(bootstrap_error),
+    one_sided_p_2N_greater = upper_tail,
+    two_sided_p = min(1, 2 * min(upper_tail, lower_tail)),
+    bootstrap_replicates = replicates,
+    bootstrap_seed = seed,
+    response_vector_cosine_2N_vs_4N = components$effect_cosine,
+    common_gene_universe = components$n_genes,
+    inference_method = paste(
+      "HC2 whole-mouse Rademacher wild bootstrap on fixed-voom residuals;",
+      "the same multiplier is applied to every gene within a mouse"
+    ),
+    interpretation_if_positive = paste(
+      "larger total transcriptional displacement in 2N; this does not imply",
+      "that the same pathways change in the same direction"
+    ),
+    stringsAsFactors = FALSE
+  )
+  bootstrap <- data.frame(
+    bootstrap_replicate = seq_len(replicates),
+    corrected_energy_difference_2N_minus_4N = bootstrap_estimate,
+    centered_bootstrap_error = bootstrap_error,
+    stringsAsFactors = FALSE
+  )
+  list(
+    origin_summary = components$origin_summary,
+    comparison = comparison,
+    bootstrap = bootstrap
+  )
+}
+
+analyze_global_response_magnitude <- function(
+  interaction_analysis,
+  replicates = 4999L,
+  seed = 20260818L
+) {
+  components <- prepare_global_response_magnitude_components(interaction_analysis)
+  bootstrap_global_response_magnitude(
+    components,
+    replicates = replicates,
+    seed = seed
+  )
+}
+
+write_global_response_magnitude_outputs <- function(result, table_dir) {
+  write_tsv(
+    result$origin_summary,
+    file.path(table_dir, "global_treatment_response_magnitude_by_origin.tsv")
+  )
+  write_tsv(
+    result$comparison,
+    file.path(table_dir, "global_treatment_response_magnitude_comparison.tsv")
+  )
+  write_tsv(
+    result$bootstrap,
+    file.path(table_dir, "global_treatment_response_magnitude_wild_bootstrap.tsv")
+  )
+  invisible(result)
+}
+
+run_global_magnitude_only <- function(
+  args,
+  repo_root,
+  support,
+  config,
+  interval,
+  pseudobulk,
+  species_audit,
+  match_audit,
+  input_hashes
+) {
+  message("Fitting the joint treatment-by-origin model for the magnitude audit")
+  interaction_model <- fit_global_response_magnitude_model(
+    pseudobulk,
+    cpm_threshold = args$cpm_threshold,
+    minimum_mice = args$minimum_mice
+  )
+  magnitude <- analyze_global_response_magnitude(
+    interaction_model,
+    replicates = args$magnitude_bootstrap_replicates,
+    seed = args$magnitude_bootstrap_seed
+  )
+
+  output_root <- prepare_output_root(args$output_root, overwrite = args$overwrite)
+  table_dir <- file.path(output_root, "tables")
+  metadata_dir <- file.path(output_root, "metadata")
+  dir.create(table_dir, recursive = TRUE, showWarnings = FALSE)
+  dir.create(metadata_dir, recursive = TRUE, showWarnings = FALSE)
+  write_global_response_magnitude_outputs(magnitude, table_dir)
+  write_tsv(
+    pseudobulk$metadata,
+    file.path(table_dir, "interval_mouse_coverage.tsv")
+  )
+  design_output <- cbind(
+    sample_id = rownames(interaction_model$design$design),
+    as.data.frame(interaction_model$design$design, check.names = FALSE)
+  )
+  write_tsv(
+    design_output,
+    file.path(table_dir, "design_matrix_treatment_by_origin_interaction.tsv")
+  )
+  write_tsv(
+    model_contrast_table(interaction_model$contrasts),
+    file.path(table_dir, "contrast_definitions_treatment_by_origin_interaction.tsv")
+  )
+  write_tsv(species_audit, file.path(metadata_dir, "feature_species_audit.tsv"))
+  write_tsv(match_audit, file.path(metadata_dir, "cell_expression_match_audit.tsv"))
+  write_tsv(data.frame(
+    interval_id = interval$name,
+    interval_start = interval$start,
+    interval_end = interval$end,
+    include_start = interval$include_start,
+    include_end = interval$include_end,
+    interval_source = interval$source,
+    interval_selection_caveat = paste(
+      "The interval was localized using treated-versus-vehicle density differences;",
+      "the global magnitude comparison is exploratory and conditional on that selection."
+    ),
+    stringsAsFactors = FALSE
+  ), file.path(metadata_dir, "interval_definition.tsv"))
+  write_tsv(data.frame(
+    cpm_threshold = interaction_model$model$cpm_threshold,
+    minimum_mice_above_threshold = interaction_model$model$minimum_mice,
+    rule = sprintf(
+      "CPM > %s in at least %d independent mouse pseudobulks",
+      interaction_model$model$cpm_threshold,
+      interaction_model$model$minimum_mice
+    ),
+    n_input_features = interaction_model$model$n_input_genes,
+    n_retained_features = interaction_model$model$n_retained_genes,
+    shared_between_origins = TRUE,
+    stringsAsFactors = FALSE
+  ), file.path(metadata_dir, "expression_filter_audit.tsv"))
+
+  script <- exploratory_script_path()
+  manifest_paths <- c(
+    cell_metadata = args$cell_metadata,
+    seurat_rds = args$seurat_rds,
+    config = args$config,
+    exploratory_script = script,
+    feature_species_policy = file.path(
+      repo_root,
+      "Code/in-vivo/figure7/src/feature_species_policy.R"
+    ),
+    shared_figure7_contract = file.path(
+      repo_root,
+      "Code/in-vivo/figure7/src/common_io.R"
+    )
+  )
+  manifest_hashes <- setNames(rep(NA_character_, length(manifest_paths)), names(manifest_paths))
+  manifest_hashes[names(input_hashes)] <- input_hashes
+  hashes_to_compute <- names(manifest_hashes)[is.na(manifest_hashes)]
+  manifest_hashes[hashes_to_compute] <- vapply(
+    manifest_paths[hashes_to_compute],
+    sha256_file,
+    character(1L)
+  )
+  manifest_locators <- vapply(
+    manifest_paths,
+    portable_locator,
+    character(1L),
+    repo_root = repo_root
+  )
+  manifest_locators[["seurat_rds"]] <- file.path(
+    as.character(config$raw_data$default_root),
+    as.character(config$raw_data$seurat_filename)
+  )
+  write_tsv(data.frame(
+    input_id = names(manifest_paths),
+    locator = unname(manifest_locators),
+    sha256 = unname(manifest_hashes),
+    byte_size = as.numeric(file.info(manifest_paths)$size),
+    stringsAsFactors = FALSE
+  ), file.path(metadata_dir, "input_manifest.tsv"))
+
+  packages <- global_magnitude_required_packages()
+  write_tsv(data.frame(
+    package = packages,
+    version = vapply(packages, function(package) {
+      as.character(utils::packageVersion(package))
+    }, character(1L)),
+    stringsAsFactors = FALSE
+  ), file.path(metadata_dir, "package_versions.tsv"))
+  write_tsv(data.frame(
+    key = c(
+      "git_revision", "git_branch", "git_worktree_dirty",
+      "analysis_scope", "feature_species_policy", "normalization",
+      "observation_model", "global_response_estimand", "inference"
+    ),
+    value = c(
+      git_value(repo_root, c("rev-parse", "HEAD")),
+      git_value(repo_root, c("branch", "--show-current")),
+      as.character(nzchar(git_value(
+        repo_root,
+        c("status", "--porcelain", "--untracked-files=no")
+      ) %||% "")),
+      "global magnitude audit only; no pathway database or GSEA was loaded",
+      support$figure7_human_feature_policy_description(),
+      "edgeR TMM and limma voom",
+      "joint 16-mouse origin-by-dose model adjusted for mean interval pseudotime",
+      "noise-corrected mean squared log2 fold change; 2N minus 4N",
+      paste0(
+        "HC2 whole-mouse Rademacher wild bootstrap; ",
+        args$magnitude_bootstrap_replicates,
+        " replicates; seed ",
+        args$magnitude_bootstrap_seed
+      )
+    ),
+    stringsAsFactors = FALSE
+  ), file.path(metadata_dir, "provenance.tsv"))
+  session_info <- sub(
+    "[[:space:]]+$",
+    "",
+    capture.output(utils::sessionInfo())
+  )
+  writeLines(session_info, file.path(metadata_dir, "sessionInfo.txt"))
+
+  message("Completed global response-magnitude audit: ", output_root)
+  invisible(list(
+    interaction_model = interaction_model,
+    global_response_magnitude = magnitude,
+    mouse_metadata = pseudobulk$metadata,
+    output_root = output_root
+  ))
+}
+
 prepare_origin_interaction_pathways <- function(
   gsea_2n,
   gsea_4n,
@@ -957,7 +1456,7 @@ prepare_origin_interaction_pathways <- function(
   origin_effect_gsea_2n = gsea_2n,
   origin_effect_gsea_4n = gsea_4n,
   fdr_threshold = 0.05,
-  maximum_per_direction = exploratory_pathway_max_per_direction()
+  maximum_per_direction = interaction_pathway_max_per_direction()
 ) {
   maximum_per_direction <- suppressWarnings(as.integer(maximum_per_direction))
   if (length(maximum_per_direction) != 1L || is.na(maximum_per_direction) ||
@@ -1044,18 +1543,22 @@ prepare_origin_interaction_pathways <- function(
   interaction$interaction_fdr_significant <- interaction$padj <= fdr_threshold
   selected_rows <- lapply(c("2N", "4N"), function(origin) {
     local <- interaction[interaction$more_positive_origin == origin, , drop = FALSE]
-    local <- local[
-      order(local$padj, -abs(local$NES), local$collection, local$pathway),
-      ,
-      drop = FALSE
-    ]
+    local <- if (identical(origin, "2N")) {
+      local[order(local$NES, local$padj, local$collection, local$pathway), , drop = FALSE]
+    } else {
+      local[order(-local$NES, local$padj, local$collection, local$pathway), , drop = FALSE]
+    }
     local <- head(local, maximum_per_direction)
     local$selected_rank_within_direction <- seq_len(nrow(local))
-    local$panel_id <- paste0("interaction_", origin)
+    local$panel_id <- if (identical(origin, "2N")) {
+      "negative_interaction"
+    } else {
+      "positive_interaction"
+    }
     local$selection_scope <- paste0(
-      "Top formal treatment-by-origin interactions with the more positive response in ",
-      origin,
-      "; ranked across collections by collection-wise BH FDR"
+      "Top ",
+      if (identical(origin, "2N")) "negative" else "positive",
+      " formal treatment-by-origin interaction NES across collections"
     )
     paired_index <- match(
       paste(local$collection, local$pathway, sep = "\r"),
@@ -1084,6 +1587,8 @@ prepare_origin_interaction_pathways <- function(
   list(
     shared = shared,
     selected_interactions = selected,
+    selected_negative = selected_rows[["2N"]],
+    selected_positive = selected_rows[["4N"]],
     selected_2N = selected_rows[["2N"]],
     selected_4N = selected_rows[["4N"]],
     interaction_complete = interaction_gsea,
@@ -1242,54 +1747,13 @@ plot_origin_interaction_pathways <- function(
     "C2:CP:REACTOME" = "Reactome",
     "C5:GO:BP" = "GO BP"
   )
-  make_origin_rows <- function(data, panel_id, use_interaction_fdr = FALSE) {
-    rows <- lapply(c("2N", "4N"), function(origin) {
-      data.frame(
-        collection = data$collection,
-        pathway = data$pathway,
-        pathway_label = data$pathway_label,
-        NES = data[[paste0("NES_", origin)]],
-        padj = if (isTRUE(use_interaction_fdr)) {
-          data$padj
-        } else {
-          data[[paste0("padj_", origin)]]
-        },
-        origin = origin,
-        panel_id = panel_id,
-        formal_interaction_significant = if (isTRUE(use_interaction_fdr)) {
-          data$interaction_fdr_significant
-        } else {
-          TRUE
-        },
-        stringsAsFactors = FALSE
-      )
-    })
-    do.call(rbind, rows)
-  }
-  shared_plot <- make_origin_rows(comparison$shared, "shared")
-  interaction_2n_plot <- make_origin_rows(
-    comparison$selected_2N,
-    "interaction_2N",
-    use_interaction_fdr = TRUE
-  )
-  interaction_4n_plot <- make_origin_rows(
-    comparison$selected_4N,
-    "interaction_4N",
-    use_interaction_fdr = TRUE
-  )
-  plot_data <- rbind(shared_plot, interaction_2n_plot, interaction_4n_plot)
+  plot_data <- comparison$selected_interactions
   if (any(!plot_data$collection %in% names(collection_labels))) {
     stop("Origin-interaction plot contains an unknown collection", call. = FALSE)
   }
-
-  selected_2n <- comparison$selected_2N
-  selected_4n <- comparison$selected_4N
-  significant_2n <- sum(selected_2n$interaction_fdr_significant)
-  significant_4n <- sum(selected_4n$interaction_fdr_significant)
   panel_labels <- c(
-    shared = sprintf("Shared treatment response (n=%d)", nrow(comparison$shared)),
-    interaction_2N = "2N-more-positive interaction",
-    interaction_4N = "4N-more-positive interaction"
+    negative_interaction = "Negative interaction NES\n(more positive in 2N)",
+    positive_interaction = "Positive interaction NES\n(more positive in 4N)"
   )
   plot_data$panel_label <- factor(
     unname(panel_labels[plot_data$panel_id]),
@@ -1303,11 +1767,6 @@ plot_origin_interaction_pathways <- function(
   plot_data$minus_log10_fdr <- -log10(
     pmax(as.numeric(plot_data$padj), .Machine$double.xmin)
   )
-  plot_data$origin <- factor(plot_data$origin, levels = c("2N", "4N"))
-  plot_data$point_opacity <- factor(
-    ifelse(plot_data$formal_interaction_significant, "significant", "not significant"),
-    levels = c("significant", "not significant")
-  )
   plot_data$pathway_plot_key <- paste(
     plot_data$panel_id,
     plot_data$collection,
@@ -1317,20 +1776,12 @@ plot_origin_interaction_pathways <- function(
 
   ordered_pathway_keys <- unlist(lapply(names(panel_labels), function(panel_id) {
     local <- plot_data[plot_data$panel_id == panel_id, , drop = FALSE]
-    aggregate_nes <- stats::aggregate(
-      local$NES,
-      by = list(pathway_plot_key = local$pathway_plot_key),
-      FUN = mean
-    )
-    aggregate_nes$pathway_label <- local$pathway_label[
-      match(aggregate_nes$pathway_plot_key, local$pathway_plot_key)
-    ]
-    aggregate_nes <- aggregate_nes[
-      order(aggregate_nes$x, aggregate_nes$pathway_label),
+    local <- local[
+      order(-local$selected_rank_within_direction),
       ,
       drop = FALSE
     ]
-    aggregate_nes$pathway_plot_key
+    local$pathway_plot_key
   }), use.names = FALSE)
   plot_data$pathway_plot_key <- factor(
     plot_data$pathway_plot_key,
@@ -1349,26 +1800,10 @@ plot_origin_interaction_pathways <- function(
     ordered_pathway_keys
   )
 
-  connector_rows <- function(data, panel_id) {
-    data <- data[, c("collection", "pathway", "NES_2N", "NES_4N"), drop = FALSE]
-    data$pathway_plot_key <- factor(
-      paste(panel_id, data$collection, data$pathway, sep = "\r"),
-      levels = ordered_pathway_keys
-    )
-    data$panel_label <- factor(
-      panel_labels[[panel_id]],
-      levels = unname(panel_labels)
-    )
-    data
-  }
-  connectors <- rbind(
-    connector_rows(comparison$shared, "shared"),
-    connector_rows(comparison$selected_2N, "interaction_2N"),
-    connector_rows(comparison$selected_4N, "interaction_4N")
-  )
   cells_2n <- sum(mouse_metadata[["2N"]]$n_cells)
   cells_4n <- sum(mouse_metadata[["4N"]]$n_cells)
   symmetric_limit <- max(abs(plot_data$NES), na.rm = TRUE) * 1.08
+  n_significant <- sum(plot_data$interaction_fdr_significant)
 
   plot <- ggplot2::ggplot() +
     ggplot2::geom_vline(
@@ -1377,15 +1812,15 @@ plot_origin_interaction_pathways <- function(
       linewidth = 0.4
     ) +
     ggplot2::geom_segment(
-      data = connectors,
+      data = plot_data,
       ggplot2::aes(
-        x = NES_2N,
-        xend = NES_4N,
+        x = 0,
+        xend = NES,
         y = pathway_plot_key,
         yend = pathway_plot_key
       ),
-      color = "#7C8798",
-      linewidth = 0.8
+      color = "#A7AFBC",
+      linewidth = 0.7
     ) +
     ggplot2::geom_point(
       data = plot_data,
@@ -1393,9 +1828,7 @@ plot_origin_interaction_pathways <- function(
         x = NES,
         y = pathway_plot_key,
         color = collection_label,
-        size = minus_log10_fdr,
-        shape = origin,
-        alpha = point_opacity
+        size = minus_log10_fdr
       )
     ) +
     ggplot2::facet_grid(
@@ -1413,17 +1846,12 @@ plot_origin_interaction_pathways <- function(
       "Reactome" = "#D55E00",
       "GO BP" = "#009E73"
     )) +
-    ggplot2::scale_shape_manual(values = c("2N" = 16, "4N" = 17)) +
     ggplot2::scale_size_continuous(range = c(2.5, 5.6)) +
-    ggplot2::scale_alpha_manual(values = c(
-      "significant" = 1,
-      "not significant" = 0.42
-    ), drop = FALSE) +
     ggplot2::labs(
-      title = "Shared and origin-dependent treatment responses",
+      title = "Origin-dependent treatment responses",
       subtitle = sprintf(
         paste0(
-          "Equal-dose treatment contrast; %.3f-%.3f pseudotime\n",
+          "Interaction: [treated - vehicle]4N - [treated - vehicle]2N; %.3f-%.3f pseudotime\n",
           "2N: %d cells across 8 mice; 4N: %d cells across 8 mice"
         ),
         interval$start,
@@ -1431,33 +1859,27 @@ plot_origin_interaction_pathways <- function(
         cells_2n,
         cells_4n
       ),
-      x = "Normalized enrichment score (treated - vehicle)",
+      x = "Treatment-by-origin interaction NES",
       y = NULL,
       color = "Collection",
-      shape = "Origin",
       size = expression(-log[10]~"FDR"),
-      alpha = NULL,
       caption = paste0(
-        "Upper: separate-origin NES for pathways significant in both stratified models. ",
-        "Connectors join 2N and 4N estimates.\n",
-        "Lower: pathways selected by GSEA of the direct interaction ",
-        "[treated - vehicle]4N - [treated - vehicle]2N; points show joint-model origin-specific NES.\n",
-        "Negative interaction NES is more positive in 2N; positive interaction NES is more positive in 4N ",
+        "Top 10 negative and top 10 positive formal interaction NES across Hallmark, Reactome, and GO BP; ",
+        "ranked by NES within sign.\n",
+        "Negative NES denotes a more positive treatment response in 2N; positive NES denotes a more positive response in 4N ",
         "(more positive can also mean less depleted).\n",
-        "Point size uses stratified FDR above and interaction FDR below; up to three per interaction sign are displayed; ",
+        "Point size is based on the interaction FDR; ",
         sprintf(
-          "%d/%d displayed interactions pass FDR <= 0.05 (%d significant interaction pathways total).",
-          significant_2n + significant_4n,
-          nrow(selected_2n) + nrow(selected_4n),
+          "%d/%d displayed pathways pass FDR <= 0.05 (%d significant interaction pathways total).",
+          n_significant,
+          nrow(plot_data),
           comparison$n_interaction_fdr_significant
         )
       )
     ) +
     ggplot2::guides(
       color = ggplot2::guide_legend(order = 1),
-      shape = ggplot2::guide_legend(order = 2),
-      alpha = "none",
-      size = ggplot2::guide_legend(order = 4)
+      size = ggplot2::guide_legend(order = 2)
     ) +
     ggplot2::theme_bw(base_size = 9) +
     ggplot2::theme(
@@ -1475,12 +1897,12 @@ plot_origin_interaction_pathways <- function(
       panel.grid.minor = ggplot2::element_blank()
     )
   dir.create(dirname(path_pdf), recursive = TRUE, showWarnings = FALSE)
-  ggplot2::ggsave(path_pdf, plot, width = 10, height = 9, units = "in")
+  ggplot2::ggsave(path_pdf, plot, width = 10, height = 10.5, units = "in")
   ggplot2::ggsave(
     path_png,
     plot,
     width = 10,
-    height = 9,
+    height = 10.5,
     units = "in",
     dpi = 320
   )
@@ -1867,7 +2289,7 @@ write_treatment_origin_interaction_outputs <- function(
     origin_effect_gsea_2n = interaction_analysis$origin_effect_pathways[["2N"]]$complete,
     origin_effect_gsea_4n = interaction_analysis$origin_effect_pathways[["4N"]]$complete,
     fdr_threshold = fdr_threshold,
-    maximum_per_direction = exploratory_pathway_max_per_direction()
+    maximum_per_direction = interaction_pathway_max_per_direction()
   )
   write_tsv(
     comparison$shared,
@@ -1884,7 +2306,7 @@ write_treatment_origin_interaction_outputs <- function(
   )
   write_tsv(
     comparison$selected_interactions[, selected_columns, drop = FALSE],
-    file.path(table_dir, paste0(prefix, "_selected_for_origin_comparison.tsv"))
+    file.path(table_dir, paste0(prefix, "_selected_for_panel.tsv"))
   )
   write_tsv(data.frame(
     contrast_id = primary_id,
@@ -1928,7 +2350,11 @@ write_treatment_origin_interaction_outputs <- function(
 }
 
 run_interval_de <- function(args, repo_root) {
-  check_packages()
+  check_packages(if (isTRUE(args$global_magnitude_only)) {
+    global_magnitude_required_packages()
+  } else {
+    required_packages()
+  })
   support <- load_figure7_support(repo_root)
   config <- support$read_config(args$config)
   interval <- config$interval_list$primary_accumulated_state
@@ -1981,6 +2407,19 @@ run_interval_de <- function(args, repo_root) {
   invisible(gc())
   pseudobulk <- construct_mouse_pseudobulk(interval_meta, interval_counts)
   validate_interval_contract(all_meta, interval_meta, pseudobulk$metadata)
+  if (isTRUE(args$global_magnitude_only)) {
+    return(run_global_magnitude_only(
+      args = args,
+      repo_root = repo_root,
+      support = support,
+      config = config,
+      interval = interval,
+      pseudobulk = pseudobulk,
+      species_audit = species_audit,
+      match_audit = match_audit,
+      input_hashes = input_hashes
+    ))
+  }
   design_bundle <- prepare_interval_design(pseudobulk$metadata, adjust_mean_pseudotime = TRUE)
   contrasts <- treatment_contrasts(design_bundle$design)
 
@@ -2054,6 +2493,13 @@ run_interval_de <- function(args, repo_root) {
     cpm_threshold = args$cpm_threshold,
     minimum_mice = args$minimum_mice,
     seed = 1L
+  )
+
+  message("Comparing global treatment-response magnitude between origins")
+  global_response_magnitude <- analyze_global_response_magnitude(
+    interaction_analysis,
+    replicates = args$magnitude_bootstrap_replicates,
+    seed = args$magnitude_bootstrap_seed
   )
 
   output_root <- prepare_output_root(args$output_root, overwrite = args$overwrite)
@@ -2213,6 +2659,7 @@ run_interval_de <- function(args, repo_root) {
     interval,
     args$fdr_threshold
   )
+  write_global_response_magnitude_outputs(global_response_magnitude, table_dir)
 
   write_tsv(species_audit, file.path(metadata_dir, "feature_species_audit.tsv"))
   write_tsv(match_audit, file.path(metadata_dir, "cell_expression_match_audit.tsv"))
@@ -2334,7 +2781,7 @@ run_interval_de <- function(args, repo_root) {
       "feature_species_policy", "normalization", "observation_model",
       "multiple_testing", "contrast_sign_convention", "pathway_ranking",
       "pathway_collections", "pathway_selection",
-      "treatment_by_origin_interaction"
+      "treatment_by_origin_interaction", "global_response_magnitude"
     ),
     value = c(
       git_value(repo_root, c("rev-parse", "HEAD")),
@@ -2352,17 +2799,26 @@ run_interval_de <- function(args, repo_root) {
       paste(as.character(unlist(config$state_pathways$collections)), collapse = ","),
       paste0(
         exploratory_pathway_selection_rule(),
-        " for pooled/stratified panels; formal comparison uses top three ",
-        "per interaction sign across collections"
+        " for pooled/stratified panels; formal comparison uses the 10 most ",
+        "negative and 10 most positive interaction NES across collections"
       ),
       paste0(
         "formal contrast: [equal-dose treated - vehicle]_4N - ",
         "[equal-dose treated - vehicle]_2N; positive values are more positive in 4N"
+      ),
+      paste0(
+        "noise-corrected mean squared log2 fold change on the joint-model gene universe; ",
+        "2N minus 4N with HC2 whole-mouse Rademacher wild-bootstrap uncertainty"
       )
     ),
     stringsAsFactors = FALSE
   ), file.path(metadata_dir, "provenance.tsv"))
-  writeLines(capture.output(utils::sessionInfo()), file.path(metadata_dir, "sessionInfo.txt"))
+  session_info <- sub(
+    "[[:space:]]+$",
+    "",
+    capture.output(utils::sessionInfo())
+  )
+  writeLines(session_info, file.path(metadata_dir, "sessionInfo.txt"))
 
   message("Completed exploratory interval gene and pathway analysis: ", output_root)
   invisible(list(
@@ -2371,6 +2827,7 @@ run_interval_de <- function(args, repo_root) {
     stratified = stratified_analyses,
     origin_comparison = origin_comparison,
     interaction = interaction_analysis,
+    global_response_magnitude = global_response_magnitude,
     summaries = summary,
     mouse_metadata = pseudobulk$metadata,
     output_root = output_root
@@ -2400,6 +2857,9 @@ main <- function() {
     fdr_threshold = 0.05,
     lfc_threshold = 0.5,
     label_genes = 12L,
+    magnitude_bootstrap_replicates = 4999L,
+    magnitude_bootstrap_seed = 20260818L,
+    global_magnitude_only = FALSE,
     verify_input_hashes = TRUE,
     overwrite = FALSE
   )
