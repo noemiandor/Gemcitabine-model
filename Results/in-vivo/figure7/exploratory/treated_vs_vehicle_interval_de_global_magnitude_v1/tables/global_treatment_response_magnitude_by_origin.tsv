@@ -1,0 +1,3 @@
+origin	retained_common_genes	naive_mean_squared_log2_fold_change	mean_moderated_sampling_variance	noise_corrected_mean_squared_log2_fold_change	naive_rms_log2_fold_change	noise_corrected_rms_log2_fold_change
+2N	18076	0.6046583647011098	0.49181377108559704	0.11284459361551274	0.7775978168057764	0.3359234936938956
+4N	18076	0.5526116988605068	0.5284129475893998	0.024198751271106933	0.7433785703532937	0.15555947824259034

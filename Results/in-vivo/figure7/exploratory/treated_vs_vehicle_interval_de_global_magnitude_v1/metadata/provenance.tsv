@@ -1,0 +1,10 @@
+key	value
+git_revision	2be83f27499ac7b12dff50c95fa1a7edb93b0bed
+git_branch	explore/figure7i-global-response-magnitude
+git_worktree_dirty	FALSE
+analysis_scope	global magnitude audit only; no pathway database or GSEA was loaded
+feature_species_policy	retain only explicitly GRCh-prefixed human-tumor features; exclude GRCm-prefixed mouse features before expression filtering, normalization, symbol cleanup, duplicate resolution, differential expression, model fitting, ORA, and GSEA; reject ambiguous or unprefixed feature names
+normalization	edgeR TMM and limma voom
+observation_model	joint 16-mouse origin-by-dose model adjusted for mean interval pseudotime
+global_response_estimand	noise-corrected mean squared log2 fold change; 2N minus 4N
+inference	HC2 whole-mouse Rademacher wild bootstrap; 4999 replicates; seed 20260818

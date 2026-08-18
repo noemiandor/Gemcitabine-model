@@ -1,0 +1,9 @@
+package	version
+Seurat	5.3.0
+SeuratObject	5.2.0
+Matrix	1.7.4
+yaml	2.3.10
+digest	0.6.37
+edgeR	4.6.3
+limma	3.64.3
+readr	2.1.5

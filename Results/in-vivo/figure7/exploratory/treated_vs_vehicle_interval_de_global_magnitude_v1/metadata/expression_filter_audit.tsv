@@ -1,0 +1,2 @@
+cpm_threshold	minimum_mice_above_threshold	rule	n_input_features	n_retained_features	shared_between_origins
+1	4	CPM > 1 in at least 4 independent mouse pseudobulks	38606	18076	TRUE

@@ -1,0 +1,2 @@
+policy_id	policy	human_prefix	mouse_prefix	n_input_features	n_human_features_retained	n_mouse_features_excluded	n_ambiguous_features
+grch_human_tumor_only_v2	retain only explicitly GRCh-prefixed human-tumor features; exclude GRCm-prefixed mouse features before expression filtering, normalization, symbol cleanup, duplicate resolution, differential expression, model fitting, ORA, and GSEA; reject ambiguous or unprefixed feature names	GRCh38-	GRCm39-	72302	38606	33696	0

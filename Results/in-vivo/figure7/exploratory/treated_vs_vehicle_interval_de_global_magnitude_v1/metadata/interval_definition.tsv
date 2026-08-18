@@ -1,0 +1,2 @@
+interval_id	interval_start	interval_end	include_start	include_end	interval_source	interval_selection_caveat
+primary_accumulated_state	0.296	0.486	TRUE	TRUE	expected result of the exact density-localization calculation; the support workflow derives and validates this interval from the 2,881-cell table before modeling	The interval was localized using treated-versus-vehicle density differences; the global magnitude comparison is exploratory and conditional on that selection.
