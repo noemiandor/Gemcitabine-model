@@ -40,6 +40,17 @@ and pathways differ between gemcitabine-treated and vehicle tumors?
   stratum, these models omit that term but retain adjustment for mean
   within-interval pseudotime. Their expression filter is CPM > 1 in at least
   two mice, matching the smallest within-origin dose group.
+- A formal treatment-by-origin model is fit to all 16 mouse pseudobulks using
+  six origin-by-dose group means plus mean within-interval pseudotime. Its
+  interaction contrast is
+  `[equal-dose treated - vehicle]_4N - [equal-dose treated - vehicle]_2N`.
+  Positive interaction effects are more positive in 4N; negative effects are
+  more positive in 2N. "More positive" does not necessarily mean a larger
+  absolute response: it can also represent weaker depletion.
+- The 2N and 4N treatment contrasts displayed for interaction-selected
+  pathways are estimated from that same joint model and expressed-gene
+  universe. This keeps the paired estimates directly aligned with the formal
+  interaction test.
 - For a pathway-level Figure 7I candidate, the primary model's moderated
   gene-level t statistics are passed to the same GSEA implementation used by
   the existing Figure 7I workflow. The analysis uses the pinned Homo sapiens
@@ -49,11 +60,16 @@ and pathways differ between gemcitabine-treated and vehicle tumors?
   nonsignificant backfill) from the reviewed workflow. The pooled, 2N-origin,
   and 4N-origin panels all use this same rule. Positive normalized enrichment
   scores indicate enrichment in treated tumors.
-- A compact origin-comparison panel shows every pathway that is
-  FDR-significant in both origin models, with paired 2N and 4N NES estimates.
-  Its lower panels exclude those shared pathways and show, for each origin,
-  the top three FDR-significant pathways per NES direction across all three
-  collections. Collection is encoded by color and origin by point shape.
+- A compact origin-comparison panel retains every pathway that is
+  FDR-significant in both separate origin models in its upper tier. The two
+  lower tiers are selected only from GSEA of the formal interaction: up to the
+  top three negative and positive interaction pathways across all three
+  collections, ranked by collection-wise BH FDR. Points show the paired 2N and
+  4N treated-minus-vehicle NES estimates from the joint model; connectors make
+  the direction of the origin difference explicit. Collection is encoded by
+  color and origin by point shape. Displayed interaction pathways retain their
+  formal FDR status; the selector does not treat "significant in one stratum"
+  as evidence of an interaction.
 - A sensitivity model omits only the mean within-interval pseudotime
   adjustment; injected origin remains an adjustment term and the gene universe
   and treatment contrast remain unchanged.
@@ -63,7 +79,9 @@ comparison. Consequently, these differential-expression results are
 exploratory and conditional on that data-selected interval; they should not be
 presented as independent confirmatory treatment tests. The origin-stratified
 analyses are additionally lower-powered because each model contains only eight
-independent mouse pseudobulks.
+independent mouse pseudobulks. Claims of origin-dependent treatment response
+must be based on the direct interaction result, not on differing within-origin
+significance calls.
 
 ## Run
 
@@ -80,9 +98,11 @@ Results/in-vivo/figure7/exploratory/treated_vs_vehicle_interval_de/
 ```
 
 It contains pooled, 2N-origin, and 4N-origin pathway-enrichment candidate
-PDF/PNG files; a shared-versus-nonshared pathway comparison PDF/PNG; the
+PDF/PNG files; a shared-plus-formal-interaction comparison PDF/PNG; the
 pooled gene volcano as an audit figure; complete primary and dose-specific DE
-tables; complete and selected GSEA tables; leading-edge genes; the exact
+tables; the joint interaction design and exact contrasts; complete interaction
+DE and GSEA tables; paired joint-model origin effects; complete and selected
+pooled/stratified GSEA tables; leading-edge genes; the exact
 gene-set contract and membership; mouse coverage; design matrices and contrast
 definitions; species and expression-filter audits; portable input provenance;
 package versions; and session information.

@@ -325,6 +325,87 @@ treatment_contrasts <- function(design) {
   )
 }
 
+prepare_treatment_origin_interaction_design <- function(
+  mouse_meta,
+  adjust_mean_pseudotime = TRUE
+) {
+  data <- as.data.frame(mouse_meta, stringsAsFactors = FALSE)
+  data$dose_group <- factor(
+    as.character(data$dose_mg),
+    levels = c("0", "30", "120"),
+    labels = c("vehicle", "dose_30", "dose_120")
+  )
+  data$initial_ploidy_factor <- factor(
+    data$initial_ploidy,
+    levels = c("2N", "4N")
+  )
+  pseudotime_sd <- stats::sd(data$mean_pseudotime)
+  if (!is.finite(pseudotime_sd) || pseudotime_sd <= 0) {
+    stop("Mouse mean pseudotime has no finite variation", call. = FALSE)
+  }
+  data$mean_pseudotime_z <- (
+    data$mean_pseudotime - mean(data$mean_pseudotime)
+  ) / pseudotime_sd
+  if (anyNA(data$dose_group) || anyNA(data$initial_ploidy_factor)) {
+    stop("Interaction design contains an unsupported dose or injected-origin value", call. = FALSE)
+  }
+  design_terms <- "initial_ploidy_factor:dose_group"
+  if (isTRUE(adjust_mean_pseudotime)) {
+    design_terms <- c(design_terms, "mean_pseudotime_z")
+  }
+  formula <- stats::reformulate(design_terms, intercept = FALSE)
+  design <- stats::model.matrix(formula, data = data)
+  rownames(design) <- data$sample_id
+  rank <- qr(design)$rank
+  if (rank != ncol(design)) {
+    stop("Treatment-by-origin interaction design is rank deficient", call. = FALSE)
+  }
+  list(
+    data = data,
+    design = design,
+    formula = formula,
+    rank = rank,
+    adjust_mean_pseudotime = isTRUE(adjust_mean_pseudotime),
+    adjust_initial_ploidy = TRUE,
+    treatment_by_origin_interaction = TRUE
+  )
+}
+
+treatment_origin_interaction_contrasts <- function(design) {
+  coefficient <- function(origin, dose) {
+    paste0("initial_ploidy_factor", origin, ":dose_group", dose)
+  }
+  required <- unlist(lapply(c("2N", "4N"), function(origin) {
+    coefficient(origin, c("vehicle", "dose_30", "dose_120"))
+  }), use.names = FALSE)
+  missing <- setdiff(required, colnames(design))
+  if (length(missing)) {
+    stop(
+      "Interaction design is missing origin-by-dose coefficients: ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  make_contrast <- function(weights) {
+    out <- setNames(rep(0, ncol(design)), colnames(design))
+    out[names(weights)] <- weights
+    out
+  }
+  effect_weights <- function(origin) {
+    setNames(
+      c(-1, 0.5, 0.5),
+      coefficient(origin, c("vehicle", "dose_30", "dose_120"))
+    )
+  }
+  effect_2n <- make_contrast(effect_weights("2N"))
+  effect_4n <- make_contrast(effect_weights("4N"))
+  list(
+    treated_equal_dose_minus_vehicle_2N = effect_2n,
+    treated_equal_dose_minus_vehicle_4N = effect_4n,
+    treatment_by_origin_4N_minus_2N = effect_4n - effect_2n
+  )
+}
+
 fit_interval_voom <- function(
   pseudobulk_counts,
   design_bundle,
@@ -358,7 +439,14 @@ fit_interval_voom <- function(
   )
 }
 
-extract_contrast_table <- function(model, contrast, contrast_id, clean_symbols) {
+extract_contrast_table <- function(
+  model,
+  contrast,
+  contrast_id,
+  clean_symbols,
+  positive_direction = "higher_in_treated",
+  negative_direction = "lower_in_treated"
+) {
   coefficients <- colnames(model$fit$coefficients)
   if (!identical(names(contrast), coefficients)) {
     stop("Contrast coefficients do not align with the fitted design", call. = FALSE)
@@ -385,8 +473,8 @@ extract_contrast_table <- function(model, contrast, contrast_id, clean_symbols) 
     log_odds_differential_expression = table$B,
     direction = ifelse(
       table$logFC > 0,
-      "higher_in_treated",
-      ifelse(table$logFC < 0, "lower_in_treated", "no_change")
+      positive_direction,
+      ifelse(table$logFC < 0, negative_direction, "no_change")
     ),
     stringsAsFactors = FALSE
   )
@@ -589,7 +677,8 @@ run_pathway_enrichment <- function(
   config,
   seed = 1L,
   gene_sets = NULL,
-  include_gene_set_membership = TRUE
+  include_gene_set_membership = TRUE,
+  contrast_id = "treated_equal_dose_minus_vehicle"
 ) {
   expected_msigdbr <- as.character(config$gene_sets$package_version)
   observed_msigdbr <- as.character(utils::packageVersion("msigdbr"))
@@ -631,7 +720,7 @@ run_pathway_enrichment <- function(
   gsea <- support$run_all_gsea(
     ranking$stats,
     gene_sets,
-    "treated_equal_dose_minus_vehicle",
+    contrast_id,
     15L,
     500L,
     as.integer(config$state_pathways$gsea_nperm_simple),
@@ -786,70 +875,123 @@ fit_origin_stratified_analysis <- function(
   )
 }
 
-select_pathways_across_collections <- function(
-  gsea,
-  maximum_per_direction = exploratory_pathway_max_per_direction(),
-  fdr_threshold = 0.05
+fit_treatment_origin_interaction_analysis <- function(
+  pseudobulk,
+  support,
+  config,
+  gene_sets,
+  cpm_threshold = 1,
+  minimum_mice = 4L,
+  seed = 1L
+) {
+  design_bundle <- prepare_treatment_origin_interaction_design(
+    pseudobulk$metadata,
+    adjust_mean_pseudotime = TRUE
+  )
+  contrasts <- treatment_origin_interaction_contrasts(design_bundle$design)
+  model <- fit_interval_voom(
+    pseudobulk$counts,
+    design_bundle,
+    cpm_threshold = cpm_threshold,
+    minimum_mice = minimum_mice
+  )
+  de_tables <- lapply(names(contrasts), function(contrast_id) {
+    is_interaction <- identical(contrast_id, "treatment_by_origin_4N_minus_2N")
+    extract_contrast_table(
+      model,
+      contrasts[[contrast_id]],
+      contrast_id,
+      support$clean_gene_symbols,
+      positive_direction = if (is_interaction) {
+        "treatment_effect_more_positive_in_4N"
+      } else {
+        "higher_in_treated"
+      },
+      negative_direction = if (is_interaction) {
+        "treatment_effect_more_positive_in_2N"
+      } else {
+        "lower_in_treated"
+      }
+    )
+  })
+  names(de_tables) <- names(contrasts)
+  primary_id <- "treatment_by_origin_4N_minus_2N"
+  primary <- de_tables[[primary_id]]
+  pathway_contrast_ids <- c(
+    "treated_equal_dose_minus_vehicle_2N",
+    "treated_equal_dose_minus_vehicle_4N",
+    primary_id
+  )
+  pathway_results <- lapply(pathway_contrast_ids, function(contrast_id) {
+    run_pathway_enrichment(
+      de_tables[[contrast_id]],
+      support,
+      config,
+      seed = seed,
+      gene_sets = gene_sets,
+      include_gene_set_membership = FALSE,
+      contrast_id = contrast_id
+    )
+  })
+  names(pathway_results) <- pathway_contrast_ids
+  list(
+    contrast_id = primary_id,
+    mouse_metadata = pseudobulk$metadata,
+    design = design_bundle,
+    contrasts = contrasts,
+    model = model,
+    de_tables = de_tables,
+    primary = primary,
+    pathways = pathway_results[[primary_id]],
+    origin_effect_pathways = list(
+      `2N` = pathway_results[["treated_equal_dose_minus_vehicle_2N"]],
+      `4N` = pathway_results[["treated_equal_dose_minus_vehicle_4N"]]
+    )
+  )
+}
+
+prepare_origin_interaction_pathways <- function(
+  gsea_2n,
+  gsea_4n,
+  interaction_gsea,
+  origin_effect_gsea_2n = gsea_2n,
+  origin_effect_gsea_4n = gsea_4n,
+  fdr_threshold = 0.05,
+  maximum_per_direction = exploratory_pathway_max_per_direction()
 ) {
   maximum_per_direction <- suppressWarnings(as.integer(maximum_per_direction))
   if (length(maximum_per_direction) != 1L || is.na(maximum_per_direction) ||
       maximum_per_direction < 1L) {
     stop("maximum_per_direction must be a positive integer", call. = FALSE)
   }
-  eligible <- as.data.frame(gsea, stringsAsFactors = FALSE)
-  eligible <- eligible[
-    is.finite(eligible$padj) & eligible$padj <= fdr_threshold &
-      is.finite(eligible$NES) & eligible$NES != 0,
-    ,
-    drop = FALSE
-  ]
-  eligible$selected_direction <- ifelse(
-    eligible$NES > 0,
-    "positive",
-    "negative"
-  )
-  rows <- lapply(c("positive", "negative"), function(direction) {
-    local <- eligible[
-      eligible$selected_direction == direction,
-      ,
-      drop = FALSE
-    ]
-    if (!nrow(local)) return(local)
-    local <- if (identical(direction, "positive")) {
-      local[order(local$padj, -local$NES, local$collection, local$pathway), , drop = FALSE]
-    } else {
-      local[order(local$padj, local$NES, local$collection, local$pathway), , drop = FALSE]
-    }
-    local <- head(local, maximum_per_direction)
-    local$selected_rank_within_direction <- seq_len(nrow(local))
-    local
-  })
-  selected <- do.call(rbind, rows)
-  rownames(selected) <- NULL
-  selected
-}
-
-prepare_origin_comparison_pathways <- function(
-  gsea_2n,
-  gsea_4n,
-  fdr_threshold = 0.05,
-  maximum_per_direction = exploratory_pathway_max_per_direction()
-) {
+  if (length(fdr_threshold) != 1L || !is.finite(fdr_threshold) ||
+      fdr_threshold <= 0 || fdr_threshold >= 1) {
+    stop("fdr_threshold must be strictly between zero and one", call. = FALSE)
+  }
   required <- c(
     "collection", "collection_label", "pathway", "pathway_label", "NES", "padj"
   )
-  for (entry in list(`2N` = gsea_2n, `4N` = gsea_4n)) {
+  named_tables <- list(
+    stratified_2N = gsea_2n,
+    stratified_4N = gsea_4n,
+    interaction = interaction_gsea,
+    joint_model_2N_effect = origin_effect_gsea_2n,
+    joint_model_4N_effect = origin_effect_gsea_4n
+  )
+  for (table_id in names(named_tables)) {
+    entry <- named_tables[[table_id]]
     missing <- setdiff(required, names(entry))
     if (length(missing)) {
       stop(
-        "Origin-comparison GSEA is missing column(s): ",
+        table_id,
+        " GSEA is missing column(s): ",
         paste(missing, collapse = ", "),
         call. = FALSE
       )
     }
     keys <- paste(entry$collection, entry$pathway, sep = "\r")
     if (anyNA(keys) || any(!nzchar(keys)) || anyDuplicated(keys)) {
-      stop("Origin-comparison GSEA requires unique pathway keys", call. = FALSE)
+      stop(table_id, " GSEA requires unique pathway keys", call. = FALSE)
     }
   }
 
@@ -867,12 +1009,9 @@ prepare_origin_comparison_pathways <- function(
     as.character(paired$pathway_label_2N),
     as.character(paired$pathway_label_4N)
   )
-  paired$significant_2N <- is.finite(paired$padj_2N) &
-    paired$padj_2N <= fdr_threshold
-  paired$significant_4N <- is.finite(paired$padj_4N) &
-    paired$padj_4N <= fdr_threshold
   shared <- paired[
-    paired$significant_2N & paired$significant_4N,
+    is.finite(paired$padj_2N) & paired$padj_2N <= fdr_threshold &
+      is.finite(paired$padj_4N) & paired$padj_4N <= fdr_threshold,
     c(
       "collection", "pathway", "pathway_label",
       "NES_2N", "padj_2N", "NES_4N", "padj_4N"
@@ -887,79 +1026,72 @@ prepare_origin_comparison_pathways <- function(
     ,
     drop = FALSE
   ]
-  shared_keys <- paste(shared$collection, shared$pathway, sep = "\r")
 
-  select_origin <- function(gsea, origin) {
-    local_keys <- paste(gsea$collection, gsea$pathway, sep = "\r")
-    local <- gsea[!local_keys %in% shared_keys, , drop = FALSE]
-    selected <- select_pathways_across_collections(
-      local,
-      maximum_per_direction = maximum_per_direction,
-      fdr_threshold = fdr_threshold
+  effect_paired <- merge(
+    origin_effect_gsea_2n[, comparison_columns, drop = FALSE],
+    origin_effect_gsea_4n[, comparison_columns, drop = FALSE],
+    by = c("collection", "pathway"),
+    suffixes = c("_2N", "_4N")
+  )
+
+  interaction <- as.data.frame(interaction_gsea, stringsAsFactors = FALSE)
+  interaction <- interaction[
+    is.finite(interaction$padj) & is.finite(interaction$NES) & interaction$NES != 0,
+    ,
+    drop = FALSE
+  ]
+  interaction$more_positive_origin <- ifelse(interaction$NES < 0, "2N", "4N")
+  interaction$interaction_fdr_significant <- interaction$padj <= fdr_threshold
+  selected_rows <- lapply(c("2N", "4N"), function(origin) {
+    local <- interaction[interaction$more_positive_origin == origin, , drop = FALSE]
+    local <- local[
+      order(local$padj, -abs(local$NES), local$collection, local$pathway),
+      ,
+      drop = FALSE
+    ]
+    local <- head(local, maximum_per_direction)
+    local$selected_rank_within_direction <- seq_len(nrow(local))
+    local$panel_id <- paste0("interaction_", origin)
+    local$selection_scope <- paste0(
+      "Top formal treatment-by-origin interactions with the more positive response in ",
+      origin,
+      "; ranked across collections by collection-wise BH FDR"
     )
-    if (!nrow(selected) ||
-        !setequal(unique(selected$selected_direction), c("positive", "negative"))) {
-      stop(
-        origin,
-        "-origin comparison panel requires an FDR-significant pathway in both directions",
-        call. = FALSE
-      )
+    paired_index <- match(
+      paste(local$collection, local$pathway, sep = "\r"),
+      paste(effect_paired$collection, effect_paired$pathway, sep = "\r")
+    )
+    if (anyNA(paired_index)) {
+      stop("A selected interaction pathway is absent from a joint-model origin effect", call. = FALSE)
     }
-    selected$origin <- origin
-    selected$panel_id <- origin
-    selected$selection_scope <- paste0(
-      "FDR-significant in ", origin,
-      "; shared-significant pathways excluded; top across collections"
-    )
-    selected
+    local$NES_2N <- effect_paired$NES_2N[paired_index]
+    local$padj_2N <- effect_paired$padj_2N[paired_index]
+    local$NES_4N <- effect_paired$NES_4N[paired_index]
+    local$padj_4N <- effect_paired$padj_4N[paired_index]
+    local$origin_effect_nes_order_concordant <- if (identical(origin, "2N")) {
+      local$NES_2N > local$NES_4N
+    } else {
+      local$NES_4N > local$NES_2N
+    }
+    local
+  })
+  names(selected_rows) <- c("2N", "4N")
+  if (any(vapply(selected_rows, nrow, integer(1L)) == 0L)) {
+    stop("Formal interaction GSEA requires at least one pathway in each NES direction", call. = FALSE)
   }
-  selected_2n <- select_origin(gsea_2n, "2N")
-  selected_4n <- select_origin(gsea_4n, "4N")
-
-  shared_2n <- data.frame(
-    collection = shared$collection,
-    pathway = shared$pathway,
-    pathway_label = shared$pathway_label,
-    NES = shared$NES_2N,
-    padj = shared$padj_2N,
-    origin = "2N",
-    panel_id = "shared",
-    selected_direction = ifelse(shared$NES_2N > 0, "positive", "negative"),
-    selected_rank_within_direction = NA_integer_,
-    selection_scope = "FDR-significant in both origin models",
-    stringsAsFactors = FALSE
-  )
-  shared_4n <- data.frame(
-    collection = shared$collection,
-    pathway = shared$pathway,
-    pathway_label = shared$pathway_label,
-    NES = shared$NES_4N,
-    padj = shared$padj_4N,
-    origin = "4N",
-    panel_id = "shared",
-    selected_direction = ifelse(shared$NES_4N > 0, "positive", "negative"),
-    selected_rank_within_direction = NA_integer_,
-    selection_scope = "FDR-significant in both origin models",
-    stringsAsFactors = FALSE
-  )
-  selected_columns <- union(names(shared_2n), union(names(selected_2n), names(selected_4n)))
-  align_columns <- function(data) {
-    missing <- setdiff(selected_columns, names(data))
-    for (column in missing) data[[column]] <- NA
-    data[, selected_columns, drop = FALSE]
-  }
-  plot_data <- do.call(rbind, lapply(
-    list(shared_2n, shared_4n, selected_2n, selected_4n),
-    align_columns
-  ))
-  rownames(plot_data) <- NULL
+  selected <- do.call(rbind, selected_rows)
+  rownames(selected) <- NULL
   list(
     shared = shared,
-    selected_2N = selected_2n,
-    selected_4N = selected_4n,
-    plot_data = plot_data,
+    selected_interactions = selected,
+    selected_2N = selected_rows[["2N"]],
+    selected_4N = selected_rows[["4N"]],
+    interaction_complete = interaction_gsea,
     fdr_threshold = fdr_threshold,
-    maximum_per_direction = as.integer(maximum_per_direction)
+    maximum_per_direction = as.integer(maximum_per_direction),
+    n_interaction_fdr_significant = sum(
+      is.finite(interaction_gsea$padj) & interaction_gsea$padj <= fdr_threshold
+    )
   )
 }
 
@@ -1098,30 +1230,67 @@ plot_candidate_pathways <- function(
   invisible(plot)
 }
 
-plot_origin_comparison_pathways <- function(
+plot_origin_interaction_pathways <- function(
   comparison,
   path_pdf,
   path_png,
   mouse_metadata,
   interval
 ) {
-  plot_data <- comparison$plot_data
-  panel_labels <- c(
-    shared = sprintf(
-      "Shared significant (n=%d)",
-      nrow(comparison$shared)
-    ),
-    `2N` = "2N: top nonshared",
-    `4N` = "4N: top nonshared"
-  )
   collection_labels <- c(
     "H" = "Hallmark",
     "C2:CP:REACTOME" = "Reactome",
     "C5:GO:BP" = "GO BP"
   )
-  if (any(!plot_data$collection %in% names(collection_labels))) {
-    stop("Origin-comparison plot contains an unknown collection", call. = FALSE)
+  make_origin_rows <- function(data, panel_id, use_interaction_fdr = FALSE) {
+    rows <- lapply(c("2N", "4N"), function(origin) {
+      data.frame(
+        collection = data$collection,
+        pathway = data$pathway,
+        pathway_label = data$pathway_label,
+        NES = data[[paste0("NES_", origin)]],
+        padj = if (isTRUE(use_interaction_fdr)) {
+          data$padj
+        } else {
+          data[[paste0("padj_", origin)]]
+        },
+        origin = origin,
+        panel_id = panel_id,
+        formal_interaction_significant = if (isTRUE(use_interaction_fdr)) {
+          data$interaction_fdr_significant
+        } else {
+          TRUE
+        },
+        stringsAsFactors = FALSE
+      )
+    })
+    do.call(rbind, rows)
   }
+  shared_plot <- make_origin_rows(comparison$shared, "shared")
+  interaction_2n_plot <- make_origin_rows(
+    comparison$selected_2N,
+    "interaction_2N",
+    use_interaction_fdr = TRUE
+  )
+  interaction_4n_plot <- make_origin_rows(
+    comparison$selected_4N,
+    "interaction_4N",
+    use_interaction_fdr = TRUE
+  )
+  plot_data <- rbind(shared_plot, interaction_2n_plot, interaction_4n_plot)
+  if (any(!plot_data$collection %in% names(collection_labels))) {
+    stop("Origin-interaction plot contains an unknown collection", call. = FALSE)
+  }
+
+  selected_2n <- comparison$selected_2N
+  selected_4n <- comparison$selected_4N
+  significant_2n <- sum(selected_2n$interaction_fdr_significant)
+  significant_4n <- sum(selected_4n$interaction_fdr_significant)
+  panel_labels <- c(
+    shared = sprintf("Shared treatment response (n=%d)", nrow(comparison$shared)),
+    interaction_2N = "2N-more-positive interaction",
+    interaction_4N = "4N-more-positive interaction"
+  )
   plot_data$panel_label <- factor(
     unname(panel_labels[plot_data$panel_id]),
     levels = unname(panel_labels)
@@ -1131,9 +1300,13 @@ plot_origin_comparison_pathways <- function(
     levels = names(collection_labels),
     labels = unname(collection_labels)
   )
-  plot_data$origin <- factor(plot_data$origin, levels = c("2N", "4N"))
   plot_data$minus_log10_fdr <- -log10(
     pmax(as.numeric(plot_data$padj), .Machine$double.xmin)
+  )
+  plot_data$origin <- factor(plot_data$origin, levels = c("2N", "4N"))
+  plot_data$point_opacity <- factor(
+    ifelse(plot_data$formal_interaction_significant, "significant", "not significant"),
+    levels = c("significant", "not significant")
   )
   plot_data$pathway_plot_key <- paste(
     plot_data$panel_id,
@@ -1142,7 +1315,7 @@ plot_origin_comparison_pathways <- function(
     sep = "\r"
   )
 
-  ordered_pathway_keys <- unlist(lapply(c("shared", "2N", "4N"), function(panel_id) {
+  ordered_pathway_keys <- unlist(lapply(names(panel_labels), function(panel_id) {
     local <- plot_data[plot_data$panel_id == panel_id, , drop = FALSE]
     aggregate_nes <- stats::aggregate(
       local$NES,
@@ -1163,29 +1336,35 @@ plot_origin_comparison_pathways <- function(
     plot_data$pathway_plot_key,
     levels = ordered_pathway_keys
   )
+  pathway_label_lookup <- setNames(
+    as.character(plot_data$pathway_label),
+    as.character(plot_data$pathway_plot_key)
+  )
   pathway_labels <- setNames(
     vapply(
-      plot_data$pathway_label[match(ordered_pathway_keys, plot_data$pathway_plot_key)],
+      pathway_label_lookup[ordered_pathway_keys],
       function(label) paste(strwrap(label, width = 43L), collapse = "\n"),
       character(1L)
     ),
     ordered_pathway_keys
   )
 
-  origin_specific <- plot_data[plot_data$panel_id != "shared", , drop = FALSE]
-  shared_connectors <- comparison$shared
-  shared_connectors$pathway_plot_key <- factor(
-    paste(
-      "shared",
-      shared_connectors$collection,
-      shared_connectors$pathway,
-      sep = "\r"
-    ),
-    levels = ordered_pathway_keys
-  )
-  shared_connectors$panel_label <- factor(
-    panel_labels[["shared"]],
-    levels = unname(panel_labels)
+  connector_rows <- function(data, panel_id) {
+    data <- data[, c("collection", "pathway", "NES_2N", "NES_4N"), drop = FALSE]
+    data$pathway_plot_key <- factor(
+      paste(panel_id, data$collection, data$pathway, sep = "\r"),
+      levels = ordered_pathway_keys
+    )
+    data$panel_label <- factor(
+      panel_labels[[panel_id]],
+      levels = unname(panel_labels)
+    )
+    data
+  }
+  connectors <- rbind(
+    connector_rows(comparison$shared, "shared"),
+    connector_rows(comparison$selected_2N, "interaction_2N"),
+    connector_rows(comparison$selected_4N, "interaction_4N")
   )
   cells_2n <- sum(mouse_metadata[["2N"]]$n_cells)
   cells_4n <- sum(mouse_metadata[["4N"]]$n_cells)
@@ -1198,18 +1377,7 @@ plot_origin_comparison_pathways <- function(
       linewidth = 0.4
     ) +
     ggplot2::geom_segment(
-      data = origin_specific,
-      ggplot2::aes(
-        x = 0,
-        xend = NES,
-        y = pathway_plot_key,
-        yend = pathway_plot_key
-      ),
-      color = "#B0B7C3",
-      linewidth = 0.65
-    ) +
-    ggplot2::geom_segment(
-      data = shared_connectors,
+      data = connectors,
       ggplot2::aes(
         x = NES_2N,
         xend = NES_4N,
@@ -1226,9 +1394,9 @@ plot_origin_comparison_pathways <- function(
         y = pathway_plot_key,
         color = collection_label,
         size = minus_log10_fdr,
-        shape = origin
-      ),
-      alpha = 0.95
+        shape = origin,
+        alpha = point_opacity
+      )
     ) +
     ggplot2::facet_grid(
       panel_label ~ .,
@@ -1247,11 +1415,15 @@ plot_origin_comparison_pathways <- function(
     )) +
     ggplot2::scale_shape_manual(values = c("2N" = 16, "4N" = 17)) +
     ggplot2::scale_size_continuous(range = c(2.5, 5.6)) +
+    ggplot2::scale_alpha_manual(values = c(
+      "significant" = 1,
+      "not significant" = 0.42
+    ), drop = FALSE) +
     ggplot2::labs(
-      title = "Shared and nonshared pathway enrichment by tumor origin",
+      title = "Shared and origin-dependent treatment responses",
       subtitle = sprintf(
         paste0(
-          "Equal-dose treated - vehicle contrast; %.3f-%.3f pseudotime\n",
+          "Equal-dose treatment contrast; %.3f-%.3f pseudotime\n",
           "2N: %d cells across 8 mice; 4N: %d cells across 8 mice"
         ),
         interval$start,
@@ -1264,26 +1436,35 @@ plot_origin_comparison_pathways <- function(
       color = "Collection",
       shape = "Origin",
       size = expression(-log[10]~"FDR"),
+      alpha = NULL,
       caption = paste0(
-        "Upper: all pathways with collection-wise BH FDR <= 0.05 in both origin models; ",
-        "the connector joins their paired NES estimates.\n",
-        "Lower panels exclude that shared set and show up to three pathways ",
-        "per NES direction across all collections.\n",
-        "Human-tumor mouse pseudobulks; adjusted for mean within-interval pseudotime; ",
-        "exploratory data-selected interval."
+        "Upper: separate-origin NES for pathways significant in both stratified models. ",
+        "Connectors join 2N and 4N estimates.\n",
+        "Lower: pathways selected by GSEA of the direct interaction ",
+        "[treated - vehicle]4N - [treated - vehicle]2N; points show joint-model origin-specific NES.\n",
+        "Negative interaction NES is more positive in 2N; positive interaction NES is more positive in 4N ",
+        "(more positive can also mean less depleted).\n",
+        "Point size uses stratified FDR above and interaction FDR below; up to three per interaction sign are displayed; ",
+        sprintf(
+          "%d/%d displayed interactions pass FDR <= 0.05 (%d significant interaction pathways total).",
+          significant_2n + significant_4n,
+          nrow(selected_2n) + nrow(selected_4n),
+          comparison$n_interaction_fdr_significant
+        )
       )
     ) +
     ggplot2::guides(
       color = ggplot2::guide_legend(order = 1),
       shape = ggplot2::guide_legend(order = 2),
-      size = ggplot2::guide_legend(order = 3)
+      alpha = "none",
+      size = ggplot2::guide_legend(order = 4)
     ) +
     ggplot2::theme_bw(base_size = 9) +
     ggplot2::theme(
       plot.title = ggplot2::element_text(face = "bold", size = 11),
       plot.subtitle = ggplot2::element_text(size = 8.5, color = "#374151"),
       plot.caption = ggplot2::element_text(
-        size = 7.2,
+        size = 6.9,
         hjust = 0,
         color = "#4B5563"
       ),
@@ -1611,7 +1792,8 @@ write_origin_stratified_outputs <- function(
   invisible(result)
 }
 
-write_origin_comparison_outputs <- function(
+write_treatment_origin_interaction_outputs <- function(
+  interaction_analysis,
   stratified_analyses,
   table_dir,
   figure_dir,
@@ -1619,11 +1801,71 @@ write_origin_comparison_outputs <- function(
   fdr_threshold
 ) {
   if (!identical(names(stratified_analyses), c("2N", "4N"))) {
-    stop("Origin comparison requires named 2N and 4N analyses", call. = FALSE)
+    stop("Formal interaction display requires named 2N and 4N analyses", call. = FALSE)
   }
-  comparison <- prepare_origin_comparison_pathways(
+  for (contrast_id in names(interaction_analysis$de_tables)) {
+    write_tsv(
+      interaction_analysis$de_tables[[contrast_id]],
+      file.path(table_dir, paste0(contrast_id, "_interaction_model_de.tsv"))
+    )
+  }
+  primary_id <- interaction_analysis$contrast_id
+  prefix <- primary_id
+  write_tsv(
+    interaction_analysis$pathways$ranking,
+    file.path(table_dir, paste0(prefix, "_gsea_ranking.tsv"))
+  )
+  write_tsv(
+    interaction_analysis$pathways$symbol_resolution,
+    file.path(table_dir, paste0(prefix, "_gene_symbol_resolution.tsv"))
+  )
+  write_tsv(
+    interaction_analysis$pathways$complete,
+    file.path(table_dir, paste0(prefix, "_gsea_complete.tsv"))
+  )
+  write_tsv(
+    interaction_analysis$pathways$collection_summary,
+    file.path(table_dir, paste0(prefix, "_gsea_summary.tsv"))
+  )
+  for (origin in c("2N", "4N")) {
+    origin_prefix <- paste0(
+      "treated_equal_dose_minus_vehicle_",
+      origin,
+      "_joint_interaction_model"
+    )
+    origin_pathways <- interaction_analysis$origin_effect_pathways[[origin]]
+    write_tsv(
+      origin_pathways$ranking,
+      file.path(table_dir, paste0(origin_prefix, "_gsea_ranking.tsv"))
+    )
+    write_tsv(
+      origin_pathways$complete,
+      file.path(table_dir, paste0(origin_prefix, "_gsea_complete.tsv"))
+    )
+    write_tsv(
+      origin_pathways$collection_summary,
+      file.path(table_dir, paste0(origin_prefix, "_gsea_summary.tsv"))
+    )
+  }
+  design_output <- cbind(
+    sample_id = rownames(interaction_analysis$design$design),
+    as.data.frame(interaction_analysis$design$design, check.names = FALSE)
+  )
+  write_tsv(
+    design_output,
+    file.path(table_dir, "design_matrix_treatment_by_origin_interaction.tsv")
+  )
+  write_tsv(
+    model_contrast_table(interaction_analysis$contrasts),
+    file.path(table_dir, "contrast_definitions_treatment_by_origin_interaction.tsv")
+  )
+
+  comparison <- prepare_origin_interaction_pathways(
     stratified_analyses[["2N"]]$pathways$complete,
     stratified_analyses[["4N"]]$pathways$complete,
+    interaction_analysis$pathways$complete,
+    origin_effect_gsea_2n = interaction_analysis$origin_effect_pathways[["2N"]]$complete,
+    origin_effect_gsea_4n = interaction_analysis$origin_effect_pathways[["4N"]]$complete,
     fdr_threshold = fdr_threshold,
     maximum_per_direction = exploratory_pathway_max_per_direction()
   )
@@ -1635,26 +1877,49 @@ write_origin_comparison_outputs <- function(
     )
   )
   selected_columns <- c(
-    "panel_id", "origin", "collection", "collection_label", "pathway",
-    "pathway_label", "NES", "padj", "selected_direction",
+    "panel_id", "more_positive_origin", "collection", "collection_label", "pathway",
+    "pathway_label", "NES", "padj", "NES_2N", "padj_2N", "NES_4N", "padj_4N",
+    "origin_effect_nes_order_concordant", "interaction_fdr_significant",
     "selected_rank_within_direction", "selection_scope"
   )
   write_tsv(
-    comparison$plot_data[, selected_columns, drop = FALSE],
-    file.path(
-      table_dir,
-      "treated_equal_dose_minus_vehicle_origin_comparison_selected.tsv"
-    )
+    comparison$selected_interactions[, selected_columns, drop = FALSE],
+    file.path(table_dir, paste0(prefix, "_selected_for_origin_comparison.tsv"))
   )
-  plot_origin_comparison_pathways(
+  write_tsv(data.frame(
+    contrast_id = primary_id,
+    contrast_definition = paste0(
+      "[0.5*(30 mg/kg) + 0.5*(120 mg/kg) - vehicle]_4N - ",
+      "[0.5*(30 mg/kg) + 0.5*(120 mg/kg) - vehicle]_2N"
+    ),
+    positive_gene_level_effect = "treated-minus-vehicle effect more positive in 4N-origin tumors",
+    negative_gene_level_effect = "treated-minus-vehicle effect more positive in 2N-origin tumors",
+    model_formula = paste(deparse(interaction_analysis$design$formula), collapse = " "),
+    n_mouse_pseudobulks = nrow(interaction_analysis$design$design),
+    design_rank = interaction_analysis$design$rank,
+    design_columns = ncol(interaction_analysis$design$design),
+    retained_expressed_features = interaction_analysis$model$n_retained_genes,
+    gsea_pathways_fdr_significant = comparison$n_interaction_fdr_significant,
+    selected_2N_more_positive = nrow(comparison$selected_2N),
+    selected_2N_more_positive_fdr_significant = sum(
+      comparison$selected_2N$interaction_fdr_significant
+    ),
+    selected_4N_more_positive = nrow(comparison$selected_4N),
+    selected_4N_more_positive_fdr_significant = sum(
+      comparison$selected_4N$interaction_fdr_significant
+    ),
+    stringsAsFactors = FALSE
+  ), file.path(table_dir, "treatment_by_origin_interaction_summary.tsv"))
+
+  plot_origin_interaction_pathways(
     comparison,
     file.path(
       figure_dir,
-      "panel_7I_candidate_treated_vs_vehicle_interval_pathways_origin_comparison.pdf"
+      "panel_7I_candidate_treated_vs_vehicle_interval_pathways_formal_origin_interaction.pdf"
     ),
     file.path(
       figure_dir,
-      "panel_7I_candidate_treated_vs_vehicle_interval_pathways_origin_comparison.png"
+      "panel_7I_candidate_treated_vs_vehicle_interval_pathways_formal_origin_interaction.png"
     ),
     lapply(stratified_analyses, `[[`, "mouse_metadata"),
     interval
@@ -1779,6 +2044,17 @@ run_interval_de <- function(args, repo_root) {
       seed = 1L
     )
   }), origins)
+
+  message("Fitting the formal treatment-by-origin interaction model and GSEA")
+  interaction_analysis <- fit_treatment_origin_interaction_analysis(
+    pseudobulk,
+    support,
+    config,
+    gene_sets = pathway_enrichment$gene_sets,
+    cpm_threshold = args$cpm_threshold,
+    minimum_mice = args$minimum_mice,
+    seed = 1L
+  )
 
   output_root <- prepare_output_root(args$output_root, overwrite = args$overwrite)
   table_dir <- file.path(output_root, "tables")
@@ -1929,7 +2205,8 @@ run_interval_de <- function(args, repo_root) {
       args$lfc_threshold
     )
   }
-  origin_comparison <- write_origin_comparison_outputs(
+  origin_comparison <- write_treatment_origin_interaction_outputs(
+    interaction_analysis,
     stratified_analyses,
     table_dir,
     figure_dir,
@@ -2056,7 +2333,8 @@ run_interval_de <- function(args, repo_root) {
       "git_revision", "git_branch", "git_worktree_dirty",
       "feature_species_policy", "normalization", "observation_model",
       "multiple_testing", "contrast_sign_convention", "pathway_ranking",
-      "pathway_collections", "pathway_selection"
+      "pathway_collections", "pathway_selection",
+      "treatment_by_origin_interaction"
     ),
     value = c(
       git_value(repo_root, c("rev-parse", "HEAD")),
@@ -2070,9 +2348,17 @@ run_interval_de <- function(args, repo_root) {
       "limma voom with robust empirical Bayes moderation",
       "Benjamini-Hochberg across retained human features within each contrast",
       "positive log2 fold change means higher expression in gemcitabine-treated tumors",
-      "moderated t statistic from the primary treated-minus-vehicle contrast",
+      "moderated t statistic from each stated gene-level contrast",
       paste(as.character(unlist(config$state_pathways$collections)), collapse = ","),
-      exploratory_pathway_selection_rule()
+      paste0(
+        exploratory_pathway_selection_rule(),
+        " for pooled/stratified panels; formal comparison uses top three ",
+        "per interaction sign across collections"
+      ),
+      paste0(
+        "formal contrast: [equal-dose treated - vehicle]_4N - ",
+        "[equal-dose treated - vehicle]_2N; positive values are more positive in 4N"
+      )
     ),
     stringsAsFactors = FALSE
   ), file.path(metadata_dir, "provenance.tsv"))
@@ -2084,6 +2370,7 @@ run_interval_de <- function(args, repo_root) {
     pathways = pathway_enrichment,
     stratified = stratified_analyses,
     origin_comparison = origin_comparison,
+    interaction = interaction_analysis,
     summaries = summary,
     mouse_metadata = pseudobulk$metadata,
     output_root = output_root
