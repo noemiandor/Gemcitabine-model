@@ -27,6 +27,7 @@ from scipy.cluster.hierarchy import leaves_list, linkage
 from scipy.spatial.distance import pdist
 
 from plot_ploidy_enrichment_panels import (
+    BAR_STYLE_CHOICES,
     HEATMAP_CMAP,
     infer_zero_replacement,
     ordered_by_low_ploidy_significance,
@@ -76,6 +77,20 @@ def ordered_labels(labels):
     return [display_label(label) for label in labels]
 
 
+def ordered_labels_with_counts(labels, counts=None):
+    """Readable column labels with optional drug-count annotations."""
+    labels = ordered_labels(labels)
+    if counts is None:
+        return labels
+    out = []
+    for label, count in zip(labels, counts):
+        if np.isfinite(count):
+            out.append(f"{label}\n(n = {int(count)})")
+        else:
+            out.append(f"{label}\n(n = NA)")
+    return out
+
+
 def read_optional_sheet(xlsx_path, sheet_name):
     """Read an optional workbook sheet, returning None if absent."""
     try:
@@ -95,6 +110,24 @@ def ordered_numeric_values(table, key_col, value_col, labels):
     if np.all(~np.isfinite(ordered)):
         return None
     return ordered
+
+
+def count_bar_kwargs(counts, bar_style):
+    """Return bar styling for count marginals."""
+    if bar_style == "black":
+        return {"color": "black", "edgecolor": "none", "linewidth": 0}
+    if bar_style == "white":
+        return {"color": "white", "edgecolor": "black", "linewidth": 0.8}
+    if bar_style == "heatmap":
+        counts = np.asarray(counts, dtype=float)
+        finite = counts[np.isfinite(counts)]
+        if len(finite) == 0 or np.nanmax(finite) <= 0:
+            scaled = np.zeros_like(counts)
+        else:
+            scaled = np.where(np.isfinite(counts), counts / np.nanmax(finite), 0)
+        colors = plt.get_cmap(HEATMAP_CMAP)(0.18 + 0.76 * np.clip(scaled, 0, 1))
+        return {"color": colors, "edgecolor": "black", "linewidth": 0.35}
+    raise ValueError(f"Unsupported bar style: {bar_style}")
 
 
 def set_seaborn_x_labels(ax, labels, fontsize=7):
@@ -142,6 +175,7 @@ def save_shared_order_heatmap(
     out_prefix,
     drug_counts=None,
     cancer_type_counts=None,
+    bar_style="black",
 ):
     """Save two heatmaps using one shared row order and a low-to-high class order."""
     low_scores = pd.DataFrame(low_scores, index=low.index, columns=low.columns)
@@ -168,7 +202,7 @@ def save_shared_order_heatmap(
     show_marginals = ordered_drug_counts is not None and ordered_cell_line_counts is not None
 
     if show_marginals:
-        fig = plt.figure(figsize=(17.5, 10.0))
+        fig = plt.figure(figsize=(17.5, 12.0))
         grid = fig.add_gridspec(
             2,
             4,
@@ -188,8 +222,7 @@ def save_shared_order_heatmap(
                 np.arange(n_cols) + 0.5,
                 ordered_drug_counts,
                 width=0.80,
-                color="#4C4C4C",
-                edgecolor="none",
+                **count_bar_kwargs(ordered_drug_counts, bar_style),
             )
             ax.set_xlim(0, n_cols)
             ax.set_ylim(0, y_max)
@@ -209,14 +242,13 @@ def save_shared_order_heatmap(
             np.arange(n_rows) + 0.5,
             finite_counts,
             height=0.78,
-            color="#6F6F6F",
-            edgecolor="none",
+            **count_bar_kwargs(finite_counts, bar_style),
         )
         cell_count_ax.set_ylim(n_rows, 0)
         cell_count_ax.set_yticks(np.arange(n_rows) + 0.5)
         cell_count_ax.set_yticklabels(
             [
-                f"{label} (n={int(count)})" if np.isfinite(count) else f"{label} (n=NA)"
+                f"{label} (n = {int(count)})" if np.isfinite(count) else f"{label} (n = NA)"
                 for label, count in zip(ordered_row_labels, ordered_cell_line_counts)
             ],
             fontsize=8,
@@ -265,7 +297,11 @@ def save_shared_order_heatmap(
             xticklabels=False,
             yticklabels=False if show_marginals else ordered_scores.index,
         )
-        set_seaborn_x_labels(ax, ordered_labels(ordered_scores.columns), fontsize=7)
+        set_seaborn_x_labels(
+            ax,
+            ordered_labels_with_counts(ordered_scores.columns, ordered_drug_counts),
+            fontsize=7,
+        )
         add_significance_stars(ax, pvalues, row_order, col_order, scores=scores, vmin=0, vmax=vmax)
         if show_marginals:
             top_axes[panel_idx].set_title(title, fontsize=12, pad=8)
@@ -341,6 +377,12 @@ def main():
         default="ploidy_enrichment_clustered",
         help="Output prefix for clustered heatmap PNG/PDF files",
     )
+    parser.add_argument(
+        "--bar-style",
+        choices=BAR_STYLE_CHOICES,
+        default="black",
+        help="Style for drug-class and cancer-type count marginal bars",
+    )
     args = parser.parse_args()
 
     xlsx_path = Path(args.xlsx)
@@ -363,6 +405,7 @@ def main():
         out_prefix,
         drug_counts=drug_counts,
         cancer_type_counts=cancer_type_counts,
+        bar_style=args.bar_style,
     )
     save_clustermap(
         low_scores,

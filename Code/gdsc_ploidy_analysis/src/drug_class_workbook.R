@@ -127,7 +127,7 @@ read_primary_secondary_drug_classes <- function(path,
   rows$primary_anticancer_class_slug <- primary_secondary_class_slug(rows$primary_anticancer_class)
   rows$source_workbook <- normalizePath(path, mustWork = TRUE)
   rows$source_workbook_md5 <- file_checksum(path)
-  rows$source_workbook_sha256 <- unname(tools::sha256sum(path))
+  rows$source_workbook_sha256 <- file_sha256_checksum(path)
 
   if (any(!nonempty(rows$drug_key))) {
     stop("Primary/secondary workbook has missing drug_key values.", call. = FALSE)

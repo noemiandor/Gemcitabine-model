@@ -247,6 +247,21 @@ write_tsv(
   enrichment_long,
   file.path(tables_dir, sprintf("drug_count_collapsed_enrichment_%s.tsv", metric))
 )
+significant_cells <- enrichment_long[
+  is.finite(enrichment_long$qvalue_bh) &
+    enrichment_long$qvalue_bh <= significance_cutoff,
+  ,
+  drop = FALSE
+]
+significant_cells <- significant_cells[order(
+  significant_cells$direction,
+  significant_cells$cancer_type,
+  significant_cells$category_label
+), , drop = FALSE]
+write_tsv(
+  significant_cells,
+  file.path(tables_dir, sprintf("drug_count_collapsed_significant_cells_fdr%g_%s.tsv", significance_cutoff, metric))
+)
 
 fdr_matrix <- function(direction) {
   subset <- enrichment_long[enrichment_long$direction == direction, , drop = FALSE]
@@ -407,18 +422,33 @@ openxlsx::writeData(wb, "cancerTypeCounts", cancer_type_counts)
 openxlsx::saveWorkbook(wb, workbook, overwrite = TRUE)
 
 plot_script <- file.path(src_dir, "plot_ploidy_enrichment_clustered_heatmaps.py")
-plot_prefix <- file.path(figures_dir, "drug_count_collapsed_enrichment")
-cmd <- sprintf(
-  "MPLCONFIGDIR=%s python3 %s %s --out-prefix %s",
-  shQuote(file.path(tempdir(), "mplconfig_gdsc_collapsed_classes")),
-  shQuote(plot_script),
-  shQuote(workbook),
-  shQuote(plot_prefix)
-)
-status <- system(cmd)
-if (status != 0) {
-  stop("Drug-count collapsed heatmap plotting failed with status ", status, call. = FALSE)
+python_cmd <- Sys.getenv("GDSC_PYTHON", "python3")
+plot_styles <- c(black = "", white = "_bars_white", heatmap = "_bars_heatmap")
+for (bar_style in names(plot_styles)) {
+  plot_prefix <- file.path(
+    figures_dir,
+    paste0("drug_count_collapsed_enrichment", plot_styles[[bar_style]])
+  )
+  cmd <- sprintf(
+    "MPLCONFIGDIR=%s XDG_CACHE_HOME=%s %s %s %s --out-prefix %s --bar-style %s",
+    shQuote(file.path(tempdir(), "mplconfig_gdsc_collapsed_classes")),
+    shQuote(file.path(tempdir(), "xdg_cache_gdsc_collapsed_classes")),
+    shQuote(python_cmd),
+    shQuote(plot_script),
+    shQuote(workbook),
+    shQuote(plot_prefix),
+    shQuote(bar_style)
+  )
+  status <- system(cmd)
+  if (status != 0) {
+    stop(
+      "Drug-count collapsed heatmap plotting failed for ", bar_style,
+      " bars with status ", status, call. = FALSE
+    )
+  }
 }
+
+plot_prefix <- file.path(figures_dir, "drug_count_collapsed_enrichment")
 
 write_tsv(
   data.frame(
