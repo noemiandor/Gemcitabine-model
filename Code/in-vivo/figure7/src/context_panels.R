@@ -317,6 +317,19 @@ figure7_context_matrix <- function(cache_dir, filename, cluster_levels, label) {
   matrix_data
 }
 
+figure7_context_gsea_display_matrix <- function(matrix_data) {
+  display_matrix <- matrix_data
+  uv_response_row <- which(rownames(display_matrix) == "Uv Response Dn")
+  if (length(uv_response_row) != 1L) {
+    figure7_stop(
+      "Main Figure 7 GSEA heatmap requires one UV-response-down row"
+    )
+  }
+  rownames(display_matrix)[uv_response_row] <-
+    "UV response (downregulated)"
+  display_matrix
+}
+
 figure7_build_context_panels <- function(
   cache_dir,
   repo_root,
@@ -425,8 +438,9 @@ figure7_build_context_panels <- function(
     cluster_levels,
     "SI Figure 7 GSEA matrix"
   )
+  gsea_display_matrix <- figure7_context_gsea_display_matrix(gsea_matrix)
   gsea <- shared_context_heatmap_plot(
-    gsea_matrix,
+    gsea_display_matrix,
     "",
     TRUE,
     "",

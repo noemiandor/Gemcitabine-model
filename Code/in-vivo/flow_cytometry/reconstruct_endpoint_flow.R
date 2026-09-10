@@ -353,7 +353,48 @@ select_representative <- function(frozen, origin, min_human_cells) {
 }
 
 format_dose <- function(x) {
-  ifelse(as.numeric(x) == 0, "vehicle", paste0(format(as.numeric(x), trim = TRUE), " mg/kg"))
+  ifelse(
+    as.numeric(x) == 0,
+    "Vehicle",
+    paste0(format(as.numeric(x), trim = TRUE), " mg/kg")
+  )
+}
+
+endpoint_flow_origin_display_labels <- function() c(
+  "2N" = "SUM-159 (2N)",
+  "4N" = "SUM-159 (4N)"
+)
+
+endpoint_flow_mouse_display_label_map <- function() c(
+  "2N-A1-0" = "2N-0-M1",
+  "2N-A1-R" = "2N-0-M2",
+  "2N-A1-LR" = "2N-0-M3",
+  "2N-A1-RR" = "2N-0-M4",
+  "2N-A2-0" = "2N-30-M1",
+  "2N-A2-L" = "2N-30-M2",
+  "2N-A4-R" = "2N-120-M1",
+  "2N-A4-RL" = "2N-120-M2",
+  "4N-A5-0" = "4N-0-M1",
+  "A5-4N-R" = "4N-0-M2",
+  "A5-4N-L" = "4N-0-M3",
+  "4N-A5-RR" = "4N-0-M4",
+  "A6-4N-O" = "4N-30-M1",
+  "A6-4N-RR" = "4N-30-M2",
+  "4N-A8-RL" = "4N-120-M1",
+  "4N-A8-RR" = "4N-120-M2"
+)
+
+endpoint_flow_mouse_display_labels <- function(mouse_ids) {
+  mouse_ids <- as.character(mouse_ids)
+  label_map <- endpoint_flow_mouse_display_label_map()
+  matched <- match(mouse_ids, names(label_map))
+  if (anyNA(matched)) {
+    abort(
+      "Endpoint-flow mouse display labels are missing: ",
+      paste(unique(mouse_ids[is.na(matched)]), collapse = ", ")
+    )
+  }
+  unname(label_map[matched])
 }
 
 manuscript_theme <- function(base_size = 8) {
@@ -385,6 +426,10 @@ build_figure <- function(histograms, count_agreement, sample_summary,
   origin_colors <- c("2N" = "#0072B2", "4N" = "#D55E00")
   gate_colors <- c("workspace_named_2N" = "#0072B2", "workspace_named_4N" = "#D55E00")
   representative_mouse <- representative$mouse_id[representative$selected][[1L]]
+  representative_mouse_display <- endpoint_flow_mouse_display_labels(
+    representative_mouse
+  )
+  origin_display_labels <- endpoint_flow_origin_display_labels()
   rep_summary <- sample_summary[sample_summary$mouse_id == representative_mouse, , drop = FALSE]
   rep_count <- count_agreement[count_agreement$mouse_id == representative_mouse, , drop = FALSE]
   hce_gate <- representative_gates[["human_cell_enrichment"]]
@@ -465,8 +510,12 @@ build_figure <- function(histograms, count_agreement, sample_summary,
 
   panel_a <- p_a1 + p_a2 + p_a3 + plot_layout(widths = c(1, 1, 1.05)) +
     plot_annotation(
-      title = paste0("Representative raw-event hierarchy: ", representative_mouse),
-      subtitle = paste0(rep_summary$injected_origin, " origin; ", format_dose(rep_summary$dose_mg_kg),
+      title = paste0(
+        "Representative raw-event hierarchy: ", representative_mouse_display
+      ),
+      subtitle = paste0(
+        unname(origin_display_labels[rep_summary$injected_origin]),
+        " origin; ", format_dose(rep_summary$dose_mg_kg),
         "; workspace-defined per-sample coordinates\n",
         "Scatter display: up to ", comma_labels(max_display_points),
         " evenly spaced events; counts use every event"),
@@ -503,7 +552,7 @@ build_figure <- function(histograms, count_agreement, sample_summary,
     plot_annotation(
       tag_levels = "A",
       caption = paste0(
-        "† 2N-A1-0 was retained but flagged: 174 frozen FlowJo HumanCells (173 by replay).\n",
+        "† 2N-0-M1 was retained but flagged: 174 frozen FlowJo HumanCells (173 by replay).\n",
         "Human Cell Enrichment and HumanCells are workspace population names; no explicit singlet or viability gate is present.\n",
         "The eight 4N-origin reviewed peak annotations span 1.88N–2.20N and are printed in their Panel B facets.\n",
         "Peak-gate names are analyst-supplied FlowJo annotations, not newly calibrated or NUMBAT-equivalent ploidy estimates."
@@ -677,9 +726,13 @@ reconstruct_endpoint_flow <- function(config) {
     if (sum(counts) != length(dna)) abort("Histogram binning lost events for ", mouse$mouse_id)
     dose_label <- format_dose(mouse$dose_mg_kg)
     low_mark <- if (mouse$low_human_cells_flag) "† " else ""
+    mouse_display <- endpoint_flow_mouse_display_labels(mouse$mouse_id)
+    origin_display <- unname(
+      endpoint_flow_origin_display_labels()[mouse$injected_origin]
+    )
     facet_label <- paste0(
-      low_mark, mouse$mouse_id,
-      "\n", mouse$injected_origin, " · ", dose_label,
+      low_mark, mouse_display,
+      "\n", origin_display, " · ", dose_label,
       "\nn=", format(reconstructed[["human_cells"]], big.mark = ","),
       " | peak=", mouse$peak_gate_name
     )
@@ -713,7 +766,9 @@ reconstruct_endpoint_flow <- function(config) {
       display_underflow_events = underflow,
       display_overflow_events = overflow,
       facet_label = facet_label,
-      comparison_label = paste0(low_mark, mouse$mouse_id, "  [", mouse$injected_origin, ", ", dose_label, "]"),
+      comparison_label = paste0(
+        low_mark, mouse_display, "  [", origin_display, ", ", dose_label, "]"
+      ),
       stringsAsFactors = FALSE
     )
 
@@ -744,8 +799,20 @@ reconstruct_endpoint_flow <- function(config) {
   sample_summary <- do.call(rbind, summary_parts)
   rownames(sample_summary) <- NULL
   sample_summary$origin_order <- match(sample_summary$injected_origin, c("2N", "4N"))
-  sample_summary <- sample_summary[order(sample_summary$origin_order, sample_summary$dose_mg_kg, sample_summary$mouse_id), , drop = FALSE]
+  sample_summary$mouse_display_order <- endpoint_flow_mouse_display_labels(
+    sample_summary$mouse_id
+  )
+  sample_summary <- sample_summary[
+    order(
+      sample_summary$origin_order,
+      sample_summary$dose_mg_kg,
+      sample_summary$mouse_display_order
+    ),
+    ,
+    drop = FALSE
+  ]
   sample_summary$origin_order <- NULL
+  sample_summary$mouse_display_order <- NULL
   # Reorder explicitly without relying on list or row-name order.
   histograms$order_key <- match(histograms$mouse_id, sample_summary$mouse_id)
   histograms <- histograms[order(histograms$order_key, histograms$bin_left), , drop = FALSE]

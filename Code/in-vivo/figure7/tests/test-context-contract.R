@@ -138,8 +138,15 @@ testthat::test_that("promoted SI4 panels reproduce reviewed cache plots and norm
   cache_dir <- file.path(repo_root, "Data/in-vivo/SIfigures")
   context <- figure7_build_context_panels(cache_dir, repo_root, config)
   repeated <- figure7_build_context_panels(cache_dir, repo_root, config)
+  gsea_display_matrix <- figure7_context_gsea_display_matrix(
+    context$gsea_matrix
+  )
 
   testthat::expect_named(context$plots, c("C", "D", "E", "F", "G"))
+  testthat::expect_true(
+    "UV response (downregulated)" %in% rownames(gsea_display_matrix)
+  )
+  testthat::expect_false("Uv Response Dn" %in% rownames(gsea_display_matrix))
   testthat::expect_true(all(vapply(
     context$plots[c("C", "D", "E", "F")],
     inherits,
@@ -231,6 +238,15 @@ testthat::test_that("main panel J binds the exact QC copy-number universe and do
   panel <- figure7_build_copy_number_panel(repo_root)
   testthat::expect_s3_class(panel$plot, "wrapped_patch")
   testthat::expect_s3_class(panel$annotation_key, "gTree")
+  testthat::expect_identical(
+    panel$annotation_key$children[[1L]]$gp$col,
+    "black"
+  )
+  testthat::expect_identical(
+    panel$annotation_key$children[[1L]]$gp$fill,
+    "white"
+  )
+  testthat::expect_identical(panel$annotation_key_gap_mm, 2)
   testthat::expect_identical(panel$n_cells, 9832L)
   testthat::expect_identical(panel$n_treated_cells, 5335L)
   testthat::expect_identical(panel$n_mice, 16L)
@@ -277,6 +293,18 @@ testthat::test_that("main panel J binds the exact QC copy-number universe and do
   testthat::expect_identical(as.integer(key_group_counts), c(2L, 3L, 16L))
   testthat::expect_identical(
     names(key_group_counts), c("Injected origin", "Gemcitabine dose", "Mouse")
+  )
+  testthat::expect_identical(
+    panel$annotation_key_origin_display_labels,
+    c("2N" = "SUM-159 (2N)", "4N" = "SUM-159 (4N)")
+  )
+  testthat::expect_identical(
+    panel$annotation_key_mouse_display_labels,
+    figure7_mouse_display_label_map()
+  )
+  testthat::expect_identical(
+    sort(unname(panel$annotation_key_mouse_display_labels)),
+    sort(unname(figure7_mouse_display_label_map()))
   )
   testthat::expect_identical(
     panel$annotation_key_data$color,

@@ -20,6 +20,20 @@ run_test <- function() {
     "Small deterministic sample changed")
   assert_true(length(deterministic_indices(1000L, 100L)) == 100L,
     "Deterministic downsampling size changed")
+  assert_true(
+    identical(
+      endpoint_flow_mouse_display_labels(c("2N-A1-0", "4N-A8-RR")),
+      c("2N-0-M1", "4N-120-M2")
+    ),
+    "Endpoint-flow display labels no longer match Figure 7"
+  )
+  assert_true(
+    identical(
+      unname(endpoint_flow_origin_display_labels()),
+      c("SUM-159 (2N)", "SUM-159 (4N)")
+    ),
+    "Endpoint-flow origin labels no longer match Figure 7"
+  )
 
   output_dir <- tempfile("endpoint_flow_integration_")
   dir.create(output_dir)
@@ -101,7 +115,10 @@ run_test <- function() {
   mass <- rowsum(histograms$probability_mass, histograms$mouse_id)
   assert_true(all(abs(mass - 1) < 1e-12), "Within-mouse histogram mass is not one")
   low_hist <- histograms[histograms$mouse_id == "2N-A1-0", , drop = FALSE]
-  assert_true(sum(low_hist$event_count) == 173L && grepl("n=173", low_hist$facet_label[[1L]], fixed = TRUE),
+  assert_true(sum(low_hist$event_count) == 173L &&
+      grepl("† 2N-0-M1", low_hist$facet_label[[1L]], fixed = TRUE) &&
+      grepl("SUM-159 (2N) · Vehicle", low_hist$facet_label[[1L]], fixed = TRUE) &&
+      grepl("n=173", low_hist$facet_label[[1L]], fixed = TRUE),
     "The low-count distribution is not labelled with its replayed event count")
   four_n_hist <- unique(histograms[histograms$injected_origin == "4N",
     c("mouse_id", "facet_label"), drop = FALSE])
@@ -143,6 +160,10 @@ run_test <- function() {
   selection <- read_tsv(file.path(output_dir, "endpoint_flow_representative_selection.tsv"), "representative output")
   selected <- selection$mouse_id[selection$selected]
   assert_true(identical(selected, "4N-A8-RR"), "Representative selection is no longer deterministic")
+  assert_true(
+    identical(endpoint_flow_mouse_display_labels(selected), "4N-120-M2"),
+    "Representative display label no longer matches Figure 7"
+  )
   selected_row <- selection[selection$selected, , drop = FALSE]
   assert_true(selected_row$displayed_all_events == 10000L &&
       selected_row$displayed_human_cell_enrichment_events == 10000L &&

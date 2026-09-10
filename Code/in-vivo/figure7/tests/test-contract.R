@@ -328,6 +328,8 @@ testthat::test_that("panel 7I frozen selection contains only formal interaction 
   config <- figure7_test_inputs()$config
   path <- figure7_interval_treatment_input_path(repo_root, config)
   data <- figure7_read_interval_treatment_table(path, config)
+  origin_labels <- figure7_sum159_origin_labels()
+  reader_labels <- figure7_interval_treatment_reader_labels()
 
   testthat::expect_equal(nrow(data), 20L)
   testthat::expect_setequal(
@@ -343,11 +345,34 @@ testthat::test_that("panel 7I frozen selection contains only formal interaction 
   testthat::expect_true(all(is.finite(data$NES_4N)))
   testthat::expect_true(all(data$origin_effect_nes_order_concordant))
   testthat::expect_true(all(data$interaction_fdr_significant))
+  testthat::expect_setequal(names(reader_labels), data$pathway)
+  testthat::expect_true(all(nchar(unname(reader_labels)) <= 40L))
   testthat::expect_true(all(data$NES_2N[data$NES < 0] > data$NES_4N[data$NES < 0]))
   testthat::expect_true(all(data$NES_4N[data$NES > 0] > data$NES_2N[data$NES > 0]))
-  testthat::expect_s3_class(
-    figure7_interval_treatment_plot(data, config),
-    "ggplot"
+  interval_plot <- figure7_interval_treatment_plot(data, config)
+  testthat::expect_s3_class(interval_plot, "ggplot")
+  testthat::expect_identical(
+    unname(figure7_interval_treatment_collection_labels()),
+    c("Hallmark", "Reactome", "Gene Ontology BP")
+  )
+  testthat::expect_equal(
+    interval_plot$scales$get_scales("y")$expand,
+    c(0, 0.85, 0, 1.10),
+    tolerance = 0
+  )
+  origin_shape_scale <- interval_plot$scales$get_scales("shape")
+  testthat::expect_identical(
+    origin_shape_scale$breaks, names(origin_labels)
+  )
+  testthat::expect_identical(
+    unname(origin_shape_scale$labels), unname(origin_labels)
+  )
+  testthat::expect_identical(
+    levels(interval_plot$layers[[2L]]$data$panel_label),
+    c(
+      "2N-more-positive\ninteraction",
+      "4N-more-positive\ninteraction"
+    )
   )
 
   bad <- data
@@ -368,6 +393,7 @@ testthat::test_that("panel 7I frozen selection contains only formal interaction 
 testthat::test_that("publication compositor pins dimensions, mapping, and vector asset names", {
   config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
   spec <- figure7_publication_spec()
+  alternative_spec <- figure7_alternative_spec()
   expected_mapping <- c(
     A = "7A", B = "7C", C = "SI4A", D = "SI4B", E = "SI4C",
     F = "SI4E", G = "SI7B", H = "7B", I = "7I", J = "7J",
@@ -379,14 +405,30 @@ testthat::test_that("publication compositor pins dimensions, mapping, and vector
   )
 
   testthat::expect_identical(spec$width_in, 7.1)
-  testthat::expect_identical(spec$height_in, 10.645)
+  testthat::expect_equal(spec$height_in, 11.6968503937, tolerance = 1e-10)
   testthat::expect_identical(
     spec$row_heights,
-    c(1.20, 1.35, 2.45, 1.45, 2.745, 1.45)
+    c(1.20, 1.50, 2.45, 1.45, 3.45, 1.45)
   )
-  testthat::expect_equal(spec$row_heights[[2L]] / 0.95, 1.4210526, tolerance = 1e-7)
+  testthat::expect_equal(spec$row_heights[[2L]] / 0.95, 1.5789474, tolerance = 1e-7)
   testthat::expect_true(all(spec$row_heights > 0))
-  testthat::expect_equal(sum(spec$row_heights), spec$height_in, tolerance = 0)
+  testthat::expect_equal(spec$top_gutter_in, 5 / 25.4, tolerance = 0)
+  testthat::expect_identical(spec$panel_ab_tag_offset_mm, 2)
+  testthat::expect_identical(spec$panel_kl_tag_offset_mm, 3)
+  testthat::expect_identical(spec$panel_l_tag_right_offset_mm, 5)
+  testthat::expect_identical(
+    alternative_spec$no_j_filename,
+    "Figure7_alternative_without_panel_J.png"
+  )
+  testthat::expect_identical(
+    alternative_spec$standalone_j_filename,
+    "Figure7_panel_J_standalone_expanded.png"
+  )
+  testthat::expect_equal(
+    sum(spec$row_heights) + spec$top_gutter_in,
+    spec$height_in,
+    tolerance = 0
+  )
   testthat::expect_identical(
     strsplit(spec$design, "\n", fixed = TRUE)[[1L]],
     c(
@@ -461,6 +503,11 @@ testthat::test_that("publication compositor pins dimensions, mapping, and vector
 
 testthat::test_that("publication styling removes internal prose and uses reader-facing labels", {
   config <- figure7_read_config(file.path(module_dir, "figure7_config.yaml"))
+  origin_labels <- figure7_sum159_origin_labels()
+  testthat::expect_identical(
+    origin_labels,
+    c("2N" = "SUM-159 (2N)", "4N" = "SUM-159 (4N)")
+  )
   plots <- stats::setNames(lapply(LETTERS[1:12], function(panel) {
     ggplot2::ggplot(
       data.frame(x = 1:2, y = 1:2),
@@ -483,7 +530,20 @@ testthat::test_that("publication styling removes internal prose and uses reader-
     testthat::expect_null(styled[[panel]]$labels$tag, info = panel)
   }
   testthat::expect_identical(styled$A$labels$x, "Days since first treatment")
+  testthat::expect_identical(
+    styled$A$labels$y,
+    "Tumor size change\n(mm³)"
+  )
   testthat::expect_identical(styled$B$labels$x, "Injected origin")
+  testthat::expect_identical(styled$B$labels$y, "TGI (%)\n(Day 17)")
+  testthat::expect_identical(
+    vapply(styled[c("C", "D", "E")], function(plot) plot$labels$x, character(1L)),
+    c(C = "UMAP 1", D = "UMAP 1", E = "UMAP 1")
+  )
+  testthat::expect_identical(
+    vapply(styled[c("C", "D", "E")], function(plot) plot$labels$y, character(1L)),
+    c(C = "UMAP 2", D = "UMAP 2", E = "UMAP 2")
+  )
   testthat::expect_identical(styled$F$labels$y, "Mean proportion per sample")
   testthat::expect_identical(styled$H$labels$y, "Mean ECDF")
   testthat::expect_identical(
@@ -491,8 +551,24 @@ testthat::test_that("publication styling removes internal prose and uses reader-
     "Normalized enrichment score (treated - vehicle)"
   )
   testthat::expect_identical(styled$I$labels$shape, "Origin")
-  testthat::expect_identical(styled$D$theme$legend.position, "inside")
-  testthat::expect_identical(styled$E$theme$legend.position, "inside")
+  testthat::expect_identical(styled$D$theme$legend.position, "top")
+  testthat::expect_identical(styled$E$theme$legend.position, "top")
+  origin_color_scale <- styled$D$scales$get_scales("colour")
+  testthat::expect_identical(
+    origin_color_scale$breaks, names(origin_labels)
+  )
+  testthat::expect_identical(
+    unname(origin_color_scale$labels), unname(origin_labels)
+  )
+  collection_color_scale <- styled$I$scales$get_scales("colour")
+  testthat::expect_identical(
+    collection_color_scale$breaks,
+    c("Hallmark", "Reactome", "Gene Ontology BP")
+  )
+  testthat::expect_identical(
+    unname(collection_color_scale$labels),
+    c("Hallmark", "Reactome", "Gene Ontology BP")
+  )
   testthat::expect_identical(
     styled$K$labels$x,
     "Pseudotime-distribution shift\n(dose-centered ECDF RMSE)"
@@ -501,7 +577,6 @@ testthat::test_that("publication styling removes internal prose and uses reader-
     styled$L$labels$x,
     "Mean endpoint tumor-cell ploidy"
   )
-
   composite <- suppressWarnings(figure7_main_composite_object(plots, config))
   testthat::expect_s3_class(composite, "gTree")
   testthat::expect_true(all(
@@ -513,6 +588,25 @@ testthat::test_that("publication styling removes internal prose and uses reader-
     plots$J, "J", figure7_publication_spec()
   )
   testthat::expect_identical(locally_tagged_j$labels$tag, "J")
+  no_j_composite <- suppressWarnings(
+    figure7_no_j_composite_object(plots, config)
+  )
+  testthat::expect_s3_class(no_j_composite, "gTree")
+  testthat::expect_true(all(
+    paste0("figure7_no_j_tag_", c(LETTERS[1:9], "K", "L")) %in%
+      names(no_j_composite$children)
+  ))
+  testthat::expect_false(
+    "figure7_no_j_tag_J" %in% names(no_j_composite$children)
+  )
+  testthat::expect_identical(
+    no_j_composite$children[["figure7_no_j_tag_K"]]$label,
+    "J"
+  )
+  testthat::expect_identical(
+    no_j_composite$children[["figure7_no_j_tag_L"]]$label,
+    "K"
+  )
 })
 
 testthat::test_that("main H keeps ECDFs while localization remains a separate source component", {
@@ -529,6 +623,18 @@ testthat::test_that("main H keeps ECDFs while localization remains a separate so
 
   testthat::expect_s3_class(panel_h, "patchwork")
   testthat::expect_identical(names(components), c("ecdf", "localization"))
+  facet_values <- levels(components$ecdf$data$panel)
+  facet_labels <- components$ecdf$facet$params$labeller(data.frame(
+    panel = facet_values
+  ))$panel
+  testthat::expect_identical(
+    unname(facet_labels),
+    c(
+      "All tumors",
+      "SUM-159 (2N)-origin tumors",
+      "SUM-159 (4N)-origin tumors"
+    )
+  )
   testthat::expect_identical(
     components$localization$labels$y,
     "Gemcitabine - vehicle\ndensity difference"
@@ -621,6 +727,29 @@ testthat::test_that("full source panels plus the A-L composite satisfy the exact
     copy_number$heatmap$column_width_multiplier,
     2
   )
+  testthat::expect_identical(
+    copy_number$standalone_column_width_multiplier,
+    1.15
+  )
+  testthat::expect_identical(
+    copy_number$standalone_heatmap$labels_col,
+    as.character(seq_len(22L))
+  )
+  testthat::expect_identical(
+    copy_number$standalone_sample_order$display_label,
+    c(
+      paste0("2N-0-M", 1:4), paste0("2N-30-M", 1:2),
+      paste0("2N-120-M", 1:2), paste0("4N-0-M", 1:4),
+      paste0("4N-30-M", 1:2), paste0("4N-120-M", 1:2)
+    )
+  )
+  testthat::expect_identical(
+    unique(figure7_mouse_display_labels(
+      copy_number$standalone_cell_annotations$sample_id
+    )),
+    copy_number$standalone_sample_order$display_label
+  )
+  testthat::expect_s3_class(copy_number$standalone_plot, "wrapped_patch")
   testthat::expect_identical(
     copy_number$row_ordering_policy,
     "hierarchical_clustering_separately_within_each_mouse"

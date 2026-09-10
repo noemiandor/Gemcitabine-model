@@ -11,7 +11,50 @@ figure7_interval_treatment_required_columns <- function() c(
 figure7_interval_treatment_collection_labels <- function() c(
   "H" = "Hallmark",
   "C2:CP:REACTOME" = "Reactome",
-  "C5:GO:BP" = "GO BP"
+  "C5:GO:BP" = "Gene Ontology BP"
+)
+
+figure7_interval_treatment_reader_labels <- function() c(
+  GOBP_HOMOPHILIC_CELL_CELL_ADHESION =
+    "Homophilic cell-cell adhesion",
+  HALLMARK_INTERFERON_ALPHA_RESPONSE =
+    "Interferon-alpha response",
+  GOBP_ANTIGEN_PROCESSING_AND_PRESENTATION_OF_PEPTIDE_ANTIGEN_VIA_MHC_CLASS_I =
+    "MHC class I peptide antigen presentation",
+  GOBP_ANTIGEN_PROCESSING_AND_PRESENTATION_OF_ENDOGENOUS_PEPTIDE_ANTIGEN =
+    "Endogenous peptide antigen presentation",
+  REACTOME_INTERFERON_ALPHA_BETA_SIGNALING =
+    "Interferon-alpha/beta signaling",
+  GOBP_ANTIGEN_PROCESSING_AND_PRESENTATION_OF_ENDOGENOUS_ANTIGEN =
+    "Endogenous antigen presentation",
+  GOBP_EMBRYONIC_PLACENTA_MORPHOGENESIS =
+    "Embryonic placenta morphogenesis",
+  GOBP_REGULATION_OF_NATURAL_KILLER_CELL_MEDIATED_IMMUNITY =
+    "NK cell-mediated immunity regulation",
+  GOBP_CYCLIC_NUCLEOTIDE_METABOLIC_PROCESS =
+    "Cyclic nucleotide metabolism",
+  GOBP_NEGATIVE_REGULATION_OF_VIRAL_GENOME_REPLICATION =
+    "Negative regulation of viral replication",
+  HALLMARK_MYC_TARGETS_V1 =
+    "MYC targets V1",
+  GOBP_RIBOSOME_BIOGENESIS =
+    "Ribosome biogenesis",
+  GOBP_RIBONUCLEOPROTEIN_COMPLEX_BIOGENESIS =
+    "Ribonucleoprotein complex biogenesis",
+  GOBP_RRNA_PROCESSING =
+    "rRNA processing",
+  GOBP_RIBOSOMAL_SMALL_SUBUNIT_BIOGENESIS =
+    "Small ribosomal subunit biogenesis",
+  REACTOME_RRNA_PROCESSING =
+    "rRNA processing",
+  GOBP_RRNA_METABOLIC_PROCESS =
+    "rRNA metabolism",
+  GOBP_MATURATION_OF_SSU_RRNA =
+    "SSU rRNA maturation",
+  REACTOME_EUKARYOTIC_TRANSLATION_INITIATION =
+    "Eukaryotic translation initiation",
+  GOBP_MITOCHONDRIAL_TRANSLATION =
+    "Mitochondrial translation"
 )
 
 figure7_interval_treatment_input_path <- function(repo_root, config) {
@@ -158,8 +201,8 @@ figure7_read_interval_treatment_table <- function(path, config) {
 
 figure7_interval_treatment_plot <- function(data, config) {
   panel_labels <- c(
-    negative_interaction = "2N-more-positive interaction",
-    positive_interaction = "4N-more-positive interaction"
+    negative_interaction = "2N-more-positive\ninteraction",
+    positive_interaction = "4N-more-positive\ninteraction"
   )
   data$panel_label <- factor(
     unname(panel_labels[data$panel_id]),
@@ -187,13 +230,19 @@ figure7_interval_treatment_plot <- function(data, config) {
     data$pathway_plot_key,
     levels = ordered_pathway_keys
   )
-  labels <- as.character(data$pathway_label[
+  reader_labels <- figure7_interval_treatment_reader_labels()
+  if (!setequal(names(reader_labels), as.character(data$pathway))) {
+    figure7_stop(
+      "Figure 7I reader labels do not match the frozen pathway selection"
+    )
+  }
+  labels <- unname(reader_labels[as.character(data$pathway)[
     match(ordered_pathway_keys, data$pathway_plot_key)
-  ])
+  ]])
   pathway_labels <- stats::setNames(
     vapply(
       labels,
-      function(label) paste(strwrap(label, width = 43L), collapse = "\n"),
+      function(label) paste(strwrap(label, width = 55L), collapse = "\n"),
       character(1L)
     ),
     ordered_pathway_keys
@@ -261,13 +310,20 @@ figure7_interval_treatment_plot <- function(data, config) {
       limits = c(-symmetric_limit, symmetric_limit),
       expand = ggplot2::expansion(mult = c(0.02, 0.02))
     ) +
-    ggplot2::scale_y_discrete(labels = pathway_labels) +
+    ggplot2::scale_y_discrete(
+      labels = pathway_labels,
+      expand = ggplot2::expansion(add = c(0.85, 1.10))
+    ) +
     ggplot2::scale_color_manual(values = c(
       "Hallmark" = "#0072B2",
       "Reactome" = "#D55E00",
-      "GO BP" = "#009E73"
+      "Gene Ontology BP" = "#009E73"
     )) +
-    ggplot2::scale_shape_manual(values = c("2N" = 16, "4N" = 17)) +
+    ggplot2::scale_shape_manual(
+      values = c("2N" = 16, "4N" = 17),
+      breaks = names(figure7_sum159_origin_labels()),
+      labels = unname(figure7_sum159_origin_labels())
+    ) +
     ggplot2::scale_size_continuous(range = c(2.5, 5.6)) +
     ggplot2::labs(
       title = "Origin-dependent treatment responses",
@@ -291,7 +347,7 @@ figure7_interval_treatment_plot <- function(data, config) {
       caption = paste0(
         "Pathways were selected as the top ", expected_per_direction,
         " negative and top ", expected_per_direction,
-        " positive formal interaction NES across Hallmark, Reactome, and GO BP.\n",
+          " positive formal interaction NES across Hallmark, Reactome, and Gene Ontology BP.\n",
         "Points show joint-model origin-specific treatment NES; connectors join the 2N and 4N estimates for each pathway.\n",
         "The upper panel has a more positive response in 2N and the lower panel in 4N; more positive can also mean less depleted.\n",
         "Point size represents formal-interaction FDR; all displayed pathways pass collection-wise BH FDR <= ",

@@ -557,6 +557,13 @@ dose_colors <- c(
   "120mg/kg" = "#1b9e77"
 )
 context_colors <- c("Tumor" = "#4C78A8", "CellLine" = "#F2CF5B")
+origin_display_labels <- figure7_sum159_origin_labels()
+dose_display_labels <- c(
+  "0mg/kg" = "Vehicle",
+  "30mg/kg" = "30 mg/kg",
+  "120mg/kg" = "120 mg/kg"
+)
+context_display_labels <- c("Tumor" = "Tumor", "CellLine" = "Cell line")
 
 seurat <- data.frame(
   cell = cells$cell_id,
@@ -584,13 +591,33 @@ faceted_umap_point_size <- shared_context_publication_umap_point_size(
 sample_metadata <- unique(
   tumor[, c("mouse", "initial_ploidy", "dose"), drop = FALSE]
 )
+sample_metadata$mouse_display <- figure7_mouse_display_labels(
+  sample_metadata$mouse
+)
 sample_metadata <- sample_metadata[
-  order(sample_metadata$initial_ploidy, sample_metadata$dose, sample_metadata$mouse),
+  order(
+    sample_metadata$initial_ploidy,
+    sample_metadata$dose,
+    sample_metadata$mouse_display
+  ),
   ,
   drop = FALSE
 ]
 mouse_levels <- as.character(sample_metadata$mouse)
+mouse_display_levels <- figure7_mouse_display_labels(mouse_levels)
 tumor$mouse <- factor(tumor$mouse, levels = mouse_levels)
+tumor$mouse_display <- factor(
+  figure7_mouse_display_labels(as.character(tumor$mouse)),
+  levels = mouse_display_levels
+)
+tumor$initial_ploidy_display <- factor(
+  unname(origin_display_labels[as.character(tumor$initial_ploidy)]),
+  levels = unname(origin_display_labels[ploidy_levels])
+)
+tumor$dose_display <- factor(
+  unname(dose_display_labels[as.character(tumor$dose)]),
+  levels = unname(dose_display_labels[dose_levels])
+)
 n_mice <- length(mouse_levels)
 
 factor_composition <- function(data, group_levels, fill_levels) {
@@ -628,7 +655,7 @@ s4d <- shared_context_make_umap_continuous(
   "s_phase_score",
   "UMAP by S phase score",
   "S phase score",
-  "D",
+  "A",
   max(joint_umap_point_size, 0.70),
   plot_seed,
   limits = range(seurat$s_phase_score),
@@ -651,15 +678,23 @@ if (!identical(as.numeric(selected_tumor_cells), as.numeric(metadata_selected_tu
 s4f <- make_composition_plot(
   s4_context,
   context_colors,
-  "Tumor and CellLine cell counts by cluster",
+  "Tumor and Cell line counts by cluster",
   "Cluster",
   "Number of cells",
-  "F",
+  "B",
   FALSE,
   subtitle = sprintf(
-    "Selected CellCycle clusters 4c + 6 + 10 contain n = %s tumor cells",
+    "Selected CellCycle clusters 4c + 6 + 10\ncontain n = %s tumor cells",
     format(selected_tumor_cells, big.mark = ",", scientific = FALSE)
   )
+)
+s4f <- s4f + ggplot2::scale_fill_manual(
+  values = context_colors,
+  labels = context_display_labels,
+  drop = FALSE
+) + ggplot2::theme(
+  plot.title = ggplot2::element_text(size = 10),
+  plot.subtitle = ggplot2::element_text(size = 8)
 )
 s4g_result <- make_normalized_composition_plot(
   data = seurat,
@@ -769,17 +804,12 @@ s4i <- figure7_panel_b_localization_plot(
     y = "Gemcitabine - vehicle density difference"
   ) +
   shared_context_figure_theme(9)
-s4i <- shared_context_add_tag(s4i, "I")
+s4i <- shared_context_add_tag(s4i, "C")
 s4 <- patchwork::wrap_plots(
-  patchwork::wrap_plots(s4d, s4f, ncol = 2, widths = c(1, 1.55)),
+  patchwork::wrap_plots(s4d, s4f, ncol = 2, widths = c(1, 1.70)),
   s4i,
   ncol = 1,
   heights = c(1.12, 0.88)
-) + patchwork::plot_annotation(
-  title = paste(
-    "Supplementary Figure 4 | Cell-cycle state definition and",
-    "gemcitabine-associated pseudotime localization"
-  )
 )
 panel_rows <- list(
   save_composite(
@@ -787,8 +817,8 @@ panel_rows <- list(
     figure_dir,
     "SuppFig4",
     "panel_SuppFig4_composite",
-    14,
-    10.5
+    7.1,
+    5.6
   )
 )
 
@@ -838,12 +868,7 @@ s5d <- shared_context_make_umap_continuous(
 )
 
 panel_metadata <- sample_metadata
-panel_metadata$mouse_panel <- paste(
-  panel_metadata$mouse,
-  panel_metadata$initial_ploidy,
-  panel_metadata$dose,
-  sep = " | "
-)
+panel_metadata$mouse_panel <- panel_metadata$mouse_display
 panel_lookup <- stats::setNames(
   panel_metadata$mouse_panel,
   panel_metadata$mouse
@@ -862,27 +887,28 @@ s5e <- ggplot2::ggplot(
     alpha = 0.88,
     stroke = 0
   ) +
-  ggplot2::facet_wrap(~mouse_panel, ncol = 4, drop = FALSE) +
+  ggplot2::facet_wrap(~mouse_panel, ncol = 8, drop = FALSE) +
   ggplot2::scale_color_manual(
     values = ploidy_colors,
     drop = FALSE,
-    name = "Initial ploidy"
+    name = "Injected origin",
+    labels = origin_display_labels
   ) +
   ggplot2::coord_equal() +
   ggplot2::labs(
     title = "UMAP by mouse of origin",
-    subtitle = sprintf("%s mice; shared 2N/4N color code", n_mice),
+    subtitle = sprintf("%s mice; shared injected-origin color code", n_mice),
     x = "UMAP 1",
     y = "UMAP 2"
   ) +
   shared_context_umap_theme(8.5) +
   ggplot2::theme(
     legend.position = "none",
-    strip.text = ggplot2::element_text(size = 7.2),
+    strip.text = ggplot2::element_text(size = 7.5, lineheight = 0.98),
     panel.spacing = grid::unit(0.10, "lines"),
     plot.margin = ggplot2::margin(5.5, 5.5, 5.5, 5.5)
   )
-s5e <- shared_context_add_tag(s5e, "E")
+s5e <- shared_context_add_tag(s5e, "A")
 
 tumor$ploidy_dose_group <- paste(
   as.character(tumor$initial_ploidy),
@@ -898,27 +924,29 @@ s5f_result <- make_normalized_composition_plot(
   data = tumor,
   unit_col = "mouse",
   cluster_col = "cluster",
-  group_col = "mouse",
+  group_col = "mouse_display",
   cluster_levels = cluster_levels,
-  group_levels = mouse_levels,
+  group_levels = mouse_display_levels,
   fill_colors = cluster_colors,
   bar_axis = "group",
-  x_col = "mouse",
-  x_levels = mouse_levels,
-  facet_cols = c("initial_ploidy", "dose"),
-  facet_formula = stats::as.formula(". ~ initial_ploidy + dose"),
+  x_col = "mouse_display",
+  x_levels = mouse_display_levels,
+  facet_cols = c("initial_ploidy_display", "dose_display"),
+  facet_formula = stats::as.formula(
+    ". ~ initial_ploidy_display + dose_display"
+  ),
   facet_type = "grid",
   facet_scales = "free_x",
   facet_space = "free_x",
   title = "Within-mouse cluster composition",
   subtitle = paste(
-    "Every mouse sums to 100%; one biological sample per bar,",
-    "so this panel is descriptive and has no inferential stars"
+    "Every mouse sums to 100%; one biological sample per bar.\n",
+    "This panel is descriptive and has no inferential stars"
   ),
   x_title = "Mouse",
   y_title = "Within-mouse cluster proportion",
   legend_title = "Cluster",
-  tag = "F",
+  tag = "B",
   theme_function = shared_context_figure_theme,
   x_text_angle = 50,
   test_mode = "descriptive",
@@ -937,22 +965,22 @@ s5g_result <- make_normalized_composition_plot(
   group_levels = ploidy_dose_levels,
   fill_colors = cluster_colors,
   bar_axis = "group",
-  x_col = "dose",
-  x_levels = dose_levels,
-  facet_cols = "initial_ploidy",
+  x_col = "dose_display",
+  x_levels = unname(dose_display_labels[dose_levels]),
+  facet_cols = "initial_ploidy_display",
   strata_cols = "initial_ploidy",
-  facet_formula = stats::as.formula("~ initial_ploidy"),
+  facet_formula = stats::as.formula("~ initial_ploidy_display"),
   facet_type = "wrap",
   facet_nrow = 1,
   title = "Equal-mouse composition by initial ploidy and dose",
   subtitle = paste(
-    "Within-mouse proportions are averaged with equal mouse weights;",
-    "stars mark dose enrichment within ploidy at BH FDR <= 0.05"
+    "Within-mouse proportions are averaged with equal mouse weights.\n",
+    "Stars mark dose enrichment within ploidy at BH FDR <= 0.05"
   ),
   x_title = "Gemcitabine dose",
   y_title = "Mean within-mouse cluster proportion",
   legend_title = "Cluster",
-  tag = "G",
+  tag = "C",
   theme_function = shared_context_figure_theme,
   x_text_angle = 25,
   show_n = TRUE
@@ -1009,22 +1037,18 @@ s5i <- s5i_result$plot
 
 s5 <- patchwork::wrap_plots(
   s5e,
+  s5f,
   s5g,
   ncol = 1,
-  heights = c(1.65, 0.85)
-) + patchwork::plot_annotation(
-  title = paste(
-    "Supplementary Figure 5 | Mouse-level tumor landscape and",
-    "composition by initial ploidy and dose"
-  )
+  heights = c(1.55, 0.80, 0.85)
 )
 panel_rows[[length(panel_rows) + 1L]] <- save_composite(
   s5,
   figure_dir,
   "SuppFig5",
   "panel_SuppFig5_composite",
-  16,
-  11.5
+  7.1,
+  9.3
 )
 
 message("Generating Supplementary Figure 6 composite.")
@@ -1034,7 +1058,7 @@ tumor_4n <- tumor[tumor$initial_ploidy == "4N", , drop = FALSE]
 s6a <- shared_context_make_umap_continuous(
   tumor,
   "endpoint_ploidy",
-  "NUMBAT-derived ploidy in all tumors",
+  "All tumors",
   "NUMBAT-derived ploidy",
   "A",
   tumor_umap_point_size,
@@ -1049,7 +1073,7 @@ s6a <- shared_context_make_umap_continuous(
 s6b <- shared_context_make_umap_continuous(
   tumor_2n,
   "endpoint_ploidy",
-  "NUMBAT-derived ploidy in 2N-origin tumors",
+  "SUM-159 (2N)-origin\ntumors",
   "NUMBAT-derived ploidy",
   "B",
   tumor_umap_point_size,
@@ -1059,7 +1083,7 @@ s6b <- shared_context_make_umap_continuous(
 s6c <- shared_context_make_umap_continuous(
   tumor_4n,
   "endpoint_ploidy",
-  "NUMBAT-derived ploidy in 4N-origin tumors",
+  "SUM-159 (4N)-origin\ntumors",
   "NUMBAT-derived ploidy",
   "C",
   tumor_umap_point_size,
@@ -1080,12 +1104,20 @@ s6d <- ggplot2::ggplot(
     alpha = 0.88,
     stroke = 0
   ) +
-  ggplot2::facet_wrap(~mouse_panel, ncol = 4, nrow = 4, drop = FALSE) +
+  ggplot2::facet_wrap(~mouse_panel, ncol = 8, nrow = 2, drop = FALSE) +
   ggplot2::scale_color_gradient(
     low = "#2C7BB6",
     high = "#D7191C",
     limits = endpoint_limits,
     name = "NUMBAT-derived ploidy"
+  ) +
+  ggplot2::guides(
+    color = ggplot2::guide_colorbar(
+      barwidth = grid::unit(6.0, "cm"),
+      barheight = grid::unit(0.28, "cm"),
+      title.position = "top",
+      title.hjust = 0.5
+    )
   ) +
   ggplot2::coord_equal() +
   ggplot2::labs(
@@ -1099,10 +1131,22 @@ s6d <- ggplot2::ggplot(
     legend.position = "top",
     legend.justification = "right",
     legend.box.just = "right",
-    strip.text = ggplot2::element_text(size = 7.2),
+    strip.text = ggplot2::element_text(size = 7.5, lineheight = 0.98),
     panel.spacing = grid::unit(0.10, "lines")
   )
 s6d <- shared_context_add_tag(s6d, "D")
+s6a <- s6a + ggplot2::theme(
+  legend.position = "none",
+  plot.title = ggplot2::element_text(size = 9.5)
+)
+s6b <- s6b + ggplot2::theme(
+  legend.position = "none",
+  plot.title = ggplot2::element_text(size = 9.5)
+)
+s6c <- s6c + ggplot2::theme(
+  legend.position = "none",
+  plot.title = ggplot2::element_text(size = 9.5)
+)
 message("Validating the Figure 7J downstream CBS copy-number heatmap inputs.")
 cbs_collection <- si_copy_number_read_collection(
   cbs_dir = cbs_dir,
@@ -1292,7 +1336,11 @@ s6e_mouse <- ggplot2::ggplot() +
     fontface = "bold",
     inherit.aes = FALSE
   ) +
-  ggplot2::facet_wrap(~initial_ploidy, nrow = 1) +
+  ggplot2::facet_wrap(
+    ~initial_ploidy,
+    nrow = 1,
+    labeller = ggplot2::as_labeller(origin_display_labels)
+  ) +
   ggplot2::scale_x_continuous(
     breaks = c(1, 2),
     labels = c("Injected-cell\nreference", "Endpoint\ntumor"),
@@ -1305,9 +1353,8 @@ s6e_mouse <- ggplot2::ggplot() +
   ggplot2::labs(
     title = "Injected-reference to endpoint ploidy",
     subtitle = paste(
-      "Reference crosses: project-designated proxy cells",
-      "(chr999 added in haploid-genome-equivalent units);",
-      "endpoint circles: one mean per mouse; descriptive only"
+      "Reference crosses: project-designated proxy cells (chr999 added in\n",
+      "haploid-genome-equivalent units); endpoint circles: one mean per mouse"
     ),
     x = NULL,
     y = "Reference ploidy / endpoint copy-number score"
@@ -1321,29 +1368,25 @@ s6e_mouse <- ggplot2::ggplot() +
   )
 s6e_mouse <- shared_context_add_tag(s6e_mouse, "E")
 s6_top <- patchwork::wrap_plots(
-  patchwork::wrap_plots(s6a, s6b, s6c, ncol = 1),
-  s6d,
-  ncol = 2,
-  widths = c(1, 3)
+  s6a,
+  s6b,
+  s6c,
+  ncol = 3
 )
 s6 <- patchwork::wrap_plots(
   s6_top,
+  s6d,
   s6e_mouse,
   ncol = 1,
-  heights = c(1.15, 0.85)
-) + patchwork::plot_annotation(
-  title = paste(
-    "Supplementary Figure 6 | Endpoint tumor ploidy and",
-    "NUMBAT-derived copy-number states"
-  )
+  heights = c(0.82, 0.82, 1.10)
 )
 panel_rows[[length(panel_rows) + 1L]] <- save_composite(
   s6,
   figure_dir,
   "SuppFig6",
   "panel_SuppFig6_composite",
-  20,
-  18
+  7.1,
+  8.8
 )
 
 message("Generating Supplementary Figure 7 composite.")
@@ -1371,21 +1414,28 @@ gsea_matrix <- read_matrix(
 )
 shared_si7 <- shared_context_build_si7_heatmap_panels(
   ora_matrix = ora_matrix,
-  gsea_matrix = gsea_matrix
+  gsea_matrix = gsea_matrix,
+  tags = c(ora = "", gsea = ""),
+  fontsize = 10.5,
+  fontsize_row = 9,
+  fontsize_col = 8.5
 )
 s7a <- shared_si7$plots$ora
 s7b <- shared_si7$plots$gsea
 s7 <- patchwork::wrap_plots(s7a, ncol = 1) +
   patchwork::plot_annotation(
-    title = "Supplementary Figure 7 | Cluster Hallmark over-representation analysis"
+    tag_levels = "A",
+    theme = ggplot2::theme(
+      plot.tag = ggplot2::element_text(face = "bold", size = 12)
+    )
   )
 panel_rows[[length(panel_rows) + 1L]] <- save_composite(
   s7,
   figure_dir,
   "SuppFig7",
   "panel_SuppFig7_composite",
-  10,
-  8.8
+  7.1,
+  6.25
 )
 
 composition_results <- list(
