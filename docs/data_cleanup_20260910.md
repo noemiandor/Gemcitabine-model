@@ -117,3 +117,21 @@ After confirming that the manuscript is maintained in a separate repository:
 Historical documentation may still name the old manuscript files as provenance;
 no active figure-generation code requires them. Existing uncommitted Figure 7
 edits were not included in these changes.
+
+## Follow-up: Results draft, legacy figures, and active script runner
+
+- Removed `manuscript_sections/results/figure7_in_vivo_pseudotime_tgi.md` and
+  the resulting empty directories. It is an obsolete manuscript draft of the
+  interval-versus-flanks analysis, has no code consumers, and belongs to neither
+  the current panel 7I workflow nor this code repository's maintained content.
+- Removed the legacy `Figs/` tree: 11 tracked assets and additional ignored
+  historical plots, tables, and presentations (228 files, 48,578,701 bytes in
+  the local tree). No active code or current `figures/` manifest references it.
+  Tracked assets remain recoverable from Git. The complete local tree was moved
+  intact to a uniquely named `gemcitabine-legacy-figs.*` recovery directory under
+  `/private/tmp/` before staging deletion, preserving untracked presentations.
+  This temporary local recovery copy is not a public data deposit.
+- Retained `scripts/agentRrunner.sh`: it launches the endpoint-flow reconstruction
+  from `Code/in-vivo/flow_cytometry/run_endpoint_flow.sh`, is included in Manager's
+  provenance inputs, and is covered by the endpoint-flow CLI contract tests.
+  Deleting `scripts/` would break that workflow.
