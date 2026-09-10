@@ -13,6 +13,8 @@ lists the same input locations and their availability.
 `Results/` and publication assets to `figures/`. Each figure's `manifest.tsv`
 records its source outputs. See the
 [module registry](docs/manuscript_figure_module_registry.tsv) for entrypoints.
+`scripts/agentRrunner.sh` is an active R launcher used by the endpoint
+flow-cytometry workflow; the `scripts/` directory is retained for that purpose.
 
 Check the inputs before running an analysis:
 

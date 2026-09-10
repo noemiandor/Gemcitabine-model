@@ -3,6 +3,9 @@
 For the current input locations, use [Data/README.md](../Data/README.md).
 The GDSC/CCLE datasets and metabolomics workbook moved from `Code/` into `Data/`
 on 2026-09-10; older paths below describe historical analyses.
+The obsolete `Figs/` assets and manuscript drafts were subsequently removed
+from the working tree. References to them below are historical and can be
+resolved through Git history; current publication assets live in `figures/`.
 
 Generated from `GemcitabinePaper.tex` on 2026-06-26.
 
