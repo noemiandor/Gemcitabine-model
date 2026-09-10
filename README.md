@@ -1,5 +1,9 @@
 # Gemcitabine model and manuscript figures
 
+This repository contains analysis code, datasets, and generated figure assets.
+Manuscript text, bibliography, and LaTeX support files are maintained in a
+separate manuscript repository.
+
 Start with the [figure-by-figure dataset guide](Data/README.md) to find the
 experimental inputs, public datasets, frozen analysis tables, and large-data
 retrieval instructions. A machine-readable [dataset index](Data/figure_datasets.tsv)
