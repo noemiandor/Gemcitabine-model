@@ -19,6 +19,9 @@ Rplots.pdf
 # Local historical figure bundle retained during root cleanup; not source data.
 /docs/Archive/figures_20260701.zip
 
+# Local assistant reference notes; not required by the figure workflow.
+/.agents/references/
+
 Figs/
 
 Results/_validation/
