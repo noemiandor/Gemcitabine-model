@@ -135,3 +135,7 @@ edits were not included in these changes.
   from `Code/in-vivo/flow_cytometry/run_endpoint_flow.sh`, is included in Manager's
   provenance inputs, and is covered by the endpoint-flow CLI contract tests.
   Deleting `scripts/` would break that workflow.
+- Stopped tracking `.agents/references/manuscript_figure_style.md` while keeping
+  the local file intact, and ignored `.agents/references/`. This assistant-facing
+  style note is not read by the pipeline and is not maintained public workflow
+  documentation.
