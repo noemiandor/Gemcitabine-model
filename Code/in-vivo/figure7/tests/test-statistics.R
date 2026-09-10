@@ -130,6 +130,43 @@ testthat::test_that("panel 7E/K restores the raw mouse-level Pearson definition 
   testthat::expect_match(deparse(plot$mapping$colour), "dose", fixed = TRUE)
 })
 
+testthat::test_that("main panels K and L retain their original ploidy labels", {
+  input <- figure7_test_inputs()
+  panel_d <- figure7_panel_d(
+    figure7_shift_metrics(input$data, input$samples, input$config),
+    input$config
+  )
+  panel_k <- figure7_scatter_plot(
+    panel_d$data,
+    "shift_centered",
+    "tgi_centered",
+    panel_d$test,
+    "Panel K",
+    "Shift",
+    "TGI",
+    sample_labels = figure7_mouse_display_labels(panel_d$data$sample_id)
+  )
+  panel_e <- figure7_panel_e(input$samples, input$config)
+  panel_l <- figure7_endpoint_ploidy_plot(
+    panel_e$data, panel_e$test, input$config
+  )
+  origin_labels <- lapply(list(panel_k, panel_l), function(plot) {
+    built <- suppressMessages(ggplot2::ggplot_build(plot))
+    unname(built$plot$scales$get_scales("shape")$get_labels())
+  })
+
+  testthat::expect_identical(origin_labels[[1L]], c("2N", "4N"))
+  testthat::expect_identical(origin_labels[[2L]], c("2N", "4N"))
+  testthat::expect_identical(
+    panel_k$data$sample_display_label,
+    figure7_mouse_display_labels(panel_d$data$sample_id)
+  )
+  testthat::expect_identical(
+    panel_l$data$sample_display_label,
+    figure7_mouse_display_labels(panel_l$data$sample_id)
+  )
+})
+
 testthat::test_that("panel 7E/K exposes the frozen Day-17/24/31 sensitivity results", {
   expected <- data.frame(
     day = c(17L, 24L, 31L),
@@ -408,14 +445,41 @@ testthat::test_that("state-interval derivation fails closed", {
 
 testthat::test_that("panel 7A uses treatment-relative time with the Day_0 baseline", {
   input <- figure7_test_inputs()
+  origin_labels <- figure7_sum159_origin_labels()
   growth <- figure7_growth_trajectory_data(input$cellcycle, input$samples, input$config)
   panel <- figure7_panel_a_plot(growth, input$config)
   individual <- growth[growth$series_type == "individual mouse", , drop = FALSE]
+  facet_labels <- panel$facet$params$labeller(data.frame(
+    initial_ploidy = names(origin_labels)
+  ))$initial_ploidy
 
   testthat::expect_identical(panel$labels$x, "Days since first treatment")
+  testthat::expect_identical(
+    panel$labels$y,
+    "Tumor size change\n(mm³)"
+  )
+  testthat::expect_identical(unname(facet_labels), unname(origin_labels))
   testthat::expect_identical(unique(input$cellcycle$tumor_volume_baseline_day), "Day_0")
   testthat::expect_equal(sum(individual$day == 0), length(unique(individual$sample_id)))
   testthat::expect_true(all(individual$tumor_volume_change[individual$day == 0] == 0))
+
+  treated <- figure7_add_metadata(
+    input$samples[input$samples$dose_mg > 0, , drop = FALSE],
+    input$config
+  )
+  panel_c <- figure7_panel_c_plot(
+    treated,
+    figure7_add_metadata(
+      figure7_panel_c_test(input$samples, input$config), input$config
+    ),
+    input$config
+  )
+  origin_x_scale <- panel_c$scales$get_scales("x")
+  testthat::expect_identical(panel_c$labels$y, "TGI (%)\n(Day 17)")
+  testthat::expect_identical(origin_x_scale$breaks, names(origin_labels))
+  testthat::expect_identical(
+    unname(origin_x_scale$labels), unname(origin_labels)
+  )
 })
 
 testthat::test_that("Day-24 override recomputes TGI and emits an explicit Day-24 contract", {

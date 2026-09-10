@@ -66,14 +66,19 @@ figure7_panel_a_plot <- function(data, config) {
       ggplot2::aes(day, tumor_volume_change, color = dose), shape = 21, fill = "white", stroke = 1, size = 2.5) +
     ggplot2::geom_point(data = reference[reference$is_highlight_day, ],
       ggplot2::aes(day, tumor_volume_change), shape = 23, fill = "#B2182B", color = "black", size = 3.1) +
-    ggplot2::facet_wrap(~initial_ploidy, nrow = 1) +
+    ggplot2::facet_wrap(
+      ~initial_ploidy,
+      nrow = 1,
+      labeller = ggplot2::as_labeller(figure7_sum159_origin_labels())
+    ) +
     ggplot2::scale_color_manual(values = figure7_dose_colors(), breaks = c("0mg/kg", "30mg/kg", "120mg/kg"), name = "Dose") +
     ggplot2::scale_x_continuous(breaks = sort(unique(individual$day)), minor_breaks = NULL) +
     ggplot2::labs(
       title = paste("How Day", tgi_day, "TGI is calculated from tumor growth"),
       subtitle = paste0("TGI = 100 x (1 - treated Day-", tgi_day,
                         " growth delta / mean matched-control Day-", tgi_day, " growth delta)"),
-      x = "Days since first treatment", y = expression(Delta * " tumor volume from Day 0 (mm"^3 * ")"),
+      x = "Days since first treatment",
+      y = "Tumor size change\n(mm³)",
       caption = paste0("Thin lines: individual mice. Dashed black: mean initial-ploidy-matched untreated controls. Red: Day ",
                        tgi_day, ".")
     ) + figure7_theme() +
@@ -81,11 +86,11 @@ figure7_panel_a_plot <- function(data, config) {
 }
 
 figure7_panel_b_ecdf_plot <- function(data, tests) {
-  levels <- c("1. 0 vs treated", "8. 4N: 0 vs treated", "9. 2N: 0 vs treated")
+  levels <- c("1. 0 vs treated", "9. 2N: 0 vs treated", "8. 4N: 0 vs treated")
   display_levels <- c(
     "1. 0 vs treated" = "All tumors",
-    "8. 4N: 0 vs treated" = "4N-origin tumors",
-    "9. 2N: 0 vs treated" = "2N-origin tumors"
+    "8. 4N: 0 vs treated" = "SUM-159 (4N)-origin tumors",
+    "9. 2N: 0 vs treated" = "SUM-159 (2N)-origin tumors"
   )
   data$panel <- factor(data$panel, levels = levels); tests$panel <- factor(tests$panel, levels = levels)
   data$line_group <- factor(data$line_group, levels = c("All", "2N", "4N"))
@@ -269,6 +274,10 @@ figure7_panel_c_plot <- function(data, test, config) {
     ggplot2::geom_point(ggplot2::aes(color = dose, shape = dose),
       position = ggplot2::position_jitter(width = 0.075, height = 0, seed = 1), size = 3.1) +
     ggplot2::scale_fill_manual(values = c("2N" = "#4C78A8", "4N" = "#E45756"), guide = "none") +
+    ggplot2::scale_x_discrete(
+      breaks = names(figure7_sum159_origin_labels()),
+      labels = unname(figure7_sum159_origin_labels())
+    ) +
     ggplot2::scale_color_manual(values = figure7_dose_colors(), breaks = c("30mg/kg", "120mg/kg"), name = "Dose") +
     ggplot2::scale_shape_manual(values = c("30mg/kg" = 16, "120mg/kg" = 17),
                                 breaks = c("30mg/kg", "120mg/kg"), name = "Dose") +
@@ -276,8 +285,13 @@ figure7_panel_c_plot <- function(data, test, config) {
       "text", x = -Inf, y = Inf, label = label,
       hjust = -0.05, vjust = 1.1, size = 2.5, lineheight = 0.95
     ) +
-    ggplot2::labs(title = paste("Treated CellCycle tumors: Day", tgi_day, "TGI by Initial ploidy"),
-                  x = "Initial ploidy", y = paste("Day", tgi_day, "TGI (%)")) + figure7_theme()
+    ggplot2::labs(
+      title = paste(
+        "Treated CellCycle tumors: Day", tgi_day, "TGI by Initial ploidy"
+      ),
+      x = "Initial ploidy",
+      y = paste0("TGI (%)\n(Day ", tgi_day, ")")
+    ) + figure7_theme()
 }
 
 figure7_scatter_plot <- function(
@@ -289,9 +303,18 @@ figure7_scatter_plot <- function(
   x_label,
   y_label,
   annotation_p_label = "Permutation P",
-  annotation_corner = c("top-right", "top-left")
+  annotation_corner = c("top-right", "top-left"),
+  sample_labels = NULL
 ) {
   annotation_corner <- match.arg(annotation_corner)
+  if (is.null(sample_labels)) {
+    sample_labels <- as.character(data$sample_id)
+  }
+  if (length(sample_labels) != nrow(data) || anyNA(sample_labels) ||
+      any(!nzchar(as.character(sample_labels)))) {
+    figure7_stop("Scatter-plot sample labels must match every plotted mouse")
+  }
+  data$sample_display_label <- as.character(sample_labels)
   data$initial_ploidy <- factor(data$initial_ploidy, levels = c("2N", "4N"))
   data$dose <- factor(data$dose, levels = c("30mg/kg", "120mg/kg"))
   annotation <- sprintf(
@@ -311,7 +334,7 @@ figure7_scatter_plot <- function(
                          inherit.aes = FALSE, method = "lm", se = TRUE, color = "black", linewidth = 0.55) +
     ggplot2::geom_point(size = 2.9) +
     ggrepel::geom_text_repel(
-      ggplot2::aes(label = sample_id),
+      ggplot2::aes(label = sample_display_label),
       size = 2.5, seed = 1, box.padding = 0.28, point.padding = 0.18,
       force = 1.4, force_pull = 0.8, max.time = Inf, max.iter = 50000,
       min.segment.length = 0, segment.color = "grey55",
@@ -430,7 +453,8 @@ figure7_endpoint_ploidy_plot <- function(data, test, config) {
     ),
     "Mean endpoint tumor-cell ploidy",
     paste("Day", figure7_tgi_day(config), "TGI (%)"),
-    "Exact unrestricted permutation P"
+    "Exact unrestricted permutation P",
+    sample_labels = figure7_mouse_display_labels(data$sample_id)
   ) +
     ggplot2::labs(
       subtitle = paste0(
@@ -499,7 +523,8 @@ figure7_build_ae <- function(cellcycle, data, samples, output_dir, config) {
       "Dose-centered ECDF RMSE (origin-matched untreated reference)",
       paste("Dose-centered Day", tgi_day, "TGI (%)"),
       "Exact within-dose permutation P",
-      annotation_corner = "top-left"
+      annotation_corner = "top-left",
+      sample_labels = figure7_mouse_display_labels(panel_d$data$sample_id)
     ) +
       ggplot2::geom_vline(xintercept = 0, color = "grey75", linewidth = 0.35),
     E = figure7_endpoint_ploidy_plot(panel_e$data, panel_e$test, config)

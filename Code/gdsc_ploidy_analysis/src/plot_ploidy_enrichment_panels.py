@@ -4,15 +4,14 @@
 Create manuscript-style Panels A-C from drugsVsPloidyCorr.xlsx.
 
 Input workbook requirements:
-- Sheet "lowpIsSens": enrichment p-values for drug classes enriched among low-ploidy-selective drugs.
-- Sheet "highpIsSens": enrichment p-values for drug classes enriched among high-ploidy-selective drugs.
+- Sheet "lowpIsSens": BH-FDR q-values for drug classes enriched among low-ploidy-selective drugs.
+- Sheet "highpIsSens": BH-FDR q-values for drug classes enriched among high-ploidy-selective drugs.
 - Rows are cancer types.
 - Columns are drug classes.
-- Cell values are enrichment p-values.
+- Cell values are BH-FDR q-values.
 
 Outputs:
 - Combined figure with:
-  A. Workflow schematic
   B. Heatmap of low-ploidy-selective enrichment
   C. Heatmap of high-ploidy-selective enrichment
 - PNG and PDF versions.
@@ -35,10 +34,9 @@ matplotlib.use("Agg")
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib import patches
-from matplotlib.lines import Line2D
 
 HEATMAP_CMAP = "viridis"
+BAR_STYLE_CHOICES = ("black", "white", "heatmap")
 CHEMOTHERAPY_CATEGORY = "Chemotherapy agents"
 CHEMOTHERAPY_PRIMARY_CLASSES = {
     "Alkylating agents",
@@ -49,7 +47,7 @@ CHEMOTHERAPY_PRIMARY_CLASSES = {
 }
 ANTIMITOTIC_AGENTS_LABEL = "Antimitotic agents"
 TOP_ROW_LABELS = ("allcancers",)
-ROW_AFTER_LABELS = {"unclassified": "stad"}
+ROW_BEFORE_LABELS = {"unclassified": "stad"}
 ANTIMITOTIC_PRIORITY_ROWS = ("BRCA", "ALL")
 ANTIMETABOLITES_LABEL = "antimetabolites"
 OTHER_LABEL = "other"
@@ -57,11 +55,11 @@ NON_RECEPTOR_TK_LABEL = "non-receptor tyrosine kinase inhibitors"
 
 
 def read_enrichment_workbook(xlsx_path, low_sheet="lowpIsSens", high_sheet="highpIsSens"):
-    """Read the two expected enrichment-p-value sheets."""
+    """Read the two expected enrichment-q-value sheets."""
     low = pd.read_excel(xlsx_path, sheet_name=low_sheet, index_col=0)
     high = pd.read_excel(xlsx_path, sheet_name=high_sheet, index_col=0)
 
-    # Ensure all values are numeric p-values.
+    # Ensure all values are numeric q-values.
     low = low.apply(pd.to_numeric, errors="coerce")
     high = high.apply(pd.to_numeric, errors="coerce")
 
@@ -88,33 +86,33 @@ def norm_label(label):
 
 
 def place_special_rows(row_order):
-    """Pin allcancers first and UNCLASSIFIED immediately below STAD."""
+    """Pin allcancers first and UNCLASSIFIED immediately above STAD."""
     rows = list(row_order)
     top_norms = {norm_label(label) for label in TOP_ROW_LABELS}
-    after_norms = set(ROW_AFTER_LABELS)
+    before_norms = set(ROW_BEFORE_LABELS)
     top_rows = [row for row in rows if norm_label(row) in top_norms]
-    moved_after_rows = [row for row in rows if norm_label(row) in after_norms]
+    moved_before_rows = [row for row in rows if norm_label(row) in before_norms]
     remaining = [
         row for row in rows
-        if norm_label(row) not in top_norms and norm_label(row) not in after_norms
+        if norm_label(row) not in top_norms and norm_label(row) not in before_norms
     ]
 
     ordered = list(top_rows)
-    inserted_after_rows = set()
+    inserted_before_rows = set()
     for row in remaining:
-        ordered.append(row)
         anchor_norm = norm_label(row)
-        for moved_norm, after_norm in ROW_AFTER_LABELS.items():
-            if after_norm == anchor_norm:
+        for moved_norm, before_norm in ROW_BEFORE_LABELS.items():
+            if before_norm == anchor_norm:
                 ordered.extend(
-                    moved_row for moved_row in moved_after_rows
+                    moved_row for moved_row in moved_before_rows
                     if norm_label(moved_row) == moved_norm
                 )
-                inserted_after_rows.add(moved_norm)
+                inserted_before_rows.add(moved_norm)
+        ordered.append(row)
 
     ordered.extend(
-        moved_row for moved_row in moved_after_rows
-        if norm_label(moved_row) not in inserted_after_rows
+        moved_row for moved_row in moved_before_rows
+        if norm_label(moved_row) not in inserted_before_rows
     )
     return pd.Index(ordered)
 
@@ -134,7 +132,7 @@ def place_antimitotic_rows(row_order):
         row for row in rows
         if norm_label(row) not in top_norms and norm_label(row) not in priority_norms
     ]
-    return pd.Index(top_rows + priority_rows + remaining)
+    return place_special_rows(pd.Index(top_rows + priority_rows + remaining))
 
 
 def is_epigenetic_drug_category(column):
@@ -260,11 +258,11 @@ def ordered_by_low_ploidy_significance(low, high):
 
 def infer_zero_replacement(*dfs):
     """
-    Replace p=0 values for visualization.
+    Replace exact-zero probability values for visualization.
 
-    Permutation-derived p-values can be exactly zero when no permutation is
-    as extreme as the observed statistic. For plotting -log10(p), replace
-    zeros with the smallest positive p-value observed in the workbook.
+    Properly adjusted workbooks floor raw permutation p-values before BH
+    correction and therefore contain no zero q-values. This fallback keeps
+    older workbooks finite by using their smallest positive value.
     """
     vals = []
     for df in dfs:
@@ -276,7 +274,7 @@ def infer_zero_replacement(*dfs):
 
 
 def p_to_neglog10(df, zero_replacement):
-    """Convert p-values to -log10(p), replacing zeros and preserving NaNs."""
+    """Convert probability values to -log10, replacing zeros and preserving NaNs."""
     arr = df.to_numpy(dtype=float)
     arr = np.where(arr == 0, zero_replacement, arr)
     arr = np.where(arr > 1, np.nan, arr)
@@ -285,6 +283,31 @@ def p_to_neglog10(df, zero_replacement):
         out = -np.log10(arr)
     out[~np.isfinite(out)] = np.nan
     return out
+
+
+def read_optional_sheet(xlsx_path, sheet_name):
+    """Read an optional workbook sheet, returning None if absent."""
+    try:
+        return pd.read_excel(xlsx_path, sheet_name=sheet_name)
+    except ValueError:
+        return None
+
+
+def ordered_numeric_values(table, key_cols, value_cols, labels):
+    """Return numeric metadata values in heatmap label order."""
+    if table is None:
+        return None
+    key_col = next((col for col in key_cols if col in table.columns), None)
+    value_col = next((col for col in value_cols if col in table.columns), None)
+    if key_col is None or value_col is None:
+        return None
+    keys = table[key_col].astype(str)
+    values = pd.to_numeric(table[value_col], errors="coerce")
+    mapping = dict(zip(keys, values))
+    ordered = np.array([mapping.get(str(label), np.nan) for label in labels], dtype=float)
+    if np.all(~np.isfinite(ordered)):
+        return None
+    return ordered
 
 
 def star_color_for_value(value, vmin, vmax, cmap_name=HEATMAP_CMAP):
@@ -339,6 +362,14 @@ def pretty_label(x):
     return label
 
 
+def pretty_label_with_count(label, count):
+    """Readable column label with an optional drug-count line."""
+    out = pretty_label(label)
+    if count is None or not np.isfinite(count):
+        return out
+    return f"{out}\n(n = {int(count)})"
+
+
 def set_imshow_x_labels(ax, labels, fontsize=8):
     """Place x labels at imshow cell centers and anchor rotated text to ticks."""
     ax.set_xticks(np.arange(len(labels)))
@@ -351,45 +382,72 @@ def set_imshow_x_labels(ax, labels, fontsize=8):
     ax.tick_params(axis="x", which="major", pad=3)
 
 
-def add_workflow_panel(ax):
-    """Draw Panel A: workflow schematic."""
-    ax.set_axis_off()
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-
-    boxes = [
-        (0.03, 0.35, 0.24, 0.36, "GDSC drug\nresponse"),
-        (0.285, 0.35, 0.20, 0.36, "Cell-line\nploidy"),
-        (0.535, 0.35, 0.20, 0.36, "Drug-level\ncorrelations"),
-        (0.785, 0.35, 0.19, 0.36, "Drug-class\nenrichment"),
-    ]
-
-    for x, y, w, h, label in boxes:
-        rect = patches.FancyBboxPatch(
-            (x, y), w, h,
-            boxstyle="round,pad=0.02,rounding_size=0.03",
-            linewidth=1.2,
-            facecolor="white",
-            edgecolor="black"
-        )
-        ax.add_patch(rect)
-        ax.text(x + w / 2, y + h / 2, label, ha="center", va="center", fontsize=11)
-
-    arrow_y = 0.53
-    arrowprops = dict(arrowstyle="->", linewidth=1.2, shrinkA=0, shrinkB=0)
-    ax.annotate("", xy=(0.285, arrow_y), xytext=(0.27, arrow_y), arrowprops=arrowprops)
-    ax.annotate("", xy=(0.535, arrow_y), xytext=(0.485, arrow_y), arrowprops=arrowprops)
-    ax.annotate("", xy=(0.785, arrow_y), xytext=(0.735, arrow_y), arrowprops=arrowprops)
-
-    ax.text(0.41, 0.20, "For each cancer type and drug: correlate response with ploidy",
-            ha="center", va="center", fontsize=9)
-    ax.text(0.76, 0.20, "Then test whether drug classes are enriched by direction",
-            ha="center", va="center", fontsize=9)
-
-    ax.text(0.0, 0.98, "A", fontsize=16, fontweight="bold", ha="left", va="top")
+def count_bar_kwargs(counts, bar_style):
+    """Return bar styling for count marginals."""
+    if bar_style == "black":
+        return {"color": "black", "edgecolor": "none", "linewidth": 0}
+    if bar_style == "white":
+        return {"color": "white", "edgecolor": "black", "linewidth": 0.8}
+    if bar_style == "heatmap":
+        counts = np.asarray(counts, dtype=float)
+        finite = counts[np.isfinite(counts)]
+        if len(finite) == 0 or np.nanmax(finite) <= 0:
+            scaled = np.zeros_like(counts)
+        else:
+            scaled = np.where(np.isfinite(counts), counts / np.nanmax(finite), 0)
+        colors = plt.get_cmap(HEATMAP_CMAP)(0.18 + 0.76 * np.clip(scaled, 0, 1))
+        return {"color": colors, "edgecolor": "black", "linewidth": 0.35}
+    raise ValueError(f"Unsupported bar style: {bar_style}")
 
 
-def add_heatmap_panel(ax, data, pvalues, title, panel_letter, vmin, vmax, show_ylabels=True):
+def add_top_count_bars(ax, counts, ylabel=None, bar_style="black"):
+    """Draw black drug-count marginal bars aligned to heatmap columns."""
+    n_cols = len(counts)
+    finite_counts = np.where(np.isfinite(counts), counts, 0)
+    y_max = max(1.0, np.nanmax(finite_counts) * 1.12)
+    ax.bar(np.arange(n_cols), finite_counts, width=0.80, **count_bar_kwargs(finite_counts, bar_style))
+    ax.set_xlim(-0.5, n_cols - 0.5)
+    ax.set_ylim(0, y_max)
+    ax.set_xticks([])
+    ax.tick_params(axis="y", labelsize=7, length=2)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    if ylabel is not None:
+        ax.set_ylabel(ylabel, fontsize=8)
+
+
+def add_side_count_bars(ax, row_labels, counts, bar_style="black"):
+    """Draw black cancer-type cell-line-count marginal bars aligned to heatmap rows."""
+    n_rows = len(row_labels)
+    finite_counts = np.where(np.isfinite(counts), counts, 0)
+    ax.barh(np.arange(n_rows), finite_counts, height=0.78, **count_bar_kwargs(finite_counts, bar_style))
+    ax.set_ylim(n_rows - 0.5, -0.5)
+    ax.set_yticks(np.arange(n_rows))
+    ax.set_yticklabels(
+        [
+            f"{label} (n = {int(count)})" if np.isfinite(count) else f"{label} (n = NA)"
+            for label, count in zip(row_labels, counts)
+        ],
+        fontsize=8,
+    )
+    ax.set_xlabel("Cell lines", fontsize=8)
+    ax.tick_params(axis="x", labelsize=7, length=2)
+    ax.tick_params(axis="y", length=0, pad=2)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+
+def add_heatmap_panel(
+    ax,
+    data,
+    pvalues,
+    title,
+    panel_letter,
+    vmin,
+    vmax,
+    show_ylabels=True,
+    x_counts=None,
+):
     """Draw one heatmap panel."""
     masked = np.ma.masked_invalid(data)
     cmap = plt.get_cmap(HEATMAP_CMAP).copy()
@@ -397,8 +455,13 @@ def add_heatmap_panel(ax, data, pvalues, title, panel_letter, vmin, vmax, show_y
 
     im = ax.imshow(masked, aspect="auto", vmin=vmin, vmax=vmax, cmap=cmap)
 
-    ax.set_title(title, fontsize=12, pad=12)
-    set_imshow_x_labels(ax, [pretty_label(c) for c in pvalues.columns], fontsize=8)
+    if title:
+        ax.set_title(title, fontsize=12, pad=12)
+    x_labels = [
+        pretty_label_with_count(col, x_counts[idx] if x_counts is not None else None)
+        for idx, col in enumerate(pvalues.columns)
+    ]
+    set_imshow_x_labels(ax, x_labels, fontsize=7 if x_counts is not None else 8)
     ax.set_yticks(np.arange(pvalues.shape[0]))
     if show_ylabels:
         ax.set_yticklabels([str(i) for i in pvalues.index], fontsize=8)
@@ -412,7 +475,7 @@ def add_heatmap_panel(ax, data, pvalues, title, panel_letter, vmin, vmax, show_y
     ax.grid(which="minor", linewidth=0.3)
     ax.tick_params(which="minor", bottom=False, left=False)
 
-    # Mark nominally significant cells to make interpretation immediate.
+    # Mark BH-FDR-significant cells to make interpretation immediate.
     arr = pvalues.to_numpy(dtype=float)
     for i in range(arr.shape[0]):
         for j in range(arr.shape[1]):
@@ -429,15 +492,32 @@ def add_heatmap_panel(ax, data, pvalues, title, panel_letter, vmin, vmax, show_y
                     fontweight="bold",
                 )
 
-    ax.text(-0.12, 1.04, panel_letter, transform=ax.transAxes,
-            fontsize=16, fontweight="bold", ha="left", va="bottom")
+    if panel_letter:
+        ax.text(-0.12, 1.04, panel_letter, transform=ax.transAxes,
+                fontsize=16, fontweight="bold", ha="left", va="bottom")
 
     return im
 
 
-def make_figure(xlsx_path, out_png, out_pdf=None):
+def make_figure(xlsx_path, out_png, out_pdf=None, bar_style="black"):
     low, high = read_enrichment_workbook(xlsx_path)
     low, high = ordered_by_low_ploidy_significance(low, high)
+    drug_counts = read_optional_sheet(xlsx_path, "drugClassCounts")
+    cancer_type_counts = read_optional_sheet(xlsx_path, "cancerTypeCounts")
+    analysis_metadata = read_optional_sheet(xlsx_path, "analysisMetadata")
+    ordered_drug_counts = ordered_numeric_values(
+        drug_counts,
+        key_cols=("category_label", "primary_anticancer_class", "group"),
+        value_cols=("n_drugs", "count"),
+        labels=low.columns,
+    )
+    ordered_cell_line_counts = ordered_numeric_values(
+        cancer_type_counts,
+        key_cols=("cancer_type",),
+        value_cols=("n_cell_lines", "n"),
+        labels=low.index,
+    )
+    show_marginals = ordered_drug_counts is not None and ordered_cell_line_counts is not None
     zero_replacement = infer_zero_replacement(low, high)
 
     low_z = p_to_neglog10(low, zero_replacement)
@@ -446,45 +526,96 @@ def make_figure(xlsx_path, out_png, out_pdf=None):
     vmax = np.nanmax([np.nanmax(low_z), np.nanmax(high_z), -np.log10(0.05)])
     vmin = 0
 
-    fig = plt.figure(figsize=(18, 14), constrained_layout=False)
-    gs = fig.add_gridspec(
-        nrows=2,
-        ncols=3,
-        height_ratios=[1.15, 6.0],
-        width_ratios=[1, 1, 0.04],
-        hspace=0.34,
-        wspace=0.08
-    )
-
-    ax_a = fig.add_subplot(gs[0, :2])
-    ax_b = fig.add_subplot(gs[1, 0])
-    ax_c = fig.add_subplot(gs[1, 1])
-    ax_cbar = fig.add_subplot(gs[1, 2])
-
-    add_workflow_panel(ax_a)
+    fig = plt.figure(figsize=(18.5, 12), constrained_layout=False)
+    if show_marginals:
+        gs = fig.add_gridspec(
+            nrows=2,
+            ncols=4,
+            height_ratios=[0.52, 6.0],
+            width_ratios=[0.30, 1, 1, 0.04],
+            hspace=0.05,
+            wspace=0.08,
+        )
+        ax_b_top = fig.add_subplot(gs[0, 1])
+        ax_c_top = fig.add_subplot(gs[0, 2])
+        ax_side = fig.add_subplot(gs[1, 0])
+        ax_b = fig.add_subplot(gs[1, 1])
+        ax_c = fig.add_subplot(gs[1, 2])
+        ax_cbar = fig.add_subplot(gs[1, 3])
+        add_top_count_bars(ax_b_top, ordered_drug_counts, ylabel="Drugs\nper class", bar_style=bar_style)
+        add_top_count_bars(ax_c_top, ordered_drug_counts, bar_style=bar_style)
+        ax_b_top.set_title(
+            "Low-ploidy-selective enrichment\n(ordered by chemotherapy-agent FDR significance)",
+            fontsize=12,
+            pad=8,
+        )
+        ax_c_top.set_title(
+            "High-ploidy-selective enrichment\n(same row and drug-class order)",
+            fontsize=12,
+            pad=8,
+        )
+        ax_c_top.set_yticklabels([])
+        ax_c_top.spines["left"].set_visible(False)
+        add_side_count_bars(ax_side, low.index.astype(str), ordered_cell_line_counts, bar_style=bar_style)
+    else:
+        gs = fig.add_gridspec(
+            nrows=1,
+            ncols=3,
+            width_ratios=[1, 1, 0.04],
+            wspace=0.08,
+        )
+        ax_b = fig.add_subplot(gs[0, 0])
+        ax_c = fig.add_subplot(gs[0, 1])
+        ax_cbar = fig.add_subplot(gs[0, 2])
 
     im_b = add_heatmap_panel(
         ax_b, low_z, low,
-        "Low-ploidy-selective enrichment\n(ordered by chemotherapy-agent significance)",
-        "B", vmin, vmax
+        None if show_marginals else "Low-ploidy-selective enrichment\n(ordered by chemotherapy-agent FDR significance)",
+        None,
+        vmin, vmax, show_ylabels=not show_marginals, x_counts=ordered_drug_counts
     )
     im_c = add_heatmap_panel(
         ax_c, high_z, high,
-        "High-ploidy-selective enrichment\n(same row and drug-class order)",
-        "C", vmin, vmax, show_ylabels=False
+        None if show_marginals else "High-ploidy-selective enrichment\n(same row and drug-class order)",
+        None,
+        vmin, vmax, show_ylabels=False, x_counts=ordered_drug_counts
     )
 
     # Leave generous margins for rotated x labels and align the colorbar with the heatmap row.
-    fig.subplots_adjust(left=0.07, right=0.925, top=0.955, bottom=0.185)
+    if show_marginals:
+        fig.subplots_adjust(left=0.08, right=0.925, top=0.90, bottom=0.22)
+    else:
+        fig.subplots_adjust(left=0.07, right=0.925, top=0.955, bottom=0.185)
 
     cbar = fig.colorbar(im_c, cax=ax_cbar)
-    cbar.set_label("-log10(enrichment p-value)", fontsize=10)
+    cbar.set_label("-log10(BH-FDR q-value)", fontsize=10)
 
-    # Add concise explanatory footnote.
+    metadata_values = {}
+    if analysis_metadata is not None and {"key", "value"}.issubset(analysis_metadata.columns):
+        metadata_values = dict(
+            zip(analysis_metadata["key"].astype(str), analysis_metadata["value"].astype(str))
+        )
+    permutation_count = metadata_values.get("permutation_count", "N")
+    zero_floor = metadata_values.get("zero_pvalue_floor", "1/(N + 1)")
+    adjustment_scope = metadata_values.get(
+        "adjustment_scope",
+        "both directions, all cancer types, and all drug categories",
+    )
+    permutation_formula = metadata_values.get("permutation_pvalue_formula")
+    if permutation_formula:
+        footnote = (
+            f"Stars mark BH-FDR q ≤ 0.05. Permutation p-values use {permutation_formula} "
+            f"({permutation_count} permutations; minimum p = {zero_floor}) before BH correction across "
+            f"{adjustment_scope}."
+        )
+    else:
+        footnote = (
+            f"Stars mark BH-FDR q ≤ 0.05. Raw permutation p=0 values were floored at {zero_floor} "
+            f"({permutation_count} permutations) before BH correction across {adjustment_scope}."
+        )
     fig.text(
         0.5, 0.035,
-        f"Stars mark nominal enrichment p ≤ 0.05. Exact p=0 entries were plotted at the permutation floor "
-        f"(smallest positive p = {zero_replacement:g}) to avoid infinite -log10 values.",
+        footnote,
         ha="center", va="bottom", fontsize=9
     )
 
@@ -504,9 +635,15 @@ def make_figure(xlsx_path, out_png, out_pdf=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("xlsx", help="Input enrichment p-value workbook")
+    parser.add_argument("xlsx", help="Input enrichment BH-FDR q-value workbook")
     parser.add_argument("--out-prefix", default="ploidy_enrichment_panels_ABC",
                         help="Output prefix for PNG/PDF")
+    parser.add_argument(
+        "--bar-style",
+        choices=BAR_STYLE_CHOICES,
+        default="black",
+        help="Style for drug-class and cancer-type count marginal bars",
+    )
     args = parser.parse_args()
 
     xlsx_path = Path(args.xlsx)
@@ -514,7 +651,7 @@ def main():
     out_png = out_prefix.with_suffix(".png")
     out_pdf = out_prefix.with_suffix(".pdf")
 
-    summary = make_figure(xlsx_path, out_png, out_pdf)
+    summary = make_figure(xlsx_path, out_png, out_pdf, bar_style=args.bar_style)
     print(summary)
 
 

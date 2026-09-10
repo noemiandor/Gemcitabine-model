@@ -57,6 +57,16 @@ interval_treatment_input <- if (include_state_pathway) {
   ""
 }
 output_dir <- normalizePath(figure7_arg(args, "output-dir", required = TRUE), mustWork = FALSE)
+alternative_output_dir <- figure7_arg(args, "alternative-output-dir", "")
+if (nzchar(alternative_output_dir)) {
+  if (!include_state_pathway) {
+    figure7_stop("Alternative Figure 7 output requires --panel-set=a-f")
+  }
+  alternative_output_dir <- normalizePath(
+    alternative_output_dir,
+    mustWork = FALSE
+  )
+}
 si_cache_dir <- ""
 si_cache_policy <- "not_applicable"
 si_cache_upstream_input_manifest <- ""
@@ -1133,7 +1143,8 @@ render_from_run <- function(
       "Dose-centered ECDF RMSE (origin-matched untreated reference)",
       paste("Dose-centered Day", tgi_day, "TGI (%)"),
       "Exact within-dose permutation P",
-      annotation_corner = "top-left"
+      annotation_corner = "top-left",
+      sample_labels = figure7_mouse_display_labels(d$sample_id)
     ) + ggplot2::geom_vline(
       xintercept = 0,
       color = "grey75",
@@ -1161,18 +1172,27 @@ render_from_run <- function(
       config,
       copy_table = FALSE
     )
-    figure7_save_main_composite(
-      figure7_main_composite_plots(
+    composite_plots <- figure7_main_composite_plots(
         legacy_plots[LETTERS[1:5]],
         context_cache$plots,
         interval_treatment_panel$plot,
         copy_number_panel$plot,
         config
-      ),
+      )
+    figure7_save_main_composite(
+      composite_plots,
       output_dir,
       config,
       context_cache$composite_filename
     )
+    if (nzchar(alternative_output_dir)) {
+      figure7_save_alternative_composites(
+        composite_plots,
+        copy_number_panel$standalone_plot,
+        alternative_output_dir,
+        config
+      )
+    }
   }
   source_results_root <- source_run_config$value[match("state_pathway_source_results_root", source_run_config$key)]
   if (length(source_results_root) != 1L || is.na(source_results_root) || identical(source_results_root, "not_recorded")) {
@@ -1458,18 +1478,27 @@ if (include_state_pathway) {
       "main_composite_panel_F_enrichment_tests.tsv"
     )
   )
-  figure7_save_main_composite(
-    figure7_main_composite_plots(
+  composite_plots <- figure7_main_composite_plots(
       ae$plots,
       context_cache$plots,
       interval_treatment_panel$plot,
       copy_number_panel$plot,
       config
-    ),
+    )
+  figure7_save_main_composite(
+    composite_plots,
     output_dir,
     config,
     context_cache$composite_filename
   )
+  if (nzchar(alternative_output_dir)) {
+    figure7_save_alternative_composites(
+      composite_plots,
+      copy_number_panel$standalone_plot,
+      alternative_output_dir,
+      config
+    )
+  }
 }
 write_metadata(
   output_dir,

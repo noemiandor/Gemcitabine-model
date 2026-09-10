@@ -22,7 +22,12 @@ shared_context_figure_theme <- function(base_size = 10) {
         fill = "grey94", color = "grey75", linewidth = 0.35
       ),
       strip.text = ggplot2::element_text(face = "bold", color = "#333333"),
-      axis.title = ggplot2::element_text(color = "#333333")
+      axis.title = ggplot2::element_text(
+        color = "#333333", size = base_size + 1
+      ),
+      axis.text = ggplot2::element_text(
+        color = "#333333", size = base_size - 1
+      )
     )
 }
 
@@ -371,6 +376,7 @@ shared_context_build_heatmap <- function(
   title,
   diverging,
   tag,
+  fontsize = 10,
   fontsize_row = 8,
   fontsize_col = 7,
   reader_labels = FALSE,
@@ -388,6 +394,7 @@ shared_context_build_heatmap <- function(
     cluster_rows = TRUE,
     cluster_cols = TRUE,
     border_color = NA,
+    fontsize = fontsize,
     fontsize_row = fontsize_row,
     fontsize_col = fontsize_col,
     angle_col = 45,
@@ -426,6 +433,7 @@ shared_context_heatmap_plot <- function(
   title,
   diverging,
   tag,
+  fontsize = 10,
   fontsize_row = 8,
   fontsize_col = 7,
   reader_labels = FALSE,
@@ -438,6 +446,7 @@ shared_context_heatmap_plot <- function(
     title,
     diverging,
     tag,
+    fontsize = fontsize,
     fontsize_row = fontsize_row,
     fontsize_col = fontsize_col,
     reader_labels = reader_labels,
@@ -451,7 +460,10 @@ shared_context_heatmap_plot <- function(
 shared_context_build_si7_heatmap_panels <- function(
   ora_matrix,
   gsea_matrix,
-  tags = c(ora = "A", gsea = "B")
+  tags = c(ora = "A", gsea = "B"),
+  fontsize = 10,
+  fontsize_row = 8,
+  fontsize_col = 7
 ) {
   tags <- shared_context_validate_tags(
     tags,
@@ -464,13 +476,21 @@ shared_context_build_si7_heatmap_panels <- function(
         ora_matrix,
         "Cluster Hallmark ORA annotation score",
         FALSE,
-        tags[["ora"]]
+        tags[["ora"]],
+        fontsize = fontsize,
+        fontsize_row = fontsize_row,
+        fontsize_col = fontsize_col,
+        reader_labels = TRUE
       ),
       gsea = shared_context_heatmap_plot(
         gsea_matrix,
         "Cluster Hallmark GSEA NES",
         TRUE,
-        tags[["gsea"]]
+        tags[["gsea"]],
+        fontsize = fontsize,
+        fontsize_row = fontsize_row,
+        fontsize_col = fontsize_col,
+        reader_labels = TRUE
       )
     )
   )

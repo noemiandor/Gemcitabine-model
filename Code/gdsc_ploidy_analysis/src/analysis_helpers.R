@@ -22,6 +22,19 @@ file_checksum <- function(path) {
   unname(tools::md5sum(path))
 }
 
+file_sha256_checksum <- function(path) {
+  if (is.null(path) || is.na(path) || !file.exists(path)) {
+    return(NA_character_)
+  }
+  if (requireNamespace("digest", quietly = TRUE)) {
+    return(digest::digest(path, algo = "sha256", file = TRUE, serialize = FALSE))
+  }
+  if ("sha256sum" %in% getNamespaceExports("tools")) {
+    return(unname(getExportedValue("tools", "sha256sum")(path)))
+  }
+  NA_character_
+}
+
 derive_correlation_eligible_drugs <- function(R, gdsc_rows = NULL) {
   drugs <- sort(unique(unlist(lapply(R, names), use.names = FALSE)))
   out <- data.frame(
@@ -66,6 +79,74 @@ run_enrichment_or_stop <- function(values,
         call. = FALSE
       )
     }
+  )
+}
+
+rank_enrichment_scores <- function(membership) {
+  membership <- as.matrix(membership)
+  storage.mode(membership) <- "double"
+  n <- nrow(membership)
+  group_sizes <- colSums(membership)
+  valid <- group_sizes > 0 & group_sizes < n
+  scores <- rep(NA_real_, ncol(membership))
+  names(scores) <- colnames(membership)
+  if (!any(valid)) {
+    return(scores)
+  }
+  membership <- membership[, valid, drop = FALSE]
+  group_sizes <- group_sizes[valid]
+  cumulative_in <- apply(membership, 2, cumsum)
+  if (is.null(dim(cumulative_in))) {
+    cumulative_in <- matrix(cumulative_in, ncol = 1)
+  }
+  positions <- seq_len(n)
+  running_score <- sweep(cumulative_in, 2, group_sizes, "/") -
+    sweep(positions - cumulative_in, 2, n - group_sizes, "/")
+  scores[valid] <- apply(running_score, 2, max, na.rm = TRUE)
+  scores
+}
+
+joint_permutation_rank_enrichment <- function(values,
+                                              annotations,
+                                              groups,
+                                              permute_n) {
+  values <- as.numeric(values)
+  names(values) <- rownames(annotations)
+  keep <- is.finite(values) & names(values) %in% rownames(annotations)
+  values <- values[keep]
+  annotations <- annotations[names(values), , drop = FALSE]
+  if (length(values) < 2) {
+    stop("At least two finite annotated drugs are required for enrichment.", call. = FALSE)
+  }
+
+  group_labels <- as.character(annotations$group)
+  membership <- vapply(groups, function(group) group_labels == group, logical(length(group_labels)))
+  membership <- matrix(membership, nrow = length(group_labels), dimnames = list(names(values), groups))
+  low_order <- order(values, decreasing = TRUE)
+  high_order <- rev(low_order)
+  observed_low <- rank_enrichment_scores(membership[low_order, , drop = FALSE])
+  observed_high <- rank_enrichment_scores(membership[high_order, , drop = FALSE])
+  exceed_low <- setNames(integer(length(groups)), groups)
+  exceed_high <- setNames(integer(length(groups)), groups)
+
+  for (permutation_index in seq_len(permute_n)) {
+    permuted_membership <- membership[sample.int(nrow(membership)), , drop = FALSE]
+    permuted_low <- rank_enrichment_scores(permuted_membership[low_order, , drop = FALSE])
+    permuted_high <- rank_enrichment_scores(permuted_membership[high_order, , drop = FALSE])
+    exceed_low <- exceed_low + as.integer(permuted_low >= observed_low)
+    exceed_high <- exceed_high + as.integer(permuted_high >= observed_high)
+  }
+
+  list(
+    low = list(
+      score = observed_low,
+      pvalue = (exceed_low + 1) / (permute_n + 1)
+    ),
+    high = list(
+      score = observed_high,
+      pvalue = (exceed_high + 1) / (permute_n + 1)
+    ),
+    permutation_pvalue_formula = "(b + 1) / (B + 1)"
   )
 }
 

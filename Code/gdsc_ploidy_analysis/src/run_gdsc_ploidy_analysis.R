@@ -40,6 +40,13 @@ source(file.path(src_dir, "analysis_helpers.R"))
 source(file.path(src_dir, "drug_class_workbook.R"))
 
 find_python_for_plotting <- function() {
+  python_override <- Sys.getenv("GDSC_PYTHON", "")
+  if (nzchar(python_override)) {
+    if (!file.exists(python_override)) {
+      stop("GDSC_PYTHON does not exist: ", python_override, call. = FALSE)
+    }
+    return(python_override)
+  }
   python <- Sys.which("python3")
   if (!nzchar(python)) {
     python <- Sys.which("python")
@@ -72,15 +79,20 @@ run_enrichment_heatmap_plots <- function(workbook, output_dir, source_dir, categ
     stop("Cannot generate enrichment heatmaps because workbook is missing: ", workbook, call. = FALSE)
   }
   suffix <- paste0("_", category_mode)
-  run_python_plot_script(
-    file.path(source_dir, "plot_ploidy_enrichment_panels.py"),
-    c(
-      normalizePath(workbook),
-      "--out-prefix",
-      file.path(output_dir, paste0("ploidy_enrichment_panels", suffix, "_ABC"))
-    ),
-    "manuscript-style ploidy-enrichment panels"
-  )
+  panel_styles <- c(black = "", white = "_bars_white", heatmap = "_bars_heatmap")
+  for (bar_style in names(panel_styles)) {
+    run_python_plot_script(
+      file.path(source_dir, "plot_ploidy_enrichment_panels.py"),
+      c(
+        normalizePath(workbook),
+        "--out-prefix",
+        file.path(output_dir, paste0("ploidy_enrichment_panels", suffix, "_ABC", panel_styles[[bar_style]])),
+        "--bar-style",
+        bar_style
+      ),
+      paste0("manuscript-style ploidy-enrichment panels (", bar_style, " bars)")
+    )
+  }
   run_python_plot_script(
     file.path(source_dir, "plot_ploidy_enrichment_clustered_heatmaps.py"),
     c(
@@ -237,7 +249,7 @@ write_run_metadata(
       category_mode,
       drug_class_workbook_file,
       file_checksum(drug_class_workbook_file),
-      if (file.exists(drug_class_workbook_file)) unname(tools::sha256sum(drug_class_workbook_file)) else NA_character_,
+      file_sha256_checksum(drug_class_workbook_file),
       as.character(enrichment_permute_n),
       as.character(low_ploidy_pvalue_cutoff),
       as.character(high_ploidy_pvalue_cutoff),
@@ -404,6 +416,7 @@ R_ <- sapply(R, function(x) x[names(x) %in% coxIn$drug])
 
 x <- sapply(names(R_), function(can) matrix(R_[[can]], dimnames = list(names(R_[[can]]), can)))
 lowpIsSens <- highpIsSens <- list()
+lowEnrichmentScore <- highEnrichmentScore <- list()
 selected_drugs_for_enrichment <- list()
 enrichment_metadata <- list()
 category_id_by_drug <- if ("category_id" %in% colnames(coxIn)) {
@@ -412,6 +425,12 @@ category_id_by_drug <- if ("category_id" %in% colnames(coxIn)) {
   setNames(coxIn$group, rownames(coxIn))
 }
 coxIn_for_enrichment <- coxIn[, c("drug", "group"), drop = FALSE]
+enrichment_groups <- if (!is.null(group_order)) {
+  group_order
+} else {
+  sort(unique(coxIn$group))
+}
+enrichment_groups <- enrichment_groups[enrichment_groups %in% unique(coxIn$group)]
 # Stabilize the permutation-based enrichment step for reproducibility testing.
 set.seed(1)
 for (can in names(x)) {
@@ -464,22 +483,16 @@ for (can in names(x)) {
     stringsAsFactors = FALSE
   )
 
-  lowpIsSens[[can]] <- run_enrichment_or_stop(
-    x[[can]],
-    coxIn_for_enrichment,
-    cancer = can,
-    direction = "low_ploidy_sensitive",
-    permute_n = enrichment_permute_n,
-    pvalue_cutoff = low_ploidy_pvalue_cutoff
+  enrichment_result <- joint_permutation_rank_enrichment(
+    enrichment_values,
+    annotations = coxIn_for_enrichment[enrichment_drugs, , drop = FALSE],
+    groups = enrichment_groups,
+    permute_n = enrichment_permute_n
   )
-  highpIsSens[[can]] <- run_enrichment_or_stop(
-    -x[[can]],
-    coxIn_for_enrichment,
-    cancer = can,
-    direction = "high_ploidy_sensitive",
-    permute_n = enrichment_permute_n,
-    pvalue_cutoff = high_ploidy_pvalue_cutoff
-  )
+  lowpIsSens[[can]] <- enrichment_result$low$pvalue
+  highpIsSens[[can]] <- enrichment_result$high$pvalue
+  lowEnrichmentScore[[can]] <- enrichment_result$low$score
+  highEnrichmentScore[[can]] <- enrichment_result$high$score
 }
 
 write_tsv(
@@ -491,15 +504,13 @@ write_tsv(
   file.path(tables_dir, sprintf("class_enrichment_%s_metadata.tsv", category_suffix))
 )
 
-if (!is.null(group_order)) {
-  groups <- group_order
-} else {
-  groups <- sort(unique(coxIn$group))
-}
-groups <- groups[groups %in% unique(coxIn$group)]
+groups <- enrichment_groups
 lowpIsSens <- sapply(lowpIsSens, function(x) as.data.frame(x)[groups, ])
 highpIsSens <- sapply(highpIsSens, function(x) as.data.frame(x)[groups, ])
 rownames(lowpIsSens) <- rownames(highpIsSens) <- groups
+lowEnrichmentScore <- sapply(lowEnrichmentScore, function(x) x[groups])
+highEnrichmentScore <- sapply(highEnrichmentScore, function(x) x[groups])
+rownames(lowEnrichmentScore) <- rownames(highEnrichmentScore) <- groups
 
 enrichment_long <- rbind(
   data.frame(
@@ -508,6 +519,7 @@ enrichment_long <- rbind(
     cancer_type = rep(colnames(lowpIsSens), each = nrow(lowpIsSens)),
     group = rep(rownames(lowpIsSens), times = ncol(lowpIsSens)),
     pvalue = as.vector(lowpIsSens),
+    enrichment_score = as.vector(lowEnrichmentScore),
     stringsAsFactors = FALSE
   ),
   data.frame(
@@ -516,10 +528,46 @@ enrichment_long <- rbind(
     cancer_type = rep(colnames(highpIsSens), each = nrow(highpIsSens)),
     group = rep(rownames(highpIsSens), times = ncol(highpIsSens)),
     pvalue = as.vector(highpIsSens),
+    enrichment_score = as.vector(highEnrichmentScore),
     stringsAsFactors = FALSE
   )
 )
+zero_pvalue_floor <- 1 / (enrichment_permute_n + 1)
+enrichment_long$pvalue_for_fdr <- enrichment_long$pvalue
+enrichment_long$qvalue_bh <- p.adjust(enrichment_long$pvalue_for_fdr, method = "BH")
 write_tsv(enrichment_long, file.path(tables_dir, sprintf("class_enrichment_%s_%s.tsv", category_suffix, metric)))
+star_qvalue_cutoff <- 0.05
+significant_cells <- enrichment_long[
+  is.finite(enrichment_long$qvalue_bh) &
+    enrichment_long$qvalue_bh <= star_qvalue_cutoff,
+  ,
+  drop = FALSE
+]
+significant_cells <- significant_cells[order(
+  significant_cells$direction,
+  significant_cells$cancer_type,
+  significant_cells$group
+), , drop = FALSE]
+write_tsv(
+  significant_cells,
+  file.path(tables_dir, sprintf("class_enrichment_%s_significant_cells_fdr%g_%s.tsv", category_suffix, star_qvalue_cutoff, metric))
+)
+
+fdr_matrix <- function(direction) {
+  subset <- enrichment_long[enrichment_long$direction == direction, , drop = FALSE]
+  out <- matrix(
+    NA_real_,
+    nrow = length(groups),
+    ncol = length(colnames(lowpIsSens)),
+    dimnames = list(groups, colnames(lowpIsSens))
+  )
+  for (idx in seq_len(nrow(subset))) {
+    out[subset$group[[idx]], subset$cancer_type[[idx]]] <- subset$qvalue_bh[[idx]]
+  }
+  out
+}
+lowq <- fdr_matrix("low_ploidy_sensitive")
+highq <- fdr_matrix("high_ploidy_sensitive")
 if (category_mode == "primary_secondary" && exists("primary_secondary_counts")) {
   write_tsv(
     primary_secondary_review_summary(
@@ -532,12 +580,76 @@ if (category_mode == "primary_secondary" && exists("primary_secondary_counts")) 
   )
 }
 
+cancer_type_counts <- data.frame(
+  cancer_type = colnames(lowpIsSens),
+  n_cell_lines = NA_integer_,
+  count_method = "maximum matched cell lines across retained drug correlations",
+  source_file = file.path(tables_dir, sprintf("drug_ploidy_correlations_by_cancer_%s.tsv", metric)),
+  stringsAsFactors = FALSE
+)
+correlation_counts <- canonical_correlations[canonical_correlations$metric == metric, , drop = FALSE]
+correlation_counts$n <- suppressWarnings(as.numeric(correlation_counts$n))
+correlation_counts <- correlation_counts[is.finite(correlation_counts$n), , drop = FALSE]
+if (nrow(correlation_counts) > 0) {
+  max_counts <- aggregate(n ~ cancer_type, correlation_counts, max, na.rm = TRUE)
+  names(max_counts)[names(max_counts) == "n"] <- "n_cell_lines"
+  cancer_type_counts$n_cell_lines <- max_counts$n_cell_lines[
+    match(cancer_type_counts$cancer_type, max_counts$cancer_type)
+  ]
+}
+write_tsv(
+  cancer_type_counts,
+  file.path(tables_dir, sprintf("drug_class_%s_cancer_type_cell_line_counts_%s.tsv", category_suffix, metric))
+)
+
 mode_workbook <- file.path(out_dir, sprintf("drugsVsPloidyCorr_%s_%s.xlsx", category_suffix, metric))
 mode_wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(mode_wb, "rawLowpIsSens")
+openxlsx::writeData(mode_wb, "rawLowpIsSens", t(lowpIsSens), rowNames = TRUE)
+openxlsx::addWorksheet(mode_wb, "rawHighpIsSens")
+openxlsx::writeData(mode_wb, "rawHighpIsSens", t(highpIsSens), rowNames = TRUE)
 openxlsx::addWorksheet(mode_wb, "lowpIsSens")
-openxlsx::writeData(mode_wb, "lowpIsSens", t(lowpIsSens), rowNames = TRUE)
+openxlsx::writeData(mode_wb, "lowpIsSens", t(lowq), rowNames = TRUE)
 openxlsx::addWorksheet(mode_wb, "highpIsSens")
-openxlsx::writeData(mode_wb, "highpIsSens", t(highpIsSens), rowNames = TRUE)
+openxlsx::writeData(mode_wb, "highpIsSens", t(highq), rowNames = TRUE)
+openxlsx::addWorksheet(mode_wb, "lowEnrichmentScore")
+openxlsx::writeData(mode_wb, "lowEnrichmentScore", t(lowEnrichmentScore), rowNames = TRUE)
+openxlsx::addWorksheet(mode_wb, "highEnrichmentScore")
+openxlsx::writeData(mode_wb, "highEnrichmentScore", t(highEnrichmentScore), rowNames = TRUE)
+openxlsx::addWorksheet(mode_wb, "analysisMetadata")
+openxlsx::writeData(
+  mode_wb,
+  "analysisMetadata",
+  data.frame(
+    key = c(
+      "permutation_count",
+      "zero_pvalue_floor",
+      "multiple_testing_method",
+      "adjustment_scope",
+      "significance_cutoff",
+      "heatmap_value",
+      "permutation_pvalue_formula",
+      "permutation_strategy"
+    ),
+    value = c(
+      as.character(enrichment_permute_n),
+      as.character(zero_pvalue_floor),
+      "Benjamini-Hochberg",
+      "both directions, all cancer types, and all drug categories",
+      as.character(star_qvalue_cutoff),
+      "BH-FDR q-value",
+      "(b + 1) / (B + 1)",
+      "synchronized drug-class label permutations within each cancer type and across low/high directions"
+    ),
+    stringsAsFactors = FALSE
+  )
+)
+if (exists("primary_secondary_counts")) {
+  openxlsx::addWorksheet(mode_wb, "drugClassCounts")
+  openxlsx::writeData(mode_wb, "drugClassCounts", primary_secondary_counts)
+}
+openxlsx::addWorksheet(mode_wb, "cancerTypeCounts")
+openxlsx::writeData(mode_wb, "cancerTypeCounts", cancer_type_counts)
 openxlsx::saveWorkbook(mode_wb, mode_workbook, overwrite = TRUE)
 invisible(file.copy(mode_workbook, file.path(out_dir, "drugsVsPloidyCorr.xlsx"), overwrite = TRUE))
 invisible(file.copy(
@@ -554,7 +666,7 @@ write_tsv(
     canonical_workbook_md5 = file_checksum(mode_workbook),
     drug_class_workbook_file = drug_class_workbook_file,
     drug_class_workbook_md5 = file_checksum(drug_class_workbook_file),
-    drug_class_workbook_sha256 = if (file.exists(drug_class_workbook_file)) unname(tools::sha256sum(drug_class_workbook_file)) else NA_character_,
+    drug_class_workbook_sha256 = file_sha256_checksum(drug_class_workbook_file),
     stringsAsFactors = FALSE
   ),
   file.path(metadata_dir, "category_mode_artifacts.tsv")

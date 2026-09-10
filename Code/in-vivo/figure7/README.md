@@ -374,6 +374,26 @@ unzoomed 0--1.05 scale. The density-localization view is reproduced as the
 new full-width SI4I. Main panels I and J share the penultimate row, with J
 showing the exact QC-filtered NUMBAT copy-number matrix.
 
+An opt-in alternative renderer preserves that canonical A-L asset and writes
+two separately named companion layouts to an external directory supplied with
+`--alternative-output-dir`. The first omits the original J, retains I on the
+left, and stacks the former K/L plots in the freed right-hand space as panels
+J/K so the displayed labels remain alphabetical. The second contains the
+original J alone as panel A under the centered title “Tumor-cell copy-number
+landscape,” labels every chromosome from 1 through 22 and centers each mouse
+label on numerically ordered origin/dose/mouse row blocks, identifies the
+y-axis as tumor cells, and retains the compact bordered
+injected-origin/dose/mouse key. For example, append:
+
+```bash
+--alternative-output-dir=figures/Figure7
+```
+
+to a standard or render-only command. This produces
+`Figure7_alternative_without_panel_J.{pdf,png}` and
+`Figure7_panel_J_standalone_expanded.{pdf,png}` without changing the exact
+canonical run inventory or replacing `Figure7_reviewed_GRCh.{pdf,png}`.
+
 The presentation-only audit package under `figures/Figure7/polishing/` can be
 rebuilt independently with:
 

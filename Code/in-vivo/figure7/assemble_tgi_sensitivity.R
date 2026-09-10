@@ -574,7 +574,11 @@ figure7_sensitivity_growth_plot <- function(data) {
       color = "black",
       size = 3.1
     ) +
-    ggplot2::facet_wrap(~initial_ploidy, nrow = 1) +
+    ggplot2::facet_wrap(
+      ~initial_ploidy,
+      nrow = 1,
+      labeller = ggplot2::as_labeller(figure7_sum159_origin_labels())
+    ) +
     ggplot2::scale_color_manual(
       values = figure7_dose_colors(),
       breaks = c("0mg/kg", "30mg/kg", "120mg/kg"),
@@ -589,16 +593,16 @@ figure7_sensitivity_growth_plot <- function(data) {
       minor_breaks = NULL
     ) +
     ggplot2::labs(
-      title = "How Day 24 and Day 31 TGI are calculated from tumor growth",
+      title = NULL,
       subtitle = paste0(
-        "At each marked endpoint: TGI = 100 x (1 - treated growth delta / ",
+        "At each marked endpoint:\nTGI = 100 x (1 - treated growth delta / ",
         "mean injected-origin-matched control growth delta)"
       ),
       x = "Days since first treatment",
-      y = expression(Delta * " tumor volume from Day 0 (mm"^3 * ")"),
+      y = "Tumor size change\n(mm³)",
       caption = paste0(
         "Thin lines: individual mice. Dashed black: mean injected-origin-",
-        "matched untreated controls. Red dashed: Day 24; red solid: Day 31."
+        "matched untreated controls.\nRed dashed: Day 24; red solid: Day 31."
       )
     ) +
     figure7_theme() +
@@ -608,20 +612,81 @@ figure7_sensitivity_growth_plot <- function(data) {
     )
 }
 
+sensitivity_tgi_group_plot <- function(endpoint) {
+  figure7_panel_c_plot(endpoint$cdata, endpoint$ctest, endpoint$config) +
+    ggplot2::scale_color_manual(
+      values = figure7_dose_colors(),
+      breaks = c("30mg/kg", "120mg/kg"),
+      labels = c("30 mg/kg", "120 mg/kg"),
+      name = "Dose"
+    ) +
+    ggplot2::scale_shape_manual(
+      values = c("30mg/kg" = 16, "120mg/kg" = 17),
+      breaks = c("30mg/kg", "120mg/kg"),
+      labels = c("30 mg/kg", "120 mg/kg"),
+      name = "Dose"
+    ) +
+    ggplot2::labs(
+      title = paste0(
+        "Day ", figure7_tgi_day(endpoint$config),
+        " TGI by\ninitial ploidy"
+      )
+    )
+}
+
+sensitivity_endpoint_ploidy_plot <- function(endpoint) {
+  day <- figure7_tgi_day(endpoint$config)
+  figure7_endpoint_ploidy_plot(endpoint$edata, endpoint$etest, endpoint$config) +
+    ggplot2::scale_color_manual(
+      values = figure7_dose_colors(),
+      labels = c("30mg/kg" = "30 mg/kg", "120mg/kg" = "120 mg/kg"),
+      name = "Dose"
+    ) +
+    ggplot2::scale_shape_manual(
+      values = c("2N" = 16, "4N" = 17),
+      breaks = names(figure7_sum159_origin_labels()),
+      labels = unname(figure7_sum159_origin_labels()),
+      name = "Injected origin"
+    ) +
+    ggplot2::labs(
+      title = paste0("Day ", day, " TGI vs endpoint\ntumor-cell ploidy"),
+      subtitle = paste0(
+        "5,335 QC-passed treated-tumor CBS cells;\n",
+        "unadjusted mouse-level association"
+      )
+    ) +
+    ggplot2::guides(
+      shape = ggplot2::guide_legend(nrow = 1),
+      color = ggplot2::guide_legend(nrow = 1)
+    ) +
+    ggplot2::theme(
+      legend.position = "bottom",
+      legend.box = "vertical",
+      legend.box.just = "left"
+    )
+}
+
 plots <- list(
   A = figure7_sensitivity_growth_plot(growth24),
-  B = figure7_panel_c_plot(day24$cdata, day24$ctest, day24$config),
-  C = figure7_endpoint_ploidy_plot(day24$edata, day24$etest, day24$config),
-  D = figure7_panel_c_plot(day31$cdata, day31$ctest, day31$config),
-  E = figure7_endpoint_ploidy_plot(day31$edata, day31$etest, day31$config)
+  B = sensitivity_tgi_group_plot(day24),
+  C = sensitivity_endpoint_ploidy_plot(day24),
+  D = sensitivity_tgi_group_plot(day31),
+  E = sensitivity_endpoint_ploidy_plot(day31)
 )
 design <- paste("AAAA", "BBCC", "DDEE", sep = "\n")
 composite <- patchwork::wrap_plots(plots, design = design) +
   patchwork::plot_layout(heights = c(1.05, 1, 1)) +
   patchwork::plot_annotation(tag_levels = "A") &
   ggplot2::theme(
-    plot.tag = ggplot2::element_text(face = "bold", size = 16),
-    plot.tag.position = c(0, 1)
+    plot.tag = ggplot2::element_text(face = "bold", size = 12),
+    plot.tag.position = c(0, 1),
+    axis.title = ggplot2::element_text(size = 9),
+    axis.text = ggplot2::element_text(size = 7.5),
+    strip.text = ggplot2::element_text(size = 8, face = "bold"),
+    legend.title = ggplot2::element_text(size = 8),
+    legend.text = ggplot2::element_text(size = 7.5),
+    plot.title = ggplot2::element_text(size = 9.5),
+    plot.subtitle = ggplot2::element_text(size = 7.5)
   )
 
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -637,8 +702,8 @@ if (!provenance_only) {
     plots$A,
     device = "png",
     dpi = 300,
-    width = 15,
-    height = 8,
+    width = 7.1,
+    height = 3.8,
     units = "in",
     bg = "white"
   )
@@ -647,8 +712,8 @@ if (!provenance_only) {
     composite,
     device = "png",
     dpi = 300,
-    width = 16,
-    height = 24,
+    width = 7.1,
+    height = 11.2,
     units = "in",
     bg = "white",
     limitsize = FALSE
@@ -657,8 +722,8 @@ if (!provenance_only) {
     pdf_path,
     composite,
     device = grDevices::cairo_pdf,
-    width = 16,
-    height = 24,
+    width = 7.1,
+    height = 11.2,
     units = "in",
     limitsize = FALSE
   )
