@@ -1,0 +1,13 @@
+fig3h_group	ploidy_class	dose_response_label	cloneid_origin	mapping_status	notes
+HGC	Low	HGC-27_MRCA_harvest	HGC-27_MRCA_harvest	exact	Exact CLONEID GenomePerspective origin found.
+HGC	High	HGC-27_G1_A10_harvesT3		unresolved	No exact CLONEID GenomePerspective origin found for this dose-response label. Candidate related origins include HGC-27_G1_A9_harvesT155 and HGC-27_G1_A9-F_seed, but these are not the same real ID.
+MDA	Low	MDA-MB-231_O1_A23-K_harvest	MDA-MB-231_O1_A23-K_harvest	exact	Exact CLONEID GenomePerspective origin found.
+MDA	High	MDA-MB-231_G2_A3_harvesT8		unresolved	No exact CLONEID GenomePerspective origin found for this dose-response label. Candidate related origin MDA-MB-231_G2_A4_seed is not the same real ID.
+SNU	Low	SNU-668_P1_A19kT_harvest		unresolved	No exact CLONEID GenomePerspective origin found for this dose-response label.
+SNU	High	SNU-668_r2_GFP_VT_A7_harvesT3		unresolved	No exact CLONEID GenomePerspective origin found for this dose-response label.
+SUM	Low	SUM159_NLS_2N_O1_A7K_harvest	SUM159_NLS_2N_O1_A7K_harvest	exact	Exact CLONEID GenomePerspective origin found.
+SUM	High	SUM-159_NLS_2N_O2_A24_seedT2		unresolved	No exact CLONEID GenomePerspective origin found for this dose-response label. Candidate related origins include SUM159_NLS_2N_O2_A7K_harvest and SUM-159_NLS_2N_O2_A19_seed, but these are not the same real ID.
+SUMOld	Low	SUM-159_2N		unresolved	Legacy dose-response label; real CLONEID origin still needs curation.
+SUMOld	High	SUM-159_4N		unresolved	Legacy dose-response label; real CLONEID origin still needs curation.
+MDAOld	Low	MDAMB231_2N		unresolved	Legacy dose-response label; real CLONEID origin still needs curation.
+MDAOld	High	MDAMB231_4N		unresolved	Legacy dose-response label; real CLONEID origin still needs curation.

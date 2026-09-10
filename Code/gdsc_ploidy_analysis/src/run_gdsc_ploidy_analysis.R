@@ -92,9 +92,9 @@ run_enrichment_heatmap_plots <- function(workbook, output_dir, source_dir, categ
   )
 }
 
-data_dir <- file.path(base_dir, "data")
-raw_data_dir <- file.path(data_dir, "raw")
 repo_root <- normalizePath(file.path(base_dir, "..", ".."), mustWork = TRUE)
+data_dir <- file.path(repo_root, "Data", "public_data", "gdsc")
+raw_data_dir <- file.path(data_dir, "raw")
 default_out_dir <- file.path(
   repo_root,
   "Results",

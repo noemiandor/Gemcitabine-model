@@ -8,9 +8,9 @@ The default entrypoint reproduces the historical `BREAST_CCLE_PathwaysPloidy_dep
 
 - `run_ccle_ploidy_analysis.R`: command-line entrypoint
 - `src/`: maintained analysis, plotting, metadata, and helper code
-- `data/raw/`: local input files required by the analysis
-- `data/manual/`: manually curated breast CCLE ploidy table from the historical scripts
-- `data/derived/`: reduced derived inputs needed for filtering, including CCLE expression column names
+- `../../Data/public_data/ccle/raw/`: local input files required by the analysis
+- `../../Data/public_data/ccle/manual/`: manually curated breast CCLE ploidy table
+- `../../Data/public_data/ccle/derived/`: reduced inputs used for filtering
 - `references/`: historical scripts retained for provenance
 - `tests/`: smoke and baseline comparison scripts
 - `baseline/`: reference outputs for the default Z Score analysis
@@ -18,19 +18,20 @@ The default entrypoint reproduces the historical `BREAST_CCLE_PathwaysPloidy_dep
 
 ## Inputs
 
-The default Z Score analysis uses:
+The default Z Score analysis uses the following paths relative to
+[`Data/public_data/ccle/`](../../Data/public_data/ccle/):
 
-- `data/raw/Cell_app_export.txt`
-- `data/raw/DrugAliases.txt`
-- `data/raw/breast_cancer_drug_sensitivity/*.tsv`
-- `data/manual/breast_ccle_ploidy.tsv`
-- `data/derived/ccle_expression_columns.tsv`
+- `raw/Cell_app_export.txt`
+- `raw/DrugAliases.txt`
+- `raw/breast_cancer_drug_sensitivity/*.tsv`
+- `manual/breast_ccle_ploidy.tsv`
+- `derived/ccle_expression_columns.tsv`
 
-`data/derived/ccle_expression_columns.tsv` stores only the sample names from the original CCLE expression matrix because the drug-ploidy plot only needs expression availability for cell-line filtering, not expression values.
+`derived/ccle_expression_columns.tsv` stores only the sample names from the original CCLE expression matrix because the drug-ploidy plot only needs expression availability for cell-line filtering, not expression values.
 
 The optional grbrowser analysis also uses:
 
-- `data/raw/grbrowser/*.tsv`
+- `raw/grbrowser/*.tsv`
 
 ## Outputs
 

@@ -5,11 +5,13 @@ Figure 1 and related public-data support panels.
 
 ## Inputs
 
-The active workflow uses three local inputs:
+The active workflow uses three local inputs under
+[`Data/public_data/gdsc/`](../../Data/public_data/gdsc/). Paths below are relative
+to that dataset directory, not to the code directory:
 
-- `data/raw/GDSC2_fitted_dose_response_24Jul22.txt`
-- `data/raw/ploidyAcrossCellLines_V1.txt`
-- `data/manual/drug_class_final_used_with_primary_secondary_corrected.xlsx`
+- `raw/GDSC2_fitted_dose_response_24Jul22.txt`
+- `raw/ploidyAcrossCellLines_V1.txt`
+- `manual/drug_class_final_used_with_primary_secondary_corrected.xlsx`
 
 The reviewed workbook is the only drug-class assignment source. The workbook
 was compiled and reviewed from PubChem and DrugBank drug-class/mechanism

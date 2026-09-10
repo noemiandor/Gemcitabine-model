@@ -31,7 +31,7 @@ input_run <- normalizePath(arg_value(
 ))
 drug_class_workbook <- normalizePath(arg_value(
   "drug-class-workbook",
-  file.path(module_dir, "data", "manual", "drug_class_final_used_with_primary_secondary_corrected.xlsx")
+  file.path(repo_root, "Data", "public_data", "gdsc", "manual", "drug_class_final_used_with_primary_secondary_corrected.xlsx")
 ))
 output_dir <- arg_value(
   "output-dir",

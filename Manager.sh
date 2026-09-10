@@ -18,7 +18,7 @@ jobs=1
 
 gdsc_analysis_mode="manuscript"
 gdsc_enrichment_permute_n="1000"
-gdsc_drug_class_workbook="Code/gdsc_ploidy_analysis/data/manual/drug_class_final_used_with_primary_secondary_corrected.xlsx"
+gdsc_drug_class_workbook="Data/public_data/gdsc/manual/drug_class_final_used_with_primary_secondary_corrected.xlsx"
 
 pkpd_saved_fit="Data/in-vitro/pkpd_live_dead_model/invitro_fitting_outputs/alsoGoodFit_20260514T093906"
 pkpd_fit_model_preset="beta_hill_baseline_confluence"
@@ -30,7 +30,7 @@ refresh_cloneid_ploidy=false
 lci_analysis_dir=""
 lci_render=false
 lci_panel_only=false
-metabolomics_input="Code/Gemcitabine_Metabolomics_Heatmap/Metabolomics_2N_4N_Full.xlsm"
+metabolomics_input="Data/in-vitro/metabolomics/raw/Metabolomics_2N_4N_Full.xlsm"
 figure7_full_analysis=false
 figure7_panels_ae_only=false
 figure7_tgi_day="17"
@@ -573,17 +573,17 @@ input_paths_for_module() {
   case "${module}" in
     gdsc)
       printf "%s\n" \
-        Code/gdsc_ploidy_analysis/data/raw/GDSC2_fitted_dose_response_24Jul22.txt \
-        Code/gdsc_ploidy_analysis/data/raw/ploidyAcrossCellLines_V1.txt \
+        Data/public_data/gdsc/raw/GDSC2_fitted_dose_response_24Jul22.txt \
+        Data/public_data/gdsc/raw/ploidyAcrossCellLines_V1.txt \
         "${gdsc_drug_class_workbook}"
       ;;
     ccle)
       printf "%s\n" \
-        Code/ccle_ploidy_analysis/data/raw/Cell_app_export.txt \
-        Code/ccle_ploidy_analysis/data/manual/breast_ccle_ploidy.tsv \
-        Code/ccle_ploidy_analysis/data/raw/DrugAliases.txt \
-        Code/ccle_ploidy_analysis/data/derived/ccle_expression_columns.tsv
-      printf "%s\n" Code/ccle_ploidy_analysis/data/raw/breast_cancer_drug_sensitivity/*.tsv
+        Data/public_data/ccle/raw/Cell_app_export.txt \
+        Data/public_data/ccle/manual/breast_ccle_ploidy.tsv \
+        Data/public_data/ccle/raw/DrugAliases.txt \
+        Data/public_data/ccle/derived/ccle_expression_columns.tsv
+      printf "%s\n" Data/public_data/ccle/raw/breast_cancer_drug_sensitivity/*.tsv
       ;;
     drug_response)
       printf "%s\n" \

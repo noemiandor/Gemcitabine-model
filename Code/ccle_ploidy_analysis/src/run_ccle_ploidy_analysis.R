@@ -17,13 +17,14 @@ split_arg <- function(x) {
 }
 
 default_paths <- function(base_dir) {
+  data_dir <- file.path(base_dir, "..", "..", "Data", "public_data", "ccle")
   list(
-    app_cl = file.path(base_dir, "data", "raw", "Cell_app_export.txt"),
-    expression_columns = file.path(base_dir, "data", "derived", "ccle_expression_columns.tsv"),
-    ploidy = file.path(base_dir, "data", "manual", "breast_ccle_ploidy.tsv"),
-    drug_aliases = file.path(base_dir, "data", "raw", "DrugAliases.txt"),
-    breast_drug_sensitivity = file.path(base_dir, "data", "raw", "breast_cancer_drug_sensitivity"),
-    grbrowser = file.path(base_dir, "data", "raw", "grbrowser")
+    app_cl = file.path(data_dir, "raw", "Cell_app_export.txt"),
+    expression_columns = file.path(data_dir, "derived", "ccle_expression_columns.tsv"),
+    ploidy = file.path(data_dir, "manual", "breast_ccle_ploidy.tsv"),
+    drug_aliases = file.path(data_dir, "raw", "DrugAliases.txt"),
+    breast_drug_sensitivity = file.path(data_dir, "raw", "breast_cancer_drug_sensitivity"),
+    grbrowser = file.path(data_dir, "raw", "grbrowser")
   )
 }
 

@@ -29,7 +29,7 @@ expect_error_like <- function(expr, pattern, label) {
   }
 }
 
-workbook <- file.path(base_dir, "data", "manual", "drug_class_final_used_with_primary_secondary_corrected.xlsx")
+workbook <- file.path(base_dir, "..", "..", "Data", "public_data", "gdsc", "manual", "drug_class_final_used_with_primary_secondary_corrected.xlsx")
 rows <- read_primary_secondary_drug_classes(workbook)
 
 if (nrow(rows) != 286L) {

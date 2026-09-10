@@ -1,2 +1,0 @@
-metric	strategy	required_columns	selection_sort_columns	input_rows	duplicate_rows	duplicate_keys	resolved_rows	removed_rows
-Z_SCORE	lowest_rmse	DRUG_NAME;CELL_LINE_NAME;Z_SCORE;RMSE	DRUG_NAME;CELL_LINE_NAME;is.na(RMSE);RMSE;NLME_RESULT_ID;NLME_CURVE_ID;DRUG_ID;COSMIC_ID	242036	13232	6611	235415	6621
