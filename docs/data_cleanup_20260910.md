@@ -45,8 +45,10 @@ to retired paths as provenance; that is not an active analysis dependency.
   untracked experimental exports are retained as unresolved archival data.
   The archived tracking code refers to WGD result basenames; deleting them
   solely because their directory is not named in code would be unsafe.
-- `Data/M00_GemcitabinePKPD_101823/` is referenced by archived PK plotting code;
-  it is retained rather than reported as unused by every script.
+- `Data/M00_GemcitabinePKPD_101823/` was initially retained because its name
+  appears in archived PK preparation code. Follow-up inspection established
+  that its six text files are outputs of that script, not inputs. They were
+  removed in the subsequent root cleanup described below.
 - The endpoint FCS/workspace dataset is used by the SI9 replay workflow. Its
   ~203 MiB should be deposited with a tested retrieval contract before removal.
 - Reviewed Figure 7 references, older references used by tests/audits, the 11
@@ -83,3 +85,35 @@ to delete a file. The cleanup is conservative where dependencies are unresolved.
 - The original Figure 3 measurement file has trailing empty TSV fields. Those
   represent missing measurements and were preserved, despite Git's whitespace
   warning; scientific inputs were not reformatted.
+
+## Follow-up: obsolete PK exports and repository root
+
+After confirming that the manuscript is maintained in a separate repository:
+
+- Removed the six `Data/M00_GemcitabinePKPD_101823/nM1000_*.txt` exports. The
+  active model reads the retained
+  `Data/in-vitro/pkpd_live_dead_model/raw/drugKinetics/GemcitabineExposure_PKPD.xlsx`
+  workbook directly. Archived preparation code writes these old TXT exports;
+  no active workflow consumes them.
+- Removed `GemcitabinePaper.tex`, `main.tex`, `references.bib`,
+  `references_Zotero.bib`, `llncs.cls`, `stfloats.sty`, `nihunsrt.bst`, and
+  `unsrt85.bst` from this repository. These files were unchanged relative to
+  Git and remain recoverable from history.
+- Removed obsolete manuscript-working documents `integrated_figure_legends.md`,
+  `legend_validation_report.md`, and `feedback_manager_context.md`. Their
+  descriptions of panel 7I predate the current analysis.
+- Moved `Gemcitabine_inVivo_projectSummary_042225.docx` into `docs/Archive/`.
+- Inspected `figures.zip`: 25 figure/manifest entries plus archive metadata;
+  several differ from the current publication assets. Preserved the ZIP intact
+  at `docs/Archive/figures_20260701.zip` as an ignored local historical copy,
+  rather than deleting potentially unique older figures or adding them to Git.
+- Removed untracked LaTeX build files (`GemcitabinePaper.aux`, `.fdb_latexmk`,
+  `.fls`, `.log`, `.out`) and the ignored `Rplots.pdf`. These generated files
+  are not source data.
+- Added root-scoped ignore rules for manuscript sources and build products so
+  they are not accidentally reintroduced. The root retains `README.md`,
+  `Manager.sh`, and `.gitignore` as maintained top-level files.
+
+Historical documentation may still name the old manuscript files as provenance;
+no active figure-generation code requires them. Existing uncommitted Figure 7
+edits were not included in these changes.

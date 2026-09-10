@@ -4,6 +4,21 @@
 **/__pycache__/
 Rplots.pdf
 
+# Manuscript sources and LaTeX build products are maintained in a separate repo.
+/*.tex
+/*.bib
+/*.bst
+/*.cls
+/*.sty
+/*.aux
+/*.fdb_latexmk
+/*.fls
+/*.log
+/*.out
+
+# Local historical figure bundle retained during root cleanup; not source data.
+/docs/Archive/figures_20260701.zip
+
 Figs/
 
 Results/_validation/
