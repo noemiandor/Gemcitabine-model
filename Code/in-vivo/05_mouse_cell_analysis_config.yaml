@@ -1,0 +1,298 @@
+analysis_name: 05_mouse_cell_analysis
+input_root: /share/lab_crd/HighPloidy_CostBenefits/data/BreastCancerOrthotopicModels/SUM-159/A02_cellRanger
+results_root: /share/lab_crd/taoli/Project/BreastCancerOrthotopicModels/Results/05_mouse_cell_analysis
+
+# Frozen April 2025 xenograft-tissue inputs.
+# The two cell-line samples (2N-Cell-Culture and 4N-Cell-Culture), later
+# top-level August 2025 reruns, and the two -M samples are excluded.
+sample_sources:
+  2N-A1-0: 2N-A1-0-Count-HM/outs/filtered_feature_bc_matrix
+  2N-A1-LR: 2N-A1-LR-Count-HM/outs/filtered_feature_bc_matrix
+  2N-A1-R: 2N-A1-R-Count-HM/outs/filtered_feature_bc_matrix
+  2N-A1-RR: 2N-A1-RR-Count-HM/outs/filtered_feature_bc_matrix
+  2N-A2-0: 2N-A2-0-Count-HM/outs/filtered_feature_bc_matrix
+  2N-A2-L: 2N-A2-L-Count-HM/outs/filtered_feature_bc_matrix
+  2N-A4-R: 2N-A4-R-Count-HM/outs/filtered_feature_bc_matrix
+  2N-A4-RL: 2N-A4-RL-Count-HM/outs/filtered_feature_bc_matrix
+  4N-A5-0: Run_1/4N-A5-0-Count-HM/outs/filtered_feature_bc_matrix
+  4N-A5-RR: Run_1/4N-A5-RR-Count-HM/outs/filtered_feature_bc_matrix
+  4N-A8-RL: Run_1/4N-A8-RL-Count-HM/outs/filtered_feature_bc_matrix
+  4N-A8-RR: Run_1/4N-A8-RR-Count-HM/outs/filtered_feature_bc_matrix
+  A5-4N-L: Run_1/A5-4N-L-Count-HM/outs/filtered_feature_bc_matrix
+  A5-4N-R: Run_1/A5-4N-R-Count-HM/outs/filtered_feature_bc_matrix
+  A6-4N-O: Run_1/A6-4N-O-Count-HM/outs/filtered_feature_bc_matrix
+  A6-4N-RR: Run_1/A6-4N-RR-Count-HM/outs/filtered_feature_bc_matrix
+
+species:
+  human_prefix: GRCh38_
+  mouse_prefix: GRCm39_
+  expected_human_features: 38606
+  expected_mouse_features: 33696
+  mouse_fraction_min: 0.90
+
+qc:
+  min_features: 200
+  min_counts: 500
+  max_percent_mt: 20
+  max_features_quantile: 0.99
+  max_counts_quantile: 0.99
+  scdblfinder_min_cells: 100
+  seed: 1234
+
+integration:
+  nfeatures: 3000
+  # Largest retained 2N and 4N tissue samples; reference-based CCA avoids the
+  # 2^31-1 sparse-matrix limit reached by the full 16-sample all-pairs graph.
+  reference_samples:
+    - 2N-A1-0
+    - 4N-A5-RR
+  npcs_compute: 50
+  dims_use: 30
+  cluster_resolution: 0.6
+  future_strategy: multicore
+  future_workers: 62
+  future_globals_maxsize_gb: 450
+  seed: 1234
+
+markers:
+  min_pct: 0.10
+  logfc_threshold: 0.25
+
+annotation:
+  # 05e is a review-only gate. Literature-curated mouse markers are displayed
+  # across the 05d clusters alongside positive cluster DEGs. No cell-level
+  # classifier, automatic cluster label, or annotated object is produced until
+  # the manual review table has been completed and explicitly approved.
+  method: cluster_DEG_manual_literature_marker_review
+  top_cluster_markers: 50
+  broad_marker_resource: annotation_resources/mouse_broad_celltype_markers.csv
+  immune_marker_resource: annotation_resources/mouse_immune_subtype_markers.csv
+  review_output_directory: 05e_broad_annotation_marker_review
+  approved_cluster_mapping: annotation_resources/mouse_broad_cluster_annotations.csv
+  broad_annotation_output_directory: 05f_broad_celltype_annotation
+  manual_broad_celltype_order:
+    - Neutrophil
+    - Macrophage
+    - Monocyte/macrophage-like
+    - Ambiguous mixed myeloid
+    - Fibroblast
+    - Lymphatic endothelial
+    - Mammary epithelial
+    - Erythroid
+  manual_broad_celltype_colors:
+    Neutrophil: "#E67E22"
+    Macrophage: "#8C6D31"
+    Monocyte/macrophage-like: "#D4A72C"
+    Ambiguous mixed myeloid: "#6E7781"
+    Fibroblast: "#6C5B7B"
+    Lymphatic endothelial: "#2A9D8F"
+    Mammary epithelial: "#D95F5F"
+    Erythroid: "#B2182B"
+  # Fixed colors for the non-immune labels in the final 05g UMAP. Immune
+  # labels use immune_composition.subtype_colors below.
+  final_nonimmune_colors:
+    Adipocyte: "#E9C46A"
+    Endothelial: "#2A9D8F"
+    Epithelial: "#D95F5F"
+    Erythrocyte: "#B2182B"
+    Fibroblast: "#6C5B7B"
+    Pericyte / smooth muscle: "#8C564B"
+    Other stromal: "#BC80BD"
+    Other tissue: "#8D99AE"
+    Ambiguous: "#B8BDC5"
+    Immune: "#4D4D4D"
+
+immune_fine_annotation:
+  # Stage 2 begins from the manually approved 05f broad annotations. 05g is a
+  # review-only gate; 05h can apply labels only from a separately approved
+  # existing-cluster mapping. State markers never establish lineage.
+  confirmed_broad_cell_types:
+    - Neutrophil
+    - Macrophage
+    - Monocyte/macrophage-like
+  candidate_broad_cell_types:
+    - Ambiguous mixed myeloid
+  existing_review_output_directory: 05g_existing_immune_marker_review
+  approved_existing_cluster_mapping: annotation_resources/mouse_existing_immune_cluster_annotations.csv
+  existing_annotation_output_directory: 05h_existing_immune_cluster_annotation
+  min_support_markers: 3
+  max_support_markers: 5
+  lineage_order:
+    - Neutrophil
+    - Classical monocyte
+    - Non-classical monocyte
+    - Macrophage
+    - cDC1
+    - cDC2
+    - pDC
+    - Mast cell
+    - Eosinophil
+    - Basophil
+    - Ambiguous
+    - Unresolved
+  lineage_colors:
+    Neutrophil: "#E67E22"
+    Classical monocyte: "#D4A72C"
+    Non-classical monocyte: "#F2C14E"
+    Macrophage: "#8C6D31"
+    cDC1: "#377EB8"
+    cDC2: "#4DAF4A"
+    pDC: "#984EA3"
+    Mast cell: "#A65628"
+    Eosinophil: "#F781BF"
+    Basophil: "#999999"
+    Ambiguous: "#6E7781"
+    Unresolved: "#C5C9CE"
+  state_order:
+    - Immature-like neutrophil
+    - Granule-high neutrophil
+    - IFN-responsive neutrophil
+    - Inflammatory neutrophil
+    - Hypoxic neutrophil
+    - CXCR4-high aged-like neutrophil
+    - Spp1-high inflammatory neutrophil
+    - Saa/Chil-high inflammatory-like neutrophil
+    - C1q-TREM2 macrophage
+    - Spp1-remodeling macrophage
+    - MHCII-high macrophage
+    - Mrc1-Folr2 macrophage
+    - Mixed
+    - Unresolved
+  state_colors:
+    Immature-like neutrophil: "#66A61E"
+    Granule-high neutrophil: "#E67E22"
+    IFN-responsive neutrophil: "#0086A8"
+    Inflammatory neutrophil: "#D73027"
+    Hypoxic neutrophil: "#7B3294"
+    CXCR4-high aged-like neutrophil: "#8C6BB1"
+    Spp1-high inflammatory neutrophil: "#A63603"
+    Saa/Chil-high inflammatory-like neutrophil: "#BCBD22"
+    C1q-TREM2 macrophage: "#8C6D31"
+    Spp1-remodeling macrophage: "#B15928"
+    MHCII-high macrophage: "#1B9E77"
+    Mrc1-Folr2 macrophage: "#66C2A5"
+    Mixed: "#6E7781"
+    Unresolved: "#C5C9CE"
+
+myeloid:
+  # 05h first annotates the existing 05d Neutrophil clusters directly. 05i-05l
+  # then independently extract, integrate, recluster, and reannotate the full
+  # mouse myeloid compartment. State signatures never determine lineage.
+  source_final_labels:
+    - "Immune: Neutrophil"
+    - "Immune: Monocyte"
+    - "Immune: Macrophage"
+  existing_neutrophil_label: "Immune: Neutrophil"
+  existing_state_top_markers:
+    - 50
+    - 100
+  lineage_top_markers: 100
+  lineage_source_dominance_min: 0.70
+  state_top_markers:
+    - 50
+    - 100
+  min_signature_overlap: 2
+  mixed_f1_margin: 0.005
+  cluster_resolutions:
+    - 0.2
+    - 0.4
+    - 0.6
+    - 0.8
+    - 1.0
+  primary_resolution: 0.6
+  state_order:
+    - Hypoxic
+    - IFN-responsive
+    - Inflammatory
+    - Granule-high
+    - Immature-like
+    - CXCR4-high/aged-like
+    - Mixed
+    - Unresolved
+  state_colors:
+    Hypoxic: "#7B3294"
+    IFN-responsive: "#0086A8"
+    Inflammatory: "#D73027"
+    Granule-high: "#E67E22"
+    Immature-like: "#66A61E"
+    CXCR4-high/aged-like: "#8C6BB1"
+    Mixed: "#6E7781"
+    Unresolved: "#C5C9CE"
+  lineage_colors:
+    Neutrophil: "#E67E22"
+    Monocyte: "#D4A72C"
+    Macrophage: "#8C6D31"
+    Mixed: "#6E7781"
+    Unresolved: "#C5C9CE"
+
+unified_census:
+  # The established human pipeline object defines the retained human-tumor
+  # universe. Human and mouse matrices are never co-integrated; sample plus raw
+  # Cell Ranger barcode is used only to build a common captured-cell census.
+  human_integrated_rdata: /share/lab_crd/HighPloidy_CostBenefits/data/BreastCancerOrthotopicModels/SUM-159/C03_Integration/integrated_2025-04-17.RData
+  human_object_name: integrated
+  human_sample_column: orig.ident
+  human_fraction_min: 0.90
+  mixed_cell_rule: below both 90-percent species thresholds
+
+immune_composition:
+  # The authoritative immune definition will be supplied by the manually
+  # approved Stage-2 final annotation, not the 05f broad candidate labels.
+  final_label_prefix: "Immune:"
+  excluded_samples:
+    - 2N-Cell-Culture
+    - 4N-Cell-Culture
+  sample_metadata_source: Data/in-vivo/sample_info.xlsx
+  sample_metadata_source_sha256: 3e8a86b189a4ec61a7cbd3bbf1d0cb7cb30dd2ab3a326d91a67f83aaca63b784
+  ploidy_order:
+    - 2N
+    - 4N
+  dose_order:
+    - 0
+    - 30
+    - 120
+  # Explicit transcription of sample_info.xlsx (Sheet1!A1:D17). Keeping this
+  # mapping in the run config avoids inferring Dose from animal/harvest suffixes.
+  sample_metadata:
+    2N-A1-0: {Ploidy: 2N, Dose: 0}
+    2N-A1-LR: {Ploidy: 2N, Dose: 0}
+    2N-A1-R: {Ploidy: 2N, Dose: 0}
+    2N-A1-RR: {Ploidy: 2N, Dose: 0}
+    2N-A2-0: {Ploidy: 2N, Dose: 30}
+    2N-A2-L: {Ploidy: 2N, Dose: 30}
+    2N-A4-R: {Ploidy: 2N, Dose: 120}
+    2N-A4-RL: {Ploidy: 2N, Dose: 120}
+    4N-A5-0: {Ploidy: 4N, Dose: 0}
+    4N-A5-RR: {Ploidy: 4N, Dose: 0}
+    4N-A8-RL: {Ploidy: 4N, Dose: 120}
+    4N-A8-RR: {Ploidy: 4N, Dose: 120}
+    A5-4N-L: {Ploidy: 4N, Dose: 0}
+    A5-4N-R: {Ploidy: 4N, Dose: 0}
+    A6-4N-O: {Ploidy: 4N, Dose: 30}
+    A6-4N-RR: {Ploidy: 4N, Dose: 30}
+  subtype_order:
+    - T cell
+    - NK cell
+    - B cell
+    - Plasma cell
+    - Monocyte
+    - Macrophage
+    - Neutrophil
+    - Dendritic cell
+    - Mast cell
+    - Other immune
+    - Ambiguous
+  # Single source of truth for immune-lineage colors. These exact colors are
+  # used in the 05g/05m UMAPs and every immune-lineage plot produced by 05z.
+  subtype_colors:
+    T cell: "#3B6FB6"
+    NK cell: "#78A7D2"
+    B cell: "#C45A8D"
+    Plasma cell: "#E88AB5"
+    Monocyte: "#D4A72C"
+    Macrophage: "#8C6D31"
+    Neutrophil: "#E67E22"
+    Dendritic cell: "#7A8F3A"
+    Mast cell: "#9A6BB5"
+    Other immune: "#6E7781"
+    Ambiguous: "#C5C9CE"

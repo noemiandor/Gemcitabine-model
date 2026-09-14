@@ -1,0 +1,21 @@
+cluster,broad_cell_type,confidence,evidence_tier,annotation_basis,review_status
+0,Neutrophil,high,confirmed,"Csf3r/Retnlg/S100a8/S100a9 lineage with hypoxic cluster DEGs",manually_approved
+1,Neutrophil,high,confirmed,"Coherent Csf3r/Retnlg/S100a8/S100a9 neutrophil lineage",manually_approved
+2,Neutrophil,high,confirmed,"Coherent Csf3r/Retnlg/S100a8/S100a9 neutrophil lineage with inflammatory DEGs",manually_approved
+3,Neutrophil,high,confirmed,"Coherent neutrophil lineage with IFN-response cluster DEGs",manually_approved
+4,Neutrophil,high,confirmed,"Coherent neutrophil lineage with inflammatory chemokine DEGs",manually_approved
+5,Neutrophil,high,confirmed,"Coherent neutrophil lineage with Spp1/inflammatory state DEGs",manually_approved
+6,Neutrophil,high,confirmed,"Coherent Csf3r/Retnlg/S100a8/S100a9 neutrophil lineage",manually_approved
+7,Neutrophil,high,confirmed,"Retnlg/Wfdc17/Wfdc21/S100a8/S100a9 granule-high neutrophil DEGs",manually_approved
+8,Macrophage,high,confirmed,"C1qa/C1qb/C1qc/Apoe/Ms4a7/Mafb/Mertk macrophage program",manually_approved
+9,Neutrophil,high,confirmed,"Retnlg/S100a8/S100a9 and granulocyte protease inhibitor DEGs",manually_approved
+10,Macrophage,high,confirmed,"C1qa/C1qb/C1qc/Apoe/Cd74/Ms4a7 macrophage program",manually_approved
+11,Neutrophil,high,confirmed,"Ngp/Ltf/Camp/Lcn2/Pglyrp1 immature-granule neutrophil program",manually_approved
+12,Neutrophil,medium,confirmed_with_caveat,"Csf3r/Retnlg/S100a8/S100a9 lineage; lower RNA complexity and unresolved state",manually_approved
+13,Neutrophil,high,confirmed,"Csf3r/Retnlg/S100a8/S100a9 lineage with HSP-high hypoxic-like state",manually_approved
+14,Ambiguous mixed myeloid,low,unresolved,"Mitochondrial-high cluster with mixed neutrophil and macrophage markers",manually_approved
+15,Fibroblast,high,confirmed,"Col1a1/Col1a2/Col3a1/Dcn/Sparc fibroblast program",manually_approved
+16,Lymphatic endothelial,high,confirmed,"Ccl21a/Lyve1/Cdh5/Flt4/Prox1 lymphatic endothelial program",manually_approved
+17,Monocyte/macrophage-like,medium,confirmed_with_caveat,"Lyz2/Ccr2/Mafb/Cd74/MHC-II monocyte-macrophage program",manually_approved
+18,Mammary epithelial,high,confirmed,"Epcam/Krt8/Krt18/Krt19 mammary epithelial program",manually_approved
+19,Erythroid,high,confirmed,"Hba/Hbb/Alas2/Slc4a1 erythroid program",manually_approved
